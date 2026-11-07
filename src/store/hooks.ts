@@ -1,3 +1,4 @@
+import { TOOL_KEYS } from '../ui/Toolbar';
 import { useEffect } from 'react';
 import { useStore } from './store';
 import { loadLocal, saveLocal } from './persist';
@@ -82,6 +83,9 @@ export function useKeyboard() {
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();
+      } else if (!mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
+        const tool = TOOL_KEYS[e.key.toLowerCase()];
+        if (tool !== 'panel' || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

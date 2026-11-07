@@ -1,19 +1,32 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
-import { setMaterial, createDesign } from '../model/ops';
-import { changeMaterial } from '../templates/registry';
+import { createDesign } from '../model/ops';
 import { parseProject, serializeProject, ProjectError } from '../model/serialize';
 import { downloadText, safeName } from './download';
+import { Icon, Logo } from './icons';
 
 export function TopBar() {
   const t = useT();
   const s = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const d = s.design;
   const builtIn = MATERIALS.find((m) => m.id === d.material.id);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: PointerEvent) => !menuRef.current?.contains(e.target as Node) && setMenu(false);
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', key);
+    };
+  }, [menu]);
   const open = async (f: File) => {
     try {
       const design = parseProject(await f.text());
@@ -23,72 +36,59 @@ export function TopBar() {
       alert(t('dlg.openFailed', { reason }));
     }
   };
+  const item = (fn: () => void) => () => {
+    setMenu(false);
+    fn();
+  };
+  const saveIcon = s.saveState === 'failed' ? 'alert' : s.saveState === 'saving' ? 'saving' : 'saved';
+  const saveText = s.saveState === 'saving' ? t('top.saving') : s.saveState === 'failed' ? t('top.saveFailed') : t('top.saved');
   return (
     <header className="topbar">
       <div className="brand">
-        <strong>{t('app.name')}</strong>
+        <Logo />
+        <span className="hide-narrow">{t('app.name')}</span>
       </div>
-      <input
-        className="design-name"
-        aria-label={t('top.designName')}
-        placeholder={t('top.untitled')}
-        value={d.name}
-        onChange={(e) => s.preview((dd) => void (dd.name = e.target.value))}
-        onBlur={() => s.commit()}
-        dir="auto"
-      />
-      <div className="field inline">
-        <label htmlFor="mat-select">{t('top.material')}</label>
-        <select
-          id="mat-select"
-          data-testid="material-select"
-          value={builtIn ? builtIn.id : 'custom'}
-          onChange={(e) => {
-            const m = MATERIALS.find((x) => x.id === e.target.value);
-            if (!m) return;
-            if (d.template) {
-              const r = changeMaterial(d, m);
-              s.apply((dd) => void Object.assign(dd, JSON.parse(JSON.stringify(r.design))));
-            } else s.apply((dd) => setMaterial(dd, m));
+      <span className="sep" />
+      <div className="proj" ref={menuRef}>
+        <input
+          className="design-name"
+          aria-label={t('top.designName')}
+          placeholder={t('top.untitled')}
+          value={d.name}
+          onChange={(e) => s.preview((dd) => void (dd.name = e.target.value))}
+          onBlur={() => s.commit()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            e.stopPropagation();
           }}
-        >
-          {MATERIALS.map((m) => (
-            <option key={m.id} value={m.id}>
-              {t(m.nameKey as 'mat.ply3')}
-            </option>
-          ))}
-          {!builtIn && <option value="custom">{t('mat.custom')}</option>}
-        </select>
-      </div>
-      <div className="seg" role="tablist">
-        <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
-          {t('top.view3d')}
+          dir="auto"
+        />
+        <button className="ghost icon-btn" aria-haspopup="menu" aria-expanded={menu} aria-label={t('top.projectMenu')} title={t('top.projectMenu')} onClick={() => setMenu((m) => !m)} data-testid="project-menu">
+          <Icon name="chevDown" />
         </button>
-        <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
-          {t('top.view2d')}
-        </button>
-      </div>
-      <div className="group">
-        <button onClick={s.undo} disabled={!s.past.length} title="Ctrl+Z" data-testid="undo">
-          {t('top.undo')}
-        </button>
-        <button onClick={s.redo} disabled={!s.future.length} title="Ctrl+Shift+Z" data-testid="redo">
-          {t('top.redo')}
-        </button>
-      </div>
-      <div className="spacer" />
-      <span className={`save-state ${s.saveState}`} role="status" data-testid="save-state">
-        {s.saveState === 'saving' ? t('top.saving') : s.saveState === 'saved' ? t('top.saved') : s.saveState === 'failed' ? t('top.saveFailed') : ''}
-      </span>
-      <div className="group">
-        <button
-          onClick={() => {
-            if (!d.order.length || confirm(t('dlg.newConfirm'))) useStore.getState().replaceDesign(createDesign(d.material), true);
-          }}
-        >
-          {t('top.new')}
-        </button>
-        <button onClick={() => fileRef.current?.click()}>{t('top.openProject')}</button>
+        {menu && (
+          <div className="menu" role="menu">
+            <button
+              role="menuitem"
+              onClick={item(() => {
+                if (!d.order.length || confirm(t('dlg.newConfirm'))) useStore.getState().replaceDesign(createDesign(d.material), true);
+              })}
+              data-testid="new-design"
+            >
+              <Icon name="file" /> {t('top.new')}
+            </button>
+            <button role="menuitem" onClick={item(() => fileRef.current?.click())}>
+              <Icon name="open" /> {t('top.openProject')}
+            </button>
+            <button role="menuitem" onClick={item(() => downloadText(`${safeName(d.name)}.cutforge.json`, serializeProject(d), 'application/json'))} data-testid="save-project">
+              <Icon name="save" /> {t('top.saveProject')}
+            </button>
+            <hr />
+            <button role="menuitem" className="muted" onClick={item(() => (location.hash = '#/teacher'))} data-testid="open-teacher">
+              <Icon name="teacher" /> {t('teach.open')}
+            </button>
+          </div>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -101,19 +101,37 @@ export function TopBar() {
             e.target.value = '';
           }}
         />
-        <button onClick={() => downloadText(`${safeName(d.name)}.cutforge.json`, serializeProject(d), 'application/json')} data-testid="save-project">
-          {t('top.saveProject')}
+      </div>
+      <button className="mat-pill" onClick={() => s.set({ drawerOpen: true })} aria-label={t('drawer.open')} title={t('drawer.open')} data-testid="material-pill">
+        <span className={`swatch ${d.material.kind}`} />
+        <span>{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
+        <Icon name="chevDown" size={16} />
+      </button>
+      <div className="seg" role="tablist">
+        <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
+          {t('top.view3d')}
         </button>
-        <button onClick={() => setSubmitOpen(true)} data-testid="open-submit">
-          {t('sub.button')}
-        </button>
-        <button className="primary" onClick={() => s.set({ exportOpen: true })} data-testid="open-export">
-          {t('top.download')}
+        <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
+          {t('top.view2d')}
         </button>
       </div>
-      <a href="#/teacher" className="btn subtle" data-testid="open-teacher">
-        {t('teach.open')}
-      </a>
+      <button className="ghost icon-btn" onClick={s.undo} disabled={!s.past.length} title="Ctrl+Z" aria-label={t('top.undo')} data-testid="undo">
+        <Icon name="undo" />
+      </button>
+      <button className="ghost icon-btn" onClick={s.redo} disabled={!s.future.length} title="Ctrl+Shift+Z" aria-label={t('top.redo')} data-testid="redo">
+        <Icon name="redo" />
+      </button>
+      <div className="spacer" />
+      <span className={`save-state ${s.saveState}`} role="status" title={saveText} aria-label={saveText} data-testid="save-state">
+        {s.saveState !== 'idle' && <Icon name={saveIcon} />}
+        <span className="sr-only">{s.saveState !== 'idle' ? saveText : ''}</span>
+      </span>
+      <button onClick={() => setSubmitOpen(true)} data-testid="open-submit">
+        {t('sub.button')}
+      </button>
+      <button className="primary" onClick={() => s.set({ exportOpen: true })} data-testid="open-export">
+        {t('top.download')}
+      </button>
       {submitOpen && <SubmitDialog onClose={() => setSubmitOpen(false)} />}
       <button className="lang" onClick={() => s.setLang(s.lang === 'en' ? 'he' : 'en')} title={t('lang.toggleTitle')} data-testid="lang-toggle" lang={s.lang === 'en' ? 'he' : 'en'}>
         {t('lang.toggle')}

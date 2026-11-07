@@ -1,6 +1,8 @@
 // Inspector sections for several shapes at once, and for a shape's live array.
 import { detailSel, useStore, useT } from '../store/store';
-import { NumField } from './NumField';
+import { NumField, Stepper } from './NumField';
+import { Icon } from './icons';
+import { panelLabel } from '../model/names';
 import { alignDetails, commonSurface, deleteDetails, distributeDetails, duplicateDetails, explodeArray, scaleDetails, setArray, type AlignMode, type DistributeMode } from '../model/edit';
 import { findDetail, setText } from '../model/ops';
 import { FONTS } from '../text/fonts';
@@ -23,11 +25,13 @@ export function MultiSelection({ ids }: { ids: string[] }) {
   const mm = t('unit.mm');
   return (
     <section data-testid="inspector-multi">
-      <h3>{t('multi.title', { n: ids.length })}</h3>
-      <p className="note">{one ? t('multi.panel', { panel: one.name }) : t('multi.panels', { n: panels.length })}</p>
+      <p className="kicker">{one ? t('multi.panel', { panel: panelLabel(d, one.id, t) }) : t('multi.panels', { n: panels.length })}</p>
+      <div className="card-head">
+        <h3>{t('multi.title', { n: ids.length })}</h3>
+      </div>
       {box && (
         <>
-          <h4>{t('multi.size')}</h4>
+          <h4 className="section-title">{t('multi.size')}</h4>
           <NumField
             label={t('insp.width')}
             value={box.maxX - box.minX}
@@ -48,10 +52,10 @@ export function MultiSelection({ ids }: { ids: string[] }) {
       )}
       <h4>{t('multi.align')}</h4>
       {!surface && <p className="warn-text" data-testid="align-unavailable">{t('multi.differentPlanes')}</p>}
-      <div className="btn-grid">
+      <div className="btn-grid icons">
         {ALIGN.map((m) => (
-          <button key={m} disabled={!surface} onClick={() => apply((x) => void alignDetails(x, ids, m))} data-testid={`align-${m}`}>
-            {t(`align.${m}`)}
+          <button key={m} disabled={!surface} onClick={() => apply((x) => void alignDetails(x, ids, m))} data-testid={`align-${m}`} aria-label={t(`align.${m}`)} title={t(`align.${m}`)}>
+            <Icon name={`align-${m}`} />
           </button>
         ))}
       </div>
@@ -109,8 +113,8 @@ export function ArraySection({ dt }: { dt: Detail }) {
       <h4>
         {t('array.title')} · {t('array.count', { n: detailInstances(dt).length })}
       </h4>
-      <NumField label={t('array.nx')} value={a.nx} decimals={0} min={1} max={200} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, nx: v }))} testId="array-nx" />
-      <NumField label={t('array.ny')} value={a.ny} decimals={0} min={1} max={200} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, ny: v }))} testId="array-ny" />
+      <Stepper label={t('array.nx')} value={a.nx} min={1} max={200} slider={false} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, nx: v }))} testId="array-nx" />
+      <Stepper label={t('array.ny')} value={a.ny} min={1} max={200} slider={false} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, ny: v }))} testId="array-ny" />
       <NumField label={t('array.dx')} value={a.dx} unit={mm} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, dx: v }))} testId="array-dx" />
       <NumField label={t('array.dy')} value={a.dy} unit={mm} onCommit={(v) => apply((x) => setArray(x, dt.id, { ...a, dy: v }))} testId="array-dy" />
       <p className="note">{t('array.note')}</p>

@@ -10,6 +10,7 @@ const design = (page: Page) => S(page, () => JSON.parse(JSON.stringify((window a
 async function start(page: Page, w: number, h: number) {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;

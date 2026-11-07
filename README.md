@@ -36,9 +36,9 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 ## Using it
 
-1. Choose how to start (blank, *Organiser with dividers* or *Card / tile stand*), then a material (and the interface language: English / עברית). Template sizes are changed in the inspector when nothing is selected.
-2. **Panel** tool: drag on the floor grid to draw a flat panel. Set exact sizes in the inspector.
-3. Click an edge (or use *Grow from …* in the inspector), then **Grow panel**: a ghost shows the new panel and which side the material lies on. Pick the angle (90°, 60°, 45°, 30°, 15°), *Up/Down*, and the connection: plywood offers finger joints and tabs and slots at 90°; card and corrugated offer folds, glue flaps and tabs and slots. An angled plywood panel needs side walls (*Add side walls*).
+1. *What are you making?* Choose a material, then a template (blank, *Organiser with dividers* or *Card / tile stand*), then **Start** (the interface language toggle is on the same screen). Template sizes are in the card on the right when nothing is selected. Kerf, clearance and sheet settings are in the **Material & sheet** drawer (click the material pill in the top bar). New / Open / Save project are in the menu next to the design name.
+2. **Panel** tool (`P`): drag on the floor grid to draw a flat panel. Set exact sizes in the card, drag the teal arrows on the panel, or click the W/H labels on the stage to type a size.
+3. Hover a panel to see its free edges, click one (or use *Grow from …* in the card), then **Grow panel**: a ghost shows the new panel and which side the material lies on. Drag the ball on the angle arc at the hinge (or use the dial in the card) for 90°, 60°, 45°, 30° or 15°, the round badge on the ghost to flip *Up/Down*, the arrow to set its height, and choose the connection: plywood offers finger joints and tabs and slots at 90°; card and corrugated offer folds, glue flaps and tabs and slots. An angled plywood panel needs side walls (*Add side walls*).
    - Where panels meet without a connection (e.g. two walls at a corner), the inspector lists them under *Meeting panels* with a **Connect** button.
    - *Add a divider* on a panel with walls; crossing dividers get half-laps automatically. *Clear inside sizes* shows the compartments.
 4. **Rectangle / Rounded rectangle / Circle**: drag on a panel in 3D, or on a piece in the cut plan. Choose cut-through, engrave or score.
@@ -49,7 +49,9 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 8. **Text and icons:** the *Text* tool places Hebrew or English text (edit it in the inspector; it is exported as outlines). *Import SVG* puts a simple icon on the selected panel. Set *Copies to cut* per piece; drag pieces on the cut plan to place them by hand; *Repack* to start over.
 
-Keyboard: `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
+**View settings** (sliders icon, bottom corner): outlines on/off, dimensions on/off, quality (*Auto*, *Simple*, *Rich*), and for folded card/corrugated designs a fold/unfold slider that shows the flat net (also in the part's card).
+
+Keyboard: `V` select, `P` panel, `R` rectangle, `U` rounded rectangle, `C` circle, `T` text, `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
 
 ## LightBurn
 

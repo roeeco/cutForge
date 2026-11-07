@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useT } from '../store/store';
+import { useStore, useT } from '../store/store';
 
 const KEY = 'cutforge.hintsDismissed';
 const STEPS = ['hint.1', 'hint.2', 'hint.3', 'hint.4'] as const;
@@ -13,8 +13,12 @@ export function Hints() {
       return false;
     }
   });
-  const [i, setI] = useState(0);
+  // a design that already has panels (a template) skips "draw your first panel"
+  const first = useStore((s) => (s.design.order.length ? 1 : 0));
+  const [i, setI] = useState(first);
   if (dismissed) return null;
+  const steps = STEPS.slice(first);
+  const k = i - first;
   const close = () => {
     try {
       localStorage.setItem(KEY, '1');
@@ -26,17 +30,16 @@ export function Hints() {
   return (
     <div className="hints" role="note" data-testid="hints">
       <div className="hints-head">
-        <strong>{t('hint.title')}</strong>
-        <span className="note">{t('hint.step', { n: i + 1, total: STEPS.length })}</span>
+        <span>{t('hint.title')}</span>
+        <span>{t('hint.step', { n: k + 1, total: steps.length })}</span>
       </div>
       <p>{t(STEPS[i])}</p>
       <div className="hints-actions">
-        <button disabled={i === 0} onClick={() => setI(i - 1)}>
-          {t('hint.prev')}
+        <button className="link" onClick={close}>
+          {t('hint.skip')}
         </button>
-        {i < STEPS.length - 1 ? (
-          <button onClick={() => setI(i + 1)}>{t('hint.next')}</button>
-        ) : null}
+        {k > 0 && <button onClick={() => setI(i - 1)}>{t('hint.prev')}</button>}
+        {k < steps.length - 1 ? <button onClick={() => setI(i + 1)}>{t('hint.next')}</button> : null}
         <button className="primary" onClick={close} data-testid="hints-dismiss">
           {t('hint.dismiss')}
         </button>

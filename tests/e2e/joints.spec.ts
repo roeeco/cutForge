@@ -10,6 +10,7 @@ const select = (page: Page, id: string) => S(page, (i) => (window as any).__cutf
 async function start(page: Page, material: string, w: number, h: number) {
   await page.goto('/');
   await page.getByTestId(`mat-${material}`).click();
+  await page.getByTestId('start-go').click();
   await page.getByTestId('hints-dismiss').click();
   // a base panel of exact size (drawing by mouse is covered by the vertical-slice test)
   await page.getByTestId('tool-panel').click();
@@ -59,8 +60,10 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   expect(await issues(page)).toBe('');
 
   await select(page, base);
+  await page.getByTestId('div-toggle').click();
   await page.getByTestId('div-add').click();
   await select(page, base);
+  await page.getByTestId('div-toggle').click();
   await page.getByTestId('div-edge').selectOption('3');
   await page.getByTestId('div-add').click();
   const d = await design(page);

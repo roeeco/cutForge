@@ -15,6 +15,7 @@ async function student(browser: Browser, material: string, name: string, code: s
   await page.goto('/');
   await page.getByTestId('tpl-organiser').check();
   await page.getByTestId(`mat-${material}`).click();
+  await page.getByTestId('start-go').click();
   await page.getByTestId('hints-dismiss').click();
   await page.getByLabel('Design name').fill(title);
   await page.getByLabel('Design name').blur();
@@ -100,6 +101,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   await st.goto('/');
   await st.getByTestId('tpl-organiser').check();
   await st.getByTestId('mat-ply-3').click();
+  await st.getByTestId('start-go').click();
   await st.getByTestId('hints-dismiss').click();
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);

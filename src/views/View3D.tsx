@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
-import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { ContactShadows, Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
-import type { Design, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
-import { edgeLength, frameNormal, growFrame, toLocal } from '../model/frame';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
+import type { Connection, Design, Frame, Panel, V3 } from '../model/types';
+import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, hasSideWalls } from '../model/ops';
+import { edgeLength, frameNormal, growFrame, toLocal, toWorld } from '../model/frame';
 import { detailBBox, detailContour, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
-import { EdgeBar } from '../ui/EdgeBar';
+import { ANGLES } from '../model/materials';
+import { STAGE, partColors } from './palette';
+import { foldDisplay, type Bend } from './foldView';
+import { AngleArc, DimLabel, DimLine, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
+import { Icon } from '../ui/icons';
+import { FoldSlider } from '../ui/Inspector';
+import { netGroups } from '../model/pieces';
+import { panelLabel } from '../model/names';
+import { Segmented } from '../ui/NumField';
 
-const COLORS: Record<string, string> = { plywood: '#d9b98b', card: '#efe9dc', corrugated: '#c99f68' };
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
 
@@ -49,29 +60,39 @@ function planeOf(p: Panel, point: THREE.Vector3) {
   return new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), point);
 }
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const IDM = new THREE.Matrix4();
+
+/** World point of a panel-local point (x, y, depth z into the material), through a display transform. */
+function W(m: THREE.Matrix4, f: Frame, x: number, y: number, z = 0): V3 {
+  return new THREE.Vector3(...toWorld(f, x, y, z)).applyMatrix4(m).toArray() as V3;
+}
+function Wdir(m: THREE.Matrix4, v: V3): V3 {
+  return new THREE.Vector3(...v).transformDirection(m).toArray() as V3;
+}
 
 type Label = { text: string; x: number; y: number };
 
-function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
+function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; quality: 'simple' | 'rich' }) {
+  const t = useT();
   const design = useStore((s) => s.design);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
   const grow = useStore((s) => s.grow);
+  const prefs = useStore((s) => s.viewPrefs);
+  const foldT = useStore((s) => s.foldT);
+  const hoverPart = useStore((s) => s.hoverPart);
+  const openJoint = useStore((s) => s.openJoint);
+  const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
   const drag = useRef<Drag | null>(null);
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
   const [guides, setGuides] = useState<GuideState | null>(null);
   const three = useThree();
+  const display = useMemo(() => foldDisplay(design, foldT), [design, foldT]);
+  const folded = foldT < 0.999;
   /** Snap tolerance in mm at a world point: a fixed number of screen pixels at any zoom. */
-  const tolAt = (p: V3) => {
-    const cam = three.camera;
-    const hpx = three.gl.domElement.clientHeight || 600;
-    if (cam instanceof THREE.OrthographicCamera) return (SNAP_PX * (cam.top - cam.bottom)) / cam.zoom / hpx;
-    const pc = cam as THREE.PerspectiveCamera;
-    const dist = pc.position.distanceTo(new THREE.Vector3(...p));
-    return (SNAP_PX * 2 * dist * Math.tan((pc.fov * Math.PI) / 360)) / hpx;
-  };
+  const tolAt = (p: V3) => SNAP_PX * mmPerPx(three.camera, three.gl.domElement.clientHeight || 600, new THREE.Vector3(...p));
 
   const setControls = (on: boolean) => {
     if (controls) controls.enabled = on;
@@ -102,8 +123,8 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
         let cx = (x + g.start.x) / 2, cy = (y + g.start.y) / 2;
         if (shape === 'circle') {
           w = h = Math.max(w, h);
-          cx = g.start.x + (Math.sign(x - g.start.x) || 1) * w / 2;
-          cy = g.start.y + (Math.sign(y - g.start.y) || 1) * w / 2;
+          cx = g.start.x + ((Math.sign(x - g.start.x) || 1) * w) / 2;
+          cy = g.start.y + ((Math.sign(y - g.start.y) || 1) * w) / 2;
         }
         if (w < 0.5 && h < 0.5) return;
         st.preview((d) => {
@@ -195,6 +216,13 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   };
 
   const onPanelDown = (p: Panel) => (e: ThreeEvent<PointerEvent>) => {
+    if (folded) {
+      // while a net is unfolded the parts can be looked at and selected, not edited
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      useStore.getState().select({ kind: 'panel', id: p.id });
+      return;
+    }
     if (tool === 'text') {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -219,7 +247,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   };
 
   const onDetailDown = (p: Panel, id: string) => (e: ThreeEvent<PointerEvent>) => {
-    if (tool !== 'select') return onPanelDown(p)(e);
+    if (tool !== 'select' || folded) return onPanelDown(p)(e);
     const dt = p.details.find((x) => x.id === id);
     if (!dt) return;
     const st = useStore.getState();
@@ -261,92 +289,217 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
 
   const sel = selection;
   const selEdge = sel?.kind === 'edge' ? sel : null;
+  const selPanel = sel?.kind === 'panel' ? sel.id : null;
+  const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
+  const focus = selPanel;
+  const bounds = useMemo(() => {
+    const box = new THREE.Box3();
+    for (const id of design.order) {
+      const p = design.panels[id];
+      if (!p) continue;
+      const m = display.xf.get(id) ?? IDM;
+      for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) box.expandByPoint(new THREE.Vector3(...W(m, p.frame, x, y)));
+    }
+    return box;
+  }, [design, display]);
+  // contact shadow: re-rendered once after each finished edit, not during drags
+  const [shadowKey, setShadowKey] = useState(0);
+  useEffect(() => {
+    if (!inTxn) setShadowKey((k) => k + 1);
+  }, [design, foldT, inTxn]);
+  const sc = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
+  const ss = bounds.isEmpty() ? 300 : Math.max(200, bounds.getSize(new THREE.Vector3()).length() * 1.8);
 
   return (
     <>
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[300, 600, 400]} intensity={1.1} />
-      <directionalLight position={[-400, 200, -300]} intensity={0.35} />
-      <gridHelper args={[2000, 200, '#b9c2cc', '#e2e7ec']} position={[0, -0.05, 0]} />
+      <hemisphereLight args={['#ffffff', '#cfd6e0', 1.35]} />
+      <directionalLight position={[300, 600, 400]} intensity={1.5} />
+      <directionalLight position={[-400, 250, -300]} intensity={0.45} />
+      <Grid
+        position={[0, -0.08, 0]}
+        args={[2, 2]}
+        cellSize={10}
+        cellThickness={0.6}
+        cellColor={STAGE.gridMinor}
+        sectionSize={50}
+        sectionThickness={1}
+        sectionColor={STAGE.gridMajor}
+        fadeDistance={2600}
+        fadeStrength={1.4}
+        infiniteGrid
+        raycast={() => null}
+        userData={{ noAO: true }}
+      />
+      {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
-      {design.order.map((id) => {
+      {design.order.map((id, index) => {
         const p = design.panels[id];
-        return p ? (
+        if (!p) return null;
+        const selected = selPanel === id || selDetailPanels.has(id) || selEdge?.panelId === id;
+        return (
           <PanelObject
             key={id}
             d={design}
             p={p}
-            selected={sel?.kind === 'panel' && sel.id === id}
+            index={index}
+            m={display.xf.get(id) ?? IDM}
+            selected={selPanel === id}
+            emphasis={selected ? 1 : sel ? -1 : hoverPart === id ? 0.5 : 0}
+            hover={hoverPart === id}
+            outlines={prefs.outlines}
+            showEdges={tool === 'select' && !folded && (selPanel === id || hoverPart === id)}
             selDetails={selectedDetailIds(sel)}
             selEdge={selEdge && selEdge.panelId === id ? selEdge.edge : null}
             tool={tool}
+            folded={folded}
             onPanelDown={onPanelDown(p)}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
           />
-        ) : null;
+        );
       })}
-      <Flaps d={design} />
+      <Flaps d={design} xf={display.xf} />
+      {display.bends.map((b) => (
+        <BendBead key={b.id} b={b} d={design} index={design.order.indexOf(b.panelId)} outlines={prefs.outlines} />
+      ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
-      {selEdge && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} height={grow.height} angle={grow.angle} dir={grow.dir} />}
+      {selEdge && !folded && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
+      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && (
+        <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
+      )}
+      {!folded && <SeamPills d={design} focus={focus} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
-        <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
           <planeGeometry args={[Math.max(0.1, Math.abs(drawRect.b[0] - drawRect.a[0])), Math.max(0.1, Math.abs(drawRect.b[2] - drawRect.a[2]))]} />
-          <meshBasicMaterial color="#3b82f6" transparent opacity={0.35} />
+          <meshBasicMaterial color={STAGE.selected} transparent opacity={0.35} />
         </mesh>
       )}
       <OrbitControls makeDefault enableDamping={false} />
-      <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
-        <GizmoViewport labelColor="white" axisHeadScale={0.9} />
+      <GizmoHelper alignment="bottom-right" margin={[78, 128]} renderPriority={quality === 'rich' ? 2 : 1}>
+        <GizmoViewcube
+          faces={[t('cube.right'), t('cube.left'), t('cube.top'), t('cube.bottom'), t('cube.front'), t('cube.back')]}
+          font='600 26px "Rubik UI", system-ui, sans-serif'
+          color="#ffffff"
+          hoverColor="#bdeee8"
+          textColor="#334155"
+          strokeColor="#94a3b8"
+          opacity={1}
+        />
       </GizmoHelper>
+      {quality === 'rich' && <AOEffects />}
     </>
   );
+}
+
+/** Ambient occlusion (Rich quality): GTAO over the scene, widgets and lines left out. */
+function AOEffects() {
+  const { gl, scene, camera, size, invalidate } = useThree();
+  const composer = useMemo(() => {
+    const c = new EffectComposer(gl);
+    c.addPass(new RenderPass(scene, camera));
+    const ao = new GTAOPass(scene, camera, size.width, size.height);
+    ao.blendIntensity = 0.85;
+    ao.updateGtaoMaterial({ radius: 14, distanceExponent: 1.5, thickness: 8, scale: 1, samples: 12 });
+    ao.updatePdMaterial({ radius: 6, samples: 12 });
+    // keep translucent helpers and on-top widgets out of the depth/normal pass
+    const hidden: THREE.Object3D[] = [];
+    const ov = (ao as unknown as { _overrideVisibility: () => void })._overrideVisibility.bind(ao);
+    const rv = (ao as unknown as { _restoreVisibility: () => void })._restoreVisibility.bind(ao);
+    (ao as unknown as { _overrideVisibility: () => void })._overrideVisibility = () => {
+      ov();
+      scene.traverse((o) => {
+        if (o.visible && (o.userData.noAO || ((o as THREE.Mesh).material as THREE.Material | undefined)?.transparent)) {
+          o.visible = false;
+          hidden.push(o);
+        }
+      });
+    };
+    (ao as unknown as { _restoreVisibility: () => void })._restoreVisibility = () => {
+      rv();
+      hidden.forEach((o) => (o.visible = true));
+      hidden.length = 0;
+    };
+    c.addPass(ao);
+    c.addPass(new OutputPass());
+    return c;
+  }, [gl, scene, camera]);
+  useEffect(() => {
+    composer.setSize(size.width, size.height);
+    composer.setPixelRatio(gl.getPixelRatio());
+    // on-demand rendering: draw again now that the passes exist
+    invalidate();
+    const id = setTimeout(invalidate, 50);
+    return () => clearTimeout(id);
+  }, [composer, size, gl]);
+  useEffect(() => () => composer.dispose(), [composer]);
+  useFrame(() => composer.render(), 1);
+  return null;
 }
 
 function PanelObject(props: {
   d: Design;
   p: Panel;
+  index: number;
+  m: THREE.Matrix4;
   selected: boolean;
+  /** 1 selected, 0.5 hovered, 0 normal, −1 dimmed (something else is selected). */
+  emphasis: number;
+  hover: boolean;
+  outlines: boolean;
+  showEdges: boolean;
   selDetails: string[];
   selEdge: number | null;
   tool: string;
+  folded: boolean;
   onPanelDown: (e: ThreeEvent<PointerEvent>) => void;
   onDetailDown: (id: string) => (e: ThreeEvent<PointerEvent>) => void;
   onDouble: () => void;
 }) {
-  const { d, p, selected, selDetails, selEdge, tool } = props;
+  const { d, p, selDetails, selEdge, tool } = props;
   const t = d.material.thickness;
   const geom = useMemo(() => panelGeometry(d, p), [d.material, d.connections, p]);
-  const matrix = useMemo(() => frameMatrix(p.frame), [p.frame]);
+  const outline = useMemo(() => (props.outlines ? new THREE.EdgesGeometry(geom, 25) : null), [geom, props.outlines]);
+  const matrix = useMemo(() => props.m.clone().multiply(frameMatrix(p.frame)), [p.frame, props.m]);
   const [z0, z1] = faceZ(p, t);
-  const [hoverEdge, setHoverEdge] = useState<number | null>(null);
   useEffect(() => () => geom.dispose(), [geom]);
-  const edgeBoxes = [0, 1, 2, 3].map((e) => {
-    const L = edgeLength(p, e);
-    const mid = (z0 + z1) / 2;
-    const pos: V3 = e === 0 ? [p.w / 2, 0, mid] : e === 1 ? [p.w, p.h / 2, mid] : e === 2 ? [p.w / 2, p.h, mid] : [0, p.h / 2, mid];
-    const size: V3 = e % 2 === 0 ? [L, 3, t + 1] : [3, L, t + 1];
-    return { e, pos, size };
-  });
+  useEffect(() => () => outline?.dispose(), [outline]);
+  const lift = props.emphasis === 1 ? 0.07 : props.emphasis === 0.5 ? 0.025 : props.emphasis === -1 ? -0.03 : 0;
+  const mats = useMemo(() => {
+    const c = partColors(d.material.kind, props.index, lift);
+    return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
+  }, [d.material.kind, props.index, lift]);
+  useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
+  const free = [0, 1, 2, 3].filter((e) => !edgeConnection(d, p.id, e));
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
         geometry={geom}
+        material={mats}
         onPointerDown={props.onPanelDown}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          if (useStore.getState().hoverPart !== p.id) useStore.getState().set({ hoverPart: p.id });
+        }}
+        onPointerOut={() => useStore.getState().hoverPart === p.id && useStore.getState().set({ hoverPart: null })}
         onDoubleClick={(e) => {
           e.stopPropagation();
           props.onDouble();
         }}
         userData={{ panelId: p.id }}
       >
-        <meshStandardMaterial color={COLORS[d.material.kind]} emissive={selected ? '#2563eb' : '#000000'} emissiveIntensity={selected ? 0.35 : 0} roughness={0.85} metalness={0} />
+        {(props.selected || props.hover) && <Edges threshold={25} lineWidth={props.selected ? 2.6 : 1.6} color={props.selected ? STAGE.selected : STAGE.hover} renderOrder={4} />}
       </mesh>
+      {outline && !props.selected && (
+        <lineSegments geometry={outline} raycast={() => null}>
+          <lineBasicMaterial color={STAGE.outline} transparent opacity={props.emphasis === -1 ? 0.35 : 0.62} />
+        </lineSegments>
+      )}
       {p.details.map((dt) => {
         const isSel = selDetails.includes(dt.id);
-        const color = isSel ? '#2563eb' : dt.op === 'cut' ? '#7a4b1c' : dt.op === 'engrave' ? '#222222' : '#1d4ed8';
+        const color = isSel ? STAGE.selected : dt.op === 'cut' ? '#5b4128' : dt.op === 'engrave' ? '#1c1c1c' : '#2f6feb';
         return (
           <group key={dt.id}>
             {detailContours(dt).map((c, i) => (
@@ -359,27 +512,97 @@ function PanelObject(props: {
           </group>
         );
       })}
-      {tool === 'select' &&
-        edgeBoxes.map(({ e, pos, size }) => {
-          const active = selEdge === e || hoverEdge === e;
-          return (
-            <mesh
-              key={e}
-              position={pos}
-              onPointerOver={(ev) => (ev.stopPropagation(), setHoverEdge(e))}
-              onPointerOut={() => setHoverEdge((h) => (h === e ? null : h))}
-              onPointerDown={(ev) => {
-                if (ev.button !== 0) return;
-                ev.stopPropagation();
-                useStore.getState().select({ kind: 'edge', panelId: p.id, edge: e });
-              }}
-            >
-              <boxGeometry args={size} />
-              <meshBasicMaterial color={selEdge === e ? '#2563eb' : '#f97316'} transparent opacity={active ? 0.85 : 0} depthWrite={false} />
-            </mesh>
-          );
-        })}
+      {tool === 'select' && !props.folded && free.map((e) => <EdgeHandle key={e} p={p} edge={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e} />)}
     </group>
+  );
+}
+
+/** A free edge: an invisible, screen-sized hit target, a dashed hint when the panel is in focus, and a "+ Grow" pill on hover. */
+function EdgeHandle({ p, edge, t, z0, z1, show, active }: { p: Panel; edge: number; t: number; z0: number; z1: number; show: boolean; active: boolean }) {
+  const tt = useT();
+  const [hover, setHover] = useState(false);
+  const hit = useRef<THREE.Mesh>(null);
+  const { camera, size } = useThree();
+  const L = edgeLength(p, edge);
+  const mid = (z0 + z1) / 2;
+  const pos: V3 = edge === 0 ? [p.w / 2, 0, mid] : edge === 1 ? [p.w, p.h / 2, mid] : edge === 2 ? [p.w / 2, p.h, mid] : [0, p.h / 2, mid];
+  const along = edge % 2 === 0;
+  useFrame(() => {
+    const m = hit.current;
+    if (!m) return;
+    const wp = m.getWorldPosition(new THREE.Vector3());
+    const k = Math.max(2, 14 * mmPerPx(camera, size.height, wp));
+    m.scale.set(along ? L : k, along ? k : L, t + k);
+  });
+  const line = useMemo(() => {
+    const a = edge === 0 ? [0, 0] : edge === 1 ? [p.w, 0] : edge === 2 ? [p.w, p.h] : [0, p.h];
+    const b = edge === 0 ? [p.w, 0] : edge === 1 ? [p.w, p.h] : edge === 2 ? [0, p.h] : [0, 0];
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a[0], a[1], z1 + 0.2), new THREE.Vector3(b[0], b[1], z1 + 0.2)]);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: STAGE.selected, dashSize: 4, gapSize: 3, depthTest: false, transparent: true }));
+    l.computeLineDistances();
+    l.renderOrder = 6;
+    l.userData.noAO = true;
+    return l;
+  }, [p.w, p.h, edge, z1]);
+  useEffect(() => () => (line.geometry.dispose(), (line.material as THREE.Material).dispose()), [line]);
+  const lit = hover || active;
+  return (
+    <>
+      <mesh
+        ref={hit}
+        position={pos}
+        visible={false}
+        onPointerOver={(ev) => (ev.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        onPointerDown={(ev) => {
+          if (ev.button !== 0) return;
+          ev.stopPropagation();
+          useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
+        }}
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial />
+      </mesh>
+      {(show || lit) && <primitive object={line} raycast={() => null} />}
+      {lit && (
+        <mesh position={pos} renderOrder={7} raycast={() => null} userData={{ noAO: true }}>
+          <boxGeometry args={along ? [L, 1.2, t + 1.2] : [1.2, L, t + 1.2]} />
+          <meshBasicMaterial color={active ? STAGE.selected : STAGE.hover} transparent opacity={0.9} depthTest={false} />
+        </mesh>
+      )}
+      {hover && !active && (
+        <StageHtml position={[pos[0], pos[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
+          <span className="w-grow">
+            <Icon name="plus" /> {tt('edge.growHere')}
+          </span>
+        </StageHtml>
+      )}
+    </>
+  );
+}
+
+/** Rounded bend along a fold, with the crease (score line) on its outside. */
+function BendBead({ b, d, index, outlines }: { b: Bend; d: Design; index: number; outlines: boolean }) {
+  const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.axis), [b.axis]);
+  const color = useMemo(() => partColors(d.material.kind, Math.max(0, index)).face, [d.material.kind, index]);
+  const crease = useMemo(() => {
+    const p0 = b.pivot.clone().addScaledVector(b.crease, b.radius * 1.04).addScaledVector(b.axis, -b.length / 2);
+    const p1 = p0.clone().addScaledVector(b.axis, b.length);
+    const g = new THREE.BufferGeometry().setFromPoints([p0, p1]);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: '#2f6feb', dashSize: b.mountain ? 6 : 3, gapSize: b.mountain ? 2 : 2 }));
+    l.computeLineDistances();
+    l.userData.noAO = true;
+    return l;
+  }, [b]);
+  useEffect(() => () => (crease.geometry.dispose(), (crease.material as THREE.Material).dispose()), [crease]);
+  return (
+    <>
+      <mesh position={b.pivot} quaternion={q} raycast={() => null}>
+        <cylinderGeometry args={[b.radius, b.radius, b.length, 20, 1, true]} />
+        <meshStandardMaterial color={color} roughness={0.9} side={THREE.DoubleSide} />
+      </mesh>
+      {outlines && <primitive object={crease} raycast={() => null} />}
+    </>
   );
 }
 
@@ -399,6 +622,7 @@ function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
       }
     }
     grp.renderOrder = 10;
+    grp.userData.noAO = true;
     return grp;
   }, [g, z0, z1]);
   useEffect(() => () => obj.traverse((o) => (o as THREE.Line).geometry?.dispose()), [obj]);
@@ -409,24 +633,24 @@ function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
   );
 }
 
-function Flaps({ d }: { d: Design }) {
+function Flaps({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> }) {
   const items = useMemo(() => {
-    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4 }[] = [];
+    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number }[] = [];
     for (const c of Object.values(d.connections)) {
       c.geom?.flaps3d.forEach((f, i) => {
         const p = d.panels[f.panelId];
-        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: frameMatrix(p.frame) });
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: (xf.get(p.id) ?? IDM).clone().multiply(frameMatrix(p.frame)), index: d.order.indexOf(p.id) });
       });
     }
     return out;
-  }, [d.connections, d.panels]);
+  }, [d.connections, d.panels, xf]);
   useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
   return (
     <>
       {items.map((x) => (
         <group key={x.key} matrixAutoUpdate={false} matrix={x.matrix}>
           <mesh geometry={x.geom} raycast={() => null}>
-            <meshStandardMaterial color="#b88a52" roughness={0.9} />
+            <meshStandardMaterial color={partColors(d.material.kind, x.index, -0.06).face} roughness={0.9} />
           </mesh>
         </group>
       ))}
@@ -453,29 +677,139 @@ function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: n
   const g = useMemo(() => contourShapeGeometry(c), [c]);
   useEffect(() => () => g.dispose(), [g]);
   return (
-    <mesh geometry={g} position={[0, 0, z]} onPointerDown={onDown}>
-      <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+    <mesh geometry={g} position={[0, 0, z]} onPointerDown={onDown} visible={false}>
+      <meshBasicMaterial side={THREE.DoubleSide} />
     </mesh>
   );
 }
 
-function GrowGhost({ d, panelId, edge, height, angle, dir }: { d: Design; panelId: string; edge: number; height: number; angle: number; dir: 'up' | 'down' }) {
+/** Ghost of the panel that "Grow" would add, with its stage widgets: angle dial, height arrow, flip badge, height label. */
+function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: number; m: THREE.Matrix4 }) {
+  const t = useT();
+  const grow = useStore((s) => s.grow);
+  const setGrow = useStore((s) => s.setGrow);
   const parent = d.panels[panelId];
   const free = parent && !edgeConnection(d, panelId, edge);
+  const kind = growKind(d, grow);
+  const blocked = kind === 'lean' && !hasSideWalls(d, panelId, edge);
+  const th = d.material.thickness;
+  const frameAt = (a: number, dir = grow.dir) => growFrame(parent, edge, a, dir, th, seatingOf(kind), defaultOffset(d, kind));
+  const w = parent ? edgeLength(parent, edge) : 0;
   const ghost = useMemo(() => {
     if (!parent || !free) return null;
-    const frame = growFrame(parent, edge, angle, dir, d.material.thickness);
-    const p: Panel = { id: 'ghost', name: '', w: edgeLength(parent, edge), h: height, frame, details: [] };
-    return { p, geom: panelGeometry(d, p, { joints: false }), matrix: frameMatrix(frame) };
-  }, [d, parent, free, edge, angle, dir, height]);
+    const frame = frameAt(grow.angle);
+    const p: Panel = { id: 'ghost', name: '', w, h: grow.height, frame, details: [] };
+    return { p, frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
+  }, [d, parent, free, edge, grow.angle, grow.dir, grow.height, kind, m]);
   useEffect(() => () => ghost?.geom.dispose(), [ghost]);
+  const arcR = Math.max(12, Math.min(grow.height * 0.55, 90));
+  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), w / 2, arcR, th / 2), [m, parent, edge, grow.dir, kind, arcR, w]);
   if (!ghost) return null;
+  const f = ghost.frame;
+  const color = blocked ? STAGE.blocked : STAGE.ghost;
   return (
-    <group matrixAutoUpdate={false} matrix={ghost.matrix}>
-      <mesh geometry={ghost.geom} raycast={() => null}>
-        <meshStandardMaterial color="#60a5fa" transparent opacity={0.4} depthWrite={false} />
-      </mesh>
-    </group>
+    <>
+      <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
+        <mesh geometry={ghost.geom} raycast={() => null}>
+          <meshStandardMaterial color={color} transparent opacity={blocked ? 0.28 : 0.38} depthWrite={false} />
+          <Edges threshold={25} lineWidth={1.8} color={blocked ? '#c27c0e' : '#15706b'} />
+        </mesh>
+      </group>
+      <AngleArc pointAt={pointAt} angles={ANGLES} value={grow.angle} onChange={(a) => setGrow({ angle: a })} label={`${grow.angle}°`} />
+      <PushPull
+        at={W(m, f, w / 2, grow.height, th / 2)}
+        axis={Wdir(m, f.v)}
+        value={grow.height}
+        min={5}
+        max={2000}
+        onPreview={(v) => setGrow({ height: v })}
+        onCommit={() => undefined}
+        onCancel={() => undefined}
+        testId="ghost-height"
+      />
+      <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v })} testId="ghost-dim-h" />
+      <StageHtml position={W(m, f, Math.min(w * 0.15, 30), grow.height * 0.5, th / 2)}>
+        <button className="w-badge" onClick={() => setGrow({ dir: grow.dir === 'up' ? 'down' : 'up' })} title={t('edge.flip')} aria-label={t('edge.flip')} data-testid="grow-flip">
+          <Icon name="flip" size={16} />
+        </button>
+      </StageHtml>
+    </>
+  );
+}
+
+/** Selected panel: width/height push-pull arrows and in-place dimensions. */
+function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4; dims: boolean }) {
+  const t = useT();
+  const th = d.material.thickness;
+  const off = Math.max(8, 0.07 * Math.max(p.w, p.h));
+  const st = useStore.getState;
+  const resize = (w?: number, h?: number) => st().preview((x) => setPanelSize(x, p.id, w, h));
+  // dimension lines run along the bottom and left edges, just outside the panel, on its far face
+  const Wv = (x: number, y: number) => W(m, p.frame, x, y, th);
+  const u = Wdir(m, p.frame.u), v = Wdir(m, p.frame.v);
+  const tickV = v3mul(v, 3), tickU = v3mul(u, 3);
+  return (
+    <>
+      <PushPull at={W(m, p.frame, p.w, p.h / 2, th / 2)} axis={u} value={p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
+      <PushPull at={W(m, p.frame, p.w / 2, p.h, th / 2)} axis={v} value={p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
+      {dims && (
+        <>
+          <DimLine a={Wv(0, -off)} b={Wv(p.w, -off)} tick={tickV} />
+          <DimLine a={Wv(-off, 0)} b={Wv(-off, p.h)} tick={tickU} />
+          <DimLabel at={Wv(p.w / 2, -off)} k="W" value={p.w} unit={t('unit.mm')} onCommit={(w) => st().apply((x) => setPanelSize(x, p.id, w, undefined))} testId="dim-w" />
+          <DimLabel at={Wv(-off, p.h / 2)} k="H" value={p.h} unit={t('unit.mm')} onCommit={(h) => st().apply((x) => setPanelSize(x, p.id, undefined, h))} testId="dim-h" />
+        </>
+      )}
+    </>
+  );
+}
+
+/** Where a connection's seam is, in display space. */
+function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at = 0.5): V3 | null {
+  const end = c.b.edge >= 0 ? c.b : c.a.edge >= 0 ? c.a : null;
+  if (!end) {
+    const p = d.panels[c.a.panelId];
+    return p ? W(xf.get(p.id) ?? IDM, p.frame, p.w / 2, p.h, d.material.thickness / 2) : null;
+  }
+  const p = d.panels[end.panelId];
+  if (!p) return null;
+  const e = end.edge;
+  const s = at;
+  const [x, y] = e === 0 ? [p.w * s, 0] : e === 1 ? [p.w, p.h * s] : e === 2 ? [p.w * (1 - s), p.h] : [0, p.h * (1 - s)];
+  return W(xf.get(p.id) ?? IDM, p.frame, x, y, d.material.thickness / 2);
+}
+
+/** Joint pills: the focused panel's connections (and broken ones, always). Clicking one opens its settings. */
+function SeamPills({ d, focus, xf, openJoint }: { d: Design; focus: string | null; xf: Map<string, THREE.Matrix4>; openJoint: string | null }) {
+  const t = useT();
+  const list = Object.values(d.connections).filter((c) => c.broken || (focus && (c.a.panelId === focus || c.b.panelId === focus)));
+  return (
+    <>
+      {list.map((c) => {
+        const at = seamPoint(d, c, xf, 0.24);
+        if (!at) return null;
+        const other = c.a.panelId === focus ? c.b.panelId : c.a.panelId;
+        return (
+          <StageHtml key={c.id} position={at}>
+            <button
+              className={`w-pill ${c.broken ? 'broken' : ''} ${openJoint === c.id ? 'on' : ''}`}
+              title={t('conn.with', { kind: t(`conn.${c.kind}` as 'conn.fold'), panel: panelLabel(d, other, t) })}
+              onClick={() => {
+                const st = useStore.getState();
+                const owner = focus && (c.a.panelId === focus || c.b.panelId === focus) ? focus : c.b.panelId;
+                if (st.selection?.kind !== 'panel' || st.selection.id !== owner) st.select({ kind: 'panel', id: owner });
+                st.set({ openJoint: c.id });
+                requestAnimationFrame(() => document.querySelector('[data-testid=inspector-connection]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+              }}
+              data-testid={`seam-pill-${c.kind}`}
+            >
+              <Icon name={c.broken ? 'alert' : c.kind} />
+              {t(`conn.short.${c.kind}` as 'conn.short.fold')}
+            </button>
+          </StageHtml>
+        );
+      })}
+    </>
   );
 }
 
@@ -487,7 +821,7 @@ function CameraKeeper() {
   useEffect(() => {
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
-        const { camera, controls } = get() as unknown as { camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void }; controls: { target: THREE.Vector3; update(): void } | null };
+        const { camera, controls, invalidate } = get() as unknown as { camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void }; controls: { target: THREE.Vector3; update(): void } | null; invalidate: () => void };
         if (!savedCam.position) return;
         camera.position.set(...savedCam.position);
         if (savedCam.zoom && camera instanceof THREE.OrthographicCamera) camera.zoom = savedCam.zoom;
@@ -496,6 +830,7 @@ function CameraKeeper() {
           controls.target.set(...savedCam.target);
           controls.update();
         }
+        invalidate();
       });
     });
     return () => {
@@ -509,14 +844,28 @@ function CameraKeeper() {
   return null;
 }
 
-function CameraRig({ ortho, fitSignal }: { ortho: boolean; fitSignal: number }) {
-  const { camera, set, size, controls } = useThree() as unknown as {
+function designBox(d: Design): THREE.Box3 {
+  const box = new THREE.Box3();
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p) continue;
+    const m = frameMatrix(p.frame);
+    for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) box.expandByPoint(new THREE.Vector3(x, y, 0).applyMatrix4(m));
+  }
+  return box;
+}
+
+function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal: number; onAutoFit: () => void }) {
+  const { camera, set, size, controls, invalidate } = useThree() as unknown as {
     camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void };
     set: (s: { camera: THREE.Camera }) => void;
     size: { width: number; height: number };
     controls: { target: THREE.Vector3; update(): void } | null;
+    invalidate: () => void;
   };
   const first = useRef(true);
+  const order = useStore((s) => s.design.order);
+  const material = useStore((s) => s.design.material.id);
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -549,14 +898,7 @@ function CameraRig({ ortho, fitSignal }: { ortho: boolean; fitSignal: number }) 
   }, [ortho]);
   useEffect(() => {
     if (!fitSignal) return;
-    const d = useStore.getState().design;
-    const box = new THREE.Box3();
-    for (const id of d.order) {
-      const p = d.panels[id];
-      if (!p) continue;
-      const m = frameMatrix(p.frame);
-      for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) box.expandByPoint(new THREE.Vector3(x, y, 0).applyMatrix4(m));
-    }
+    const box = designBox(useStore.getState().design);
     if (box.isEmpty()) box.setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(200, 0, 200));
     const center = box.getCenter(new THREE.Vector3());
     const radius = Math.max(50, box.getSize(new THREE.Vector3()).length() / 2);
@@ -571,14 +913,114 @@ function CameraRig({ ortho, fitSignal }: { ortho: boolean; fitSignal: number }) 
     }
     camera.updateProjectionMatrix();
     controls?.update();
+    invalidate();
   }, [fitSignal]);
+  // a view that shows none of the design (after a view switch, a new template
+  // or a material change) frames it again by itself
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const box = designBox(useStore.getState().design);
+      if (box.isEmpty()) return;
+      camera.updateMatrixWorld();
+      const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      if (!fr.intersectsBox(box)) onAutoFit();
+    }, 120);
+    return () => clearTimeout(id);
+  }, [order, material]);
   return null;
+}
+
+const AUTO_KEY = 'cutforge.autoQuality';
+function storedAuto(): 'simple' | 'rich' | null {
+  try {
+    const v = localStorage.getItem(AUTO_KEY);
+    return v === 'simple' || v === 'rich' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auto quality: software renderers start (and stay) Simple; otherwise start
+ * Rich and drop to Simple if orbiting runs slowly. The result is remembered.
+ */
+function QualityProbe({ pref, onResolve }: { pref: Quality; onResolve: (q: 'simple' | 'rich') => void }) {
+  const { gl } = useThree();
+  const samples = useRef<number[]>([]);
+  const last = useRef(0);
+  const done = useRef(false);
+  useEffect(() => {
+    if (pref !== 'auto') return;
+    const known = storedAuto();
+    if (known) return onResolve(known);
+    const ctx = gl.getContext();
+    const ext = ctx.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? String(ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    if (/swiftshader|llvmpipe|software|basic render/i.test(name)) {
+      done.current = true;
+      onResolve('simple');
+    } else onResolve('rich');
+  }, [pref]);
+  useFrame(() => {
+    if (pref !== 'auto' || done.current || storedAuto()) return;
+    const now = performance.now();
+    const dt = now - last.current;
+    last.current = now;
+    const fresh = dt > 0;
+    if (fresh && dt < 150) samples.current.push(dt);
+    if (samples.current.length >= 40) {
+      done.current = true;
+      const s = [...samples.current].sort((a, b) => a - b);
+      const q = s[Math.floor(s.length / 2)] > 28 ? 'simple' : 'rich';
+      try {
+        localStorage.setItem(AUTO_KEY, q);
+      } catch {
+        /* ignore */
+      }
+      onResolve(q);
+    }
+  });
+  return null;
+}
+
+function ViewSettings({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const prefs = useStore((s) => s.viewPrefs);
+  const setPrefs = useStore((s) => s.setPrefs);
+  const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: PointerEvent) => !ref.current?.parentElement?.contains(e.target as Node) && onClose();
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, []);
+  return (
+    <div className="popover" ref={ref} role="dialog" aria-label={t('viewset.title')} data-testid="view-settings">
+      <h4>{t('viewset.title')}</h4>
+      <label className="check">
+        <input type="checkbox" checked={prefs.outlines} onChange={(e) => setPrefs({ outlines: e.target.checked })} data-testid="pref-outlines" /> {t('viewset.outlines')}
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={prefs.dims} onChange={(e) => setPrefs({ dims: e.target.checked })} data-testid="pref-dims" /> {t('viewset.dims')}
+      </label>
+      <Segmented
+        label={t('viewset.quality')}
+        value={prefs.quality}
+        options={(['auto', 'simple', 'rich'] as const).map((q) => ({ value: q, label: t(`viewset.q.${q}`), testId: `pref-quality-${q}` }))}
+        onChange={(q) => setPrefs({ quality: q as Quality })}
+      />
+      <p className="note">{t('viewset.qualityNote')}</p>
+      {hasFolds && <FoldSlider />}
+    </div>
+  );
 }
 
 export function View3D() {
   const t = useT();
   const tool = useStore((s) => s.tool);
   const empty = useStore((s) => s.design.order.length === 0);
+  const prefs = useStore((s) => s.viewPrefs);
+  const foldT = useStore((s) => s.foldT);
   const [ortho, setOrthoState] = useState(savedCam.ortho);
   const setOrtho = (f: (o: boolean) => boolean) =>
     setOrthoState((o) => {
@@ -588,8 +1030,11 @@ export function View3D() {
     });
   const [fit, setFit] = useState(0);
   const [label, setLabel] = useState<Label | null>(null);
+  const [settings, setSettings] = useState(false);
+  const [autoQ, setAutoQ] = useState<'simple' | 'rich'>(() => storedAuto() ?? 'simple');
+  const quality = prefs.quality === 'auto' ? autoQ : prefs.quality;
   const wrap = useRef<HTMLDivElement>(null);
-  const selection = useStore((s) => s.selection);
+  const overlay = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -599,15 +1044,19 @@ export function View3D() {
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, []);
-  const hint = tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : tool === 'text' ? 'tool.hint.text' : 'tool.hint.shape';
+  const hint = foldT < 0.999 ? 'fold.hint' : tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : tool === 'text' ? 'tool.hint.text' : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
-      <Canvas camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
-        <color attach="background" args={['#f4f6f8']} />
-        <Scene setLabel={setLabel} />
-        <CameraRig ortho={ortho} fitSignal={fit} />
+      <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
+        <color attach="background" args={[STAGE.bg]} />
+        <OverlayContext.Provider value={overlay}>
+          <Scene setLabel={setLabel} quality={quality} />
+        </OverlayContext.Provider>
+        <CameraRig ortho={ortho} fitSignal={fit} onAutoFit={() => setFit((f) => f + 1)} />
         <CameraKeeper />
+        <QualityProbe pref={prefs.quality} onResolve={setAutoQ} />
       </Canvas>
+      <div className="stage-overlay" ref={overlay} />
       {label && wrap.current && (
         <div
           className="dim-label"
@@ -616,14 +1065,22 @@ export function View3D() {
           {label.text} {t('unit.mm')}
         </div>
       )}
-      <div className="view-controls" dir="auto">
-        <button onClick={() => setOrtho((o) => !o)} title="O" data-testid="toggle-ortho">
-          {ortho ? t('view.ortho') : t('view.persp')}
-        </button>
-        <button onClick={() => setFit((f) => f + 1)}>{t('view.fit')}</button>
+      <div className="view-dock" dir="auto">
+        <div className="cluster">
+          <button className={ortho ? 'on' : ''} onClick={() => setOrtho((o) => !o)} title={`${ortho ? t('view.ortho') : t('view.persp')} (O)`} aria-label={ortho ? t('view.ortho') : t('view.persp')} data-testid="toggle-ortho">
+            <Icon name={ortho ? 'ortho' : 'persp'} />
+          </button>
+          <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">
+            <Icon name="fit" />
+          </button>
+          <button className={settings ? 'on' : ''} onClick={() => setSettings((s) => !s)} title={t('viewset.title')} aria-label={t('viewset.title')} aria-expanded={settings} data-testid="open-view-settings">
+            <Icon name="settings" />
+          </button>
+        </div>
+        {settings && <ViewSettings onClose={() => setSettings(false)} />}
       </div>
       <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
-      {selection?.kind === 'edge' && <EdgeBar panelId={selection.panelId} edge={selection.edge} />}
+      <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );
 }

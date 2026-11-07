@@ -36,6 +36,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
@@ -43,7 +44,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await setNum(page, 'panel-w', '200');
   await setNum(page, 'panel-h', '120');
   const base = (await design(page)).order[0];
-  await page.getByText('Fit view').click();
+  await page.getByTestId('fit-view').click();
   await page.waitForTimeout(300);
   const cam = await S(page, () => (window as any).__cutforge.camera());
 

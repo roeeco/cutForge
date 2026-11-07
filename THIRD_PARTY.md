@@ -9,7 +9,7 @@ Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-thre
 
 ## Fonts
 Bundled in `public/fonts/` (Hebrew and Latin subsets, WOFF, from the @fontsource 5.3.0 packages), each under the SIL Open Font License 1.1 — license texts next to the files:
-- Rubik — Copyright 2015 The Rubik Project Authors
+- Rubik — Copyright 2015 The Rubik Project Authors (also the interface font: `rubik-{latin,hebrew}-wght-normal.woff2`, variable weight, from @fontsource-variable/rubik 5.3.0)
 - Frank Ruhl Libre — see `frank-ruhl-libre-LICENSE.txt`
 - Amatic SC — see `amatic-sc-LICENSE.txt`
 

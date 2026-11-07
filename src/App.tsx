@@ -4,7 +4,8 @@ import { useAutosave, useKeyboard } from './store/hooks';
 import { TopBar } from './ui/TopBar';
 import { Toolbar } from './ui/Toolbar';
 import { Inspector } from './ui/Inspector';
-import { MaterialDialog } from './ui/MaterialDialog';
+import { StartScreen } from './ui/StartScreen';
+import { MaterialDrawer } from './ui/MaterialDrawer';
 import { ExportDialog } from './ui/ExportDialog';
 import { Hints } from './ui/Hints';
 import { View3D } from './views/View3D';
@@ -23,6 +24,7 @@ export function App() {
   }, [view, soloExists]);
   const needsMaterial = useStore((s) => s.needsMaterial);
   const exportOpen = useStore((s) => s.exportOpen);
+  const drawerOpen = useStore((s) => s.drawerOpen);
   const [route, setRoute] = useState(() => location.hash);
   useEffect(() => {
     const h = () => setRoute(location.hash);
@@ -43,12 +45,13 @@ export function App() {
     <div className="app">
       <TopBar />
       <div className="main">
-        <Toolbar />
         <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+        <Toolbar />
         <Inspector />
+        {!needsMaterial && <Hints />}
       </div>
-      {needsMaterial && <MaterialDialog />}
-      {!needsMaterial && <Hints />}
+      {needsMaterial && <StartScreen />}
+      {drawerOpen && <MaterialDrawer />}
       {exportOpen && <ExportDialog />}
     </div>
   );

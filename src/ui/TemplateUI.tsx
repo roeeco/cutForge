@@ -2,27 +2,8 @@
 // (derived from its schema) in the inspector.
 import { useState } from 'react';
 import { useStore, useT } from '../store/store';
-import { NumField } from './NumField';
-import { TEMPLATES, regenerate, templateById, type Lost } from '../templates/registry';
-import type { MaterialKind } from '../model/types';
-
-export function TemplatePicker({ value, onChange, material }: { value: string; onChange: (id: string) => void; material?: MaterialKind }) {
-  const t = useT();
-  return (
-    <fieldset className="tpl-pick" data-testid="template-picker">
-      <legend>{t('tpl.startFrom')}</legend>
-      <label>
-        <input type="radio" name="tpl" checked={value === ''} onChange={() => onChange('')} data-testid="tpl-blank" /> {t('tpl.blank')}
-      </label>
-      {TEMPLATES.map((tp) => (
-        <label key={tp.id} title={t(tp.description)}>
-          <input type="radio" name="tpl" checked={value === tp.id} disabled={!!material && !tp.materials.includes(material)} onChange={() => onChange(tp.id)} data-testid={`tpl-${tp.id}`} />{' '}
-          {t(tp.name)} <small className="note">— {t(tp.description)}</small>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
+import { NumField, Stepper } from './NumField';
+import { regenerate, templateById, type Lost } from '../templates/registry';
 
 export function lostText(t: ReturnType<typeof useT>, lost: Lost[]) {
   return t('tpl.lost', { list: lost.map((l) => t('tpl.lostItem', { n: l.shapes, panel: l.panel })).join(', ') });
@@ -46,10 +27,11 @@ export function TemplateSection() {
   };
   const mm = t('unit.mm');
   return (
-    <div className="subsection" data-testid="template-section">
-      <h4>
-        {t('tpl.title')}: {t(tpl.name)}
-      </h4>
+    <div data-testid="template-section">
+      <p className="kicker">{t('tpl.title')}</p>
+      <div className="card-head">
+        <h3>{t(tpl.name)}</h3>
+      </div>
       {tpl.params
         .filter((p) => !p.only || p.only.includes(d.material.kind))
         .map((p) =>
@@ -69,16 +51,25 @@ export function TemplateSection() {
                 ))}
               </select>
             </div>
+          ) : p.type === 'int' ? (
+            <Stepper
+              key={p.key}
+              label={t(p.label)}
+              value={Number(params[p.key] ?? p.default)}
+              min={p.min}
+              max={p.max}
+              onCommit={(v) => set(p.key, Math.round(v))}
+              testId={`tp-${p.key}`}
+            />
           ) : (
             <NumField
               key={p.key}
               label={t(p.label)}
               value={Number(params[p.key] ?? p.default)}
-              unit={p.type === 'number' ? mm : undefined}
-              decimals={p.type === 'int' ? 0 : 1}
+              unit={mm}
               min={p.min}
               max={p.max}
-              onCommit={(v) => set(p.key, p.type === 'int' ? Math.round(v) : v)}
+              onCommit={(v) => set(p.key, v)}
               testId={`tp-${p.key}`}
             />
           ),

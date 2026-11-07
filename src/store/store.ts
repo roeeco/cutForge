@@ -1,7 +1,8 @@
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
-import type { Design, DetailOp, DetailShape } from '../model/types';
+import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
+import { connectionsFor } from '../model/materials';
 import { createDesign } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import type { GrowDir } from '../model/frame';
@@ -24,7 +25,22 @@ export function detailSel(ids: string[]): Selection {
 export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'>;
 export type View = '3d' | '2d' | 'solo';
 
-export type GrowOptions = { height: number; dir: GrowDir; angle: number };
+export type GrowOptions = { height: number; dir: GrowDir; angle: number; kind?: ConnectionKind };
+
+export type Quality = 'auto' | 'simple' | 'rich';
+/** How the 3D stage is drawn (per browser, not part of the design). */
+export type ViewPrefs = { outlines: boolean; quality: Quality; dims: boolean };
+const PREFS_KEY = 'cutforge.viewPrefs';
+function initialPrefs(): ViewPrefs {
+  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true };
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) return { ...def, ...JSON.parse(raw) };
+  } catch {
+    /* storage unavailable */
+  }
+  return def;
+}
 
 type State = {
   design: Design;
@@ -46,6 +62,15 @@ type State = {
   exportOpen: boolean;
   /** Copy on the cut plan the student last clicked or moved (for rotate). */
   sheetCopy: string | null;
+  viewPrefs: ViewPrefs;
+  /** Material & sheet drawer open. */
+  drawerOpen: boolean;
+  /** Part under the pointer (either view), for cross-highlighting. */
+  hoverPart: string | null;
+  /** Folded nets: 1 = as designed, 0 = flat. View only. */
+  foldT: number;
+  /** Connection whose joint card is open (seam pill or inspector). */
+  openJoint: string | null;
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -66,7 +91,8 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint'>>) => void;
+  setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
 const HISTORY_LIMIT = 200;
@@ -107,6 +133,11 @@ export const useStore = create<State>()((set, get) => ({
   saveState: 'idle',
   exportOpen: false,
   sheetCopy: null,
+  viewPrefs: initialPrefs(),
+  drawerOpen: false,
+  hoverPart: null,
+  foldT: 1,
+  openJoint: null,
 
   apply: (fn) => {
     if (get().txnBase) get().commit();
@@ -142,8 +173,8 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null }),
-  select: (s) => set({ selection: s }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  select: (s) => set({ selection: s, openJoint: null }),
   setTool: (t) => set({ tool: t }),
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
@@ -167,7 +198,22 @@ export const useStore = create<State>()((set, get) => ({
   },
   setGrow: (g) => set({ grow: { ...get().grow, ...g } }),
   set: (p) => set(p),
+  setPrefs: (p) => {
+    const next = { ...get().viewPrefs, ...p };
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    set({ viewPrefs: next });
+  },
 }));
+
+/** Connection the grow card will use: the chosen one if this angle allows it. */
+export function growKind(d: Design, g: GrowOptions): ConnectionKind {
+  const options = connectionsFor(d.material, g.angle);
+  return g.kind && options.includes(g.kind) ? g.kind : options[0];
+}
 
 export function useT() {
   const lang = useStore((s) => s.lang);

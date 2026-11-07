@@ -6,6 +6,7 @@ test('works offline after load', async ({ page, context }) => {
   const requests: string[] = [];
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
   await page.getByTestId('hints-dismiss').click();
   await context.setOffline(true);
   page.on('request', (r) => requests.push(r.url()));
@@ -19,6 +20,7 @@ test('works offline after load', async ({ page, context }) => {
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
 
   let dl = page.waitForEvent('download');
+  await page.getByTestId('project-menu').click();
   await page.getByTestId('save-project').click();
   expect((await dl).suggestedFilename()).toMatch(/\.cutforge\.json$/);
 

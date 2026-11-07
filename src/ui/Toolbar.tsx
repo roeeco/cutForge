@@ -4,15 +4,19 @@ import type { DetailOp } from '../model/types';
 import { importSvg } from '../io/svgImport';
 import { addPathShape, findDetail } from '../model/ops';
 import type { MsgKey } from '../i18n';
+import { Icon } from './icons';
 
-const TOOLS: { id: Tool; key: MsgKey; icon: string; only3d?: boolean }[] = [
-  { id: 'select', key: 'tool.select', icon: '↖' },
-  { id: 'panel', key: 'tool.panel', icon: '▱', only3d: true },
-  { id: 'rect', key: 'tool.rect', icon: '▭' },
-  { id: 'roundrect', key: 'tool.roundrect', icon: '▢' },
-  { id: 'circle', key: 'tool.circle', icon: '◯' },
-  { id: 'text', key: 'tool.text', icon: 'T' },
+const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolean }[] = [
+  { id: 'select', key: 'tool.select', icon: 'select', kbd: 'V' },
+  { id: 'panel', key: 'tool.panel', icon: 'panel', kbd: 'P', only3d: true },
+  { id: 'rect', key: 'tool.rect', icon: 'rect', kbd: 'R' },
+  { id: 'roundrect', key: 'tool.roundrect', icon: 'roundrect', kbd: 'U' },
+  { id: 'circle', key: 'tool.circle', icon: 'circle', kbd: 'C' },
+  { id: 'text', key: 'tool.text', icon: 'text', kbd: 'T' },
 ];
+
+/** Single-key tool shortcuts (outside text fields). */
+export const TOOL_KEYS: Record<string, Tool> = Object.fromEntries(TOOLS.map((x) => [x.kbd.toLowerCase(), x.id]));
 
 /** The panel an imported shape goes on: the solo panel, the selected panel, or the selected shape's panel. */
 function targetPanel(): string | null {
@@ -49,20 +53,22 @@ export function Toolbar() {
     if (notes.length) alert(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
   };
   return (
-    <nav className="toolbar" aria-label={t('tool.title')}>
+    <nav className="rail" aria-label={t('tool.title')}>
       {TOOLS.filter((x) => !(x.only3d && view !== '3d')).map((x) => (
-        <button key={x.id} className={tool === x.id ? 'on' : ''} aria-pressed={tool === x.id} onClick={() => setTool(x.id)} data-testid={`tool-${x.id}`} title={t(x.key)}>
-          <span className="icon" aria-hidden>
-            {x.icon}
+        <button key={x.id} className={tool === x.id ? 'on' : ''} aria-pressed={tool === x.id} aria-label={t(x.key)} onClick={() => setTool(x.id)} data-testid={`tool-${x.id}`}>
+          <Icon name={x.icon} />
+          <span className="tip" aria-hidden>
+            {t(x.key)}
+            <kbd>{x.kbd}</kbd>
           </span>
-          <span className="tl">{t(x.key)}</span>
         </button>
       ))}
-      <button onClick={() => fileRef.current?.click()} data-testid="import-svg">
-        <span className="icon" aria-hidden>
-          ⇪
+      <div className="rail-sep" />
+      <button onClick={() => fileRef.current?.click()} aria-label={t('tool.import')} data-testid="import-svg">
+        <Icon name="import" />
+        <span className="tip" aria-hidden>
+          {t('tool.import')}
         </span>
-        <span className="tl">{t('tool.import')}</span>
       </button>
       <input
         ref={fileRef}
@@ -76,15 +82,16 @@ export function Toolbar() {
           e.target.value = '';
         }}
       />
-      <div className="field">
-        <label htmlFor="shape-op">{t('tool.op')}</label>
-        <select id="shape-op" value={op} onChange={(e) => setOp(e.target.value as DetailOp)}>
-          {(['cut', 'engrave', 'score'] as const).map((o) => (
-            <option key={o} value={o}>
-              {t(`tool.op.${o}`)}
-            </option>
-          ))}
-        </select>
+      <div className="rail-sep" />
+      <div className="ops" role="radiogroup" aria-label={t('tool.op')}>
+        {(['cut', 'engrave', 'score'] as const).map((o) => (
+          <button key={o} className={`op-btn ${op === o ? 'on' : ''}`} role="radio" aria-checked={op === o} aria-label={t(`tool.op.${o}`)} data-op={o} onClick={() => setOp(o as DetailOp)} data-testid={`op-${o}`}>
+            <span className="dot" style={o === 'engrave' ? undefined : { background: `var(--op-${o})` }} />
+            <span className="tip" aria-hidden>
+              {t('tool.op')}: {t(`tool.op.${o}`)}
+            </span>
+          </button>
+        ))}
       </div>
     </nav>
   );

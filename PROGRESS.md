@@ -134,6 +134,27 @@ Known limitations at the end of milestone 6
 - Previews are SVG drawings of the first sheet (not 3D renders).
 - No automatic expiry of submissions (the teacher deletes classes at the end of term).
 
+## Visual overhaul ✅
+
+The brief and the interview decisions are in `VISUAL_OVERHAUL.md`; the design decisions are in DECISIONS.md (*Visual overhaul*). Review screenshots (English and Hebrew) are in `docs/overhaul-shots/`.
+
+Implemented
+- Token-based styling, Rubik UI font, inline SVG icon set; one-row top bar with project menu, material pill and *Material & sheet* drawer; floating dark tool rail with shortcuts and operation swatches; contextual card (inspector) and grow card in the same slot; coach-mark tips that skip "draw your first panel" for templates.
+- 3D stage: per-part tinted faces and darker cut edges, optional outlines, contact shadow, Auto/Simple/Rich quality with GTAO, on-demand rendering, view cube, screen-sized edge picking with hints, ghost with blocked (amber) state, angle arc, push-pull arrows, flip badge, in-place dimensions, joint pills, fold beads and creases, fold/unfold slider. Auto-fit when the view shows none of the design.
+- Cards: scrub fields, steppers, segmented choices, the angle dial; one-at-a-time joint list; collapsible divider adder.
+- Role names for parts across the 3D view, cards and cut plan; matched part tints in the cut plan; material-tinted sheet with a chip; RTL-aware fit.
+- Start screen: material then template, with sheet-corner drawings and template pictures rendered from the generators.
+
+Verified
+- `npm test` — all app tests pass (71). `worker/api.test.ts` needs `drizzle-orm` installed (`npm ci`); it was not installed in this environment.
+- Playwright — all 11 browser specs pass, including a new `overhaul.spec.ts` (start screen, drawer, role names, fold slider, in-place dimension, joint pill, dial detents by click and keys, flip badge, ghost height label, view settings, project menu). The classroom spec was not run here because the Worker needs `drizzle-orm`; nothing it uses changed except `open-teacher`, which moved into the project menu (the spec navigates to `/#/teacher` directly).
+- Push-pull drag checked by hand in a real browser (one drag = one undo step).
+
+Known limitations after the overhaul
+- Push-pull arrows are not covered by an automated test (their screen position depends on the camera).
+- Rich quality was checked on a GPU; software rendering always uses Simple.
+- The grow card sits in the card slot, not next to the edge (see DECISIONS.md).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

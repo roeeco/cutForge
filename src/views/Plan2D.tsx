@@ -17,6 +17,10 @@ import { fmtNum } from '../i18n';
 import type { Design, Detail, SheetPlacement } from '../model/types';
 import { validate } from '../model/validate';
 import { placeText } from './View3D';
+import { MATERIAL_COLORS, partTintCss } from './palette';
+import { panelLabel } from '../model/names';
+import { MATERIALS } from '../model/materials';
+import { Icon } from '../ui/icons';
 
 const GAP = 40;
 const grid = (x: number) => Math.round(x);
@@ -42,6 +46,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const d = useStore((s) => s.design);
   const sel = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
+  const hoverPart = useStore((s) => s.hoverPart);
+  const textDir = useStore((s) => (s.lang === 'he' ? 'rtl' : 'ltr'));
   const svgRef = useRef<SVGSVGElement>(null);
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
   const W = solo ? solo.w : d.material.sheetW;
@@ -76,7 +82,17 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return { x: -m, y: -m, w: solo.w + 2 * m, h: solo.h + 2 * m };
     }
     const totalW = layout.sheets * W + (layout.sheets - 1) * GAP;
-    return { x: -20, y: -30, w: totalW + 40, h: H + 60 };
+    // frame the sheets in the area the floating rail and card leave free
+    // (rail at the inline start, card at the inline end)
+    const el = svgRef.current;
+    const cw = el?.clientWidth || 1200, ch = el?.clientHeight || 760;
+    const rtl = document.documentElement.dir === 'rtl';
+    const railPx = 96, cardPx = 340, topPx = 84, bottomPx = 64;
+    const left = rtl ? cardPx : railPx, right = rtl ? railPx : cardPx;
+    const availW = Math.max(200, cw - left - right), availH = Math.max(160, ch - topPx - bottomPx);
+    const k = Math.min(availW / totalW, availH / H); // px per mm
+    const x0 = left + (availW - totalW * k) / 2, y0 = topPx + (availH - H * k) / 2;
+    return { x: -x0 / k, y: -y0 / k, w: cw / k, h: ch / k };
   };
   const [vb, setVBState] = useState<VB>(() => savedVB.get(modeKey) ?? fitVB());
   const setVB = (v: VB | ((o: VB) => VB)) =>
@@ -86,6 +102,10 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return n;
     });
   useEffect(() => setVBState(savedVB.get(modeKey) ?? fitVB()), [modeKey]);
+  // the first fit ran before the drawing had a size: fit again once it has one
+  useEffect(() => {
+    if (!savedVB.has(modeKey)) setVBState(fitVB());
+  }, []);
   const [label, setLabel] = useState<{ text: string; x: number; y: number } | null>(null);
   const [guides, setGuides] = useState<{ guides: Guide[]; targets: Vec2[]; placed: Placed; panelId: string } | null>(null);
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
@@ -360,6 +380,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
+  const builtIn = MATERIALS.find((m) => m.id === d.material.id);
+  const matName = builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness });
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -381,20 +403,42 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         onContextMenu={(e) => e.preventDefault()}
         className={shapeTool ? 'drawing' : ''}
       >
+        <defs>
+          <pattern id="flutes" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform={d.material.grain === 'x' ? 'rotate(90)' : undefined}>
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#7a5a30" strokeOpacity="0.07" strokeWidth="0.6" />
+          </pattern>
+        </defs>
         {!solo &&
-          Array.from({ length: layout.sheets }, (_, i) => (
-            <g key={i}>
-              <rect x={i * (W + GAP)} y={0} width={W} height={H} className="sheet" />
-              <rect x={i * (W + GAP) + d.sheetMargin} y={d.sheetMargin} width={W - 2 * d.sheetMargin} height={H - 2 * d.sheetMargin} className="sheet-margin" />
-              <text x={i * (W + GAP)} y={-8} className="sheet-label" fontSize={Math.max(8, px * 13)}>
-                {t('view.sheet', { n: i + 1 })} · {W} × {H} {t('unit.mm')}
-              </text>
-            </g>
-          ))}
+          Array.from({ length: layout.sheets }, (_, i) => {
+            const fs = Math.max(8, px * 12);
+            const chip = `${t('view.sheet', { n: i + 1 })} · ${matName} · ${W} × ${H} ${t('unit.mm')}`;
+            return (
+              <g key={i}>
+                <rect x={i * (W + GAP)} y={0} width={W} height={H} rx={2} className="sheet" fill={MATERIAL_COLORS[d.material.kind].sheet} />
+                {d.material.kind === 'corrugated' && <rect x={i * (W + GAP)} y={0} width={W} height={H} fill="url(#flutes)" pointerEvents="none" />}
+                <rect x={i * (W + GAP) + d.sheetMargin} y={d.sheetMargin} width={W - 2 * d.sheetMargin} height={H - 2 * d.sheetMargin} className="sheet-margin" strokeWidth={px} />
+                <g className="sheet-chip" transform={`translate(${i * (W + GAP)}, ${-fs * 2.1})`}>
+                  <rect x={0} y={0} width={chip.length * fs * 0.52 + fs * 1.6} height={fs * 1.7} rx={fs * 0.85} strokeWidth={px} />
+                  <circle cx={fs * 0.85} cy={fs * 0.85} r={fs * 0.35} fill={MATERIAL_COLORS[d.material.kind].face} />
+                  <text x={fs * 1.5} y={fs * 1.18} fontSize={fs} direction={textDir} textAnchor={textDir === 'rtl' ? 'end' : 'start'} dx={textDir === 'rtl' ? chip.length * fs * 0.52 : 0}>
+                    {chip}
+                  </text>
+                </g>
+              </g>
+            );
+          })}
         {layout.placed.map((pl) => {
           const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId);
+          const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
+          const tint = partTintCss(d.material.kind, Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
           return (
-            <g key={pl.copy.key} data-piece={pl.copy.pieceKey} onDoubleClick={onDouble(pl)}>
+            <g
+              key={pl.copy.key}
+              data-piece={pl.copy.pieceKey}
+              onDoubleClick={onDouble(pl)}
+              onPointerEnter={() => useStore.getState().set({ hoverPart: pl.copy.pieceKey })}
+              onPointerLeave={() => useStore.getState().hoverPart === pl.copy.pieceKey && useStore.getState().set({ hoverPart: null })}
+            >
               {pl.copy.contours.map((c, i) => {
                 const dpath = contourPathD(xformContour(pl.xf, c.contour), H, pl.ox, 0);
                 if (c.role === 'outer')
@@ -402,11 +446,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                     <path
                       key={i}
                       d={dpath}
-                      className={`piece ${isSel && !solo ? 'sel' : ''} ${badPieces.has(pl.copy.pieceKey) ? 'bad' : ''}`}
+                      className={`piece ${isSel && !solo ? 'sel' : ''} ${isHov && !isSel && !solo ? 'hov' : ''} ${badPieces.has(pl.copy.pieceKey) ? 'bad' : ''}`}
                       fillRule="evenodd"
+                      fill={badPieces.has(pl.copy.pieceKey) ? 'rgba(220, 38, 38, 0.25)' : tint}
+                      fillOpacity={solo ? 0.55 : 0.75}
                       onPointerDown={onPieceDown(pl)}
                       stroke={LAYERS.cut.hex}
-                      strokeWidth={px * (isSel ? 2 : 1)}
+                      strokeWidth={px * (isSel ? 1.6 : 1)}
                       data-copy={pl.copy.key}
                     />
                   );
@@ -419,7 +465,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                     key={i}
                     d={dpath}
                     className={`detail ${dsel ? 'sel' : ''} op-${c.op} ${fold ? 'fold-line' : ''}`}
-                    stroke={dsel ? '#2563eb' : LAYERS[c.op].hex}
+                    stroke={dsel ? '#1fb8ac' : LAYERS[c.op].hex}
                     strokeWidth={px * (dsel ? 2.5 : 1)}
                     onPointerDown={dt && owner ? onDetailDown(pl, dt, owner.id) : undefined}
                     pointerEvents={dt ? undefined : 'none'}
@@ -434,8 +480,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                   const c = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h / 2 });
                   const q = d.pieces[pl.copy.pieceKey]?.quantity ?? 1;
                   return (
-                    <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" pointerEvents="none">
-                      {panel.name}
+                    <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none">
+                      {panelLabel(d, n.panelId, t)}
                       {q > 1 && n.panelId === pl.copy.pieceKey ? ` ${t('view.copies', { n: q })}` : ''}
                     </text>
                   );
@@ -495,32 +541,36 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           </text>
         )}
       </svg>
-      <div className="view-controls" dir="auto">
+      <div className="plan-dock" dir="auto">
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">
             {t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
           </button>
         )}
-        <button onClick={() => zoom(0.8)} aria-label={t('view.zoomIn')}>
-          +
-        </button>
-        <button onClick={() => zoom(1.25)} aria-label={t('view.zoomOut')}>
-          −
-        </button>
-        <button onClick={() => setVB(fitVB())}>{t('view.fit')}</button>
-        {!solo && (
-          <button
-            onClick={() => {
-              const st = useStore.getState();
-              if (Object.values(st.design.placements).some((p) => p.manual) && !confirm(t('pack.confirm'))) return;
-              st.apply((dd) => void (dd.placements = {}));
-            }}
-            data-testid="repack"
-          >
-            {t('pack.repack')}
+        <div className="cluster">
+          <button onClick={() => zoom(0.8)} aria-label={t('view.zoomIn')} title={t('view.zoomIn')}>
+            <Icon name="plus" />
           </button>
-        )}
-        {solo && <span className="solo-title">{t('solo.title', { panel: solo.name })}</span>}
+          <button onClick={() => zoom(1.25)} aria-label={t('view.zoomOut')} title={t('view.zoomOut')}>
+            <Icon name="minus" />
+          </button>
+          <button onClick={() => setVB(fitVB())} aria-label={t('view.fit')} title={t('view.fit')} data-testid="fit-view">
+            <Icon name="fit" />
+          </button>
+          {!solo && (
+            <button
+              onClick={() => {
+                const st = useStore.getState();
+                if (Object.values(st.design.placements).some((p) => p.manual) && !confirm(t('pack.confirm'))) return;
+                st.apply((dd) => void (dd.placements = {}));
+              }}
+              data-testid="repack"
+            >
+              <Icon name="repack" /> {t('pack.repack')}
+            </button>
+          )}
+        </div>
+        {solo && <span className="solo-title">{t('solo.title', { panel: panelLabel(d, solo.id, t) })}</span>}
       </div>
       <div className="view-hint" dir="auto">
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
