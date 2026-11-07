@@ -21,8 +21,7 @@ Verified
 - `npm run build` passes.
 
 Known limitations at the end of milestone 1
-- Only parent–child joints: two walls grown from adjacent edges of a base overlap at their shared corner (no closing seams or three-panel corner rule yet — milestone 2).
-- 90° only; no folds, tabs/slots, glue flaps or half-laps yet (milestone 2). Paper and corrugated materials join edge to edge for now, and say so.
+- (Resolved in milestone 2: closing seams, three-panel corners, angles, folds, tabs/slots, glue flaps, half-laps.)
 - No smart snapping, multiple selection, align/distribute, arrays or solo view yet (milestone 3); drawing snaps to a 1 mm grid.
 - No text, SVG import, manual sheet placement or compensated kerf mode yet (milestone 4). Packing is bounding-box shelf packing.
 - LightBurn colour mapping follows its documented palette but has not been tested in LightBurn itself.

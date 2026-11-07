@@ -96,3 +96,25 @@ describe('export preparation', () => {
     expect(r.svg.paths.filter((p: any) => p.closed)).toHaveLength(1);
   });
 });
+
+describe('folded net export', () => {
+  it.skipIf(!hasPython())('a folded tray exports one closed outline with score lines', async () => {
+    const { MATERIALS } = await import('../src/model/materials');
+    const { connectSeams } = await import('../src/model/ops');
+    const d = createDesign(MATERIALS[0]);
+    const base = addRootPanel(d, 0, 0, 100, 70);
+    const walls = [0, 1, 2, 3].map((e) => growPanel(d, base, e, { height: 30, angle: 90, dir: 'up', kind: 'fold' })!.panelId);
+    for (const w of walls) connectSeams(d, w);
+    const prep = prepareExport(d);
+    const dir = mkdtempSync(join(tmpdir(), 'cutforge-'));
+    const dxfPath = join(dir, 'net.dxf'), svgPath = join(dir, 'net.svg');
+    writeFileSync(dxfPath, sheetsToDxf(prep.sheets));
+    writeFileSync(svgPath, sheetsToSvg(prep.sheets));
+    const r = JSON.parse(execFileSync('python3', ['tests/py/check_exports.py', dxfPath, svgPath]).toString());
+    const cut = r.dxf.entities.filter((e: any) => e.layer === 'CUT');
+    expect(cut).toHaveLength(1);
+    expect(cut[0].closed).toBe(true);
+    expect(r.dxf.entities.filter((e: any) => e.layer === 'SCORE')).toHaveLength(8);
+    expect(r.svg.strokes).toEqual(['#0000FF', '#FF0000']);
+  });
+});
