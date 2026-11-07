@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestone 1 (vertical slice) complete.** See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1 (vertical slice) and 2 (connections and angles) complete.** See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
 
 ## Run locally
 
@@ -29,7 +29,9 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 1. Choose a material (and the interface language: English / עברית).
 2. **Panel** tool: drag on the floor grid to draw a flat panel. Set exact sizes in the inspector.
-3. Click an edge (or use *Grow from …* in the inspector), then **Grow panel**: a ghost shows the new panel, its 90° angle and which side the material lies on. *Flip* chooses up/down. Plywood offers finger joints.
+3. Click an edge (or use *Grow from …* in the inspector), then **Grow panel**: a ghost shows the new panel and which side the material lies on. Pick the angle (90°, 60°, 45°, 30°, 15°), *Up/Down*, and the connection: plywood offers finger joints and tabs and slots at 90°; card and corrugated offer folds, glue flaps and tabs and slots. An angled plywood panel needs side walls (*Add side walls*).
+   - Where panels meet without a connection (e.g. two walls at a corner), the inspector lists them under *Meeting panels* with a **Connect** button.
+   - *Add a divider* on a panel with walls; crossing dividers get half-laps automatically. *Clear inside sizes* shows the compartments.
 4. **Rectangle / Rounded rectangle / Circle**: drag on a panel in 3D, or on a piece in the cut plan. Choose cut-through, engrave or score.
 5. Switch between **3D workspace** and **Cut plan** at any time: both show the same panels; edits in either appear in the other.
 6. **Download for laser** (SVG or DXF) and **Save project** (JSON). Work is also autosaved in the browser.

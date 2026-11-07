@@ -1,11 +1,10 @@
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
-import { solve, deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setConnection, setPanelSize, updateDetail } from '../model/ops';
-import { connectionsFor } from '../model/materials';
-import { fingerCount } from '../model/geometry';
-import { edgeLength } from '../model/frame';
-import type { ConnectionKind, DetailOp, MaterialProfile } from '../model/types';
+import { solve, deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setPanelSize, updateDetail } from '../model/ops';
+import { pieceKeyOf } from '../model/pieces';
+import { ClearSizes, DividerAdder, OpenSeams, PanelConnections } from './Connections';
+import type { DetailOp, MaterialProfile } from '../model/types';
 import { fmtNum } from '../i18n';
 
 export function Inspector() {
@@ -79,40 +78,17 @@ export function Inspector() {
           <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
           <NumField
             label={t('insp.quantity')}
-            value={d.pieces[id]?.quantity ?? 1}
+            value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
             decimals={0}
             min={1}
             max={500}
-            onCommit={(v) => apply((x) => void (x.pieces[id] = { quantity: Math.round(v) }))}
+            onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
-          {pc && parent && (
-            <div className="subsection" data-testid="inspector-connection">
-              <h4>{t('conn.title', { panel: parent.name })}</h4>
-              <p className="note" dir="auto">{t('conn.angle', { a: pc.angle })}</p>
-              <div className="field">
-                <label htmlFor="c-kind">{t('edge.connection')}</label>
-                <select id="c-kind" value={pc.kind} onChange={(e) => apply((x) => setConnection(x, pc.id, { kind: e.target.value as ConnectionKind }))}>
-                  {connectionsFor(d.material, pc.angle).map((o) => (
-                    <option key={o} value={o}>
-                      {t(`conn.${o}`)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {pc.kind === 'finger' && (
-                <NumField
-                  label={t('conn.fingers')}
-                  value={fingerCount(pc, edgeLength(parent, pc.a.edge), d.material.thickness)}
-                  decimals={0}
-                  min={3}
-                  max={99}
-                  onCommit={(v) => apply((x) => setConnection(x, pc.id, { fingers: v }))}
-                  testId="conn-fingers"
-                />
-              )}
-            </div>
-          )}
+          <PanelConnections panelId={id} />
+          <OpenSeams panelId={id} />
+          <ClearSizes panelId={id} />
+          <DividerAdder panelId={id} />
           <div className="subsection">
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">

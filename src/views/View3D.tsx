@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
-import { GizmoHelper, GizmoViewport, Html, OrbitControls } from '@react-three/drei';
+import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore, useT } from '../store/store';
 import type { Design, Panel, V3 } from '../model/types';
 import { edgeConnection, addRootPanel, addDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
 import { edgeLength, frameNormal, growFrame, toLocal } from '../model/frame';
 import { detailContour } from '../model/geometry';
-import { contourLinePoints, contourShapeGeometry, faceZ, frameMatrix, panelGeometry } from './three-geom';
+import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum } from '../i18n';
 import { EdgeBar } from '../ui/EdgeBar';
 
@@ -37,7 +37,9 @@ function planeOf(p: Panel, point: THREE.Vector3) {
 }
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-function Scene({ setLabel }: { setLabel: (s: { text: string; at: V3 } | null) => void }) {
+type Label = { text: string; x: number; y: number };
+
+function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   const design = useStore((s) => s.design);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
@@ -61,7 +63,7 @@ function Scene({ setLabel }: { setLabel: (s: { text: string; at: V3 } | null) =>
         if (!p) return;
         g.cur = [snap(p[0]), 0, snap(p[2])];
         setDrawRect({ a: g.start, b: g.cur });
-        setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, at: g.cur });
+        setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'shape-draw') {
         const panel = st.design.panels[g.panelId];
         const p = ray(ev.clientX, ev.clientY, g.plane);
@@ -80,7 +82,7 @@ function Scene({ setLabel }: { setLabel: (s: { text: string; at: V3 } | null) =>
         st.preview((d) => {
           addDetail(d, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id);
         });
-        setLabel({ text: shape === 'circle' ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, at: p });
+        setLabel({ text: shape === 'circle' ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'detail-move') {
         const panel = st.design.panels[g.panelId];
         const p = ray(ev.clientX, ev.clientY, g.plane);
@@ -220,6 +222,7 @@ function Scene({ setLabel }: { setLabel: (s: { text: string; at: V3 } | null) =>
           />
         ) : null;
       })}
+      <Flaps d={design} />
       {selEdge && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} height={grow.height} angle={grow.angle} dir={grow.dir} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -300,6 +303,31 @@ function PanelObject(props: {
   );
 }
 
+function Flaps({ d }: { d: Design }) {
+  const items = useMemo(() => {
+    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4 }[] = [];
+    for (const c of Object.values(d.connections)) {
+      c.geom?.flaps3d.forEach((f, i) => {
+        const p = d.panels[f.panelId];
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: frameMatrix(p.frame) });
+      });
+    }
+    return out;
+  }, [d.connections, d.panels]);
+  useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
+  return (
+    <>
+      {items.map((x) => (
+        <group key={x.key} matrixAutoUpdate={false} matrix={x.matrix}>
+          <mesh geometry={x.geom} raycast={() => null}>
+            <meshStandardMaterial color="#b88a52" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
 function DetailLines({ c, zs, color }: { c: ReturnType<typeof detailContour>; zs: number[]; color: string }) {
   const lines = useMemo(
     () => zs.map((z) => new THREE.Line(new THREE.BufferGeometry().setFromPoints(contourLinePoints(c, z)), new THREE.LineBasicMaterial({ color }))),
@@ -341,9 +369,6 @@ function GrowGhost({ d, panelId, edge, height, angle, dir }: { d: Design; panelI
       <mesh geometry={ghost.geom} raycast={() => null}>
         <meshStandardMaterial color="#60a5fa" transparent opacity={0.4} depthWrite={false} />
       </mesh>
-      <Html position={[ghost.p.w / 2, Math.min(ghost.p.h, 20) / 2, 0]} center style={{ pointerEvents: 'none' }}>
-        <div className="ghost-label" dir="ltr">{angle}°</div>
-      </Html>
     </group>
   );
 }
@@ -420,7 +445,8 @@ export function View3D() {
   const empty = useStore((s) => s.design.order.length === 0);
   const [ortho, setOrtho] = useState(false);
   const [fit, setFit] = useState(0);
-  const [label, setLabel] = useState<{ text: string; at: V3 } | null>(null);
+  const [label, setLabel] = useState<Label | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const selection = useStore((s) => s.selection);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -433,17 +459,20 @@ export function View3D() {
   }, []);
   const hint = tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : 'tool.hint.shape';
   return (
-    <div className="view3d" dir="ltr" data-testid="view3d">
+    <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
         <color attach="background" args={['#f4f6f8']} />
         <Scene setLabel={setLabel} />
         <CameraRig ortho={ortho} fitSignal={fit} />
-        {label && (
-          <Html position={label.at} style={{ pointerEvents: 'none' }}>
-            <div className="dim-label">{label.text} {t('unit.mm')}</div>
-          </Html>
-        )}
       </Canvas>
+      {label && wrap.current && (
+        <div
+          className="dim-label"
+          style={{ position: 'absolute', left: label.x - wrap.current.getBoundingClientRect().left, top: label.y - wrap.current.getBoundingClientRect().top, pointerEvents: 'none' }}
+        >
+          {label.text} {t('unit.mm')}
+        </div>
+      )}
       <div className="view-controls" dir="auto">
         <button onClick={() => setOrtho((o) => !o)} title="O" data-testid="toggle-ortho">
           {ortho ? t('view.ortho') : t('view.persp')}

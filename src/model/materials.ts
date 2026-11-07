@@ -1,4 +1,4 @@
-import type { MaterialProfile } from './types';
+import type { ConnectionKind, MaterialProfile } from './types';
 
 // Starting points only: calibrate thickness, kerf and clearance on the actual
 // material and laser with a test cut.
@@ -15,8 +15,20 @@ export function materialById(id: string): MaterialProfile | undefined {
   return MATERIALS.find((m) => m.id === id);
 }
 
-/** Connections the material supports at a given angle (milestone 1: finger joints and plain butt edges). */
-export function connectionsFor(m: MaterialProfile, angle: number): ('finger' | 'butt')[] {
-  if (m.kind === 'plywood' && Math.abs(angle - 90) < 1e-6) return ['finger', 'butt'];
-  return ['butt'];
+export const ANGLES = [90, 60, 45, 30, 15] as const;
+
+/**
+ * Connections offered when growing a panel, by the actual angle. A laser cuts
+ * square through the sheet, so slots and fingers only fit panels at 90°.
+ * Plywood at other angles leans on its parent and is held by side walls.
+ */
+export function connectionsFor(m: MaterialProfile, angle: number): ConnectionKind[] {
+  const square = Math.abs(angle - 90) < 1e-6;
+  if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt'] : ['lean'];
+  return square ? ['fold', 'glue', 'tabslot', 'butt'] : ['fold', 'glue'];
+}
+
+/** Smallest safe web of material between a cut and an edge (mm). */
+export function minWeb(m: MaterialProfile): number {
+  return m.kind === 'plywood' ? 2 : m.kind === 'corrugated' ? 3 : 1.5;
 }

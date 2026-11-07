@@ -140,3 +140,12 @@ select, input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 
 .hints-head { display: flex; justify-content: space-between; }
 .hints-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.chips { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+.chip { border-radius: 999px; padding: 1px 7px; font-size: 12px; }
+.conn { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.conn.broken { border-color: var(--danger); }
+.conn-title { font-weight: 600; font-size: 13px; }
+.warn { border: 1px solid #f0b429; background: #fffbea; border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.warn-text { color: var(--danger); font-size: 12px; margin: 4px 0; }
+.fold-line { stroke-dasharray: 3 2; }
+.edgebar { width: 300px; }

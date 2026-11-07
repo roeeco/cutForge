@@ -28,7 +28,7 @@ export type TaggedContour = {
   role: 'outer' | 'hole' | 'line' | 'fill';
   contour: Contour;
   /** Source reference for validation/selection (panel id, detail id...). */
-  ref?: { panelId?: string; detailId?: string; pieceKey?: string };
+  ref?: { panelId?: string; detailId?: string; pieceKey?: string; foldId?: string };
 };
 
 /** 2D rigid transform: rotate by `rot` radians, then translate. Optional mirror on x before rotation. */

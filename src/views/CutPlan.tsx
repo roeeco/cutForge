@@ -18,9 +18,9 @@ type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number };
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; vb: VB }
-  | { kind: 'move'; id: string; placed: Placed; start: Vec2; orig: { cx: number; cy: number } }
-  | { kind: 'resize'; id: string; placed: Placed; fixed: Vec2; circle: boolean }
-  | { kind: 'draw'; id: string; placed: Placed; start: Vec2 };
+  | { kind: 'move'; id: string; placed: Placed; panelId: string; start: Vec2; orig: { cx: number; cy: number } }
+  | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean }
+  | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 };
 
 type VB = { x: number; y: number; w: number; h: number };
 
@@ -61,14 +61,28 @@ export function CutPlan() {
     const r = pt.matrixTransform(svg.getScreenCTM()!.inverse());
     return { x: r.x, y: r.y };
   };
-  /** SVG point to piece-local coordinates for a placed copy. */
-  const toLocal = (pl: Placed, p: Vec2): Vec2 => {
+  /** SVG point to piece coordinates for a placed copy. */
+  const toPiece = (pl: Placed, p: Vec2): Vec2 => {
     const q = invertPoint(pl.xf, { x: p.x - pl.ox, y: H - p.y });
     return { x: q.x + pl.copy.origin.x, y: q.y + pl.copy.origin.y };
   };
-  const toSvg = (pl: Placed, p: Vec2): Vec2 => {
-    const q = applyX(pl.xf, { x: p.x - pl.copy.origin.x, y: p.y - pl.copy.origin.y });
+  const netXf = (pl: Placed, panelId: string) => pl.copy.panels.find((n) => n.panelId === panelId)?.xf ?? { tx: 0, ty: 0, rot: 0 };
+  /** SVG point to a panel's local coordinates (through its unfold transform in a folded net). */
+  const toLocal = (pl: Placed, panelId: string, p: Vec2): Vec2 => invertPoint(netXf(pl, panelId), toPiece(pl, p));
+  const toSvg = (pl: Placed, panelId: string, p: Vec2): Vec2 => {
+    const n = applyX(netXf(pl, panelId), p);
+    const q = applyX(pl.xf, { x: n.x - pl.copy.origin.x, y: n.y - pl.copy.origin.y });
     return { x: q.x + pl.ox, y: H - q.y };
+  };
+  /** The panel of a piece under an SVG point (folded nets hold several). */
+  const panelAt = (pl: Placed, p: Vec2): string => {
+    const q = toPiece(pl, p);
+    for (const n of pl.copy.panels) {
+      const l = invertPoint(n.xf, q);
+      const pp = d.panels[n.panelId];
+      if (pp && l.x >= -0.5 && l.y >= -0.5 && l.x <= pp.w + 0.5 && l.y <= pp.h + 0.5) return n.panelId;
+    }
+    return pl.copy.pieceKey;
   };
 
   useEffect(() => {
@@ -82,7 +96,7 @@ export function CutPlan() {
         setVB({ ...g.vb, x: g.vb.x - (ev.clientX - g.sx) * k, y: g.vb.y - (ev.clientY - g.sy) * k });
         return;
       }
-      const l = toLocal(g.placed, svgPoint(ev));
+      const l = toLocal(g.placed, g.panelId, svgPoint(ev));
       if (g.kind === 'move') {
         st.preview((x) => updateDetail(x, g.id, { cx: g.orig.cx + snap(l.x - g.start.x), cy: g.orig.cy + snap(l.y - g.start.y) }));
       } else if (g.kind === 'resize') {
@@ -101,7 +115,7 @@ export function CutPlan() {
         if (w < 0.5 && h < 0.5) return;
         const cx = g.start.x + (Math.sign(px - g.start.x) || 1) * w / 2;
         const cy = g.start.y + (Math.sign(py - g.start.y) || 1) * h / 2;
-        st.preview((x) => void addDetail(x, g.placed.copy.pieceKey, shape, st.shapeOp, cx, cy, w, h, g.id));
+        st.preview((x) => void addDetail(x, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id));
         setLabel({ text: shape === 'circle' ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, ...svgPoint(ev) });
       }
     };
@@ -149,17 +163,18 @@ export function CutPlan() {
   const onPieceDown = (pl: Placed) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
     ev.stopPropagation();
+    const panelId = panelAt(pl, svgPoint(ev));
     if (shapeTool) {
-      const l = toLocal(pl, svgPoint(ev));
-      drag.current = { kind: 'draw', id: newId('x'), placed: pl, start: { x: snap(l.x), y: snap(l.y) } };
-    } else useStore.getState().select({ kind: 'panel', id: pl.copy.pieceKey });
+      const l = toLocal(pl, panelId, svgPoint(ev));
+      drag.current = { kind: 'draw', id: newId('x'), placed: pl, panelId, start: { x: snap(l.x), y: snap(l.y) } };
+    } else useStore.getState().select({ kind: 'panel', id: panelId });
   };
-  const onDetailDown = (pl: Placed, dt: Detail) => (ev: React.PointerEvent) => {
+  const onDetailDown = (pl: Placed, dt: Detail, panelId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
     if (shapeTool) return onPieceDown(pl)(ev);
     ev.stopPropagation();
     useStore.getState().select({ kind: 'detail', id: dt.id });
-    drag.current = { kind: 'move', id: dt.id, placed: pl, start: toLocal(pl, svgPoint(ev)), orig: { cx: dt.cx, cy: dt.cy } };
+    drag.current = { kind: 'move', id: dt.id, placed: pl, panelId, start: toLocal(pl, panelId, svgPoint(ev)), orig: { cx: dt.cx, cy: dt.cy } };
   };
   const onBackDown = (ev: React.PointerEvent) => {
     if (ev.button === 0 && tool === 'select') useStore.getState().select(null);
@@ -168,7 +183,7 @@ export function CutPlan() {
 
   const selDetail = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : selDetail?.panel.id;
-  const handlePl = selDetail ? layout.placed.find((p) => p.copy.pieceKey === selDetail.panel.id) : undefined;
+  const handlePl = selDetail ? layout.placed.find((p) => p.copy.copy === 0 && p.copy.panels.some((n) => n.panelId === selDetail.panel.id)) : undefined;
   const px = vb.w / 900; // ≈ one screen pixel in mm at typical width
 
   return (
@@ -191,41 +206,50 @@ export function CutPlan() {
           </g>
         ))}
         {layout.placed.map((pl) => {
-          const panel = d.panels[pl.copy.pieceKey];
-          const isSel = selPanelId === pl.copy.pieceKey;
+          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId);
           return (
             <g key={pl.copy.key} data-piece={pl.copy.pieceKey}>
               {pl.copy.contours.map((c, i) => {
                 const dpath = contourPathD(xformContour(pl.xf, c.contour), H, pl.ox, 0);
                 if (c.role === 'outer')
                   return <path key={i} d={dpath} className={`piece ${isSel ? 'sel' : ''}`} fillRule="evenodd" onPointerDown={onPieceDown(pl)} stroke={LAYERS.cut.hex} strokeWidth={px * (isSel ? 2 : 1)} />;
-                const dt = panel?.details.find((x) => x.id === c.ref?.detailId);
+                const owner = c.ref?.panelId ? d.panels[c.ref.panelId] : undefined;
+                const dt = owner?.details.find((x) => x.id === c.ref?.detailId);
                 const dsel = !!dt && sel?.kind === 'detail' && sel.id === dt.id;
+                const fold = !!c.ref?.foldId;
                 return (
                   <path
                     key={i}
                     d={dpath}
-                    className={`detail ${dsel ? 'sel' : ''} op-${c.op}`}
+                    className={`detail ${dsel ? 'sel' : ''} op-${c.op} ${fold ? 'fold-line' : ''}`}
                     stroke={dsel ? '#2563eb' : LAYERS[c.op].hex}
                     strokeWidth={px * (dsel ? 2.5 : 1)}
-                    onPointerDown={dt ? onDetailDown(pl, dt) : undefined}
+                    onPointerDown={dt && owner ? onDetailDown(pl, dt, owner.id) : undefined}
+                    pointerEvents={dt ? undefined : 'none'}
                     data-testid={dt && pl.copy.copy === 0 ? `detail-${dt.id}` : undefined}
                   />
                 );
               })}
-              {panel && pl.copy.copy === 0 && (
-                <text {...(() => { const c = toSvg(pl, { x: panel.w / 2, y: panel.h / 2 }); return { x: c.x, y: c.y }; })()} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" pointerEvents="none">
-                  {panel.name}
-                  {(d.pieces[panel.id]?.quantity ?? 1) > 1 ? ` ${t('view.copies', { n: d.pieces[panel.id].quantity })}` : ''}
-                </text>
-              )}
+              {pl.copy.copy === 0 &&
+                pl.copy.panels.map((n) => {
+                  const panel = d.panels[n.panelId];
+                  if (!panel) return null;
+                  const c = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h / 2 });
+                  const q = d.pieces[pl.copy.pieceKey]?.quantity ?? 1;
+                  return (
+                    <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" pointerEvents="none">
+                      {panel.name}
+                      {q > 1 && n.panelId === pl.copy.pieceKey ? ` ${t('view.copies', { n: q })}` : ''}
+                    </text>
+                  );
+                })}
             </g>
           );
         })}
         {selDetail && handlePl && tool === 'select' && (
-          <Handles dt={selDetail.detail} toSvg={(p) => toSvg(handlePl, p)} size={px * 9} onDown={(fixed) => (ev) => {
+          <Handles dt={selDetail.detail} toSvg={(p) => toSvg(handlePl, selDetail.panel.id, p)} size={px * 9} onDown={(fixed) => (ev) => {
             ev.stopPropagation();
-            drag.current = { kind: 'resize', id: selDetail.detail.id, placed: handlePl, fixed, circle: selDetail.detail.shape === 'circle' };
+            drag.current = { kind: 'resize', id: selDetail.detail.id, placed: handlePl, panelId: selDetail.panel.id, fixed, circle: selDetail.detail.shape === 'circle' };
           }} />
         )}
         {label && (

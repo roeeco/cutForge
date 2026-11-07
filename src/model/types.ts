@@ -53,26 +53,71 @@ export type Panel = {
   details: Detail[];
 };
 
+/** An edge of a panel; edge -1 means the panel's face (for edge-on-face and crossing seams). */
 export type EdgeRef = { panelId: string; edge: number };
 
-export type ConnectionKind = 'finger' | 'butt';
+export type ConnectionKind =
+  | 'finger' // complementary fingers on two meeting edges (plywood, 90°)
+  | 'tabslot' // tabs on one edge through slots in the other panel (90°, incl. angled slots in side walls)
+  | 'slide' // edge stops short of the other panel's face by the fit clearance (no slots)
+  | 'fold' // panels stay one piece, joined by a score line
+  | 'glue' // glue flap on one panel's edge, folded onto the other panel's face
+  | 'halflap' // crossing panels with half-depth slots
+  | 'lean' // angled plywood panel resting on its parent, held by side walls
+  | 'butt'; // edge to edge, no joint
 
 /**
- * A connection owns the relationship between two panel edges and regenerates
- * both sides. `a` is the parent edge, `b` the child edge (child edge 0 runs
- * the same direction as the parent edge).
+ * A connection owns the relationship between two panels and regenerates
+ * both sides together.
+ *
+ * Grown connections (`grown: true`) attach a child to a parent edge: `a` is the
+ * parent edge, `b` the child's edge 0 (same direction), and the child's frame
+ * is derived from it. Other connections join existing panels (closing seams,
+ * divider ends, half-laps): `a` is the edge that carries the joint features
+ * (fingers: the earlier panel, which owns the corners), `b` the other panel's
+ * edge or face (edge -1).
  */
 export type Connection = {
   id: string;
   kind: ConnectionKind;
   a: EdgeRef;
   b: EdgeRef;
-  /** Angle between child and parent panel, degrees (see DECISIONS.md). */
+  grown: boolean;
+  /** Grown only: angle between child and parent panel, degrees (see DECISIONS.md). */
   angle: number;
-  /** Which face of the parent the child rises from. */
+  /** Grown only: which face of the parent the child rises from. */
   dir: 'up' | 'down';
+  /** Grown only: distance the child stands in from the parent edge (mm), e.g. dividers and tab-and-slot walls. */
+  offset: number;
   /** Requested finger count (odd, >=3). null = automatic from target width. */
   fingers: number | null;
+  /** Requested tab count. null = automatic. */
+  tabs: number | null;
+  /** Glue flap width (mm). null = automatic from material. */
+  flap: number | null;
+  /** Fold direction seen from the material side of the parent. */
+  foldDir: 'valley' | 'mountain';
+  /** Last valid derived geometry, kept when the panels stop meeting (see `broken`). */
+  geom?: ConnGeom;
+  /** True when the joined edges no longer meet; `geom` is the last valid result. */
+  broken?: boolean;
+};
+
+export type Notch = { s0: number; s1: number; depth: number };
+export type P2 = { x: number; y: number };
+
+/** Geometry a connection contributes to its panels (all in panel-local mm). */
+export type ConnGeom = {
+  /** Edge profile changes: positive depth cuts back, negative protrudes. */
+  edges: { panelId: string; edge: number; notches: Notch[] }[];
+  /** Interior cut-outs (slots). */
+  holes: { panelId: string; poly: P2[] }[];
+  /** Extra material joined to a panel outline (glue flaps). */
+  adds: { panelId: string; poly: P2[] }[];
+  /** Score lines (flap folds). */
+  scores: { panelId: string; a: P2; b: P2 }[];
+  /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
+  flaps3d: { panelId: string; poly: P2[]; z0: number; z1: number }[];
 };
 
 export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean };
@@ -95,4 +140,4 @@ export type Design = {
   sheetMargin: number;
 };
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;

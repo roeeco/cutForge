@@ -1,7 +1,7 @@
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
-import { connectionsFor } from '../model/materials';
-import { edgeConnection, growPanel } from '../model/ops';
+import { ANGLES, connectionsFor } from '../model/materials';
+import { addSideWalls, edgeConnection, growPanel, hasSideWalls } from '../model/ops';
 import { useState } from 'react';
 import type { ConnectionKind } from '../model/types';
 
@@ -17,6 +17,7 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: number }) {
   const effKind = options.includes(kind) ? kind : options[0];
   if (!panel) return null;
   const used = !!edgeConnection(design, panelId, edge);
+  const needsWalls = effKind === 'lean' && !hasSideWalls(design, panelId, edge);
   const doGrow = () => {
     let res: ReturnType<typeof growPanel> = null;
     useStore.getState().apply((d) => {
@@ -40,20 +41,40 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: number }) {
             </button>
           </div>
           <div className="field">
-            <span className="label">{t('edge.angle')}</span>
-            <span className="chip" dir="ltr" title={t('edge.angleNote')}>90°</span>
+            <span className="label" title={t('edge.angleNote')}>
+              {t('edge.angle')}
+            </span>
+            <span className="chips" dir="ltr" role="radiogroup" aria-label={t('edge.angle')}>
+              {ANGLES.map((a) => (
+                <button key={a} role="radio" aria-checked={grow.angle === a} className={grow.angle === a ? 'on chip' : 'chip'} onClick={() => setGrow({ angle: a })} data-testid={`grow-angle-${a}`}>
+                  {a}°
+                </button>
+              ))}
+            </span>
           </div>
           <div className="field">
             <label htmlFor="grow-kind">{t('edge.connection')}</label>
             <select id="grow-kind" value={effKind} onChange={(e) => setKind(e.target.value as ConnectionKind)} data-testid="grow-kind">
               {options.map((o) => (
-                <option key={o} value={o}>
-                  {t(`conn.${o}`)}
+                <option key={o} value={o} disabled={o === 'lean' && needsWalls}>
+                  {t(`conn.${o}` as 'conn.fold')}
                 </option>
               ))}
             </select>
           </div>
-          <button className="primary" onClick={doGrow} data-testid="grow-go">
+          {needsWalls && (
+            <div className="warn" data-testid="lean-needs-walls">
+              <strong>{t('edge.leanNeedsWalls')}</strong>
+              <p className="note">{t('edge.leanHelp')}</p>
+              <button
+                onClick={() => useStore.getState().apply((d) => addSideWalls(d, panelId, edge, grow.angle, grow.height))}
+                data-testid="add-side-walls"
+              >
+                {t('edge.addSideWalls')}
+              </button>
+            </div>
+          )}
+          <button className="primary" onClick={doGrow} data-testid="grow-go" disabled={needsWalls}>
             {t('edge.grow')}
           </button>
         </>

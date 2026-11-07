@@ -13,16 +13,28 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Direction:** *Up* grows from the parent face the material lies towards, *Down* from the other face.
 - The new panel's material always lies on the inside of the fold and the panels' outer faces are flush: panels are sized by **outer dimensions**, and the first `t` mm of the new panel overlap the parent's edge strip, which is where the joint is cut.
 - A connected child panel's width is owned by its parent edge. Editing the child's width resizes the parent edge instead (and the inspector says so). Child frames are re-derived from their connection after every edit (`solve`), so the assembly never needs a regeneration step.
-- Milestone 1 offers 90° only; other angles come with folds and side-wall slots in milestone 2 (the edge toolbar says so rather than showing an inactive choice).
+- **Seating:** finger joints use *overlap* seating (the new panel's first t mm overlap the parent's edge strip, where the fingers are cut). All other connections stand the new panel *on* the parent's face next to the edge, so nothing overlaps. Tab-and-slot walls stand in from the edge by a default of max(min web, t) so a web of material stays outside the slots.
+- **Leaning panels** are lifted by t·cos(angle) so their lower slab corner rests on the parent face (a square-cut edge touches along one line) instead of dipping into it.
 
 ## Finger joints
 - Odd finger count (default: about `max(3 × thickness, 10 mm)` per finger, minimum 3; editable). Segment 0 and the last segment belong to the parent, so the parent owns both corners.
-- **Corner ownership for three-panel corners** is milestone 2. Planned rule: at a corner where three mutually perpendicular panels meet, the corner cube belongs to the panel created first (lowest creation order); the others are cut back by the thickness there.
+- **Finger seams between any two edges** are laid out along the shared line, over the part where both edges overlap. The panel that comes first in creation order is side `a` and owns the even segments, including both end segments.
+- **Three-panel corner rule:** where three perpendicular panels meet, the corner cube belongs to the panel created first. This follows from the rule above: the base (first) owns the ends of both its seams, and of two walls the earlier one owns the ends of their vertical seam while its own corner is already cut back by the base seam. The volumetric test checks that each point of the corner is material exactly once.
 - **Clearance is applied once per connection:** the parent's slots are widened by `clearance / 2` at each interior end; the child's fingers stay nominal. Depth is the nominal thickness.
 - Materials that cannot take finger joints fall back to an edge-to-edge (butt) connection automatically when the material changes.
 
+## Other connections
+- **Clearance applied once per connection:** fingers widen the `a` side's slots by c/2 at each interior end; tab-and-slot slots are the tab's footprint grown by c/2 on every side (so the slot is tab + c in both directions) and tabs stay nominal; slide fits stop the edge c short; half-lap slots are t + c wide. Nothing else adds clearance.
+- **Tabs:** about one tab per 40 mm (editable), laid out in 2n+1 equal segments with tabs on the odd ones, so the ends of an edge are never tabs. Tabs are exactly the receiver's thickness long, flush with its far face.
+- **Slots** are computed as the projection of each tab's volume onto the receiving panel, so slots in side walls for leaning panels come out at the lean angle and the exact width automatically.
+- **Glue flaps:** on a grown panel, the flap is on the new panel's bottom edge and folds onto the parent face towards the parent's interior. On a closing seam, the flap is on the earlier panel, which is cut back by the other panel's thickness; the flap folds onto the other panel's inner face. Width: 10 mm card, max(15 mm, 4t) corrugated; tapered 45° ends.
+- **Half-laps:** the earlier divider is slotted from its top edge, the later from its bottom edge, each to half the shared height.
+- **Folded nets:** a child panel is unfolded rigidly about its fold line into the parent's flat coordinates (mirrored where needed so the material side stays the same), offset by the material's fold allowance, with the score line in the middle of that strip. Mountain/valley is recorded per fold (default: valley for *Up*).
+- **Broken seams:** each connection stores its last valid geometry. If its edges stop meeting after an edit, that geometry is kept and the connection is flagged `broken` (shown in the inspector and the export check) rather than reshaping any panel.
+- **Card/corrugated dividers** rest on the base and slide between the walls with the fit clearance (no wall slots, which would weaken them); plywood dividers use tabs into base and wall slots.
+
 ## Pieces and quantity
-- Milestone 1: every panel is one piece (folds that join panels into one net arrive in milestone 2). Quantity is stored per piece; copies share geometry and the packer places each copy.
+- A piece is one panel or one folded net (rooted at its earliest panel). Quantity is stored on the piece's root; copies share geometry and the packer places each copy. Outlines of a net (and glue flaps) are unioned with `polygon-clipping`; coordinates are snapped to 1e-7 mm first so panels that touch exactly stay touching after transforms.
 
 ## Export
 - Nominal export is the default and, in milestone 1, the only mode. Kerf compensation will be applied only in export preparation (`src/export/prepare.ts`), never in the model.

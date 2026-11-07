@@ -2,7 +2,7 @@
 import type { Design, SheetPlacement } from './types';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { contourBBox, xformContour } from '../geom/vec';
-import { pieceContours, pieceKeys } from './geometry';
+import { buildPieces, type NetPanel } from './pieces';
 
 export type PieceCopy = {
   key: string; // `${pieceKey}#${copy}`
@@ -13,18 +13,23 @@ export type PieceCopy = {
   h: number;
   /** Piece-local coordinates of the bbox minimum (subtract to get copy coordinates). */
   origin: { x: number; y: number };
+  /** Panels in this piece and their panel-local -> piece-local transforms. */
+  panels: NetPanel[];
 };
 
 export function pieceCopies(d: Design): PieceCopy[] {
   const out: PieceCopy[] = [];
-  for (const pk of pieceKeys(d)) {
-    const panel = d.panels[pk];
-    const raw = pieceContours(d, panel);
-    const bb = contourBBox(raw[0].contour);
-    const shift: Xform2 = { tx: -bb.minX, ty: -bb.minY, rot: 0 };
+  for (const piece of buildPieces(d)) {
+    const raw = piece.contours;
+    const outers = raw.filter((c) => c.role === 'outer');
+    const bbs = outers.map((c) => contourBBox(c.contour));
+    const minX = Math.min(...bbs.map((b) => b.minX)), minY = Math.min(...bbs.map((b) => b.minY));
+    const maxX = Math.max(...bbs.map((b) => b.maxX)), maxY = Math.max(...bbs.map((b) => b.maxY));
+    const shift: Xform2 = { tx: -minX, ty: -minY, rot: 0 };
     const contours = raw.map((c) => ({ ...c, contour: xformContour(shift, c.contour) }));
-    const q = Math.max(1, d.pieces[pk]?.quantity ?? 1);
-    for (let i = 0; i < q; i++) out.push({ key: `${pk}#${i}`, pieceKey: pk, copy: i, contours, w: bb.w, h: bb.h, origin: { x: bb.minX, y: bb.minY } });
+    const q = Math.max(1, d.pieces[piece.key]?.quantity ?? 1);
+    for (let i = 0; i < q; i++)
+      out.push({ key: `${piece.key}#${i}`, pieceKey: piece.key, copy: i, contours, w: maxX - minX, h: maxY - minY, origin: { x: minX, y: minY }, panels: piece.panels });
   }
   return out;
 }

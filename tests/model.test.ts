@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { addDetail, addRootPanel, createDesign, growPanel, setPanelSize, setMaterial, setConnection } from '../src/model/ops';
-import { fingerCount, fingerNotches, panelNotches, panelOutline } from '../src/model/geometry';
+import { addDetail, addRootPanel, createDesign, growPanel, setPanelSize, setMaterial, setConnection, solve } from '../src/model/ops';
+import { panelNotches, panelOutline } from '../src/model/geometry';
+import { fingerCountFor as fingerCount } from '../src/model/seams';
 import { edgeWorld, toWorld } from '../src/model/frame';
 import { MATERIALS } from '../src/model/materials';
 import { polygonArea } from '../src/geom/vec';
@@ -57,19 +58,24 @@ describe('finger joints', () => {
   });
 
   it('parent and child notches are complementary (with clearance applied once)', () => {
-    const { parent, child } = fingerNotches(100, 5, 3, 0);
+    const { d, base, wall, cid } = box();
+    setMaterial(d, { ...MATERIALS[3], clearance: 0 });
+    setConnection(d, cid, { fingers: 5 });
+    const parent = panelNotches(d, d.panels[base])[0], child = panelNotches(d, d.panels[wall])[0];
     const cover = [...parent, ...child].map((n) => [n.s0, n.s1]).sort((a, b) => a[0] - b[0]);
     expect(cover[0][0]).toBe(0);
     for (let i = 1; i < cover.length; i++) expect(cover[i][0]).toBeCloseTo(cover[i - 1][1], 12);
     expect(cover[cover.length - 1][1]).toBe(100);
-    const withC = fingerNotches(100, 5, 3, 0.2);
-    expect(withC.parent[0].s1 - withC.parent[0].s0).toBeCloseTo(20.2, 9);
-    expect(withC.child[1].s1 - withC.child[1].s0).toBeCloseTo(20, 9);
+    setMaterial(d, { ...MATERIALS[3], clearance: 0.2 });
+    const p2 = panelNotches(d, d.panels[base])[0], c2 = panelNotches(d, d.panels[wall])[0];
+    expect(p2[0].s1 - p2[0].s0).toBeCloseTo(20.2, 9);
+    expect(c2[1].s1 - c2[1].s0).toBeCloseTo(20, 9);
   });
 
   it('cuts the outlines so the two pieces fill the corner exactly once', () => {
     const { d, base, wall } = box();
     d.material.clearance = 0;
+    solve(d);
     const t = d.material.thickness;
     const bo = panelOutline(d.panels[base], panelNotches(d, d.panels[base]));
     const wo = panelOutline(d.panels[wall], panelNotches(d, d.panels[wall]));
@@ -90,10 +96,10 @@ describe('finger joints', () => {
     expect(panelNotches(d, d.panels[base])[0].length).toBe(3);
   });
 
-  it('falls back to a butt edge on materials without finger joints', () => {
+  it('falls back to a fold on materials without finger joints', () => {
     const { d, cid } = box();
     setMaterial(d, MATERIALS[0]);
-    expect(d.connections[cid].kind).toBe('butt');
+    expect(d.connections[cid].kind).toBe('fold');
   });
 });
 

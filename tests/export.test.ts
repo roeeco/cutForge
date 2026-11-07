@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addDetail, addRootPanel, createDesign, growPanel } from '../src/model/ops';
+import { addDetail, addRootPanel, connectSeams, createDesign, growPanel } from '../src/model/ops';
+import { MATERIALS } from '../src/model/materials';
 import { prepareExport } from '../src/export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../src/export/svg';
 import { sheetsToDxf } from '../src/export/dxf';
@@ -72,5 +73,26 @@ describe('export preparation', () => {
     // the 50 mm base with fingers on one edge: SVG and DXF agree on its size
     const widths = r.svg.paths.map((p: any) => +(p.bbox[2] - p.bbox[0]).toFixed(6));
     expect(widths).toContain(50);
+  });
+
+  it.skipIf(!hasPython())('a folded card tray exports one closed cut outline with fold and flap score lines', () => {
+    const d = createDesign(MATERIALS[0]);
+    const base = addRootPanel(d, 0, 0, 80, 60);
+    const walls = [0, 1, 2, 3].map((e) => growPanel(d, base, e, { height: 30, angle: 90, dir: 'up', kind: 'fold' })!.panelId);
+    for (const w of walls) connectSeams(d, w);
+    const prep = prepareExport(d);
+    const dir = mkdtempSync(join(tmpdir(), 'cutforge-'));
+    const dxfPath = join(dir, 'tray.dxf'), svgPath = join(dir, 'tray.svg');
+    writeFileSync(dxfPath, sheetsToDxf(prep.sheets));
+    writeFileSync(svgPath, sheetsToSvg(prep.sheets));
+    const r = JSON.parse(execFileSync('python3', ['tests/py/check_exports.py', dxfPath, svgPath]).toString());
+    const cut = r.dxf.entities.filter((e: any) => e.layer === 'CUT');
+    expect(cut).toHaveLength(1);
+    expect(cut[0].closed).toBe(true);
+    const score = r.dxf.entities.filter((e: any) => e.layer === 'SCORE');
+    expect(score).toHaveLength(8); // 4 folds + 4 glue flap folds
+    expect(score.every((e: any) => e.type === 'LINE')).toBe(true);
+    expect(r.svg.strokes).toEqual(['#0000FF', '#FF0000']);
+    expect(r.svg.paths.filter((p: any) => p.closed)).toHaveLength(1);
   });
 });

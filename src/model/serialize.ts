@@ -14,7 +14,19 @@ export class ProjectError extends Error {
 }
 
 /** Migrations from version N to N+1, keyed by N. */
-const MIGRATIONS: Record<number, (d: any) => any> = {};
+const MIGRATIONS: Record<number, (d: any) => any> = {
+  // v1 -> v2: connections gain grown/offset/tabs/flap/foldDir.
+  1: (d) => {
+    for (const c of Object.values<any>(d.connections ?? {})) {
+      c.grown = true;
+      c.offset = 0;
+      c.tabs = null;
+      c.flap = null;
+      c.foldDir = 'valley';
+    }
+    return d;
+  },
+};
 
 export function serializeProject(d: Design): string {
   const f: ProjectFile = { format: PROJECT_FORMAT, schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), design: d };
