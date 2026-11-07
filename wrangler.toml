@@ -8,12 +8,13 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+# every request goes through the Worker so the site password (SITE_PASSWORD) covers the app files too
+run_worker_first = true
 
 [[d1_databases]]
 binding = "DB"
 database_name = "cutforge"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "1ceab6b9-da94-4c3c-bc21-5dda79a0ae96"
 migrations_dir = "drizzle"
 
 [[r2_buckets]]
@@ -23,3 +24,4 @@ bucket_name = "cutforge-submissions"
 # Secrets (not in this file):
 #   npx wrangler secret put TEACHER_KEY      # the teacher's sign-in key
 #   npx wrangler secret put SESSION_SECRET   # long random string for signing sessions
+#   npx wrangler secret put SITE_PASSWORD    # optional: one password for the whole site

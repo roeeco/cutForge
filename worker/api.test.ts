@@ -108,3 +108,44 @@ describe('class submissions', () => {
     expect(await (await call(env, '/api/teacher/classes', { cookie })).json()).toEqual([]);
   });
 });
+
+describe('site password', () => {
+  const form = (pw: string, next = '/') => ({ method: 'POST', body: new URLSearchParams({ password: pw, next }) });
+  const raw = (env: any, path: string, init: RequestInit & { cookie?: string } = {}) =>
+    worker.fetch(new Request(base + path, { ...init, headers: init.cookie ? { cookie: init.cookie } : {} }), env);
+
+  it('leaves the site open when no password is set', async () => {
+    const { env } = testEnv();
+    expect((await call(env, '/api/class/ABCDEF')).status).toBe(404);
+  });
+
+  it('asks for the password, then lets the browser in with a signed cookie', async () => {
+    const { env } = testEnv();
+    const assets: string[] = [];
+    env.SITE_PASSWORD = 'class-pass';
+    env.ASSETS = { fetch: async (r: Request) => (assets.push(new URL(r.url).pathname), new Response('app')) } as any;
+    // app files and the API are both closed
+    const page = await raw(env, '/some/page?x=1');
+    expect(page.status).toBe(401);
+    const html = await page.text();
+    expect(html).toContain('name="password"');
+    expect(html).toContain('value="/some/page?x=1"');
+    expect((await raw(env, '/api/class/ABCDEF')).status).toBe(401);
+    expect(assets).toEqual([]);
+    // wrong password
+    expect((await raw(env, '/__login', form('nope'))).status).toBe(401);
+    // right password: back to where the student was going, never off-site
+    const ok = await raw(env, '/__login', form('class-pass', '/some/page?x=1'));
+    expect(ok.status).toBe(303);
+    expect(ok.headers.get('location')).toBe('/some/page?x=1');
+    expect((await raw(env, '/__login', form('class-pass', '//evil.example'))).headers.get('location')).toBe('/');
+    const cookie = ok.headers.get('set-cookie')!.split(';')[0];
+    expect(ok.headers.get('set-cookie')).toMatch(/HttpOnly; SameSite=Lax; Path=\/; Max-Age=\d+; Secure/);
+    expect(await (await raw(env, '/', { cookie })).text()).toBe('app');
+    expect((await raw(env, '/api/class/ABCDEF', { cookie })).status).toBe(404);
+    // a forged cookie, or one from before a password change, is refused
+    expect((await raw(env, '/', { cookie: 'cf_site=99999999999999.abc' })).status).toBe(401);
+    env.SITE_PASSWORD = 'new-pass';
+    expect((await raw(env, '/', { cookie })).status).toBe(401);
+  });
+});

@@ -15,6 +15,8 @@ export type Env = {
   TEACHER_KEY: string;
   /** Secret for signing the teacher session cookie (Worker secret). */
   SESSION_SECRET: string;
+  /** Optional shared password for the whole site (Worker secret). Unset = open site. */
+  SITE_PASSWORD?: string;
 };
 
 export const LIMITS = {
@@ -75,11 +77,88 @@ async function body<T>(req: Request, max: number): Promise<T | null> {
   }
 }
 
+// ---- site password ------------------------------------------------------------
+// With SITE_PASSWORD set, every request (app files and API) needs a signed
+// cookie, obtained once per browser on a small sign-in page. The signature
+// covers the password, so changing the password signs everyone out.
+const SITE_COOKIE = 'cf_site';
+const SITE_DAYS = 30;
+const LOGIN_PATH = '/__login';
+
+async function siteSig(env: Env, exp: number) {
+  return hmac(env.SESSION_SECRET, `site.${exp}.${env.SITE_PASSWORD}`);
+}
+async function siteOk(req: Request, env: Env) {
+  const m = new RegExp(`(?:^|;\\s*)${SITE_COOKIE}=([^;]+)`).exec(req.headers.get('cookie') ?? '');
+  if (!m) return false;
+  const [exp, sig] = decodeURIComponent(m[1]).split('.');
+  if (!exp || !sig || Number(exp) < Date.now()) return false;
+  return safeEqual(sig, await siteSig(env, Number(exp)));
+}
+/** Only same-site paths are followed after signing in. */
+const safeNext = (n: unknown) => (typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith(LOGIN_PATH) ? n : '/');
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+function loginPage(next: string, failed: boolean, status: number) {
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>CutForge</title>
+<style>
+:root{--bg:#f7f2ea;--ink:#2b2622;--muted:#6e655b;--line:#e4dccf;--accent:#15706b;--bright:#1fb8ac;--danger:#c2410c}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,'Segoe UI','Noto Sans Hebrew',Arial,sans-serif;padding:16px}
+.card{width:min(380px,100%);background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 28px rgba(35,43,56,.14);padding:26px 24px}
+.brand{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:600;font-size:18px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 4px}p{margin:0 0 14px;color:var(--muted)}p[dir=rtl]{margin-top:-10px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#f1ebe1}
+input:focus{outline:none;border-color:var(--bright);box-shadow:0 0 0 3px rgba(31,184,172,.35);background:#fff}
+button{margin-top:14px;width:100%;font:inherit;font-weight:500;padding:11px;border:0;border-radius:999px;background:var(--accent);color:#fff;cursor:pointer}
+button:hover{background:#0f5d59}.err{color:var(--danger);font-size:13px;margin:10px 0 0}
+</style></head><body>
+<form class="card" method="post" action="${LOGIN_PATH}">
+<div class="brand"><svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="currentColor"/><path d="M9 23V9h14v5h-3v4h3v5H9z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/></svg>CutForge</div>
+<h1>Enter the class password</h1>
+<p>Ask your teacher for the password.</p>
+<p dir="rtl" lang="he">הקלידו את סיסמת הכיתה. אפשר לקבל אותה מהמורה.</p>
+<label for="pw">Password · סיסמה</label>
+<input id="pw" name="password" type="password" autocomplete="current-password" autofocus required>
+<input type="hidden" name="next" value="${esc(next)}">
+${failed ? '<p class="err" role="alert">That password is not right. · הסיסמה לא נכונה.</p>' : ''}
+<button type="submit">Enter · כניסה</button>
+</form></body></html>`;
+  return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+}
+
+/** The site password gate. Returns a response to send, or null to carry on. */
+async function siteGate(req: Request, env: Env, url: URL): Promise<Response | null> {
+  if (!env.SITE_PASSWORD) return null;
+  if (url.pathname === LOGIN_PATH && req.method === 'POST') {
+    const form = await req.formData().catch(() => null);
+    const pw = form?.get('password');
+    const next = safeNext(form?.get('next'));
+    if (typeof pw !== 'string' || !env.SESSION_SECRET || !safeEqual(pw, env.SITE_PASSWORD)) {
+      await new Promise((r) => setTimeout(r, 400)); // slow down guessing
+      return loginPage(next, true, 401);
+    }
+    const exp = Date.now() + SITE_DAYS * 86_400_000;
+    const secure = url.protocol === 'https:' ? '; Secure' : '';
+    return new Response(null, {
+      status: 303,
+      headers: { location: next, 'cache-control': 'no-store', 'set-cookie': `${SITE_COOKIE}=${encodeURIComponent(`${exp}.${await siteSig(env, exp)}`)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SITE_DAYS * 86400}${secure}` },
+    });
+  }
+  if (await siteOk(req, env)) return url.pathname === LOGIN_PATH ? Response.redirect(new URL('/', url).toString(), 303) : null;
+  if (url.pathname.startsWith('/api/')) return err(401, 'sitePassword');
+  return loginPage(safeNext(url.pathname + url.search), false, 401);
+}
+
 const clean = (s: unknown, max: number) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, '').trim().slice(0, max) : '');
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    const gate = await siteGate(req, env, url);
+    if (gate) return gate;
     if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : new Response('Not found', { status: 404 });
     try {
       return await api(req, env, url);
