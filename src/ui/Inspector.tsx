@@ -3,6 +3,7 @@ import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
 import { solve, deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setPanelSize, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
+import { ArraySection, MultiSelection } from './Selection';
 import { ClearSizes, DividerAdder, OpenSeams, PanelConnections } from './Connections';
 import type { DetailOp, MaterialProfile } from '../model/types';
 import { fmtNum } from '../i18n';
@@ -15,7 +16,9 @@ export function Inspector() {
   const mm = t('unit.mm');
 
   let body: ReactElement;
-  if (sel?.kind === 'detail') {
+  if (sel?.kind === 'detail' && sel.ids.length > 1) {
+    body = <MultiSelection ids={sel.ids} />;
+  } else if (sel?.kind === 'detail') {
     const f = findDetail(d, sel.id);
     if (!f) body = <MaterialSettings />;
     else {
@@ -46,6 +49,7 @@ export function Inspector() {
           {dt.shape === 'roundrect' && <NumField label={t('insp.radius')} value={dt.r ?? 0} unit={mm} min={0} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { r: v }))} />}
           <NumField label={t('insp.x')} value={dt.cx} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cx: v }))} testId="detail-x" />
           <NumField label={t('insp.y')} value={dt.cy} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cy: v }))} testId="detail-y" />
+          <ArraySection dt={dt} />
           <button className="danger" onClick={() => apply((x) => deleteDetail(x, dt.id))}>
             {t('insp.delete')}
           </button>
@@ -62,6 +66,9 @@ export function Inspector() {
       body = (
         <section data-testid="inspector-panel">
           <h3>{t('insp.panel', { name: p.name })}</h3>
+          <button onClick={() => useStore.getState().openSolo(id)} data-testid="open-solo">
+            {t('solo.open')}
+          </button>
           <div className="field">
             <label htmlFor="p-name">{t('insp.panelName')}</label>
             <input

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Design, Frame, Panel } from '../model/types';
 import type { Contour, Vec2 } from '../geom/types';
 import { flattenContour } from '../geom/vec';
-import { detailContour, panelExtras, panelNotches, panelOutline } from '../model/geometry';
+import { detailContours, panelExtras, panelNotches, panelOutline } from '../model/geometry';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
 
@@ -28,10 +28,10 @@ export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = 
   const shape = new THREE.Shape(toShapePts(outline));
   for (const dt of p.details) {
     if (dt.op !== 'cut') continue;
-    const pts = flattenContour(detailContour(dt), 0.05);
-    if (pts.length < 3) continue;
-    const ccw = pts.slice().reverse();
-    shape.holes.push(new THREE.Path(toShapePts(ccw)));
+    for (const dc of detailContours(dt)) {
+      const pts = flattenContour(dc, 0.05);
+      if (pts.length >= 3) shape.holes.push(new THREE.Path(toShapePts(pts.slice().reverse())));
+    }
   }
   if (opts.joints !== false) for (const h of panelExtras(d, p).holes) shape.holes.push(new THREE.Path(toShapePts(h)));
   const g = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 24 });

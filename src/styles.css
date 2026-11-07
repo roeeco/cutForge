@@ -149,3 +149,12 @@ select, input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 
 .warn-text { color: var(--danger); font-size: 12px; margin: 4px 0; }
 .fold-line { stroke-dasharray: 3 2; }
 .edgebar { width: 300px; }
+.guide { stroke: #e11d48; fill: none; stroke-dasharray: 2 1.5; }
+.guide.gap { stroke: #db2777; stroke-dasharray: none; }
+.snap-target { fill: none; stroke: #e11d48; }
+.marquee { fill: rgba(37, 99, 235, 0.08); stroke: var(--accent); stroke-dasharray: 3 2; }
+.group-box { fill: none; stroke: var(--accent); stroke-dasharray: 3 2; }
+.cutplan.solo svg { background: #f4f6f8; }
+.solo-title { align-self: center; color: var(--muted); font-weight: 600; margin-inline-start: 6px; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0; }
+.btn-grid button { font-size: 12px; padding: 4px; }

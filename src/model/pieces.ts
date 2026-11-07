@@ -5,7 +5,7 @@ import type { Design, P2 } from './types';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, IDENTITY, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { edgeInwardLocal, edgeLocal } from './frame';
-import { cleanPolygon, detailContour, panelExtras, panelNotches, panelOutline } from './geometry';
+import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[] };
@@ -55,9 +55,17 @@ const toRing = (pts: P2[]): [number, number][] => {
 };
 
 export function buildPieces(d: Design): Piece[] {
-  const out: Piece[] = [];
+  return netGroups(d).map((g) => groupPiece(d, g));
+}
+
+/** One panel on its own (solo view): its outline, joints and details, no fold partners. */
+export function panelPiece(d: Design, panelId: string): Piece {
+  return groupPiece(d, [{ panelId, xf: IDENTITY }]);
+}
+
+function groupPiece(d: Design, group: NetPanel[]): Piece {
   const folds = Object.values(d.connections).filter((c) => c.grown && c.kind === 'fold');
-  for (const group of netGroups(d)) {
+  {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];
     const ids = new Set(group.map((g) => g.panelId));
@@ -69,17 +77,18 @@ export function buildPieces(d: Design): Piece[] {
       for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
       for (const h of ex.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
-      for (const dt of p.details) {
-        const contour = xformContour(xf, detailContour(dt));
-        const ref = { panelId, detailId: dt.id };
-        if (dt.op === 'cut') contours.push({ op: 'cut', role: 'hole', contour, ref });
-        else if (dt.op === 'engrave') contours.push({ op: 'engrave', role: 'fill', contour, ref });
-        else contours.push({ op: 'score', role: 'line', contour, ref });
-      }
+      for (const dt of p.details)
+        for (const dc of detailContours(dt)) {
+          const contour = xformContour(xf, dc);
+          const ref = { panelId, detailId: dt.id };
+          if (dt.op === 'cut') contours.push({ op: 'cut', role: 'hole', contour, ref });
+          else if (dt.op === 'engrave') contours.push({ op: 'engrave', role: 'fill', contour, ref });
+          else contours.push({ op: 'score', role: 'line', contour, ref });
+        }
     }
     // fold strips (fold allowance) and their score lines
     for (const c of folds) {
-      if (!ids.has(c.a.panelId)) continue;
+      if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
       const parent = d.panels[c.a.panelId];
       const xf = group.find((g) => g.panelId === parent.id)!.xf;
       const [A, B] = edgeLocal(parent, c.a.edge);
@@ -100,9 +109,8 @@ export function buildPieces(d: Design): Piece[] {
     }
     // the largest outer ring first (packing and selection use contours[0])
     outer.sort((a, b) => (b.role === 'outer' ? 1 : 0) - (a.role === 'outer' ? 1 : 0));
-    out.push({ key: group[0].panelId, panels: group, contours: [...outer, ...contours] });
+    return { key: group[0].panelId, panels: group, contours: [...outer, ...contours] };
   }
-  return out;
 }
 
 /** The piece a panel is cut as part of (the root of its folded net). */

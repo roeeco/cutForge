@@ -45,6 +45,14 @@ Defaults chosen where the brief left room. Each is reversible.
 - Dragging a root panel on the floor moves it; dragging empty space orbits the camera. Child panels follow their parents.
 - Every edit runs through the store's transactions: `apply` = one undo step, `preview` during a drag always re-applies to the state at the start of the gesture, `commit` makes the whole drag one undo step, `cancel` (Esc) restores. Edit recipes' return values are ignored so a recipe can't accidentally replace the design.
 
+## Editing tools
+- **Snapping** works in the panel's own coordinates. Candidate x/y values come from the panel (corners, edge midpoints, centre) and every other shape's box (corners, edge midpoints, centre, array copies included); a moving shape snaps its left/centre/right and bottom/centre/top; equal-spacing candidates centre a shape between its neighbours or repeat the neighbouring gap. The nearest candidate within 10 screen pixels wins (several equal ones all draw their guides). Alt turns it off. Snapping never stores a relationship.
+- **Selection** of several shapes is stored as ids with a primary (the last clicked). Pressing on a shape that is already selected drags the whole group.
+- **Align/distribute** require one flat surface: all shapes on panels that are coplanar (parallel normals, same plane). Boxes are measured in the primary shape's panel coordinates; distribute keeps the two outermost shapes where they are.
+- **Group resize** scales centres and sizes about the opposite corner of the group box; circles stay circles (scaled by the geometric mean); array spacing scales with the group.
+- **Arrays** are stored on the source shape (`array: { nx, ny, dx, dy }`, centre-to-centre spacing in panel coordinates) and expanded only when geometry is derived, so they stay live.
+- **Solo view** reuses the 2D editor with a single panel in its own coordinates (no fold partners, no sheet). The 3D camera and each 2D view's framing are remembered for the session while another view is open.
+
 ## Interface
 - The material and language choice appear together on the first screen so a Hebrew-speaking student can switch before choosing.
 - Hebrew uses "לוח" for a panel and "גיליון" for a material sheet.

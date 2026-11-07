@@ -26,6 +26,8 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     }
     return d;
   },
+  // v2 -> v3: details may carry a live array (optional field, nothing to convert).
+  2: (d) => d,
 };
 
 export function serializeProject(d: Design): string {

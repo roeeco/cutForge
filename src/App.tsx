@@ -8,13 +8,18 @@ import { MaterialDialog } from './ui/MaterialDialog';
 import { ExportDialog } from './ui/ExportDialog';
 import { Hints } from './ui/Hints';
 import { View3D } from './views/View3D';
-import { CutPlan } from './views/CutPlan';
+import { Plan2D } from './views/Plan2D';
 
 export function App() {
   const t = useT();
   const [loaded, setLoaded] = useState(false);
   const lang = useStore((s) => s.lang);
   const view = useStore((s) => s.view);
+  const soloPanel = useStore((s) => s.soloPanel);
+  const soloExists = useStore((s) => !!(s.soloPanel && s.design.panels[s.soloPanel]));
+  useEffect(() => {
+    if (view === 'solo' && !soloExists) useStore.getState().closeSolo();
+  }, [view, soloExists]);
   const needsMaterial = useStore((s) => s.needsMaterial);
   const exportOpen = useStore((s) => s.exportOpen);
   useAutosave(() => setLoaded(true));
@@ -30,7 +35,7 @@ export function App() {
       <TopBar />
       <div className="main">
         <Toolbar />
-        <main className="viewport">{view === '3d' ? <View3D /> : <CutPlan />}</main>
+        <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
         <Inspector />
       </div>
       {needsMaterial && <MaterialDialog />}

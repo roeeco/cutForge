@@ -2,23 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { useStore, useT } from '../store/store';
+import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
 import type { Design, Panel, V3 } from '../model/types';
-import { edgeConnection, addRootPanel, addDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
+import { edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
 import { edgeLength, frameNormal, growFrame, toLocal } from '../model/frame';
-import { detailContour } from '../model/geometry';
+import { detailBBox, detailContour, detailContours } from '../model/geometry';
+import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
+import { SNAP_PX } from '../geom/types';
+import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum } from '../i18n';
 import { EdgeBar } from '../ui/EdgeBar';
 
 const COLORS: Record<string, string> = { plywood: '#d9b98b', card: '#efe9dc', corrugated: '#c99f68' };
-const SNAP = 1; // mm grid for drawing (smart snapping arrives in milestone 3)
-const snap = (x: number) => Math.round(x / SNAP) * SNAP;
+const GRID = 1; // mm grid used when no smart-snap target is near
+const snap = (x: number) => Math.round(x / GRID) * GRID;
 
 type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
   | { kind: 'shape-draw'; panelId: string; id: string; start: { x: number; y: number }; plane: THREE.Plane }
-  | { kind: 'detail-move'; id: string; panelId: string; start: { x: number; y: number }; orig: { cx: number; cy: number }; plane: THREE.Plane }
+  | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
   | { kind: 'panel-move'; id: string; start: V3; plane: THREE.Plane };
 
 function useRay() {
@@ -48,6 +51,17 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   const ray = useRay();
   const drag = useRef<Drag | null>(null);
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
+  const [guides, setGuides] = useState<GuideState | null>(null);
+  const three = useThree();
+  /** Snap tolerance in mm at a world point: a fixed number of screen pixels at any zoom. */
+  const tolAt = (p: V3) => {
+    const cam = three.camera;
+    const hpx = three.gl.domElement.clientHeight || 600;
+    if (cam instanceof THREE.OrthographicCamera) return (SNAP_PX * (cam.top - cam.bottom)) / cam.zoom / hpx;
+    const pc = cam as THREE.PerspectiveCamera;
+    const dist = pc.position.distanceTo(new THREE.Vector3(...p));
+    return (SNAP_PX * 2 * dist * Math.tan((pc.fov * Math.PI) / 360)) / hpx;
+  };
 
   const setControls = (on: boolean) => {
     if (controls) controls.enabled = on;
@@ -69,7 +83,10 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!panel || !p) return;
         const l = toLocal(panel.frame, p);
-        const x = snap(l.x), y = snap(l.y);
+        const ctx = ev.altKey ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
+        const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
+        const x = sn?.dx ? l.x + sn.dx : snap(l.x), y = sn?.dy ? l.y + sn.dy : snap(l.y);
+        setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
         const shape = st.tool === 'select' || st.tool === 'panel' ? 'rect' : st.tool;
         let w = Math.abs(x - g.start.x), h = Math.abs(y - g.start.y);
         let cx = (x + g.start.x) / 2, cy = (y + g.start.y) / 2;
@@ -88,8 +105,24 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!panel || !p) return;
         const l = toLocal(panel.frame, p);
-        const dx = snap(l.x - g.start.x), dy = snap(l.y - g.start.y);
-        st.preview((d) => updateDetail(d, g.id, { cx: g.orig.cx + dx, cy: g.orig.cy + dy }));
+        let dx = l.x - g.start.x, dy = l.y - g.start.y;
+        const base = st.txnBase ?? st.design;
+        const ctx = ev.altKey ? null : snapContext(base, g.panelId, new Set(g.ids));
+        const sn = ctx ? snapBox(ctx, { minX: g.box.minX + dx, maxX: g.box.maxX + dx, minY: g.box.minY + dy, maxY: g.box.maxY + dy }, tolAt(p)) : null;
+        dx = sn?.dx ? dx + sn.dx : snap(dx);
+        dy = sn?.dy ? dy + sn.dy : snap(dy);
+        setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
+        // the same movement in space, measured on each shape's own panel
+        const wd = v3add(v3mul(panel.frame.u, dx), v3mul(panel.frame.v, dy));
+        st.preview((d) => {
+          for (const id of g.ids) {
+            const f = findDetail(base, id);
+            if (!f) continue;
+            const lx = f.panel.id === g.panelId ? dx : v3dot(wd, f.panel.frame.u);
+            const ly = f.panel.id === g.panelId ? dy : v3dot(wd, f.panel.frame.v);
+            updateDetail(d, id, { cx: f.detail.cx + lx, cy: f.detail.cy + ly });
+          }
+        });
       } else if (g.kind === 'panel-move') {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!p) return;
@@ -102,6 +135,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
       if (!g) return;
       drag.current = null;
       setLabel(null);
+      setGuides(null);
       setControls(true);
       const st = useStore.getState();
       if (g.kind === 'panel-draw') {
@@ -118,7 +152,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
       } else if (g.kind === 'shape-draw') {
         const made = !!st.txnBase;
         st.commit();
-        if (made) st.select({ kind: 'detail', id: g.id });
+        if (made) st.select(detailSel([g.id]));
       } else {
         st.commit();
       }
@@ -128,6 +162,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
         drag.current = null;
         setDrawRect(null);
         setLabel(null);
+        setGuides(null);
         setControls(true);
         useStore.getState().cancel();
       }
@@ -152,7 +187,10 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   const onPanelDown = (p: Panel) => (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
-      begin(e, { kind: 'shape-draw', panelId: p.id, id: newId('x'), start: { x: snap(l.x), y: snap(l.y) }, plane: planeOf(p, e.point) });
+      const ctx = e.nativeEvent.altKey ? null : snapContext(design, p.id, new Set());
+      const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
+      const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
+      begin(e, { kind: 'shape-draw', panelId: p.id, id: newId('x'), start, plane: planeOf(p, e.point) });
     } else if (tool === 'select') {
       e.stopPropagation();
       useStore.getState().select({ kind: 'panel', id: p.id });
@@ -167,9 +205,19 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
     if (tool !== 'select') return onPanelDown(p)(e);
     const dt = p.details.find((x) => x.id === id);
     if (!dt) return;
-    useStore.getState().select({ kind: 'detail', id });
+    const st = useStore.getState();
+    const ne = e.nativeEvent;
+    if (ne.shiftKey || ne.ctrlKey || ne.metaKey) {
+      e.stopPropagation();
+      return st.clickDetail(id, true);
+    }
+    const cur = selectedDetailIds(st.selection);
+    const group = cur.includes(id) ? cur : [id];
+    if (!cur.includes(id)) st.select(detailSel([id]));
+    const boxes = group.map((x) => findDetail(design, x)).filter((f) => f && f.panel.id === p.id).map((f) => detailBBox(f!.detail));
+    const box = { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
     const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
-    begin(e, { kind: 'detail-move', id, panelId: p.id, start: l, orig: { cx: dt.cx, cy: dt.cy }, plane: planeOf(p, e.point) });
+    begin(e, { kind: 'detail-move', ids: group, panelId: p.id, start: l, box, plane: planeOf(p, e.point) });
   };
 
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
@@ -191,6 +239,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
+    w.__cutforge.camera = () => ({ position: camera.position.toArray().map((x) => Math.round(x * 1000) / 1000), ortho: camera instanceof THREE.OrthographicCamera });
   }, [camera, gl]);
 
   const sel = selection;
@@ -214,15 +263,17 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
             d={design}
             p={p}
             selected={sel?.kind === 'panel' && sel.id === id}
-            selDetail={sel?.kind === 'detail' ? sel.id : null}
+            selDetails={selectedDetailIds(sel)}
             selEdge={selEdge && selEdge.panelId === id ? selEdge.edge : null}
             tool={tool}
             onPanelDown={onPanelDown(p)}
             onDetailDown={(did) => onDetailDown(p, did)}
+            onDouble={() => useStore.getState().openSolo(id)}
           />
         ) : null;
       })}
       <Flaps d={design} />
+      {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
       {selEdge && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} height={grow.height} angle={grow.angle} dir={grow.dir} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -242,13 +293,14 @@ function PanelObject(props: {
   d: Design;
   p: Panel;
   selected: boolean;
-  selDetail: string | null;
+  selDetails: string[];
   selEdge: number | null;
   tool: string;
   onPanelDown: (e: ThreeEvent<PointerEvent>) => void;
   onDetailDown: (id: string) => (e: ThreeEvent<PointerEvent>) => void;
+  onDouble: () => void;
 }) {
-  const { d, p, selected, selDetail, selEdge, tool } = props;
+  const { d, p, selected, selDetails, selEdge, tool } = props;
   const t = d.material.thickness;
   const geom = useMemo(() => panelGeometry(d, p), [d.material, d.connections, p]);
   const matrix = useMemo(() => frameMatrix(p.frame), [p.frame]);
@@ -264,18 +316,29 @@ function PanelObject(props: {
   });
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
-      <mesh geometry={geom} onPointerDown={props.onPanelDown} userData={{ panelId: p.id }}>
+      <mesh
+        geometry={geom}
+        onPointerDown={props.onPanelDown}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          props.onDouble();
+        }}
+        userData={{ panelId: p.id }}
+      >
         <meshStandardMaterial color={COLORS[d.material.kind]} emissive={selected ? '#2563eb' : '#000000'} emissiveIntensity={selected ? 0.35 : 0} roughness={0.85} metalness={0} />
       </mesh>
       {p.details.map((dt) => {
-        const c = detailContour(dt);
-        const isSel = selDetail === dt.id;
+        const isSel = selDetails.includes(dt.id);
         const color = isSel ? '#2563eb' : dt.op === 'cut' ? '#7a4b1c' : dt.op === 'engrave' ? '#222222' : '#1d4ed8';
         return (
           <group key={dt.id}>
-            <DetailLines c={c} zs={[z0 - 0.15, z1 + 0.15]} color={color} />
-            <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} />
-            <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} />
+            {detailContours(dt).map((c, i) => (
+              <group key={i}>
+                <DetailLines c={c} zs={[z0 - 0.15, z1 + 0.15]} color={color} />
+                <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} />
+                <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} />
+              </group>
+            ))}
           </group>
         );
       })}
@@ -299,6 +362,32 @@ function PanelObject(props: {
             </mesh>
           );
         })}
+    </group>
+  );
+}
+
+type GuideState = { panelId: string; guides: Guide[]; targets: { x: number; y: number }[] };
+
+/** Snap guides and the active target, drawn on the panel's outer faces. */
+function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
+  const [z0, z1] = faceZ(p, t);
+  const obj = useMemo(() => {
+    const grp = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: '#e11d48', depthTest: false });
+    for (const z of [z0 - 0.4, z1 + 0.4]) {
+      for (const gd of g.guides) grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(gd.a.x, gd.a.y, z), new THREE.Vector3(gd.b.x, gd.b.y, z)]), mat));
+      for (const tp of g.targets) {
+        const r = 2;
+        grp.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 16 }, (_, i) => new THREE.Vector3(tp.x + r * Math.cos((i * Math.PI) / 8), tp.y + r * Math.sin((i * Math.PI) / 8), z))), mat));
+      }
+    }
+    grp.renderOrder = 10;
+    return grp;
+  }, [g, z0, z1]);
+  useEffect(() => () => obj.traverse((o) => (o as THREE.Line).geometry?.dispose()), [obj]);
+  return (
+    <group matrixAutoUpdate={false} matrix={frameMatrix(p.frame)}>
+      <primitive object={obj} raycast={() => null} />
     </group>
   );
 }
@@ -373,6 +462,36 @@ function GrowGhost({ d, panelId, edge, height, angle, dir }: { d: Design; panelI
   );
 }
 
+/** 3D camera kept while another view is open, so returning restores the same framing. */
+const savedCam: { ortho: boolean; position?: [number, number, number]; target?: [number, number, number]; zoom?: number } = { ortho: false };
+
+function CameraKeeper() {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        const { camera, controls } = get() as unknown as { camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void }; controls: { target: THREE.Vector3; update(): void } | null };
+        if (!savedCam.position) return;
+        camera.position.set(...savedCam.position);
+        if (savedCam.zoom && camera instanceof THREE.OrthographicCamera) camera.zoom = savedCam.zoom;
+        camera.updateProjectionMatrix();
+        if (controls && savedCam.target) {
+          controls.target.set(...savedCam.target);
+          controls.update();
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      const { camera, controls } = get() as unknown as { camera: THREE.Camera & { zoom: number }; controls: { target: THREE.Vector3 } | null };
+      savedCam.position = camera.position.toArray() as [number, number, number];
+      savedCam.zoom = camera.zoom;
+      if (controls) savedCam.target = controls.target.toArray() as [number, number, number];
+    };
+  }, []);
+  return null;
+}
+
 function CameraRig({ ortho, fitSignal }: { ortho: boolean; fitSignal: number }) {
   const { camera, set, size, controls } = useThree() as unknown as {
     camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void };
@@ -443,7 +562,13 @@ export function View3D() {
   const t = useT();
   const tool = useStore((s) => s.tool);
   const empty = useStore((s) => s.design.order.length === 0);
-  const [ortho, setOrtho] = useState(false);
+  const [ortho, setOrthoState] = useState(savedCam.ortho);
+  const setOrtho = (f: (o: boolean) => boolean) =>
+    setOrthoState((o) => {
+      const n = f(o);
+      savedCam.ortho = n;
+      return n;
+    });
   const [fit, setFit] = useState(0);
   const [label, setLabel] = useState<Label | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -464,6 +589,7 @@ export function View3D() {
         <color attach="background" args={['#f4f6f8']} />
         <Scene setLabel={setLabel} />
         <CameraRig ortho={ortho} fitSignal={fit} />
+        <CameraKeeper />
       </Canvas>
       {label && wrap.current && (
         <div

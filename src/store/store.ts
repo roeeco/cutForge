@@ -9,11 +9,20 @@ import type { GrowDir } from '../model/frame';
 export type Selection =
   | { kind: 'panel'; id: string }
   | { kind: 'edge'; panelId: string; edge: number }
-  | { kind: 'detail'; id: string }
+  /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
+  | { kind: 'detail'; id: string; ids: string[] }
   | null;
 
+/** Ids of the selected shapes (empty when none). */
+export function selectedDetailIds(s: Selection): string[] {
+  return s?.kind === 'detail' ? s.ids : [];
+}
+export function detailSel(ids: string[]): Selection {
+  return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
+}
+
 export type Tool = 'select' | 'panel' | DetailShape;
-export type View = '3d' | '2d';
+export type View = '3d' | '2d' | 'solo';
 
 export type GrowOptions = { height: number; dir: GrowDir; angle: number };
 
@@ -27,6 +36,9 @@ type State = {
   tool: Tool;
   shapeOp: DetailOp;
   view: View;
+  /** Solo view: the panel shown face-on, and the view to return to. */
+  soloPanel: string | null;
+  prevView: '3d' | '2d';
   lang: Lang;
   grow: GrowOptions;
   needsMaterial: boolean;
@@ -46,6 +58,10 @@ type State = {
   setTool: (t: Tool) => void;
   setShapeOp: (o: DetailOp) => void;
   setView: (v: View) => void;
+  openSolo: (panelId: string) => void;
+  closeSolo: () => void;
+  /** Click on a shape: replace the selection, or toggle it with Shift/Ctrl. */
+  clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
   set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen'>>) => void;
@@ -68,7 +84,8 @@ function validSelection(d: Design, s: Selection): Selection {
   if (!s) return s;
   if (s.kind === 'panel') return d.panels[s.id] ? s : null;
   if (s.kind === 'edge') return d.panels[s.panelId] ? s : null;
-  return d.order.some((id) => d.panels[id]?.details.some((x) => x.id === s.id)) ? s : null;
+  const ids = s.ids.filter((x) => d.order.some((id) => d.panels[id]?.details.some((y) => y.id === x)));
+  return detailSel(ids);
 }
 
 export const useStore = create<State>()((set, get) => ({
@@ -80,6 +97,8 @@ export const useStore = create<State>()((set, get) => ({
   tool: 'select',
   shapeOp: 'cut',
   view: '3d',
+  soloPanel: null,
+  prevView: '3d',
   lang: initialLang(),
   grow: { height: 60, dir: 'up', angle: 90 },
   needsMaterial: true,
@@ -120,11 +139,21 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null }),
   select: (s) => set({ selection: s }),
   setTool: (t) => set({ tool: t }),
   setShapeOp: (o) => set({ shapeOp: o }),
-  setView: (v) => set({ view: v, tool: v === '2d' && get().tool === 'panel' ? 'select' : get().tool }),
+  setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
+  openSolo: (panelId) => {
+    const cur = get().view;
+    set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: get().tool === 'panel' ? 'select' : get().tool });
+  },
+  closeSolo: () => set({ view: get().prevView, soloPanel: null }),
+  clickDetail: (id, additive) => {
+    const cur = selectedDetailIds(get().selection);
+    if (!additive) return set({ selection: detailSel([id]) });
+    set({ selection: detailSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]) });
+  },
   setLang: (l) => {
     try {
       localStorage.setItem('cutforge.lang', l);

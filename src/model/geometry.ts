@@ -84,3 +84,26 @@ export function detailContour(dt: Detail): Contour {
   if (dt.shape === 'roundrect') return roundedRectContour(x0, y0, x1, y1, dt.r ?? 0);
   return rectContour(x0, y0, x1, y1);
 }
+
+/** The shapes a detail stands for: itself, or every copy of its live array. */
+export function detailInstances(dt: Detail): Detail[] {
+  const a = dt.array;
+  if (!a || (a.nx <= 1 && a.ny <= 1)) return [dt];
+  const out: Detail[] = [];
+  for (let j = 0; j < Math.max(1, a.ny); j++)
+    for (let i = 0; i < Math.max(1, a.nx); i++) out.push({ ...dt, array: undefined, cx: dt.cx + i * a.dx, cy: dt.cy + j * a.dy });
+  return out;
+}
+export function detailContours(dt: Detail): Contour[] {
+  return detailInstances(dt).map(detailContour);
+}
+/** Bounding box of a detail including all array copies. */
+export function detailBBox(dt: Detail) {
+  const inst = detailInstances(dt);
+  return {
+    minX: Math.min(...inst.map((x) => x.cx - x.w / 2)),
+    maxX: Math.max(...inst.map((x) => x.cx + x.w / 2)),
+    minY: Math.min(...inst.map((x) => x.cy - x.h / 2)),
+    maxY: Math.max(...inst.map((x) => x.cy + x.h / 2)),
+  };
+}

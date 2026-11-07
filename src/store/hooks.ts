@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useStore } from './store';
 import { loadLocal, saveLocal } from './persist';
 import { migrateDesign } from '../model/serialize';
-import { deleteDetail, deletePanel, findDetail, updateDetail } from '../model/ops';
+import { deletePanel } from '../model/ops';
+import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
+import { detailSel, selectedDetailIds } from './store';
 
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
@@ -63,21 +65,28 @@ export function useKeyboard() {
       }
       if (isTyping(e)) return;
       const sel = s.selection;
+      const ids = selectedDetailIds(sel);
+      if (mod && e.key.toLowerCase() === 'd' && ids.length) {
+        e.preventDefault();
+        let copies: string[] = [];
+        s.apply((d) => void (copies = duplicateDetails(d, ids)));
+        s.select(detailSel(copies));
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (sel?.kind === 'detail') s.apply((d) => deleteDetail(d, sel.id));
+        if (ids.length) s.apply((d) => deleteDetails(d, ids));
         else if (sel?.kind === 'panel') s.apply((d) => deletePanel(d, sel.id));
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
         if (s.tool !== 'select') s.setTool('select');
-        else s.select(null);
-      } else if (e.key.startsWith('Arrow') && sel?.kind === 'detail') {
-        const f = findDetail(s.design, sel.id);
-        if (!f) return;
+        else if (s.selection) s.select(null);
+        else if (s.view === 'solo') s.closeSolo();
+      } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
         const dy = e.key === 'ArrowDown' ? -step : e.key === 'ArrowUp' ? step : 0;
-        s.apply((d) => updateDetail(d, sel.id, { cx: f.detail.cx + dx, cy: f.detail.cy + dy }));
+        s.apply((d) => moveDetailsVisual(d, ids, dx, dy, s.view === 'solo' ? s.soloPanel : null));
         e.preventDefault();
       }
     };

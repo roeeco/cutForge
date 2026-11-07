@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1 (vertical slice) and 2 (connections and angles) complete.** See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1 (vertical slice), 2 (connections and angles) and 3 (editing tools) complete.** See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
 
 ## Run locally
 
@@ -36,7 +36,9 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 5. Switch between **3D workspace** and **Cut plan** at any time: both show the same panels; edits in either appear in the other.
 6. **Download for laser** (SVG or DXF) and **Save project** (JSON). Work is also autosaved in the browser.
 
-Keyboard: `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Esc` (cancel a drag / leave a tool / clear selection), arrow keys nudge the selected shape 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
+7. **Editing tools:** double-click a panel for a face-on *solo* view. Shift/Ctrl-click or drag a box to select several shapes, then move, resize, align, distribute or duplicate them. Turn a shape into a live row/grid array (and *Explode* it later). Shapes snap to panel and shape edges, centres and equal spacing (hold `Alt` to drag freely).
+
+Keyboard: `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
 
 ## LightBurn
 

@@ -66,7 +66,7 @@ export function ExportDialog() {
                   <button
                     className="link"
                     onClick={() => {
-                      useStore.getState().select(i.target);
+                      useStore.getState().select(i.target.kind === 'detail' ? { kind: 'detail', id: i.target.id, ids: [i.target.id] } : i.target);
                       close();
                     }}
                   >

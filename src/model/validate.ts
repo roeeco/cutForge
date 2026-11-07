@@ -1,8 +1,8 @@
 // Pre-export checks, explained in plain language by the UI.
 import type { Design, P2 } from './types';
 import type { MsgKey } from '../i18n';
-import { detailContour, panelExtras, panelNotches } from './geometry';
-import { bboxOf, contourBBox } from '../geom/vec';
+import { detailBBox, panelExtras, panelNotches } from './geometry';
+import { bboxOf } from '../geom/vec';
 import { minWeb as materialMinWeb } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported } from './ops';
@@ -32,7 +32,7 @@ export function validate(d: Design): Issue[] {
       bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
     for (const dt of p.details) {
       if (dt.op === 'score') continue;
-      const bb = contourBBox(detailContour(dt));
+      const bb = detailBBox(dt);
       if (bb.minX < 0 || bb.minY < 0 || bb.maxX > p.w || bb.maxY > p.h) {
         issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
       } else if (dt.op === 'cut' && thin(bb)) {

@@ -30,7 +30,7 @@ describe('i18n catalog', () => {
         .filter((s) => s && !/^(mm|Ø)$/.test(s) && !/[=;()]/.test(s));
       expect(hits, f).toEqual([]);
       // literal user-facing attributes
-      const attrs = [...src.matchAll(/\b(title|placeholder|aria-label|alt)="([^"]*[A-Za-z֐-׿][^"]*)"/g)].map((m) => m[0]).filter((a) => !/^title="(O|Ctrl\+Z|Ctrl\+Shift\+Z)"$/.test(a));
+      const attrs = [...src.matchAll(/\b(title|placeholder|aria-label|alt)="([^"]*[A-Za-z֐-׿][^"]*)"/g)].map((m) => m[0]).filter((a) => !/^title="(O|Ctrl\+Z|Ctrl\+Shift\+Z|Ctrl\+D)"$/.test(a));
       expect(attrs, f).toEqual([]);
     }
   });

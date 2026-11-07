@@ -52,5 +52,27 @@ Known limitations after milestone 2
 - Closing seams are offered, not created automatically, except for dividers and leaning panels (whose connections are generated together).
 
 
-## Milestones 3–6
+## Milestone 3 — Editing tools ✅
+
+Implemented
+- **Solo panel view**: double-click a panel (3D or cut plan) or *Open face-on (solo) view* in the inspector opens that panel face-on with the same tools, selection and history. *Back to …* (or Esc with nothing selected) returns to the previous view; the 3D camera (position, target, zoom, perspective/orthographic) and the cut plan's pan/zoom are kept.
+- **Multiple selection**: Shift/Ctrl-click to add or remove shapes (3D, cut plan, solo); drag on empty space for a selection box (cut plan and solo; right-drag pans there). The inspector says how many shapes and on which panel(s).
+- **Group edits**: drag any selected shape to move the whole group (one undo step; each shape moves on its own panel, mapped through the view); duplicate (*Duplicate* or Ctrl+D), delete, nudge with the arrow keys (1 mm, Shift = 10 mm); resize about the group's box with corner handles or exact group width/height.
+- **Align** (left/right/top/bottom edges, centres) and **distribute** (equal gaps, equal centre spacing) within one flat surface — one panel or panels lying in the same plane. When the shapes are on panels facing different ways, the buttons are disabled and the reason is shown.
+- **Live arrays**: row or grid arrays with editable columns, rows and centre-to-centre spacing; copies follow every change to the shape, are cut/exported/validated like normal shapes, and are saved in the project. *Explode array* turns them into independent shapes.
+- **Smart snapping** while drawing, moving and resizing, in 3D, cut plan and solo view: panel corners, edge midpoints and centre; other shapes' corners, edge midpoints and centres (array copies included); alignment with any of those; equal spacing between neighbours. The shapes being moved are excluded; the active target and guide lines are drawn; the threshold is a fixed 10 screen pixels at any zoom; Alt disables it. Snapping creates no stored relationship. Without a nearby target, values fall on a 1 mm grid.
+- **Keyboard**: Delete/Backspace, arrows (+Shift), Esc (cancel drag → leave tool → clear selection → leave solo view), Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, Ctrl+D, O (perspective/orthographic).
+- Project schema v3 (optional `array` on shapes).
+
+Verified
+- `npm test` — 47 Vitest tests; new: group move/duplicate/delete, resize about the group box, align edges/centres, equal gaps and equal centre spacing, refusal across non-coplanar panels, alignment across two separate coplanar panels, live arrays (geometry, export holes, save/reopen, explode), snapping to the panel centre and other shapes with self-exclusion, and equal-spacing guides.
+- `npm run e2e` — 6 Playwright tests; new editing test: double-click a panel in 3D → solo view; draw by mouse with snapping (a drag starting 1.5 px off lands exactly aligned, guides shown); box-select; align tops; equal gaps; group drag = one undo step and undo; arrow nudges; Ctrl+D and Delete; Shift-click to deselect; group width; grid array then explode; back to 3D with the camera unchanged; align disabled with the reason shown for shapes on perpendicular panels.
+
+Known limitations at the end of milestone 3
+- Multiple selection covers shapes (cutouts, engravings, scores), not whole panels.
+- Box selection is in the 2D views only (in 3D, Shift-click).
+- Moving a group across panels that face different ways moves each shape by the projection of the drag onto its own panel.
+- Resizing a group with handles is offered when all shapes are on one panel (numeric group size likewise).
+
+## Milestones 4–6
 Not started.

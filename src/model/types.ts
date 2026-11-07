@@ -41,7 +41,11 @@ export type Detail = {
   w: number; // for circles: diameter
   h: number; // for circles: equals w
   r?: number; // corner radius for roundrect
+  /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */
+  array?: DetailArray;
 };
+
+export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
 
 export type Panel = {
   id: string;
@@ -140,4 +144,4 @@ export type Design = {
   sheetMargin: number;
 };
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
