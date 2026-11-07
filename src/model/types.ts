@@ -28,7 +28,7 @@ export type MaterialProfile = {
  */
 export type Frame = { o: V3; u: V3; v: V3; side: 1 | -1 };
 
-export type DetailShape = 'rect' | 'roundrect' | 'circle';
+export type DetailShape = 'rect' | 'roundrect' | 'circle' | 'text' | 'path';
 export type DetailOp = 'cut' | 'engrave' | 'score';
 
 /** A detail drawn on a panel, in the panel's local coordinates (centre based). */
@@ -41,6 +41,10 @@ export type Detail = {
   w: number; // for circles: diameter
   h: number; // for circles: equals w
   r?: number; // corner radius for roundrect
+  /** Text shapes: the text stays editable; outlines are derived (see src/text). */
+  text?: { value: string; font: string; size: number };
+  /** Imported vector shapes: closed polygons in a unit box (-0.5..0.5), scaled to w × h. */
+  path?: { polys: P2[][] };
   /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */
   array?: DetailArray;
 };
@@ -142,6 +146,8 @@ export type Design = {
   placements: Record<string, SheetPlacement>;
   sheetSpacing: number;
   sheetMargin: number;
+  /** Let the packer turn pieces 90° against the grain/flute direction. */
+  allowRotate?: boolean;
 };
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;

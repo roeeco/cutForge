@@ -28,6 +28,11 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   },
   // v2 -> v3: details may carry a live array (optional field, nothing to convert).
   2: (d) => d,
+  // v3 -> v4: text and imported path shapes (new optional fields); sheet settings.
+  3: (d) => {
+    d.allowRotate ??= false;
+    return d;
+  },
 };
 
 export function serializeProject(d: Design): string {

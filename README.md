@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1 (vertical slice), 2 (connections and angles) and 3 (editing tools) complete.** See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1–4 complete** (vertical slice, connections and angles, editing tools, text/import/quantity/packing/validation/kerf). See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
 
 ## Run locally
 
@@ -38,6 +38,8 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 7. **Editing tools:** double-click a panel for a face-on *solo* view. Shift/Ctrl-click or drag a box to select several shapes, then move, resize, align, distribute or duplicate them. Turn a shape into a live row/grid array (and *Explode* it later). Shapes snap to panel and shape edges, centres and equal spacing (hold `Alt` to drag freely).
 
+8. **Text and icons:** the *Text* tool places Hebrew or English text (edit it in the inspector; it is exported as outlines). *Import SVG* puts a simple icon on the selected panel. Set *Copies to cut* per piece; drag pieces on the cut plan to place them by hand; *Repack* to start over.
+
 Keyboard: `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
 
 ## LightBurn
@@ -55,7 +57,7 @@ Each operation uses a different colour from LightBurn's default palette so it la
 
 The mapping follows LightBurn's documented default palette; it has not yet been checked by importing into a LightBurn installation (no LightBurn in the build environment). Please confirm on the classroom machine.
 
-**Kerf.** Exports are **Nominal**: every shape is at its exact design size, and the file name says so (`…-nominal-kerf0.15mm.svg`). Set the kerf offset per layer in LightBurn (Cut layer → *Kerf offset*). Starting points: plywood 3 mm ≈ 0.15 mm, corrugated ≈ 0.2–0.25 mm, card ≈ 0.1 mm — measure with a test cut. A *Compensated* export mode is planned for milestone 4.
+**Kerf.** The default export is **Nominal**: every shape is at its exact design size, and the file name says so (`…-nominal-kerf0.15mm.svg`). Set the kerf offset per layer in LightBurn (Cut layer → *Kerf offset*). Starting points: plywood 3 mm ≈ 0.15 mm, corrugated ≈ 0.2–0.25 mm, card ≈ 0.1 mm — measure with a test cut. **Compensated** export instead grows outlines and shrinks holes by half the kerf in the file (`…-compensated-kerf0.15mm.svg`); then set LightBurn's kerf offset to 0 so it is not applied twice.
 
 ## Data stored
 

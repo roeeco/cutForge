@@ -74,5 +74,27 @@ Known limitations at the end of milestone 3
 - Moving a group across panels that face different ways moves each shape by the projection of the drag onto its own panel.
 - Resizing a group with handles is offered when all shapes are on one panel (numeric group size likewise).
 
-## Milestones 4–6
+## Milestone 4 — Text, import and quantity ✅
+
+Implemented
+- **Text** (Text tool, 3D or 2D): Hebrew and English, editable as text in the inspector (value, font, letter height, engrave or cut-through). Three bundled OFL fonts covering both scripts (Rubik, Frank Ruhl Libre, Amatic SC), loaded in the background. Layout follows the Unicode bidi algorithm (bidi-js), including mixed Hebrew/English/numbers and mirrored brackets. Glyphs are turned into outline polygons (curves flattened at a declared 0.02 mm tolerance) for display, validation and export, so files never reference a font. An engraved text shape is one SVG path with even-odd fill so letter counters stay holes in LightBurn.
+- **SVG import** (*Import SVG*, onto the selected/solo panel): path, rect, circle, ellipse, polygon, closed polylines, nested transforms and elliptical arcs. Open lines are dropped with a note; files with only text, pictures or nothing closed are refused with the reason; very detailed shapes are simplified. The shape keeps its proportions, can be resized, and stays a vector shape in the project.
+- **Quantity and packing**: copies per piece; packing fills each sheet from the top-left around any hand-placed pieces, largest first, with part spacing and sheet margin. Rotation only when the material has no grain/flute direction or the student allows it (*Allow turning pieces against the grain*). A folded net packs as one unit.
+- **Manual sheet placement**: drag a piece on the cut plan (also to another sheet); it stays where it was put, and the other pieces pack around it. *Rotate on sheet* turns one copy (blocked, with the reason, against the grain). *Repack* clears hand placements after a confirmation; nothing is ever repacked silently.
+- **Validation before export**: added text that failed to outline (with the missing characters), cut-through letters whose middles would fall out, overlapping or touching cut-out shapes (double cut lines, array copies included), pieces that overlap on a sheet or lie outside it (drawn in red on the cut plan). Each message selects the affected panel or shape when clicked.
+- **Kerf modes**: Nominal (default, with the LightBurn note) or Compensated: outer outlines grow and holes shrink by kerf/2; islands inside cut-outs grow. Lines move, arcs keep their centre (arcs stay arcs), opening corners get a round join, closing corners are trimmed. An offset that collapses, reverses or crosses itself blocks the download and names the piece. The mode and kerf are in the dialog and the file name.
+- Project schema v4 (text and imported shapes, rotation setting).
+
+Verified
+- `npm test` — 61 Vitest tests; new: bidi visual order (mixed Hebrew/English/numbers, brackets), outlines in all three fonts with no missing glyphs, text exported as closed outlines in visual order with no font references (SVG and DXF), stencil warning, SVG import (transforms, arcs, open lines dropped, text/picture/non-SVG refused), imported shapes at exact size and saved in the project, **the kerf acceptance check (50×50 with Ø10 and kerf 0.2 → 50.2×50.2 and Ø9.8 compensated, unchanged nominal, arcs kept)**, compensated finger-jointed outlines, blocked collapse, **quantity 30 packed without overlaps, within margins, no rotation against the grain**, manual placements kept with overlap/off-sheet flags, folded net copies, overlapping cut-outs flagged.
+- `npm run e2e` — 8 Playwright tests (stable at 3× repeats with 6 parallel browsers); new: Text tool on a panel in 3D, Hebrew/English text edited in the inspector, SVG import onto the panel and a refused text-only SVG with its reason, downloads without font references; quantity 30 on the cut plan, dragging a copy off the sheet (kept, flagged in red and in the download checks), rotation blocked by grain, Repack, nominal vs compensated downloads (file names, hole radius 4.925 mm).
+- Fixed along the way: number fields could commit a stale value when typed and confirmed very quickly (they now read the input itself on Enter); clicking a panel with the Text tool no longer clears the new selection.
+
+Known limitations at the end of milestone 4
+- Text is laid out on one line; no kerning; no stencil bridges for cut-through text (warned instead).
+- SVG import ignores strokes widths, CSS styles and `<use>` references; curves are flattened (16 segments per Bézier) before simplification.
+- Packing is bounding-box based (no true-shape nesting). Manual pieces are not snapped to each other.
+- Kerf compensation offsets each contour on its own; two cut-outs that end up touching after compensation are caught by validation of the nominal shapes only.
+
+## Milestones 5–6
 Not started.

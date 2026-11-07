@@ -260,6 +260,31 @@ export function addDetail(d: Design, panelId: string, shape: DetailShape, op: De
   return id;
 }
 
+/** Place a text shape (engraved by default) centred at (cx, cy). */
+export function addText(d: Design, panelId: string, cx: number, cy: number, value: string, op: DetailOp = 'engrave', font = 'rubik', size = 10, fixedId?: string): string | null {
+  const p = d.panels[panelId];
+  if (!p) return null;
+  const id = fixedId ?? newId('x');
+  p.details.push({ id, shape: 'text', op, cx, cy, w: size * value.length * 0.55, h: size, text: { value, font, size } });
+  return id;
+}
+
+/** Place an imported vector shape (polygons in a unit box) at (cx, cy), w × h mm. */
+export function addPathShape(d: Design, panelId: string, polys: { x: number; y: number }[][], cx: number, cy: number, w: number, h: number, op: DetailOp): string | null {
+  const p = d.panels[panelId];
+  if (!p) return null;
+  const id = newId('x');
+  p.details.push({ id, shape: 'path', op, cx, cy, w, h, path: { polys } });
+  return id;
+}
+
+export function setText(d: Design, detailId: string, patch: Partial<{ value: string; font: string; size: number }>) {
+  const f = findDetail(d, detailId);
+  if (!f || !f.detail.text) return;
+  Object.assign(f.detail.text, patch);
+  f.detail.text.size = Math.max(1, Math.min(500, f.detail.text.size));
+}
+
 export function findDetail(d: Design, detailId: string): { panel: Panel; detail: Detail } | null {
   for (const id of d.order) {
     const panel = d.panels[id];

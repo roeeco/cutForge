@@ -1,5 +1,6 @@
 // Milestone 2 flows through the UI: closing seams, dividers with half-laps,
 // a leaning plywood panel held by side walls, and a folded card tray.
+import { setNum } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -17,10 +18,8 @@ async function start(page: Page, material: string, w: number, h: number) {
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });
   await page.mouse.up();
-  await page.getByTestId('panel-w').fill(String(w));
-  await page.getByTestId('panel-w').press('Enter');
-  await page.getByTestId('panel-h').fill(String(h));
-  await page.getByTestId('panel-h').press('Enter');
+  await setNum(page, 'panel-w', String(w));
+  await setNum(page, 'panel-h', String(h));
   return (await design(page)).order[0] as string;
 }
 
@@ -28,8 +27,7 @@ async function grow(page: Page, base: string, edge: number, height: number, angl
   await select(page, base);
   await page.getByTestId(`grow-from-${edge}`).click();
   await page.getByTestId(`grow-angle-${angle}`).click();
-  await page.getByTestId('grow-height').fill(String(height));
-  await page.getByTestId('grow-height').press('Enter');
+  await setNum(page, 'grow-height', String(height));
   if (kind) await page.getByTestId('grow-kind').selectOption(kind);
   await page.getByTestId('grow-go').click();
 }
@@ -76,8 +74,7 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   // move the first divider: half-lap follows, nothing breaks
   const div = d.order[5];
   await select(page, div);
-  await page.getByTestId('conn-offset').fill('30');
-  await page.getByTestId('conn-offset').press('Enter');
+  await setNum(page, 'conn-offset', '30');
   const d2 = await design(page);
   expect(Object.values<any>(d2.connections).some((c) => c.broken)).toBe(false);
   expect(await issues(page)).toBe('');

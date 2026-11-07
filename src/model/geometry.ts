@@ -1,7 +1,9 @@
 // Derived 2D geometry: manufactured panel outlines (joints applied) and details.
 import type { Design, Detail, Notch, P2, Panel } from './types';
 import type { Contour, Vec2 } from '../geom/types';
-import { circleContour, rectContour, roundedRectContour } from '../geom/vec';
+import { circleContour, polygonContour, rectContour, roundedRectContour } from '../geom/vec';
+import { outlineText } from '../text/outline';
+import type { FontId } from '../text/fonts';
 import { edgeInwardLocal, edgeLength, panelCorners } from './frame';
 import { normalizeNotches } from './seams';
 
@@ -78,6 +80,26 @@ export function cleanPolygon(pts: Vec2[]): Vec2[] {
   return out;
 }
 
+/** Text outline box (centred) or an estimate while fonts load. */
+export function textBox(dt: Detail): { w: number; h: number; ok: boolean } {
+  const t = dt.text;
+  if (!t) return { w: dt.w, h: dt.h, ok: false };
+  const o = outlineText(t.value, t.font as FontId, t.size);
+  if (!o || !o.polys.length) return { w: Math.max(1, t.size * 0.55 * [...t.value].length), h: t.size, ok: false };
+  return { w: o.maxX - o.minX, h: o.maxY - o.minY, ok: !o.missing.length };
+}
+
+/** Closed contours of one shape (text and imported shapes give several). */
+export function shapeContours(dt: Detail): Contour[] {
+  if (dt.shape === 'text' && dt.text) {
+    const o = outlineText(dt.text.value, dt.text.font as FontId, dt.text.size);
+    if (!o) return [];
+    return o.polys.map((p) => polygonContour(p.map((q) => ({ x: q.x + dt.cx, y: q.y + dt.cy }))));
+  }
+  if (dt.shape === 'path' && dt.path) return dt.path.polys.map((p) => polygonContour(p.map((q) => ({ x: dt.cx + q.x * dt.w, y: dt.cy + q.y * dt.h }))));
+  return [detailContour(dt)];
+}
+
 export function detailContour(dt: Detail): Contour {
   const x0 = dt.cx - dt.w / 2, y0 = dt.cy - dt.h / 2, x1 = dt.cx + dt.w / 2, y1 = dt.cy + dt.h / 2;
   if (dt.shape === 'circle') return circleContour(dt.cx, dt.cy, dt.w / 2);
@@ -88,14 +110,17 @@ export function detailContour(dt: Detail): Contour {
 /** The shapes a detail stands for: itself, or every copy of its live array. */
 export function detailInstances(dt: Detail): Detail[] {
   const a = dt.array;
-  if (!a || (a.nx <= 1 && a.ny <= 1)) return [dt];
+  // text measures itself from its outline
+  const tb = dt.shape === 'text' ? textBox(dt) : null;
+  const base = tb ? { ...dt, w: tb.w, h: tb.h } : dt;
+  if (!a || (a.nx <= 1 && a.ny <= 1)) return [base];
   const out: Detail[] = [];
   for (let j = 0; j < Math.max(1, a.ny); j++)
-    for (let i = 0; i < Math.max(1, a.nx); i++) out.push({ ...dt, array: undefined, cx: dt.cx + i * a.dx, cy: dt.cy + j * a.dy });
+    for (let i = 0; i < Math.max(1, a.nx); i++) out.push({ ...base, array: undefined, cx: dt.cx + i * a.dx, cy: dt.cy + j * a.dy });
   return out;
 }
 export function detailContours(dt: Detail): Contour[] {
-  return detailInstances(dt).map(detailContour);
+  return detailInstances(dt).flatMap(shapeContours);
 }
 /** Bounding box of a detail including all array copies. */
 export function detailBBox(dt: Detail) {

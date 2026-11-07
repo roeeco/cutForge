@@ -2,6 +2,7 @@
 // language toggle → material → panel in 3D → grow at 90° with finger joint →
 // cutouts in both views → numeric resize → switch views → undo →
 // autosave + reload → download SVG and DXF (checked with independent readers).
+import { setNum } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -41,18 +42,15 @@ test('vertical slice', async ({ page }) => {
   const base = d.order[0];
 
   // exact size
-  await page.getByTestId('panel-w').fill('120');
-  await page.getByTestId('panel-w').press('Enter');
-  await page.getByTestId('panel-h').fill('80');
-  await page.getByTestId('panel-h').press('Enter');
+  await setNum(page, 'panel-w', '120');
+  await setNum(page, 'panel-h', '80');
   d = await state(page);
   expect([d.panels[base].w, d.panels[base].h]).toEqual([120, 80]);
 
   // grow a wall at 90° with a finger joint
   await page.getByTestId('grow-from-0').click();
   await expect(page.getByTestId('edgebar')).toBeVisible();
-  await page.getByTestId('grow-height').fill('50');
-  await page.getByTestId('grow-height').press('Enter');
+  await setNum(page, 'grow-height', '50');
   await expect(page.getByTestId('grow-kind')).toHaveValue('finger');
   await page.getByTestId('grow-go').click();
   await expect(page.getByTestId('inspector-connection')).toBeVisible();
@@ -76,12 +74,10 @@ test('vertical slice', async ({ page }) => {
   const hole = d.panels[wall].details[0];
 
   // resize numerically
-  await page.getByTestId('detail-diameter').fill('20');
-  await page.getByTestId('detail-diameter').press('Enter');
-  await page.getByTestId('detail-x').fill('60');
-  await page.getByTestId('detail-x').press('Enter');
+  await setNum(page, 'detail-diameter', '20');
+  await setNum(page, 'detail-x', '60');
+  await expect.poll(async () => (await state(page)).panels[wall].details[0]).toMatchObject({ id: hole.id, w: 20, h: 20, cx: 60 });
   d = await state(page);
-  expect(d.panels[wall].details[0]).toMatchObject({ id: hole.id, w: 20, h: 20, cx: 60 });
 
   // switch to the cut plan: the same hole is there; draw a rectangle on the base piece
   await page.getByTestId('view-2d').click();

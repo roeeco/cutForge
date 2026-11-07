@@ -3,7 +3,8 @@ import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
 import { solve, deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setPanelSize, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
-import { ArraySection, MultiSelection } from './Selection';
+import { rotateCopy } from '../model/pack';
+import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, OpenSeams, PanelConnections } from './Connections';
 import type { DetailOp, MaterialProfile } from '../model/types';
 import { fmtNum } from '../i18n';
@@ -38,7 +39,9 @@ export function Inspector() {
               ))}
             </select>
           </div>
-          {isCircle ? (
+          {dt.shape === 'text' && dt.text ? (
+            <TextFields id={dt.id} text={dt.text} />
+          ) : isCircle ? (
             <NumField label={t('insp.diameter')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-diameter" />
           ) : (
             <>
@@ -92,6 +95,7 @@ export function Inspector() {
             onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
+          <SheetPlacementControls panelId={id} />
           <PanelConnections panelId={id} />
           <OpenSeams panelId={id} />
           <ClearSizes panelId={id} />
@@ -155,8 +159,30 @@ function MaterialSettings() {
       <NumField label={t('mat.sheetW')} value={m.sheetW} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetW: v })} />
       <NumField label={t('mat.sheetH')} value={m.sheetH} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetH: v })} />
       <NumField label={t('insp.spacing')} value={d.sheetSpacing} unit={mm} min={0} max={50} onCommit={(v) => apply((x) => void (x.sheetSpacing = v))} />
+      <label className="check">
+        <input type="checkbox" checked={!!d.allowRotate} onChange={(e) => apply((x) => void (x.allowRotate = e.target.checked))} data-testid="allow-rotate" /> {t('pack.allowRotate')}
+      </label>
       <NumField label={t('insp.margin')} value={d.sheetMargin} unit={mm} min={0} max={100} onCommit={(v) => apply((x) => void (x.sheetMargin = v))} />
       <p className="note">{t('mat.calibrate')}</p>
     </section>
+  );
+}
+
+/** On the cut plan: turn the copy the student clicked 90° (respecting the grain). */
+function SheetPlacementControls({ panelId }: { panelId: string }) {
+  const t = useT();
+  const view = useStore((s) => s.view);
+  const key = useStore((s) => s.sheetCopy);
+  const d = useStore((s) => s.design);
+  if (view !== '2d' || !key || !key.startsWith(pieceKeyOf(d, panelId) + '#')) return null;
+  const blocked = d.material.grain !== 'none' && !d.allowRotate;
+  return (
+    <div className="subsection">
+      {d.placements[key]?.manual && <p className="note">{t('pack.manual')}</p>}
+      <button disabled={blocked} onClick={() => useStore.getState().apply((x) => void rotateCopy(x, key))} data-testid="rotate-copy">
+        {t('pack.rotate')}
+      </button>
+      {blocked && <p className="note">{t('pack.rotateBlocked')}</p>}
+    </div>
   );
 }

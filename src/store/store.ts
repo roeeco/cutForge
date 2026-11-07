@@ -21,7 +21,7 @@ export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
 }
 
-export type Tool = 'select' | 'panel' | DetailShape;
+export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'>;
 export type View = '3d' | '2d' | 'solo';
 
 export type GrowOptions = { height: number; dir: GrowDir; angle: number };
@@ -44,6 +44,8 @@ type State = {
   needsMaterial: boolean;
   saveState: 'idle' | 'saving' | 'saved' | 'failed';
   exportOpen: boolean;
+  /** Copy on the cut plan the student last clicked or moved (for rotate). */
+  sheetCopy: string | null;
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -64,7 +66,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy'>>) => void;
 };
 
 const HISTORY_LIMIT = 200;
@@ -104,6 +106,7 @@ export const useStore = create<State>()((set, get) => ({
   needsMaterial: true,
   saveState: 'idle',
   exportOpen: false,
+  sheetCopy: null,
 
   apply: (fn) => {
     if (get().txnBase) get().commit();

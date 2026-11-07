@@ -14,7 +14,9 @@ import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { LAYERS } from '../export/layers';
 import { fmtNum } from '../i18n';
-import type { Design, Detail } from '../model/types';
+import type { Design, Detail, SheetPlacement } from '../model/types';
+import { validate } from '../model/validate';
+import { placeText } from './View3D';
 
 const GAP = 40;
 const grid = (x: number) => Math.round(x);
@@ -29,7 +31,8 @@ type Drag =
   | { kind: 'move'; ids: string[]; placed: Placed; panelId: string; start: Vec2; startSvg: Vec2; box: Box }
   | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean }
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
-  | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 };
+  | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
+  | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean };
 
 // view boxes survive switching views (solo → back restores the framing)
 const savedVB = new Map<string, VB>();
@@ -49,7 +52,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     if (solo) {
       const piece = panelPiece(d, solo.id);
       const copy: PieceCopy = { key: `${solo.id}#solo`, pieceKey: solo.id, copy: 0, contours: piece.contours, w: solo.w, h: solo.h, origin: { x: 0, y: 0 }, panels: piece.panels };
-      return { placed: [{ copy, sheet: 0, xf: IDENTITY, ox: 0 }] as Placed[], sheets: 0 };
+      return { placed: [{ copy, sheet: 0, xf: IDENTITY, ox: 0 }] as Placed[], sheets: 0, placements: {} as Record<string, SheetPlacement> };
     }
     const copies = pieceCopies(d);
     const placements = pack(d, copies);
@@ -59,8 +62,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const pl = placements[c.key];
         return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h), ox: pl.sheet * (W + GAP) };
       });
-    return { placed, sheets: sheetCount(placements) };
+    return { placed, sheets: sheetCount(placements), placements };
   }, [d, W, solo]);
+  // pieces flagged by validation (overlapping or off the sheet) are drawn in red
+  const badPieces = useMemo(() => {
+    if (solo) return new Set<string>();
+    return new Set(validate(d).filter((i) => i.key === 'val.piecesOverlap' || i.key === 'val.offSheet').map((i) => i.target.id));
+  }, [d, solo]);
 
   const fitVB = (): VB => {
     if (solo) {
@@ -132,6 +140,17 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const k = mmPerPx();
         void svg;
         setVB({ ...g.vb, x: g.vb.x - (ev.clientX - g.sx) * k, y: g.vb.y - (ev.clientY - g.sy) * k });
+        return;
+      }
+      if (g.kind === 'piece') {
+        const cur = svgPoint(ev);
+        const dxs = cur.x - g.startSvg.x, dys = cur.y - g.startSvg.y;
+        if (!g.moved && Math.hypot(dxs, dys) < 3 * mmPerPx()) return;
+        g.moved = true;
+        const sheet = Math.max(0, Math.min(layout.sheets, Math.floor((cur.x + GAP / 2) / (W + GAP))));
+        const x = Math.round((g.start.x + dxs - (sheet - g.start.sheet) * (W + GAP)) * 2) / 2;
+        const y = Math.round((g.start.y - dys) * 2) / 2;
+        st.preview((dd) => void (dd.placements[g.key] = { sheet, x, y, rot: g.start.rot, manual: true }));
         return;
       }
       if (g.kind === 'marquee') {
@@ -290,6 +309,10 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     if (ev.button !== 0) return;
     ev.stopPropagation();
     const panelId = panelAt(pl, svgPoint(ev));
+    if (tool === 'text') {
+      const l = toLocal(pl, panelId, svgPoint(ev));
+      return placeText(panelId, l.x, l.y);
+    }
     if (shapeTool) return startDraw(pl, panelId, ev);
     if (additiveKey(ev)) return; // shift-click on a piece keeps the shape selection
     if (solo) {
@@ -299,10 +322,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return;
     }
     useStore.getState().select({ kind: 'panel', id: panelId });
+    useStore.getState().set({ sheetCopy: pl.copy.key });
+    const start = layout.placements[pl.copy.key];
+    if (start) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
   };
   const onDetailDown = (pl: Placed, dt: Detail, panelId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
-    if (shapeTool) return onPieceDown(pl)(ev);
+    if (shapeTool || tool === 'text') return onPieceDown(pl)(ev);
     ev.stopPropagation();
     const st = useStore.getState();
     const cur = selectedDetailIds(st.selection);
@@ -372,7 +398,18 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
               {pl.copy.contours.map((c, i) => {
                 const dpath = contourPathD(xformContour(pl.xf, c.contour), H, pl.ox, 0);
                 if (c.role === 'outer')
-                  return <path key={i} d={dpath} className={`piece ${isSel && !solo ? 'sel' : ''}`} fillRule="evenodd" onPointerDown={onPieceDown(pl)} stroke={LAYERS.cut.hex} strokeWidth={px * (isSel ? 2 : 1)} />;
+                  return (
+                    <path
+                      key={i}
+                      d={dpath}
+                      className={`piece ${isSel && !solo ? 'sel' : ''} ${badPieces.has(pl.copy.pieceKey) ? 'bad' : ''}`}
+                      fillRule="evenodd"
+                      onPointerDown={onPieceDown(pl)}
+                      stroke={LAYERS.cut.hex}
+                      strokeWidth={px * (isSel ? 2 : 1)}
+                      data-copy={pl.copy.key}
+                    />
+                  );
                 const owner = c.ref?.panelId ? d.panels[c.ref.panelId] : undefined;
                 const dt = owner?.details.find((x) => x.id === c.ref?.detailId);
                 const dsel = !!dt && idSet.has(dt.id);
@@ -406,7 +443,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             </g>
           );
         })}
-        {tool === 'select' && ids.length === 1 && primary && placedOf(primary.panel.id) && (
+        {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (
           <Handles
             box={detailBBox({ ...primary.detail, array: undefined })}
             toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
@@ -471,10 +508,22 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           −
         </button>
         <button onClick={() => setVB(fitVB())}>{t('view.fit')}</button>
+        {!solo && (
+          <button
+            onClick={() => {
+              const st = useStore.getState();
+              if (Object.values(st.design.placements).some((p) => p.manual) && !confirm(t('pack.confirm'))) return;
+              st.apply((dd) => void (dd.placements = {}));
+            }}
+            data-testid="repack"
+          >
+            {t('pack.repack')}
+          </button>
+        )}
         {solo && <span className="solo-title">{t('solo.title', { panel: solo.name })}</span>}
       </div>
       <div className="view-hint" dir="auto">
-        {d.order.length === 0 ? t('view.empty2d') : shapeTool ? t('tool.hint.shape2d') : t('tool.hint.select2d')}
+        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
       </div>
     </div>
   );

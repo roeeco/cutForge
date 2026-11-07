@@ -4,14 +4,14 @@ import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
 import type { Design, Panel, V3 } from '../model/types';
-import { edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
+import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection } from '../model/ops';
 import { edgeLength, frameNormal, growFrame, toLocal } from '../model/frame';
 import { detailBBox, detailContour, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
-import { fmtNum } from '../i18n';
+import { fmtNum, translate } from '../i18n';
 import { EdgeBar } from '../ui/EdgeBar';
 
 const COLORS: Record<string, string> = { plywood: '#d9b98b', card: '#efe9dc', corrugated: '#c99f68' };
@@ -23,6 +23,16 @@ type Drag =
   | { kind: 'shape-draw'; panelId: string; id: string; start: { x: number; y: number }; plane: THREE.Plane }
   | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
   | { kind: 'panel-move'; id: string; start: V3; plane: THREE.Plane };
+
+/** Text tool: place a text shape where the student clicked, select it, back to Select. */
+export function placeText(panelId: string, x: number, y: number) {
+  const st = useStore.getState();
+  let id: string | null = null;
+  const value = translate(st.lang, 'text.default');
+  st.apply((d) => void (id = addText(d, panelId, Math.round(x), Math.round(y), value, 'engrave')));
+  if (id) st.select(detailSel([id]));
+  st.setTool('select');
+}
 
 function useRay() {
   const { camera, gl } = useThree();
@@ -185,6 +195,13 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
   };
 
   const onPanelDown = (p: Panel) => (e: ThreeEvent<PointerEvent>) => {
+    if (tool === 'text') {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      placeText(p.id, l.x, l.y);
+      return;
+    }
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
       const ctx = e.nativeEvent.altKey ? null : snapContext(design, p.id, new Set());
@@ -251,7 +268,7 @@ function Scene({ setLabel }: { setLabel: (s: Label | null) => void }) {
       <directionalLight position={[300, 600, 400]} intensity={1.1} />
       <directionalLight position={[-400, 200, -300]} intensity={0.35} />
       <gridHelper args={[2000, 200, '#b9c2cc', '#e2e7ec']} position={[0, -0.05, 0]} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && useStore.getState().select(null)} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
@@ -582,7 +599,7 @@ export function View3D() {
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, []);
-  const hint = tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : 'tool.hint.shape';
+  const hint = tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : tool === 'text' ? 'tool.hint.text' : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>

@@ -6,6 +6,13 @@ import { bboxOf } from '../geom/vec';
 import { minWeb as materialMinWeb } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported } from './ops';
+import { detailInstances, shapeContours, textBox } from './geometry';
+import { flattenContour, pointInPolygon } from '../geom/vec';
+import { pack, pieceCopies, placementXform } from './pack';
+import { applyX } from '../geom/vec';
+import polygonClipping from 'polygon-clipping';
+import { outlineText } from '../text/outline';
+import type { FontId } from '../text/fonts';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
 export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget };
@@ -50,8 +57,96 @@ export function validate(d: Design): Issue[] {
     if (c.grown && c.kind === 'lean' && !leanSupported(d, c.b.panelId))
       issues.push({ key: 'val.unsupported', vars: { panel: name(c.b.panelId) }, target: { kind: 'panel', id: c.b.panelId } });
   }
+  issues.push(...shapeIssues(d), ...sheetIssues(d));
   for (const s of findOpenSeams(d)) {
     if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId } });
   }
   return issues;
+}
+
+type Poly = [number, number][];
+const ring = (pts: { x: number; y: number }[]): Poly => pts.map((p) => [Math.round(p.x * 1e6) / 1e6, Math.round(p.y * 1e6) / 1e6]);
+function overlapArea(a: Poly, b: Poly): number {
+  try {
+    const r = polygonClipping.intersection([a], [b]);
+    let area = 0;
+    for (const poly of r)
+      poly.forEach((rg, i) => {
+        let s = 0;
+        for (let k = 0; k < rg.length - 1; k++) s += rg[k][0] * rg[k + 1][1] - rg[k + 1][0] * rg[k][1];
+        area += (i === 0 ? 1 : -1) * Math.abs(s / 2);
+      });
+    return area;
+  } catch {
+    return 0;
+  }
+}
+
+/** Text that failed to outline, cut-through letters with islands, and cut shapes that overlap (doubled cut lines). */
+function shapeIssues(d: Design): Issue[] {
+  const out: Issue[] = [];
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p) continue;
+    const cuts: { id: string; poly: Poly; bb: [number, number, number, number] }[] = [];
+    for (const dt of p.details) {
+      if (dt.shape === 'text' && dt.text) {
+        const tb = textBox(dt);
+        const o = outlineText(dt.text.value, dt.text.font as FontId, dt.text.size);
+        if (!tb.ok) out.push({ key: 'val.textFailed', vars: { panel: p.name, chars: o?.missing.join(' ') ?? '' }, target: { kind: 'detail', id: dt.id } });
+        if (dt.op === 'cut' && o && o.polys.some((a, i) => o.polys.some((b, j) => i !== j && pointInPolygon(a[0], b))))
+          out.push({ key: 'val.stencil', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
+        continue; // letters are allowed to touch each other
+      }
+      if (dt.op !== 'cut') continue;
+      for (const inst of detailInstances(dt))
+        for (const c of shapeContours(inst)) {
+          const pts = flattenContour(c, 0.05);
+          const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+          cuts.push({ id: dt.id, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+        }
+    }
+    const flagged = new Set<string>();
+    for (let i = 0; i < cuts.length; i++)
+      for (let j = i + 1; j < cuts.length; j++) {
+        const a = cuts[i], b = cuts[j];
+        if (a.bb[0] > b.bb[2] + 1e-6 || b.bb[0] > a.bb[2] + 1e-6 || a.bb[1] > b.bb[3] + 1e-6 || b.bb[1] > a.bb[3] + 1e-6) continue;
+        const touching = overlapArea(a.poly, b.poly) > 1e-4;
+        const key = `${a.id}|${b.id}`;
+        if (touching && !flagged.has(key)) {
+          flagged.add(key);
+          out.push({ key: 'val.shapesOverlap', vars: { panel: p.name }, target: { kind: 'detail', id: b.id } });
+        }
+      }
+  }
+  return out;
+}
+
+/** Pieces that overlap each other or lie outside their sheet (after manual moves). */
+function sheetIssues(d: Design): Issue[] {
+  const out: Issue[] = [];
+  const copies = pieceCopies(d);
+  const pl = pack(d, copies);
+  const W = d.material.sheetW, H = d.material.sheetH;
+  const placed = copies
+    .filter((c) => pl[c.key])
+    .map((c) => {
+      const xf = placementXform(pl[c.key], c.h);
+      const outer = c.contours.find((x) => x.role === 'outer');
+      const pts = outer ? flattenContour(outer.contour, 0.2).map((q) => applyX(xf, q)) : [];
+      const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+      return { c, sheet: pl[c.key].sheet, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
+    });
+  const name = (k: string) => d.panels[k]?.name ?? '?';
+  for (const a of placed)
+    if (a.bb[0] < -1e-6 || a.bb[1] < -1e-6 || a.bb[2] > W + 1e-6 || a.bb[3] > H + 1e-6)
+      out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: a.c.pieceKey } });
+  for (let i = 0; i < placed.length; i++)
+    for (let j = i + 1; j < placed.length; j++) {
+      const a = placed[i], b = placed[j];
+      if (a.sheet !== b.sheet || a.bb[0] > b.bb[2] || b.bb[0] > a.bb[2] || a.bb[1] > b.bb[3] || b.bb[1] > a.bb[3]) continue;
+      if (overlapArea(a.poly, b.poly) > 1e-3)
+        out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: b.c.pieceKey } });
+    }
+  return out;
 }

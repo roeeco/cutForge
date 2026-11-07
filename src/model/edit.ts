@@ -55,6 +55,7 @@ export function scaleDetails(d: Design, ids: string[], anchor: { x: number; y: n
     if (o.r !== undefined) patch.r = o.r * Math.min(Math.abs(sx), Math.abs(sy));
     const t = findDetail(d, id);
     if (t) Object.assign(t.detail, patch);
+    if (t && t.detail.text && o.text) t.detail.text.size = Math.max(1, o.text.size * k);
   }
 }
 

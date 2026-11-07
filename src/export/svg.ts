@@ -32,7 +32,17 @@ function groups(contours: TaggedContour[], H: number, dx: number, dy: number, in
     if (!cs.length) continue;
     const L = LAYERS[op];
     out += `${indent}<g id="${L.name}${dy ? '-' + Math.round(dy) : ''}" fill="none" stroke="${L.hex}" stroke-width="0.1">\n`;
-    for (const c of cs) out += `${indent}  <path d="${contourPathD(c.contour, H, dx, dy)}"/>\n`;
+    // an engraved shape with several outlines (text, imported icons) is one path, so
+    // letter counters are holes when LightBurn fills it (even-odd)
+    const groupsBy = new Map<string, TaggedContour[]>();
+    cs.forEach((c, i) => {
+      const k = op === 'engrave' && c.ref?.detailId ? `${c.ref.pieceKey ?? ''}|${c.ref.detailId}` : `#${i}`;
+      groupsBy.set(k, [...(groupsBy.get(k) ?? []), c]);
+    });
+    for (const g of groupsBy.values()) {
+      const d = g.map((c) => contourPathD(c.contour, H, dx, dy)).join(' ');
+      out += `${indent}  <path d="${d}"${g.length > 1 ? ' fill-rule="evenodd"' : ''}/>\n`;
+    }
     out += `${indent}</g>\n`;
   }
   return out;

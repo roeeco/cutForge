@@ -1,5 +1,6 @@
 // Milestone 3: solo view, smart snapping with guides, multiple selection,
 // align/distribute, group move/duplicate/delete/resize, arrays, keyboard.
+import { setNum } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -39,10 +40,8 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   await drag(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
-  await page.getByTestId('panel-w').fill('200');
-  await page.getByTestId('panel-w').press('Enter');
-  await page.getByTestId('panel-h').fill('120');
-  await page.getByTestId('panel-h').press('Enter');
+  await setNum(page, 'panel-w', '200');
+  await setNum(page, 'panel-h', '120');
   const base = (await design(page)).order[0];
   await page.getByText('Fit view').click();
   await page.waitForTimeout(300);
@@ -133,11 +132,15 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   const two = g0.panels[base].details.filter((x: any) => after.sel.ids.includes(x.id));
   const left = Math.min(...two.map((x: any) => x.cx - x.w / 2));
   const right = Math.max(...two.map((x: any) => x.cx + x.w / 2));
-  await page.getByTestId('group-w').fill(String((right - left) * 2));
-  await page.getByTestId('group-w').press('Enter');
+  await setNum(page, 'group-w', String((right - left) * 2));
+  await expect
+    .poll(async () => {
+      const g = await design(page);
+      const two1 = g.panels[base].details.filter((x: any) => after.sel.ids.includes(x.id));
+      return Math.max(...two1.map((x: any) => x.cx + x.w / 2)) - left;
+    })
+    .toBeCloseTo((right - left) * 2, 6);
   const g1 = await design(page);
-  const two1 = g1.panels[base].details.filter((x: any) => after.sel.ids.includes(x.id));
-  expect(Math.max(...two1.map((x: any) => x.cx + x.w / 2)) - left).toBeCloseTo((right - left) * 2, 6);
 
   // live array, then explode
   await page.mouse.click((await soloPt(page, 190, 110)).x, (await soloPt(page, 190, 110)).y);
@@ -145,8 +148,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   const op = await soloPt(page, one.cx - one.w / 2 + 1, one.cy);
   await page.mouse.click(op.x, op.y);
   await page.getByTestId('array-grid').click();
-  await page.getByTestId('array-nx').fill('4');
-  await page.getByTestId('array-nx').press('Enter');
+  await setNum(page, 'array-nx', '4');
   await expect(page.getByTestId('array-section')).toContainText('8');
   expect((await design(page)).panels[base].details.find((x: any) => x.id === one.id).array).toMatchObject({ nx: 4, ny: 2 });
   await page.getByTestId('array-explode').click();
@@ -157,7 +159,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.getByTestId('solo-back').click();
   await expect(page.getByTestId('view3d')).toBeVisible();
   await page.waitForTimeout(300);
-  expect(await S(page, () => (window as any).__cutforge.camera())).toEqual(cam);
+  await expect.poll(() => S(page, () => (window as any).__cutforge.camera())).toEqual(cam);
 
   // shapes on panels that face different ways cannot be aligned, and the reason is shown
   await S(page, ([id]: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), [base]);

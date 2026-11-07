@@ -111,7 +111,7 @@ select, input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 
 .piece { fill: rgba(217, 185, 139, 0.35); cursor: pointer; }
 .piece.sel { fill: rgba(37, 99, 235, 0.15); }
 .detail { fill: rgba(255, 255, 255, 0.01); cursor: move; }
-.detail.op-engrave { fill: rgba(0, 0, 0, 0.12); }
+.detail.op-engrave { fill: rgba(0, 0, 0, 0.01); }
 .handle { fill: white; stroke: var(--accent); stroke-width: 0.6; cursor: nwse-resize; }
 .piece-label { fill: #5b4630; }
 .dim-text { fill: #1c2430; paint-order: stroke; stroke: white; stroke-width: 3px; }
@@ -158,3 +158,6 @@ select, input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 
 .solo-title { align-self: center; color: var(--muted); font-weight: 600; margin-inline-start: 6px; }
 .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0; }
 .btn-grid button { font-size: 12px; padding: 4px; }
+.field.column { flex-direction: column; align-items: stretch; } textarea { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.piece.bad { fill: rgba(220, 38, 38, 0.25); }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin: 6px 0; }

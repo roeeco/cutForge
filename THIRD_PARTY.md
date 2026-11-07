@@ -6,3 +6,11 @@ When code is copied or adapted, record it here with repository, commit and licen
 
 ## npm dependencies
 Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). Declared for later milestones: opentype.js (MIT), bidi-js (MIT). Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
+
+## Fonts
+Bundled in `public/fonts/` (Hebrew and Latin subsets, WOFF, from the @fontsource 5.3.0 packages), each under the SIL Open Font License 1.1 — license texts next to the files:
+- Rubik — Copyright 2015 The Rubik Project Authors
+- Frank Ruhl Libre — see `frank-ruhl-libre-LICENSE.txt`
+- Amatic SC — see `amatic-sc-LICENSE.txt`
+
+Text layout and outlines use bidi-js (MIT) and opentype.js (MIT).

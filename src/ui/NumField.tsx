@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { fmtNum } from '../i18n';
 
 /**
@@ -19,13 +19,15 @@ export function NumField(props: {
   const { value, decimals = 1 } = props;
   const [text, setText] = useState(fmtNum(value, decimals));
   const [editing, setEditing] = useState(false);
+  const committed = useRef<string | null>(null);
   const id = useId();
   useEffect(() => {
     if (!editing) setText(fmtNum(value, decimals));
   }, [value, decimals, editing]);
-  const commit = () => {
+  // read the input itself: state can lag the typed value by a render
+  const commit = (raw: string) => {
     setEditing(false);
-    const v = evalNumber(text);
+    const v = evalNumber(raw);
     if (v === null) return setText(fmtNum(value, decimals));
     const clamped = Math.min(props.max ?? Infinity, Math.max(props.min ?? -Infinity, v));
     if (Math.abs(clamped - value) > 1e-9) props.onCommit(clamped);
@@ -46,9 +48,18 @@ export function NumField(props: {
             e.target.select();
           }}
           onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
+          onBlur={(e) => {
+            // Enter already committed this exact text
+            if (committed.current !== e.currentTarget.value) commit(e.currentTarget.value);
+            committed.current = null;
+          }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            if (e.key === 'Enter') {
+              const el = e.currentTarget;
+              committed.current = el.value;
+              commit(el.value);
+              el.blur();
+            }
             if (e.key === 'Escape') {
               setText(fmtNum(value, decimals));
               setEditing(false);

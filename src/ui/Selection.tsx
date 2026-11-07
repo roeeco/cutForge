@@ -2,7 +2,8 @@
 import { detailSel, useStore, useT } from '../store/store';
 import { NumField } from './NumField';
 import { alignDetails, commonSurface, deleteDetails, distributeDetails, duplicateDetails, explodeArray, scaleDetails, setArray, type AlignMode, type DistributeMode } from '../model/edit';
-import { findDetail } from '../model/ops';
+import { findDetail, setText } from '../model/ops';
+import { FONTS } from '../text/fonts';
 import { detailBBox, detailInstances } from '../model/geometry';
 import type { Detail } from '../model/types';
 
@@ -126,6 +127,40 @@ export function ArraySection({ dt }: { dt: Detail }) {
         </button>
         <button onClick={() => apply((x) => setArray(x, dt.id, null))}>{t('array.remove')}</button>
       </div>
+    </div>
+  );
+}
+
+export function TextFields({ id, text }: { id: string; text: { value: string; font: string; size: number } }) {
+  const t = useT();
+  const apply = useStore((s) => s.apply);
+  return (
+    <div data-testid="text-fields">
+      <div className="field column">
+        <label htmlFor="txt-value">{t('text.value')}</label>
+        <textarea
+          id="txt-value"
+          dir="auto"
+          rows={2}
+          value={text.value}
+          data-testid="text-value"
+          onChange={(e) => useStore.getState().preview((x) => setText(x, id, { value: e.target.value }))}
+          onBlur={() => useStore.getState().commit()}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="txt-font">{t('text.font')}</label>
+        <select id="txt-font" value={text.font} onChange={(e) => apply((x) => setText(x, id, { font: e.target.value }))} data-testid="text-font">
+          {FONTS.map((f) => (
+            <option key={f.id} value={f.id} style={{ fontFamily: f.name }}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <NumField label={t('text.size')} value={text.size} unit={t('unit.mm')} min={1} max={500} onCommit={(v) => apply((x) => setText(x, id, { size: v }))} testId="text-size" />
+      <p className="note">{t('text.opNote')}</p>
     </div>
   );
 }
