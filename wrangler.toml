@@ -1,0 +1,25 @@
+# Cloudflare Worker: static app + /api (class submissions, teacher view).
+name = "cutforge"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cutforge"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "cutforge-submissions"
+
+# Secrets (not in this file):
+#   npx wrangler secret put TEACHER_KEY      # the teacher's sign-in key
+#   npx wrangler secret put SESSION_SECRET   # long random string for signing sessions

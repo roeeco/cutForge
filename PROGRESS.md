@@ -115,5 +115,29 @@ Known limitations at the end of milestone 5
 - The card/tile stand has no stop at the top of a support; cards lean on the support's face.
 - Changing a template parameter replaces the template panels: a manual edit to a template panel's size (rather than a template parameter) is replaced by the parameter-driven size.
 
-## Milestone 6
-Not started.
+## Milestone 6 — Class submission and teacher view ✅
+
+Implemented
+- **Cloudflare Worker** (`worker/index.ts`): one Worker serves the static app and `/api`. **D1 via Drizzle** (`worker/schema.ts`, migration `drizzle/0000_init.sql`) for classes and submission records; **R2** for submitted project files and previews. `wrangler.toml` with D1/R2/assets bindings; secrets for the teacher key and session signing.
+- **Student submission**: class code + display name (remembered locally), design title; uploads the project JSON, a preview SVG and the material. The server accepts only project files it can parse and migrate with the app's own code, caps sizes, refuses unsafe previews, rate-limits per class and per browser, refuses closed classes. The newest submission from a browser replaces the previous one; history is kept for the teacher. A class material profile that differs from the design is explained, with *Switch to the class profile*. Network/server failures are explained plainly and *Download for laser* is offered; local work is untouched. Validation problems are shown before sending.
+- **Teacher view** (`/#/teacher`): sign in (one teacher key, HMAC-signed HttpOnly session cookie); create/close/reopen/delete classes with short random codes; class material profile; submissions list with preview, name, title, material, pieces, status and time (replaced ones on request); per-submission SVG/DXF/project downloads regenerated from the project file (never a submitted SVG); **batching** of submissions with the same material and thickness onto shared sheets with the student's name (or initials) on the GUIDE layer, using the same packer and writers; mixed materials refused with an explanation; **mark as cut** per submission or for a selection; delete submissions. Auto-refresh every 20 s and a Refresh button.
+
+Verified
+- `npm test` — 79 Vitest tests; new Worker tests run the real SQL migration on SQLite (`node:sqlite`) with a D1 stand-in and an in-memory R2: teacher auth (wrong key, forged cookie), class creation and code format, student submit → teacher list → project/preview download → mark as cut, resubmission replaces with history kept, refusals (unknown code, malformed project, unsafe preview, oversized file, missing name, per-browser flood → 429, closed class → 403), class material profile returned to students, deleting a class removes its R2 files. Batching tests: shared sheets with labels inside each piece on the GUIDE layer (SVG and DXF), mixed materials refused.
+- `npm run e2e` — 12 Playwright tests, now including **acceptance check 10 against the real Worker** (workerd via `wrangler dev`, local D1/R2): teacher signs in and creates a class; three students (Hebrew and English names, two plywood, one corrugated) submit with the code; the teacher sees them, mixed-material batching is refused, the two plywood submissions are batched onto shared sheets and downloaded (GUIDE and CUT layers, no font text), both are marked as cut, and a single submission downloads as files regenerated from its project; a class material profile mismatch is explained and *Switch to the class profile* submits with it; with the server unreachable the student sees a plain message, the download is offered and works, and the design is unchanged.
+- `npx wrangler deploy --dry-run` bundles the Worker with its D1, R2 and assets bindings; `npm run typecheck` covers the Worker with the Workers types.
+
+Known limitations at the end of milestone 6
+- Teacher access is one shared key (see DECISIONS.md), not a magic link or passkey.
+- Not deployed from this environment (no Cloudflare account); the deployment steps are in the README and were checked with `wrangler deploy --dry-run` and local `wrangler dev`.
+- Batched sheets use nominal kerf; the teacher sets the kerf in LightBurn.
+- Previews are SVG drawings of the first sheet (not 3D renders).
+- No automatic expiry of submissions (the teacher deletes classes at the end of term).
+
+## Remaining limitations (whole project)
+- LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
+- Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
+- Packing is bounding-box based (no true-shape nesting).
+- Multiple selection covers shapes, not whole panels; box selection is 2D-only.
+- A grown panel always spans the full edge it grows from; half-laps are detected for upright panels only.
+- The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.

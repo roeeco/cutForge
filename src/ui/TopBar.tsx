@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
 import { setMaterial, createDesign } from '../model/ops';
@@ -10,6 +11,7 @@ export function TopBar() {
   const t = useT();
   const s = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [submitOpen, setSubmitOpen] = useState(false);
   const d = s.design;
   const builtIn = MATERIALS.find((m) => m.id === d.material.id);
   const open = async (f: File) => {
@@ -102,10 +104,17 @@ export function TopBar() {
         <button onClick={() => downloadText(`${safeName(d.name)}.cutforge.json`, serializeProject(d), 'application/json')} data-testid="save-project">
           {t('top.saveProject')}
         </button>
+        <button onClick={() => setSubmitOpen(true)} data-testid="open-submit">
+          {t('sub.button')}
+        </button>
         <button className="primary" onClick={() => s.set({ exportOpen: true })} data-testid="open-export">
           {t('top.download')}
         </button>
       </div>
+      <a href="#/teacher" className="btn subtle" data-testid="open-teacher">
+        {t('teach.open')}
+      </a>
+      {submitOpen && <SubmitDialog onClose={() => setSubmitOpen(false)} />}
       <button className="lang" onClick={() => s.setLang(s.lang === 'en' ? 'he' : 'en')} title={t('lang.toggleTitle')} data-testid="lang-toggle" lang={s.lang === 'en' ? 'he' : 'en'}>
         {t('lang.toggle')}
       </button>

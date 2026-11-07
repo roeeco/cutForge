@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1–5 complete** (vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates). See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1–6 complete** (vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates, class submission and teacher view). See `PROGRESS.md` for what was verified and the remaining limitations. See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
 
 ## Run locally
 
@@ -15,6 +15,14 @@ npm run preview      # serve the production build
 
 The editor, autosave and downloads work with no backend and no network after the page has loaded.
 
+To try class submission and the teacher view locally, run the Worker next to the dev server (Vite proxies `/api` to it):
+
+```bash
+printf 'TEACHER_KEY="choose-a-key"\nSESSION_SECRET="a-long-random-string"\n' > .dev.vars   # once
+npm run dev:worker   # http://localhost:8787 (local D1 + R2 in .wrangler/)
+npm run dev          # http://localhost:5199 — teacher view at /#/teacher
+```
+
 ## Tests
 
 ```bash
@@ -23,6 +31,7 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 ```
 
 - Export tests also run an **independent reader check** with Python (`ezdxf` for DXF, `svgpathtools` for SVG) when available: `pip install ezdxf svgpathtools`. Without them that one test is skipped.
+- The Playwright run also starts the real Worker (`wrangler dev`, local D1/R2 in `.wrangler/e2e`) for the class-submission tests.
 - Playwright uses software WebGL (SwiftShader). If your Playwright browsers are installed somewhere non-standard, set `PW_CHROMIUM_PATH` to a Chromium binary.
 
 ## Using it
@@ -59,10 +68,30 @@ The mapping follows LightBurn's documented default palette; it has not yet been 
 
 **Kerf.** The default export is **Nominal**: every shape is at its exact design size, and the file name says so (`…-nominal-kerf0.15mm.svg`). Set the kerf offset per layer in LightBurn (Cut layer → *Kerf offset*). Starting points: plywood 3 mm ≈ 0.15 mm, corrugated ≈ 0.2–0.25 mm, card ≈ 0.1 mm — measure with a test cut. **Compensated** export instead grows outlines and shrinks holes by half the kerf in the file (`…-compensated-kerf0.15mm.svg`); then set LightBurn's kerf offset to 0 so it is not applied twice.
 
+## Class submission and the teacher view
+
+- **Students**: *Submit to class* → class code + display name (remembered in this browser) → the project file, a small preview and the material are sent. Submitting again from the same browser replaces the previous submission (the teacher can still see the history). If the class has a calibrated material profile and the design differs, the student is told and can switch to the class profile. If the server can't be reached, the app says so and offers *Download for laser* instead; nothing in the editor changes.
+- **Teacher** (`/#/teacher`, link in the top bar): sign in with the teacher key; create classes (each gets a short code like `6GDAFC`), close/reopen or delete them, attach a material profile; see submissions with preview, student name, title, material, pieces and status; download a submission's SVG/DXF/project (always regenerated from the submitted project with the same code students use); select submissions of the same material and **batch** them onto shared sheets (each piece labelled with the student's name on the green GUIDE layer — set that layer's output off in LightBurn); **mark as cut** one by one or for a batch. Mixed materials are refused with an explanation.
+- **Abuse limits**: at most 120 submissions per class and 6 per browser in any 10 minutes; project ≤ 2 MB, preview ≤ 600 KB; only project files the app can read are accepted (parsed and migrated by the server with the app's own code); previews containing scripts are refused. Class codes are random (6 characters, no look-alike letters) and classes can be closed.
+
 ## Data stored
 
-Milestone 1 stores data only in the student's browser (IndexedDB key `cutforge/kv/current-design`, plus the language and hint preference in `localStorage`). Nothing is sent to a server. Class submission (milestone 6) will document its server-side storage here.
+- **In the student's browser**: the current design (IndexedDB `cutforge/kv/current-design`), language, hint and last class code/display name, and a random device id (`localStorage`). This stays until the browser's site data is cleared.
+- **On the server (only when a student submits)**: in D1 — class name, code, open/closed, optional material profile; per submission: class, display name, design title, material, thickness, piece count, status, time, whether it was replaced, and a random device id (only the first 6 characters are shown to the teacher). In R2 — the submitted project file and its preview SVG. No email addresses, passwords or accounts for students.
+- **How long**: until the teacher deletes the submission or the class (deleting a class deletes all its submissions and files). There is no automatic expiry; delete classes at the end of the term.
 
 ## Cloudflare deployment
 
-The app is static: `npm run build` and deploy `dist/` (e.g. Cloudflare Pages, or a Worker with static assets). The Worker API, D1 and R2 parts arrive with milestone 6.
+One Worker serves the built app (static assets) and the `/api` routes, with D1 (Drizzle schema in `worker/schema.ts`, SQL migrations in `drizzle/`) and an R2 bucket.
+
+```bash
+npx wrangler login
+npx wrangler d1 create cutforge            # copy the database_id into wrangler.toml
+npx wrangler r2 bucket create cutforge-submissions
+npm run db:migrate                          # apply drizzle/*.sql to the remote D1
+npx wrangler secret put TEACHER_KEY         # the teacher's sign-in key
+npx wrangler secret put SESSION_SECRET      # a long random string
+npm run deploy                              # vite build + wrangler deploy
+```
+
+After a schema change: edit `worker/schema.ts`, run `npm run db:generate`, then `npm run db:migrate`. `npm run typecheck` checks both the app and the Worker.

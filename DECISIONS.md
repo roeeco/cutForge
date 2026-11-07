@@ -60,6 +60,13 @@ Defaults chosen where the brief left room. Each is reversible.
 - Changing the material (or its thickness/clearance) of a template design regenerates it, so the lid, slots and inside sizes always match.
 - Card stand support spacing = (card thickness + 3 mm + material thickness) / sin(angle), measured along the base; supports are 50 mm tall.
 
+## Class submission and teacher access
+- **Teacher access** uses one teacher key stored as a Worker secret (`TEACHER_KEY`), exchanged for a 12-hour HMAC-signed, HttpOnly, SameSite=Strict session cookie scoped to `/api`. The brief suggested an email magic link or passkey; a magic link needs an email-sending service and a passkey needs a registration flow, neither of which can be set up or tested in this environment. The key is the nearest reversible alternative: only the login endpoint changes if a magic link or passkey is added later.
+- **Student identity** is a display name plus a random per-browser device id (so a resubmission replaces the previous one); no accounts.
+- The server **never trusts submitted geometry**: it stores the project file and a preview; the teacher view regenerates SVG/DXF from the project with the student code. The server parses and migrates the project on upload to refuse malformed files and to record material and piece count.
+- **Rate limits** are counted from D1 (submissions in the last 10 minutes per class and per device) rather than a separate store, so they need no extra binding.
+- Batching requires the same material kind and thickness; the first submission's sheet size, margin and spacing are used. Labels use the GUIDE layer (green, C03); the name falls back to initials when it does not fit a piece, and is left out when even that does not fit.
+
 ## Interface
 - The material and language choice appear together on the first screen so a Hebrew-speaking student can switch before choosing.
 - Hebrew uses "לוח" for a panel and "גיליון" for a material sheet.

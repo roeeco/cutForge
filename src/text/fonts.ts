@@ -34,7 +34,7 @@ export function registerFont(id: FontId, hebrew: ArrayBuffer, latin: ArrayBuffer
 }
 
 /** Load all bundled fonts in the browser (served from /fonts). Failures leave text un-outlined (and flagged). */
-export async function loadBundledFonts(base = import.meta.env?.BASE_URL ?? '/') {
+export async function loadBundledFonts(base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/') {
   await Promise.all(
     FONTS.map(async (f) => {
       try {

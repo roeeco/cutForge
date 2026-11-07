@@ -5,7 +5,7 @@ No source code has been copied or adapted from the reference repositories (Mockn
 When code is copied or adapted, record it here with repository, commit and license (and keep the MIT notices for Die Cut Studio and Extrudo `packages/io`). Extrudo's GPL code and SketchForge-3D's AGPL code are behaviour references only and must not be copied or translated.
 
 ## npm dependencies
-Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). Declared for later milestones: opentype.js (MIT), bidi-js (MIT). Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
+Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). opentype.js (MIT), bidi-js (MIT), drizzle-orm (Apache-2.0). Tooling: wrangler (MIT/Apache-2.0), drizzle-kit, @cloudflare/workers-types. Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
 
 ## Fonts
 Bundled in `public/fonts/` (Hebrew and Latin subsets, WOFF, from the @fontsource 5.3.0 packages), each under the SIL Open Font License 1.1 — license texts next to the files:

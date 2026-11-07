@@ -9,6 +9,7 @@ import { ExportDialog } from './ui/ExportDialog';
 import { Hints } from './ui/Hints';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
+import { TeacherApp } from './teacher/TeacherApp';
 
 export function App() {
   const t = useT();
@@ -22,6 +23,13 @@ export function App() {
   }, [view, soloExists]);
   const needsMaterial = useStore((s) => s.needsMaterial);
   const exportOpen = useStore((s) => s.exportOpen);
+  const [route, setRoute] = useState(() => location.hash);
+  useEffect(() => {
+    const h = () => setRoute(location.hash);
+    window.addEventListener('hashchange', h);
+    return () => window.removeEventListener('hashchange', h);
+  }, []);
+  const teacher = route.startsWith('#/teacher');
   useAutosave(() => setLoaded(true));
   useKeyboard();
   useEffect(() => {
@@ -29,6 +37,7 @@ export function App() {
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
     document.title = t('app.name');
   }, [lang]);
+  if (teacher) return <TeacherApp />;
   if (!loaded) return <div className="loading" aria-busy="true" />;
   return (
     <div className="app">

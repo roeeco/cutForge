@@ -67,3 +67,22 @@ export function sheetsToSvg(sheets: PreparedSheet[], gap = 20): string {
   }
   return out + '</svg>\n';
 }
+
+/** Small preview for the teacher's list: cropped to the pieces, strokes visible at thumbnail size. */
+export function sheetPreviewSvg(sheet: PreparedSheet): string {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of sheet.contours)
+    for (const s of c.contour.segs)
+      for (const p of [s.a, s.b]) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+  if (!Number.isFinite(minX)) return sheetToSvg(sheet);
+  const pad = 4, w = maxX - minX + 2 * pad, h = maxY - minY + 2 * pad;
+  const sw = Math.max(w, h) / 150;
+  const body = groups(sheet.contours, sheet.h, 0, 0, '  ').replace(/stroke-width="0\.1"/g, `stroke-width="${fmt(sw)}"`);
+  const y0 = sheet.h - maxY - pad;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(minX - pad)} ${fmt(y0)} ${fmt(w)} ${fmt(h)}">\n${body}</svg>\n`;
+}
