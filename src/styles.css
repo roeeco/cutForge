@@ -161,3 +161,4 @@ select, input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 
 .field.column { flex-direction: column; align-items: stretch; } textarea { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
 .piece.bad { fill: rgba(220, 38, 38, 0.25); }
 .check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin: 6px 0; }
+.tpl-pick label { display: block; margin: 4px 0; } .tpl-pick small { display: inline; } .mat-card:disabled { opacity: 0.4; }

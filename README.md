@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1–4 complete** (vertical slice, connections and angles, editing tools, text/import/quantity/packing/validation/kerf). See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1–5 complete** (vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates). See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 ## Using it
 
-1. Choose a material (and the interface language: English / עברית).
+1. Choose how to start (blank, *Organiser with dividers* or *Card / tile stand*), then a material (and the interface language: English / עברית). Template sizes are changed in the inspector when nothing is selected.
 2. **Panel** tool: drag on the floor grid to draw a flat panel. Set exact sizes in the inspector.
 3. Click an edge (or use *Grow from …* in the inspector), then **Grow panel**: a ghost shows the new panel and which side the material lies on. Pick the angle (90°, 60°, 45°, 30°, 15°), *Up/Down*, and the connection: plywood offers finger joints and tabs and slots at 90°; card and corrugated offer folds, glue flaps and tabs and slots. An angled plywood panel needs side walls (*Add side walls*).
    - Where panels meet without a connection (e.g. two walls at a corner), the inspector lists them under *Meeting panels* with a **Connect** button.

@@ -96,5 +96,24 @@ Known limitations at the end of milestone 4
 - Packing is bounding-box based (no true-shape nesting). Manual pieces are not snapped to each other.
 - Kerf compensation offsets each contour on its own; two cut-outs that end up touching after compensation are caught by validation of the nominal shapes only.
 
-## Milestones 5–6
+## Milestone 5 — Templates ✅
+
+Implemented
+- **Template registry** (`src/templates`): each template is an id, version, parameter schema with defaults, compatible materials, a generator that outputs the ordinary design model, and optional checks. The inspector builds the parameter controls from the schema; adding a template needs only its definition, generator and tests.
+- **Start from** *Blank design*, *Organiser with dividers* or *Card / tile stand* on the first screen (materials a template does not support are disabled).
+- **Organiser with dividers**: inner or outer size, height, dividers in each direction, divider height, lid (none / lift-off), lid rim height. Plywood: finger-jointed box, dividers with tabs through wall and base slots, half-laps where they cross. Corrugated (1.6 / 4 mm) and card: folded tray with glue flaps at the corners, dividers that slide in with clearance and cross with half-laps, no wall slots. **Lift-off lid**: a shallow upside-down tray (finger-jointed in plywood, folded with glue flaps in corrugated) whose inner size is the box's outer size + 2 × clearance; it is rebuilt whenever the box size, thickness or clearance change, and dividers taller than the walls with the lid on are flagged.
+- **Card / tile stand**: card/tile width and thickness, lean angle (15/30/45/60°), number of slots, base depth. Plywood: base, two side walls and leaning supports held by angled tab-and-slot seams in the side walls, plus a low front lip. Card/corrugated: folded side walls, supports attached with glue flaps to the base and to both side walls, folded front lip. Supports that do not fit on the base are flagged.
+- **Regeneration keeps user edits by id**: template panels have stable ids (`t:<role>`, e.g. `t:wall0`, `t:divX2`); on a parameter or material change, cutouts and text stay on their panels, user-added panels and their connections, names, quantities, hand placements and the box's position are kept, and shapes on panels that no longer exist are listed (*These edits could not be kept…*). Each parameter change is one undo step.
+- Template designs are edited with the normal tools (they are ordinary panels and connections). Project schema v5 (template reference).
+
+Verified
+- `npm test` — 72 Vitest tests; new: every template × material variant generates a design with no broken connections and no validation issues; ids are stable across generations; plywood organiser (8 finger seams, 2 half-laps, wall and base slots, **volumetric no-overlap check of the whole box with dividers**); corrugated 1.6 and 4 mm organisers (folded tray as one piece, 4 glue flaps, no wall slots); **user cutouts and text survive parameter changes, lost edits are listed**; divider slots follow a size change; **lid inner size = box outer size + 2 × clearance in plywood and corrugated, after changing box size and after changing thickness and clearance**; dividers-taller-than-walls flag; plywood stand supported at 15/30/45/60°; card and corrugated stands glued; supports-too-deep flag.
+- `npm run e2e` — 10 Playwright tests; new: start from the organiser in plywood, draw a cutout on a wall in its solo view, change width, divider count and lid in the inspector (cutout kept, lid follows), undo/redo a parameter change, lost-edit message, no export issues; corrugated card stand and changing its angle.
+
+Known limitations at the end of milestone 5
+- One template instance per design.
+- The card/tile stand has no stop at the top of a support; cards lean on the support's face.
+- Changing a template parameter replaces the template panels: a manual edit to a template panel's size (rather than a template parameter) is replaced by the parameter-driven size.
+
+## Milestone 6
 Not started.

@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { useStore, useT } from '../store/store';
+import { TemplatePicker } from './TemplateUI';
+import { defaults, generate, templateById } from '../templates/registry';
 import { MATERIALS } from '../model/materials';
 import { setMaterial } from '../model/ops';
 import { fmtNum } from '../i18n';
@@ -7,6 +10,7 @@ import { fmtNum } from '../i18n';
 export function MaterialDialog() {
   const t = useT();
   const lang = useStore((s) => s.lang);
+  const [tpl, setTpl] = useState('');
   const setLang = useStore((s) => s.setLang);
   return (
     <div className="modal-back">
@@ -18,16 +22,24 @@ export function MaterialDialog() {
           </button>
         </div>
         <p>{t('mat.chooseHelp')}</p>
+        <TemplatePicker value={tpl} onChange={setTpl} />
         <div className="mat-grid">
           {MATERIALS.map((m) => (
             <button
               key={m.id}
               className={`mat-card mat-${m.kind}`}
               data-testid={`mat-${m.id}`}
+              disabled={!!tpl && !templateById(tpl)?.materials.includes(m.kind)}
               onClick={() => {
                 const s = useStore.getState();
-                s.apply((d) => setMaterial(d, m));
-                useStore.setState({ past: [], future: [], needsMaterial: false });
+                const tp = tpl && templateById(tpl);
+                if (tp && tp.materials.includes(m.kind)) {
+                  const d = generate(tp, m, defaults(tp));
+                  s.replaceDesign(d, false);
+                } else {
+                  s.apply((d) => setMaterial(d, m));
+                  useStore.setState({ past: [], future: [], needsMaterial: false });
+                }
               }}
             >
               <strong>{t(m.nameKey as 'mat.ply3')}</strong>

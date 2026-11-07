@@ -53,6 +53,13 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Arrays** are stored on the source shape (`array: { nx, ny, dx, dy }`, centre-to-centre spacing in panel coordinates) and expanded only when geometry is derived, so they stay live.
 - **Solo view** reuses the 2D editor with a single panel in its own coordinates (no fold partners, no sheet). The 3D camera and each 2D view's framing are remembered for the session while another view is open.
 
+## Templates
+- Generated entities get stable ids from their role (`t:base`, `t:wall0`…`t:wall3`, `t:divX1`, `t:divY1`, `t:lidbase`, `t:lidwall0`, `t:side1`, `t:support1`, `t:lip`); connection ids are derived from their two ends. Regeneration builds a fresh design and carries user edits over by those ids.
+- Organiser sizes: *inside* sizes add the wall thickness on each side (and the base thickness to the height); *outside* sizes are used as given. Dividers are spaced evenly in the clear inside.
+- Lid: a lift-off telescoping tray, generated as a second piece next to the box, open side up in the 3D view (turn it over to use it). Inner size = box outer size + 2 × clearance; rim height is measured inside.
+- Changing the material (or its thickness/clearance) of a template design regenerates it, so the lid, slots and inside sizes always match.
+- Card stand support spacing = (card thickness + 3 mm + material thickness) / sin(angle), measured along the base; supports are 50 mm tall.
+
 ## Interface
 - The material and language choice appear together on the first screen so a Hebrew-speaking student can switch before choosing.
 - Hebrew uses "לוח" for a panel and "גיליון" for a material sheet.

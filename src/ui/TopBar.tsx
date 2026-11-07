@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
 import { setMaterial, createDesign } from '../model/ops';
+import { changeMaterial } from '../templates/registry';
 import { parseProject, serializeProject, ProjectError } from '../model/serialize';
 import { downloadText, safeName } from './download';
 
@@ -42,7 +43,11 @@ export function TopBar() {
           value={builtIn ? builtIn.id : 'custom'}
           onChange={(e) => {
             const m = MATERIALS.find((x) => x.id === e.target.value);
-            if (m) s.apply((dd) => setMaterial(dd, m));
+            if (!m) return;
+            if (d.template) {
+              const r = changeMaterial(d, m);
+              s.apply((dd) => void Object.assign(dd, JSON.parse(JSON.stringify(r.design))));
+            } else s.apply((dd) => setMaterial(dd, m));
           }}
         >
           {MATERIALS.map((m) => (

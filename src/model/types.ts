@@ -148,6 +148,8 @@ export type Design = {
   sheetMargin: number;
   /** Let the packer turn pieces 90° against the grain/flute direction. */
   allowRotate?: boolean;
+  /** The template this design was generated from, with its parameters. */
+  template?: { id: string; version: number; params: Record<string, number | string> };
 };
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;

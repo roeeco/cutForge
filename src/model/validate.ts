@@ -6,6 +6,7 @@ import { bboxOf } from '../geom/vec';
 import { minWeb as materialMinWeb } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported } from './ops';
+import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
@@ -58,6 +59,7 @@ export function validate(d: Design): Issue[] {
       issues.push({ key: 'val.unsupported', vars: { panel: name(c.b.panelId) }, target: { kind: 'panel', id: c.b.panelId } });
   }
   issues.push(...shapeIssues(d), ...sheetIssues(d));
+  for (const ti of templateIssues(d)) issues.push({ key: ti.key, vars: ti.vars, target: { kind: 'panel', id: d.panels[ti.panel] ? ti.panel : d.order[0] } });
   for (const s of findOpenSeams(d)) {
     if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId } });
   }

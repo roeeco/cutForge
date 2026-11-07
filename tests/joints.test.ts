@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SCHEMA_VERSION } from '../src/model/types';
 import { addDivider, addRootPanel, addSideWalls, connectSeams, createDesign, deletePanel, growPanel, hasSideWalls, leanSupported, movePanel, setConnection, setMaterial, setPanelSize, solve } from '../src/model/ops';
 import { MATERIALS, connectionsFor } from '../src/model/materials';
 import { findOpenSeams } from '../src/model/seams';
@@ -269,7 +270,7 @@ describe('project migration', () => {
     const base = addRootPanel(v1, 0, 0, 50, 50);
     v1.connections.c1 = { id: 'c1', kind: 'finger', a: { panelId: base, edge: 0 }, b: { panelId: base, edge: 0 }, angle: 90, dir: 'up', fingers: null };
     const d: Design = migrateDesign(v1);
-    expect(d.schemaVersion).toBe(4);
+    expect(d.schemaVersion).toBe(SCHEMA_VERSION);
     expect(d.connections.c1).toMatchObject({ grown: true, offset: 0, tabs: null, flap: null });
   });
 });

@@ -33,6 +33,8 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     d.allowRotate ??= false;
     return d;
   },
+  // v4 -> v5: optional template reference (nothing to convert).
+  4: (d) => d,
 };
 
 export function serializeProject(d: Design): string {

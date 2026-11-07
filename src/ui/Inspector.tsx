@@ -4,9 +4,11 @@ import { NumField } from './NumField';
 import { solve, deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setPanelSize, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
+import { TemplateSection } from './TemplateUI';
+import { changeMaterial } from '../templates/registry';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, OpenSeams, PanelConnections } from './Connections';
-import type { DetailOp, MaterialProfile } from '../model/types';
+import type { Design, DetailOp, MaterialProfile } from '../model/types';
 import { fmtNum } from '../i18n';
 
 export function Inspector() {
@@ -145,12 +147,17 @@ function MaterialSettings() {
     apply((x) => {
       // Edited values make this a custom profile, still based on the same material kind.
       const id = x.material.id.endsWith('-custom') ? x.material.id : `${x.material.id}-custom`;
-      Object.assign(x.material, patch, { id });
-      solve(x);
+      const m = { ...x.material, ...patch, id };
+      if (x.template) Object.assign(x, JSON.parse(JSON.stringify(changeMaterial(x as Design, m).design)));
+      else {
+        Object.assign(x.material, m);
+        solve(x);
+      }
     });
   return (
     <section data-testid="inspector-design">
       <p className="note">{t('insp.nothing')}</p>
+      <TemplateSection />
       <h3>{t(m.nameKey as 'mat.ply3')}</h3>
       <p className="note">{m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}</p>
       <NumField label={t('mat.thickness')} value={m.thickness} decimals={2} unit={mm} min={0.1} max={20} onCommit={(v) => setM({ thickness: v })} testId="mat-thickness" />
