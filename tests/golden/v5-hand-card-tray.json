@@ -1,0 +1,1117 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 5,
+ "savedAt": "2026-11-08T00:00:00.000Z",
+ "design": {
+  "schemaVersion": 5,
+  "id": "d_jkofgky",
+  "name": "",
+  "material": {
+   "id": "card-0.5",
+   "kind": "card",
+   "nameKey": "mat.card",
+   "thickness": 0.5,
+   "kerf": 0.1,
+   "clearance": 0.1,
+   "foldAllowance": 0.6,
+   "sheetW": 500,
+   "sheetH": 300,
+   "grain": "none"
+  },
+  "panels": {
+   "p_hwm0n9z": {
+    "id": "p_hwm0n9z",
+    "name": "1",
+    "w": 80,
+    "h": 60,
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": [
+     {
+      "id": "x_w6tl6r1j",
+      "shape": "rect",
+      "op": "score",
+      "cx": 40,
+      "cy": 30,
+      "w": 30,
+      "h": 20
+     }
+    ]
+   },
+   "p_twleii10": {
+    "id": "p_twleii10",
+    "name": "2",
+    "w": 80,
+    "h": 30,
+    "frame": {
+     "o": [
+      0,
+      0.5,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_hbyux712": {
+    "id": "p_hbyux712",
+    "name": "3",
+    "w": 60,
+    "h": 30,
+    "frame": {
+     "o": [
+      80,
+      0.5,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [
+     {
+      "id": "x_wdo9m11k",
+      "shape": "circle",
+      "op": "cut",
+      "cx": 30,
+      "cy": 15,
+      "w": 8,
+      "h": 8
+     }
+    ]
+   },
+   "p_gomlz114": {
+    "id": "p_gomlz114",
+    "name": "4",
+    "w": 80,
+    "h": 30,
+    "frame": {
+     "o": [
+      80,
+      0.5,
+      -60
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_fsuapg16": {
+    "id": "p_fsuapg16",
+    "name": "5",
+    "w": 60,
+    "h": 30,
+    "frame": {
+     "o": [
+      0,
+      0.5,
+      -60
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_ky38m21c": {
+    "id": "p_ky38m21c",
+    "name": "6",
+    "w": 80,
+    "h": 15,
+    "frame": {
+     "o": [
+      80,
+      30.5,
+      -0.5
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_ub8z1k1g": {
+    "id": "p_ub8z1k1g",
+    "name": "7",
+    "w": 60,
+    "h": 40,
+    "frame": {
+     "o": [
+      200,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_xy0f0v1h": {
+    "id": "p_xy0f0v1h",
+    "name": "8",
+    "w": 60,
+    "h": 30,
+    "frame": {
+     "o": [
+      200,
+      0.75,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0.8660254037844386,
+      -0.5000000000000001
+     ],
+     "side": -1
+    },
+    "details": []
+   }
+  },
+  "order": [
+   "p_hwm0n9z",
+   "p_twleii10",
+   "p_hbyux712",
+   "p_gomlz114",
+   "p_fsuapg16",
+   "p_ky38m21c",
+   "p_ub8z1k1g",
+   "p_xy0f0v1h"
+  ],
+  "connections": {
+   "c_xo1hj111": {
+    "id": "c_xo1hj111",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_hwm0n9z",
+     "edge": 0
+    },
+    "b": {
+     "panelId": "p_twleii10",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_3r79jf13": {
+    "id": "c_3r79jf13",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_hwm0n9z",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_hbyux712",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_31iozd15": {
+    "id": "c_31iozd15",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_hwm0n9z",
+     "edge": 2
+    },
+    "b": {
+     "panelId": "p_gomlz114",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_w05atx17": {
+    "id": "c_w05atx17",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_hwm0n9z",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_fsuapg16",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_nj3agi18": {
+    "id": "c_nj3agi18",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_twleii10",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_hbyux712",
+     "edge": 3
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_twleii10",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 30,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_twleii10",
+       "poly": [
+        {
+         "x": 79.5,
+         "y": 0
+        },
+        {
+         "x": 89.5,
+         "y": 10
+        },
+        {
+         "x": 89.5,
+         "y": 20
+        },
+        {
+         "x": 79.5,
+         "y": 30
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_twleii10",
+       "a": {
+        "x": 79.5,
+        "y": 0
+       },
+       "b": {
+        "x": 79.5,
+        "y": 30
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_hbyux712",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 20
+        },
+        {
+         "x": 0.5,
+         "y": 30
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_rgbsde19": {
+    "id": "c_rgbsde19",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_twleii10",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_fsuapg16",
+     "edge": 1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_twleii10",
+       "edge": 3,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 30,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_twleii10",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 30
+        },
+        {
+         "x": -9.5,
+         "y": 20
+        },
+        {
+         "x": -9.5,
+         "y": 10
+        },
+        {
+         "x": 0.5,
+         "y": 0
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_twleii10",
+       "a": {
+        "x": 0.5,
+        "y": 30
+       },
+       "b": {
+        "x": 0.5,
+        "y": 0
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_fsuapg16",
+       "poly": [
+        {
+         "x": 59.5,
+         "y": 30
+        },
+        {
+         "x": 49.5,
+         "y": 20
+        },
+        {
+         "x": 49.5,
+         "y": 10
+        },
+        {
+         "x": 59.5,
+         "y": 0
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_q1s0cl1a": {
+    "id": "c_q1s0cl1a",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_hbyux712",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_gomlz114",
+     "edge": 3
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_hbyux712",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 30,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_hbyux712",
+       "poly": [
+        {
+         "x": 59.5,
+         "y": 0
+        },
+        {
+         "x": 69.5,
+         "y": 10
+        },
+        {
+         "x": 69.5,
+         "y": 20
+        },
+        {
+         "x": 59.5,
+         "y": 30
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_hbyux712",
+       "a": {
+        "x": 59.5,
+        "y": 0
+       },
+       "b": {
+        "x": 59.5,
+        "y": 30
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_gomlz114",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 20
+        },
+        {
+         "x": 0.5,
+         "y": 30
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_m0j58v1b": {
+    "id": "c_m0j58v1b",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_gomlz114",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_fsuapg16",
+     "edge": 3
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_gomlz114",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 30,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_gomlz114",
+       "poly": [
+        {
+         "x": 79.5,
+         "y": 0
+        },
+        {
+         "x": 89.5,
+         "y": 10
+        },
+        {
+         "x": 89.5,
+         "y": 20
+        },
+        {
+         "x": 79.5,
+         "y": 30
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_gomlz114",
+       "a": {
+        "x": 79.5,
+        "y": 0
+       },
+       "b": {
+        "x": 79.5,
+        "y": 30
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_fsuapg16",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 20
+        },
+        {
+         "x": 0.5,
+         "y": 30
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_op3x601d": {
+    "id": "c_op3x601d",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_twleii10",
+     "edge": 2
+    },
+    "b": {
+     "panelId": "p_ky38m21c",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_iscml81e": {
+    "id": "c_iscml81e",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_hbyux712",
+     "edge": 2
+    },
+    "b": {
+     "panelId": "p_ky38m21c",
+     "edge": 3
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_hbyux712",
+       "edge": 2,
+       "notches": [
+        {
+         "s0": 44.480000000000004,
+         "s1": 59.52,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_hbyux712",
+       "poly": [
+        {
+         "x": 15.519999999999996,
+         "y": 29.5
+        },
+        {
+         "x": 10.50666666666666,
+         "y": 39.5
+        },
+        {
+         "x": 5.493333333333332,
+         "y": 39.5
+        },
+        {
+         "x": 0.4799999999999969,
+         "y": 29.5
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_hbyux712",
+       "a": {
+        "x": 15.519999999999996,
+        "y": 29.5
+       },
+       "b": {
+        "x": 0.4799999999999969,
+        "y": 29.5
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_ky38m21c",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 15.019999999999996
+        },
+        {
+         "x": 10.5,
+         "y": 10.00666666666666
+        },
+        {
+         "x": 10.5,
+         "y": 4.993333333333332
+        },
+        {
+         "x": 0.5,
+         "y": -0.020000000000003126
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_z1jcsg1f": {
+    "id": "c_z1jcsg1f",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_fsuapg16",
+     "edge": 2
+    },
+    "b": {
+     "panelId": "p_ky38m21c",
+     "edge": 1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_fsuapg16",
+       "edge": 2,
+       "notches": [
+        {
+         "s0": 0.48,
+         "s1": 15.52,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_fsuapg16",
+       "poly": [
+        {
+         "x": 59.52,
+         "y": 29.5
+        },
+        {
+         "x": 54.50666666666667,
+         "y": 39.5
+        },
+        {
+         "x": 49.49333333333333,
+         "y": 39.5
+        },
+        {
+         "x": 44.480000000000004,
+         "y": 29.5
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_fsuapg16",
+       "a": {
+        "x": 59.52,
+        "y": 29.5
+       },
+       "b": {
+        "x": 44.480000000000004,
+        "y": 29.5
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_ky38m21c",
+       "poly": [
+        {
+         "x": 79.5,
+         "y": -0.020000000000003126
+        },
+        {
+         "x": 69.5,
+         "y": 4.993333333333332
+        },
+        {
+         "x": 69.5,
+         "y": 10.006666666666668
+        },
+        {
+         "x": 79.5,
+         "y": 15.019999999999996
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_kp36nq1i": {
+    "id": "c_kp36nq1i",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_ub8z1k1g",
+     "edge": 0
+    },
+    "b": {
+     "panelId": "p_xy0f0v1h",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 60,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_xy0f0v1h",
+       "poly": [
+        {
+         "x": 0,
+         "y": 0
+        },
+        {
+         "x": 10,
+         "y": -10
+        },
+        {
+         "x": 50,
+         "y": -10
+        },
+        {
+         "x": 60,
+         "y": 0
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_xy0f0v1h",
+       "a": {
+        "x": 0,
+        "y": 0
+       },
+       "b": {
+        "x": 60,
+        "y": 0
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_ub8z1k1g",
+       "poly": [
+        {
+         "x": 0,
+         "y": 0
+        },
+        {
+         "x": 10,
+         "y": 10
+        },
+        {
+         "x": 50,
+         "y": 10
+        },
+        {
+         "x": 60,
+         "y": 0
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   }
+  },
+  "pieces": {
+   "p_hwm0n9z": {
+    "quantity": 1
+   },
+   "p_twleii10": {
+    "quantity": 1
+   },
+   "p_hbyux712": {
+    "quantity": 1
+   },
+   "p_gomlz114": {
+    "quantity": 1
+   },
+   "p_fsuapg16": {
+    "quantity": 1
+   },
+   "p_ky38m21c": {
+    "quantity": 1
+   },
+   "p_ub8z1k1g": {
+    "quantity": 1
+   },
+   "p_xy0f0v1h": {
+    "quantity": 1
+   }
+  },
+  "placements": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}

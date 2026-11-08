@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="600mm" height="400mm" viewBox="0 0 600 400">
+  <g id="SCORE" fill="none" stroke="#0000FF" stroke-width="0.1">
+    <path d="M180.02 121 L170 121"/>
+    <path d="M58 121 L47.98 121"/>
+    <path d="M167.5 125 L167.5 5"/>
+    <path d="M60.5 5 L60.5 125"/>
+    <path d="M63 127.5 L165 127.5"/>
+    <path d="M238 55 L340 55"/>
+    <path d="M336 55 L336 5"/>
+    <path d="M242 5 L242 55"/>
+    <path d="M367 55 L469 55"/>
+    <path d="M465 55 L465 5"/>
+    <path d="M371 5 L371 55"/>
+    <path d="M238 124 L340 124"/>
+    <path d="M336 124 L336 74"/>
+    <path d="M242 74 L242 124"/>
+  </g>
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M5 125 L47.98 125 L47.98 121 L51.32 137 L54.66 137 L58 121 L58 125 L63 125 L63 140 L165 140 L165 125 L170 125 L170 121 L173.34 137 L176.68 137 L180.02 121 L180.02 125 L223 125 L223 5 L5 5 Z"/>
+    <path d="M226 39 L242 55 L238 55 L254 71 L324 71 L340 55 L336 55 L352 39 L352 21 L336 5 L242 5 L226 21 Z"/>
+    <path d="M355 39 L371 55 L367 55 L383 71 L453 71 L469 55 L465 55 L481 39 L481 21 L465 5 L371 5 L355 21 Z"/>
+    <path d="M226 108 L242 124 L238 124 L254 140 L324 140 L340 124 L336 124 L352 108 L352 90 L336 74 L242 74 L226 90 Z"/>
+  </g>
+</svg>

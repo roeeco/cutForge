@@ -1,0 +1,992 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 5,
+ "savedAt": "2026-11-08T00:00:00.000Z",
+ "design": {
+  "schemaVersion": 5,
+  "id": "d_092n2c1l",
+  "name": "",
+  "material": {
+   "id": "ply-3",
+   "kind": "plywood",
+   "nameKey": "mat.ply3",
+   "thickness": 3,
+   "kerf": 0.15,
+   "clearance": 0.1,
+   "foldAllowance": 0,
+   "sheetW": 600,
+   "sheetH": 400,
+   "grain": "x"
+  },
+  "panels": {
+   "p_d0dx771m": {
+    "id": "p_d0dx771m",
+    "name": "1",
+    "w": 100,
+    "h": 80,
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_ivgkyi1n": {
+    "id": "p_ivgkyi1n",
+    "name": "2",
+    "w": 80,
+    "h": 38,
+    "frame": {
+     "o": [
+      100,
+      0,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_3l95k91p": {
+    "id": "p_3l95k91p",
+    "name": "3",
+    "w": 80,
+    "h": 38,
+    "frame": {
+     "o": [
+      0,
+      0,
+      -80
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_eetf441r": {
+    "id": "p_eetf441r",
+    "name": "4",
+    "w": 100,
+    "h": 60,
+    "frame": {
+     "o": [
+      0,
+      5.598076211353316,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0.49999999999999994,
+      -0.8660254037844387
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_yif45f1v": {
+    "id": "p_yif45f1v",
+    "name": "5",
+    "w": 100,
+    "h": 40,
+    "frame": {
+     "o": [
+      100,
+      3,
+      -77
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_xgkgai1z": {
+    "id": "p_xgkgai1z",
+    "name": "6",
+    "w": 80,
+    "h": 50,
+    "frame": {
+     "o": [
+      300,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_xtd3z520": {
+    "id": "p_xtd3z520",
+    "name": "7",
+    "w": 50,
+    "h": 30,
+    "frame": {
+     "o": [
+      380,
+      3,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      -1,
+      0
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_s4oamc22": {
+    "id": "p_s4oamc22",
+    "name": "8",
+    "w": 50,
+    "h": 25,
+    "frame": {
+     "o": [
+      300,
+      -1.5000000000000004,
+      -50
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0.5000000000000001,
+      -0.8660254037844386,
+      0
+     ],
+     "side": 1
+    },
+    "details": []
+   }
+  },
+  "order": [
+   "p_d0dx771m",
+   "p_ivgkyi1n",
+   "p_3l95k91p",
+   "p_eetf441r",
+   "p_yif45f1v",
+   "p_xgkgai1z",
+   "p_xtd3z520",
+   "p_s4oamc22"
+  ],
+  "connections": {
+   "c_qh1k651o": {
+    "id": "c_qh1k651o",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_d0dx771m",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_ivgkyi1n",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_d0dx771m",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 11.378571428571428,
+         "s1": 22.90714285714286,
+         "depth": 3
+        },
+        {
+         "s0": 34.23571428571429,
+         "s1": 45.76428571428571,
+         "depth": 3
+        },
+        {
+         "s0": 57.09285714285715,
+         "s1": 68.62142857142857,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_ivgkyi1n",
+       "edge": 0,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.428571428571429,
+         "depth": 3
+        },
+        {
+         "s0": 22.857142857142858,
+         "s1": 34.285714285714285,
+         "depth": 3
+        },
+        {
+         "s0": 45.714285714285715,
+         "s1": 57.142857142857146,
+         "depth": 3
+        },
+        {
+         "s0": 68.57142857142857,
+         "s1": 80,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_ryb7131q": {
+    "id": "c_ryb7131q",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_d0dx771m",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_3l95k91p",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_d0dx771m",
+       "edge": 3,
+       "notches": [
+        {
+         "s0": 11.378571428571428,
+         "s1": 22.90714285714286,
+         "depth": 3
+        },
+        {
+         "s0": 34.23571428571429,
+         "s1": 45.76428571428571,
+         "depth": 3
+        },
+        {
+         "s0": 57.09285714285715,
+         "s1": 68.62142857142857,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_3l95k91p",
+       "edge": 0,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.42857142857143,
+         "depth": 3
+        },
+        {
+         "s0": 22.85714285714286,
+         "s1": 34.285714285714285,
+         "depth": 3
+        },
+        {
+         "s0": 45.714285714285715,
+         "s1": 57.142857142857146,
+         "depth": 3
+        },
+        {
+         "s0": 68.57142857142857,
+         "s1": 80,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_pg02yn1s": {
+    "id": "c_pg02yn1s",
+    "kind": "lean",
+    "pref": "lean",
+    "a": {
+     "panelId": "p_d0dx771m",
+     "edge": 0
+    },
+    "b": {
+     "panelId": "p_eetf441r",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 30,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_cwe0in1t": {
+    "id": "c_cwe0in1t",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_eetf441r",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_ivgkyi1n",
+     "edge": -1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_eetf441r",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 12,
+         "depth": 3
+        },
+        {
+         "s0": 12,
+         "s1": 24,
+         "depth": 0
+        },
+        {
+         "s0": 24,
+         "s1": 36,
+         "depth": 3
+        },
+        {
+         "s0": 36,
+         "s1": 48,
+         "depth": 0
+        },
+        {
+         "s0": 48,
+         "s1": 60,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_ivgkyi1n",
+       "poly": [
+        {
+         "x": 10.324003575224042,
+         "y": 11.616377481542537
+        },
+        {
+         "x": 11.874003575224043,
+         "y": 8.931698729810778
+        },
+        {
+         "x": 22.352910961015752,
+         "y": 14.981698729810779
+        },
+        {
+         "x": 20.80291096101575,
+         "y": 17.666377481542536
+        }
+       ]
+      },
+      {
+       "panelId": "p_ivgkyi1n",
+       "poly": [
+        {
+         "x": 31.10861326605057,
+         "y": 23.616377481542536
+        },
+        {
+         "x": 32.65861326605057,
+         "y": 20.931698729810776
+        },
+        {
+         "x": 43.13752065184228,
+         "y": 26.981698729810777
+        },
+        {
+         "x": 41.58752065184228,
+         "y": 29.666377481542536
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_yeiveo1u": {
+    "id": "c_yeiveo1u",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_eetf441r",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_3l95k91p",
+     "edge": -1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_eetf441r",
+       "edge": 3,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 12,
+         "depth": 3
+        },
+        {
+         "s0": 12,
+         "s1": 24,
+         "depth": 0
+        },
+        {
+         "s0": 24,
+         "s1": 36,
+         "depth": 3
+        },
+        {
+         "s0": 36,
+         "s1": 48,
+         "depth": 0
+        },
+        {
+         "s0": 48,
+         "s1": 60,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_3l95k91p",
+       "poly": [
+        {
+         "x": 36.86247934815772,
+         "y": 26.981698729810777
+        },
+        {
+         "x": 47.341386733949435,
+         "y": 20.931698729810773
+        },
+        {
+         "x": 48.89138673394943,
+         "y": 23.616377481542532
+        },
+        {
+         "x": 38.41247934815772,
+         "y": 29.666377481542536
+        }
+       ]
+      },
+      {
+       "panelId": "p_3l95k91p",
+       "poly": [
+        {
+         "x": 57.64708903898425,
+         "y": 14.98169872981078
+        },
+        {
+         "x": 68.12599642477596,
+         "y": 8.93169872981078
+        },
+        {
+         "x": 69.67599642477596,
+         "y": 11.616377481542543
+        },
+        {
+         "x": 59.197089038984245,
+         "y": 17.66637748154254
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_byvtp91w": {
+    "id": "c_byvtp91w",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_d0dx771m",
+     "edge": 2
+    },
+    "b": {
+     "panelId": "p_yif45f1v",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 3,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_yif45f1v",
+       "edge": 0,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 14.285714285714286,
+         "depth": 0
+        },
+        {
+         "s0": 14.285714285714286,
+         "s1": 28.571428571428573,
+         "depth": -3
+        },
+        {
+         "s0": 28.571428571428573,
+         "s1": 42.85714285714286,
+         "depth": 0
+        },
+        {
+         "s0": 42.85714285714286,
+         "s1": 57.142857142857146,
+         "depth": -3
+        },
+        {
+         "s0": 57.142857142857146,
+         "s1": 71.42857142857143,
+         "depth": 0
+        },
+        {
+         "s0": 71.42857142857143,
+         "s1": 85.71428571428572,
+         "depth": -3
+        },
+        {
+         "s0": 85.71428571428572,
+         "s1": 100,
+         "depth": 0
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_d0dx771m",
+       "poly": [
+        {
+         "x": 71.37857142857143,
+         "y": 73.95
+        },
+        {
+         "x": 85.7642857142857,
+         "y": 73.95
+        },
+        {
+         "x": 85.7642857142857,
+         "y": 77.05
+        },
+        {
+         "x": 71.37857142857143,
+         "y": 77.05
+        }
+       ]
+      },
+      {
+       "panelId": "p_d0dx771m",
+       "poly": [
+        {
+         "x": 42.80714285714286,
+         "y": 73.95
+        },
+        {
+         "x": 57.192857142857136,
+         "y": 73.95
+        },
+        {
+         "x": 57.192857142857136,
+         "y": 77.05
+        },
+        {
+         "x": 42.80714285714286,
+         "y": 77.05
+        }
+       ]
+      },
+      {
+       "panelId": "p_d0dx771m",
+       "poly": [
+        {
+         "x": 14.235714285714277,
+         "y": 73.95
+        },
+        {
+         "x": 28.62142857142857,
+         "y": 73.95
+        },
+        {
+         "x": 28.62142857142857,
+         "y": 77.05
+        },
+        {
+         "x": 14.235714285714277,
+         "y": 77.05
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_ulrqdt1x": {
+    "id": "c_ulrqdt1x",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_yif45f1v",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_ivgkyi1n",
+     "edge": -1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_yif45f1v",
+       "edge": 3,
+       "notches": [
+        {
+         "s0": 4.979999999999997,
+         "s1": 16.65333333333333,
+         "depth": 3
+        },
+        {
+         "s0": 16.65333333333333,
+         "s1": 28.326666666666664,
+         "depth": 0
+        },
+        {
+         "s0": 28.326666666666664,
+         "s1": 40,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_ivgkyi1n",
+       "poly": [
+        {
+         "x": 73.95,
+         "y": 14.623333333333335
+        },
+        {
+         "x": 77.05,
+         "y": 14.623333333333335
+        },
+        {
+         "x": 77.05,
+         "y": 26.396666666666672
+        },
+        {
+         "x": 73.95,
+         "y": 26.396666666666672
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_j3vv3y1y": {
+    "id": "c_j3vv3y1y",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_yif45f1v",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_3l95k91p",
+     "edge": -1
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_yif45f1v",
+       "edge": 1,
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.673333333333334,
+         "depth": 3
+        },
+        {
+         "s0": 11.673333333333334,
+         "s1": 23.346666666666668,
+         "depth": 0
+        },
+        {
+         "s0": 23.346666666666668,
+         "s1": 35.02,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_3l95k91p",
+       "poly": [
+        {
+         "x": 2.95,
+         "y": 14.623333333333333
+        },
+        {
+         "x": 6.05,
+         "y": 14.623333333333333
+        },
+        {
+         "x": 6.05,
+         "y": 26.39666666666667
+        },
+        {
+         "x": 2.95,
+         "y": 26.39666666666667
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_x5vv4m21": {
+    "id": "c_x5vv4m21",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_xgkgai1z",
+     "edge": 1
+    },
+    "b": {
+     "panelId": "p_xtd3z520",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "down",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "mountain",
+    "broken": true
+   },
+   "c_jzmm1b23": {
+    "id": "c_jzmm1b23",
+    "kind": "butt",
+    "pref": "butt",
+    "a": {
+     "panelId": "p_xgkgai1z",
+     "edge": 3
+    },
+    "b": {
+     "panelId": "p_s4oamc22",
+     "edge": 0
+    },
+    "grown": true,
+    "angle": 60,
+    "dir": "down",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "mountain",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   }
+  },
+  "pieces": {
+   "p_d0dx771m": {
+    "quantity": 1
+   },
+   "p_ivgkyi1n": {
+    "quantity": 1
+   },
+   "p_3l95k91p": {
+    "quantity": 1
+   },
+   "p_eetf441r": {
+    "quantity": 1
+   },
+   "p_yif45f1v": {
+    "quantity": 1
+   },
+   "p_xgkgai1z": {
+    "quantity": 1
+   },
+   "p_xtd3z520": {
+    "quantity": 1
+   },
+   "p_s4oamc22": {
+    "quantity": 1
+   }
+  },
+  "placements": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}
