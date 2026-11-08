@@ -29,6 +29,8 @@ import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
+import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
+import { isOutlineShape } from '../model/outline';
 
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
@@ -93,6 +95,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const drag = useRef<Drag | null>(null);
   const polyRef = useRef<PolyToolHandle>(null);
   const editOutline = useStore((s) => s.editOutline);
+  const extrude = useStore((s) => s.extrude);
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
   const [guides, setGuides] = useState<GuideState | null>(null);
   const three = useThree();
@@ -387,6 +390,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
+      {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
@@ -786,6 +790,64 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   );
 }
 
+/** Extrude preview: a ghost wall on every edge of the base, with a push-pull arrow for the shared height. */
+function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height: number; m: THREE.Matrix4 }) {
+  const t = useT();
+  const base = d.panels[baseId];
+  const th = d.material.thickness;
+  const kind = trayKinds(d.material).wallKind;
+  const ghosts = useMemo(() => {
+    if (!base) return [];
+    const h = Math.max(MIN_PANEL, wallHeight(d, kind, height));
+    return panelEdges(base)
+      .filter((e) => segLength(e) >= MIN_EDGE)
+      .map((e) => {
+        const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind));
+        const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [] };
+        return { key: e.key, p, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
+      });
+  }, [d, base, height, kind, m, th]);
+  useEffect(() => () => ghosts.forEach((g) => g.geom.dispose()), [ghosts]);
+  if (!ghosts.length) return null;
+  const first = ghosts[0].p;
+  const setH = (v: number) => {
+    const ex = useStore.getState().extrude;
+    if (ex) useStore.getState().set({ extrude: { ...ex, height: Math.round(v) } });
+  };
+  return (
+    <>
+      {ghosts.map((g) => (
+        <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true }}>
+          <mesh geometry={g.geom} raycast={() => null}>
+            <meshStandardMaterial color={STAGE.ghost} transparent opacity={0.38} depthWrite={false} />
+            <Edges threshold={25} lineWidth={1.8} color="#15706b" />
+          </mesh>
+        </group>
+      ))}
+      <PushPull
+        at={W(m, first.frame, first.w / 2, first.h, th / 2)}
+        axis={Wdir(m, first.frame.v)}
+        value={height}
+        min={5 + th}
+        max={1000}
+        onPreview={setH}
+        onCommit={() => undefined}
+        onCancel={() => undefined}
+        testId="tray-ghost-height"
+      />
+      <DimLabel at={W(m, first.frame, first.w, first.h / 2, th / 2)} k="H" value={height} unit={t('unit.mm')} ghost onCommit={setH} testId="tray-ghost-dim" />
+    </>
+  );
+}
+
+/** A selected Cut shape on a tray base that reaches a walled edge (new tray edges always get walls). */
+function cutOnTrayBase(d: Design, sel: ReturnType<typeof useStore.getState>['selection']): boolean {
+  if (sel?.kind !== 'detail') return false;
+  const f = findDetail(d, sel.id);
+  if (!f || f.detail.op !== 'cut' || !trayOf(d, f.panel.id) || trayOf(d, f.panel.id)!.baseId !== f.panel.id) return false;
+  return isOutlineShape(f.panel, f.detail.id);
+}
+
 /** Selected grown panel: the hinge ring at its parent edge, to turn it in place. */
 function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }) {
   const t = useT();
@@ -1142,11 +1204,14 @@ export function View3D() {
     return () => window.removeEventListener('keydown', k);
   }, []);
   const editing = useStore((s) => !!s.editOutline);
+  const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
   const hint =
     foldT < 0.999
       ? 'fold.hint'
       : editing && tool === 'select'
         ? 'outline.help'
+        : trayCut && tool === 'select'
+          ? 'tray.cutHint'
         : tool === 'select'
           ? 'tool.hint.select'
           : tool === 'panel'

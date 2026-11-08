@@ -69,7 +69,7 @@ export function wallCorners(w: number, h: number, s: WallSketch): P2[] {
 }
 
 /** Layer 1: the sketch outline as keyed CCW edges. */
-export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): EdgeSeg[] {
+export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: Panel['ext'] }): EdgeSeg[] {
   const s = sketchOf(p);
   if (s.kind === 'poly') {
     const n = s.pts.length;
@@ -78,6 +78,13 @@ export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): Edg
     return pts.map((a, i) => ({ key: s.edgeIds[i] ?? `e${i}`, a, b: pts[(i + 1) % n] }));
   }
   const c = wallCorners(p.w, p.h, s);
+  const ext = (p as { ext?: { s: number; e: number } }).ext;
+  if (ext) {
+    c[0] = { x: c[0].x - ext.s, y: c[0].y };
+    c[3] = { x: c[3].x - ext.s, y: c[3].y };
+    c[1] = { x: c[1].x + ext.e, y: c[1].y };
+    c[2] = { x: c[2].x + ext.e, y: c[2].y };
+  }
   const out: EdgeSeg[] = [];
   for (let i = 0; i < 4; i++) {
     const a = c[i], b = c[(i + 1) % 4];

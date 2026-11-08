@@ -78,6 +78,8 @@ type State = {
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
   selVertex: number | null;
+  /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
+  extrude: { baseId: string; height: number } | null;
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -98,7 +100,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -149,6 +151,7 @@ export const useStore = create<State>()((set, get) => ({
   ngonSides: 6,
   editOutline: null,
   selVertex: null,
+  extrude: null,
 
   apply: (fn) => {
     if (get().txnBase) get().commit();
@@ -197,7 +200,7 @@ export const useStore = create<State>()((set, get) => ({
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
   replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
-  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
+  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
   setTool: (t) => set({ tool: t, editOutline: null, selVertex: null }),
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),

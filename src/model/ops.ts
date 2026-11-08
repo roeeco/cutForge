@@ -1,7 +1,10 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel } from './types';
+// shapes feed the edge layer: make sure the own-outline hook is installed
+import './outline';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel, Tray } from './types';
+import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
@@ -72,6 +75,16 @@ export function solve(d: Design) {
     }
   }
   reconcileWallSets(d);
+  reconcileTrays(d, makeTrayWall);
+  insideCornerExtensions(
+    d,
+    (baseId, key) => {
+      const base = d.panels[baseId];
+      const c = Object.values(d.connections).find((x) => x.grown && x.a.panelId === baseId && x.offset === 0 && Math.abs(x.angle - 90) < 1e-6 && (x.a.edge === key || (base && findEdge(base, x.a.edge)?.key === key)));
+      return c?.b.panelId;
+    },
+    (a, b) => Object.values(d.connections).find((x) => !x.grown && ((x.a.panelId === a && x.b.panelId === b) || (x.a.panelId === b && x.b.panelId === a)))?.kind,
+  );
   const done = new Set<string>(d.order.filter((id) => !parentConnection(d, id)));
   const pending = Object.values(d.connections).filter((c) => c.grown);
   let progress = true;
@@ -176,6 +189,93 @@ export function reconcileWallSets(d: Design) {
   }
 }
 
+/** Stand a tray wall on a base edge (reconciliation): stable ids `<tray>/<edge>`. */
+function makeTrayWall(d: Design, tray: Tray, edge: string) {
+  const base = d.panels[tray.baseId];
+  if (!base) return;
+  const id = `${tray.id}/${edge}`, cid = `${tray.id}/c/${edge}`;
+  const kind = tray.wallKind;
+  if (!d.panels[id]) {
+    d.panels[id] = { id, name: `${d.order.length + 1}`, w: edgeLength(base, edge), h: Math.max(MIN_PANEL, wallHeight(d, kind, tray.height)), sketch: { kind: 'wall' }, frame: base.frame, details: [] };
+    d.order.push(id);
+    d.pieces[id] = { quantity: 1 };
+  }
+  if (!d.connections[cid])
+    d.connections[cid] = {
+      id: cid,
+      kind,
+      pref: kind,
+      a: { panelId: base.id, edge },
+      b: { panelId: id, edge: 'e0' },
+      grown: true,
+      angle: 90,
+      dir: 'up',
+      offset: defaultOffset(d, kind),
+      fingers: null,
+      tabs: null,
+      flap: null,
+      foldDir: 'valley',
+      trayId: tray.id,
+    };
+}
+
+/**
+ * Extrude a base into a tray: a wall at 90° on every straight edge, all at
+ * outer height `height`, with the material's default wall and corner joints.
+ */
+export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind'>>): string | null {
+  const base = d.panels[baseId];
+  if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
+  const id = newId('tr');
+  d.trays ??= {};
+  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + d.material.thickness, height), ...trayKinds(d.material), ...kinds, openEdges: [] };
+  solve(d);
+  for (const w of trayWalls(d, id)) connectSeams(d, w);
+  return id;
+}
+
+/** Change a tray's shared outer height (walls with their own height keep it). */
+export function setTrayHeight(d: Design, trayId: string, height: number) {
+  const tray = d.trays?.[trayId];
+  if (!tray) return;
+  tray.height = Math.max(MIN_PANEL + d.material.thickness, height);
+  solve(d);
+}
+
+/** Change a tray's wall-to-base or corner joint for all its walls and corners. */
+export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray, 'wallKind' | 'cornerKind'>>) {
+  const tray = d.trays?.[trayId];
+  if (!tray) return;
+  Object.assign(tray, patch);
+  for (const c of Object.values(d.connections)) {
+    if (c.trayId !== trayId) continue;
+    if (c.grown && patch.wallKind) {
+      c.kind = c.pref = patch.wallKind;
+      c.offset = defaultOffset(d, patch.wallKind);
+    } else if (!c.grown && patch.cornerKind && seamKinds(d.material, seamTypeOf(c)).includes(patch.cornerKind)) c.kind = c.pref = patch.cornerKind;
+  }
+  solve(d);
+}
+
+/** Put a wall back on an open tray edge. */
+export function wallIt(d: Design, trayId: string, edge: string) {
+  const tray = d.trays?.[trayId];
+  if (!tray) return;
+  tray.openEdges = tray.openEdges.filter((k) => k !== edge);
+  solve(d);
+  const w = `${trayId}/${edge}`;
+  if (d.panels[w]) connectSeams(d, w);
+}
+
+/** A tray wall's own height on or off (off: back to the tray's height). */
+export function setCustomHeight(d: Design, wallId: string, on: boolean) {
+  const w = d.panels[wallId];
+  if (!w) return;
+  if (on) w.customHeight = true;
+  else delete w.customHeight;
+  solve(d);
+}
+
 export function addRootPanel(d: Design, x: number, z: number, w: number, h: number): string {
   const id = newId('p');
   const n = d.order.length + 1;
@@ -250,13 +350,17 @@ export function edgeConnection(d: Design, panelId: string, edgeArg: EdgeArg): Co
  */
 export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, auto = true): string | null {
   const kinds = seamKinds(d.material, seam.type);
+  // tray corners use the tray's corner joint
+  const ta = trayOf(d, seam.a.panelId), tb = trayOf(d, seam.b.panelId);
+  const tray = ta && tb && ta.id === tb.id && ta.baseId !== seam.a.panelId && ta.baseId !== seam.b.panelId ? ta : undefined;
+  if (!kind && tray && seam.type === 'corner') kind = tray.cornerKind;
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
   const cid = newId('c');
   // fingers: `a` must be the earlier panel, which owns the corners
   // a seam is kept on whole edges: its joint lays out over every piece of an edge a cut split
   let a = { ...seam.a, edge: baseKey(seam.a.edge) }, b = { ...seam.b, edge: baseKey(seam.b.edge) };
   if (seam.type === 'corner' && d.order.indexOf(a.panelId) > d.order.indexOf(b.panelId)) [a, b] = [b, a];
-  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto };
+  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}) };
   if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
   solve(d);
   return cid;
@@ -377,7 +481,11 @@ export function setPanelSize(d: Design, panelId: string, w: number | undefined, 
     } else scaleSketch(p, Math.max(MIN_PANEL, w), p.h);
   }
   if (h !== undefined) {
-    if (parentConnection(d, panelId)) p.h = Math.max(MIN_PANEL, h);
+    const pc = parentConnection(d, panelId);
+    const tray = pc?.trayId ? d.trays?.[pc.trayId] : undefined;
+    // push-pull on a tray wall changes the whole tray, unless the wall has its own height
+    if (pc && tray && !p.customHeight) tray.height = Math.max(MIN_PANEL, h) + (wallHeight(d, pc.kind, 100) === 100 ? 0 : d.material.thickness);
+    else if (pc) p.h = Math.max(MIN_PANEL, h);
     else scaleSketch(p, p.w, Math.max(MIN_PANEL, h));
   }
   solve(d);
@@ -571,6 +679,15 @@ export function deleteVertex(d: Design, panelId: string, i: number): boolean {
 }
 
 export function deletePanel(d: Design, panelId: string) {
+  // deleting a tray wall opens that side of the tray
+  const tc = Object.values(d.connections).find((c) => c.grown && c.b.panelId === panelId && c.trayId);
+  const tray = tc && d.trays?.[tc.trayId!];
+  if (tc && tray) {
+    const base = d.panels[tc.a.panelId];
+    const key = (base && findEdge(base, tc.a.edge)?.key) ?? tc.a.edge;
+    tray.openEdges = [...new Set([...tray.openEdges, key])];
+  }
+  for (const t of Object.values(d.trays ?? {})) if (t.baseId === panelId) delete d.trays[t.id];
   for (const c of Object.values(d.connections)) {
     if (c.a.panelId === panelId || c.b.panelId === panelId) delete d.connections[c.id];
   }

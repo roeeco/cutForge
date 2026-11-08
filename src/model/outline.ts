@@ -112,7 +112,7 @@ export function ownOutline(p: Edged): OwnOutline {
   const ring = sketchRing(p);
   const shaped = (p.details ?? []).filter((dt) => dt.op === 'add' || dt.op === 'cut');
   if (!shaped.length) return { rings: [ring], holes: [], consumed: new Set() };
-  const sig = JSON.stringify([p.w, p.h, p.sketch, shaped.map((dt) => [dt.id, dt.op, dt.shape, dt.cx, dt.cy, dt.w, dt.h, dt.r, dt.text, dt.path, dt.array])]);
+  const sig = JSON.stringify([p.w, p.h, p.sketch, (p as { ext?: unknown }).ext, shaped.map((dt) => [dt.id, dt.op, dt.shape, dt.cx, dt.cy, dt.w, dt.h, dt.r, dt.text, dt.path, dt.array])]);
   const hit = cache.get(sig);
   if (hit) return hit;
   const res = compute(ring, shaped);

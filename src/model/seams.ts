@@ -2,6 +2,8 @@
 // cuts into them. Everything here is derived from panel frames and sizes, so
 // joints follow dimension, thickness, clearance, count, spacing and angle
 // changes automatically.
+// shapes feed the edge layer: make sure the own-outline hook is installed
+import './outline';
 import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgePieces, FACE, findEdge, panelEdges, segInward, segLength, type EdgeArg } from './edges';
@@ -411,6 +413,12 @@ function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
         if (trim > 0) na.push({ s0, s1, depth: trim });
       }
     }
+    // a wall reaching past its parent edge (an inside corner of a tray) sits on the parent's face there
+    if (c.grown && B.ext) {
+      const L = segLength(findEdge(B, c.b.edge)!);
+      if (B.ext.s > 0) nb.push({ s0: 0, s1: B.ext.s, depth: t });
+      if (B.ext.e > 0) nb.push({ s0: L - B.ext.e, s1: L, depth: t });
+    }
     g.edges.push({ panelId: A.id, edge: c.a.edge, notches: na }, { panelId: B.id, edge: c.b.edge, notches: nb });
     return g;
   }
@@ -616,14 +624,12 @@ export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
       const f = cornerFit(A, ea, B, eb);
       if (f) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) };
     }
-  for (const e of kb) {
-    const f = faceFit(B, e, A, t);
-    if (f) return { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: FACE }, overlapping: f.d1 > 1e-6 };
-  }
-  for (const e of ka) {
-    const f = faceFit(A, e, B, t);
-    if (f) return { type: 'face', a: { panelId: A.id, edge: e }, b: { panelId: B.id, edge: FACE }, overlapping: f.d1 > 1e-6 };
-  }
+  // an edge on the other's face; at a tray's inside corner the wall reaching across the corner is the one received
+  const faceB = kb.map((e) => ({ e, f: faceFit(B, e, A, t) })).find((x) => x.f);
+  const faceA = ka.map((e) => ({ e, f: faceFit(A, e, B, t) })).find((x) => x.f);
+  const preferA = faceA && faceB && (B.ext?.s || B.ext?.e) && !(A.ext?.s || A.ext?.e);
+  if (faceB && !preferA) return { type: 'face', a: { panelId: B.id, edge: faceB.e }, b: { panelId: A.id, edge: FACE }, overlapping: faceB.f!.d1 > 1e-6 };
+  if (faceA) return { type: 'face', a: { panelId: A.id, edge: faceA.e }, b: { panelId: B.id, edge: FACE }, overlapping: faceA.f!.d1 > 1e-6 };
   if (crossFit(A, B, t)) return { type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true };
   return null;
 }

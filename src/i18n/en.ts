@@ -465,6 +465,23 @@ export const en = {
   'val.orphan': "{panel} lost the edge it stood on (a cut removed it). Its shapes are kept; delete it or restore the edge.",
   'val.littleContact': "Too little contact between {a} and {b} for their joint: a cut took most of the shared edge.",
   'tool.op.add': "Add (joins the outline)",
+  'tray.extrude': "Extrude walls",
+  'tray.extrudeHelp': "A wall stands on each of the {n} edges, all at one height. Drag the arrow on the stage or type the height.",
+  'tray.height': "Tray height",
+  'tray.joints': "Walls: {wall}. Corners: {corner}. You can change any joint afterwards.",
+  'tray.addWalls': "Add walls",
+  'tray.cancel': "Cancel",
+  'tray.title': "Tray",
+  'tray.wallJoint': "Wall to base",
+  'tray.cornerJoint': "Corners",
+  'tray.creaseLoop': "Corners can't be creased: the walls already fold from the base, so a crease would close a loop. Glue one side.",
+  'tray.short': "{n} edges too short for a wall (under 5 mm) stay open.",
+  'tray.open': "{n} open sides (walls you deleted).",
+  'tray.wallIt': "Wall it: {edge}",
+  'tray.sharedHeight': "Part of a tray: changing the height changes every wall.",
+  'tray.customHeight': "Custom height: this wall keeps its own height.",
+  'tray.ownHeight': "Own height",
+  'tray.cutHint': "This cut touches a walled edge of a tray: every new straight edge of a tray base gets a wall. Finger notches belong on walls.",
 } as const;
 
 export type MsgKey = keyof typeof en;

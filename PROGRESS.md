@@ -217,6 +217,24 @@ Verified
 - `tests/e2e/shapes.spec.ts`: a Cut dragged across a free edge (two growable pieces), across a walled edge (the wall splits), an Add tab, the cut plan (3 pieces, the Add selectable). Screenshots `docs/polygon-shots/*-05-*`, `*-06-*`.
 - `npm test` 151 passed; all app Playwright specs pass.
 
+## Milestone 10 — Extrude and trays ✅
+
+Implemented
+- `Design.trays` (`src/model/trays.ts`): `{ baseId, height, wallKind, cornerKind, openEdges }`. Reconciliation in `solve` stands a wall on every growable base edge (5 mm or longer) that has none and is not open, with stable ids `<tray>/<edge>` and connection `<tray>/c/<edge>`; walls whose edge disappears are removed (or kept and flagged when they carry shapes). New edges from Add/Cut shapes and vertex inserts get walls automatically.
+- Defaults: card and corrugated walls fold up from the base (one net); corners glue flaps (card) or tab-and-slot (corrugated); plywood finger walls and finger corners. Tray corners take the tray's corner joint; any one seam can still be changed.
+- Shared height: push-pull or typing the height on any tray wall changes `tray.height` (walls standing on the base are `H − t`, finger walls `H`); *Own height* keeps one wall's height (`customHeight`), and unticking returns it to the tray's.
+- Deleting a tray wall adds its edge to `openEdges`; *Wall it* on the tray card closes it.
+- Inside corners (a reflex vertex with walls on both edges): the wall on the outgoing edge reaches back across the corner (`Panel.ext`, derived each solve) by `t / sin(turn)`, plus a web when that corner is tab-and-slot, so its slots are closed; where it reaches over the base it sits on the base face. The corner is joined edge-on-face.
+- Interface: *Extrude walls* on a free base's card shows a ghost tray with a push-pull arrow and an in-place height, the default joints, and *Add walls* / *Cancel*. The tray card has height, wall and corner joints, the crease-loop note (folded walls), short-edge and open-side notes with *Wall it* buttons. A tray wall's card says its height is shared and offers *Own height*. A Cut shape on a tray base that reaches a walled edge shows the hint about tray edges always getting walls.
+
+Verified
+- `tests/trays.test.ts`: card hexagon tray (6 folded walls with stable ids, glue corners, **one net**, clean export check); corrugated 4/1.6 (tab-and-slot corners) and plywood (fingers) hexagon trays without overlap and clean; **push-pull on one wall changes all** and own height; delete + Wall it; **L-notch on a tray base**: walls shorten, two new walls, the inside corner joined (tab-and-slot through the reaching wall), no overlap, clean export check; vertex insert splits a tray wall (still one net); a 4.2 mm edge stays open and is counted.
+- `tests/e2e/trays.spec.ts`: hexagon with the n-gon tool, Extrude card and ghost dimension, Add walls, tray height, a wall's height edit changes the tray, delete a wall and *Wall it*, one piece in the cut plan. Screenshots `docs/polygon-shots/*-07..09-*`.
+- `npm test` 158 passed; app Playwright specs pass.
+
+Not done
+- A crease between two walls of a tray is not offered (it would need nets that fold across closing seams); the tray card says why.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

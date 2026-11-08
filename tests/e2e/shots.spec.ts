@@ -72,3 +72,40 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-06-notches-cutplan.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`shots trays ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'corr-4');
+    const base = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let b = '';
+      cf.store.getState().apply((d: any) => void (b = cf.ops.addPolygonPanel(d, 0, 0, cf.ops.regularPolygon(6, 70))));
+      return b;
+    });
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), base);
+    await page.getByTestId('extrude').click();
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-07-extrude-ghost.png` });
+    await page.getByTestId('extrude-go').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-08-corrugated-hex-tray.png` });
+    // plywood L tray with an inside corner
+    await page.getByTestId('project-menu').click().catch(() => undefined);
+    await S(page, () => {
+      const cf = (window as any).__cutforge;
+      cf.store.getState().apply((d: any) => {
+        for (const id of [...d.order]) cf.ops.deletePanel(d, id);
+        d.material = { ...d.material, id: 'ply-3', kind: 'plywood', nameKey: 'mat.ply3', thickness: 3, kerf: 0.15, clearance: 0.1, foldAllowance: 0, grain: 'x' };
+        const b = cf.ops.addRootPanel(d, -70, 50, 140, 100);
+        cf.ops.addTray(d, b, 45);
+        cf.ops.addDetail(d, b, 'rect', 'cut', 140, 100, 70, 50);
+      });
+    });
+    await page.keyboard.press('Escape');
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/${lang}-09-ply-L-tray.png` });
+  });
+}

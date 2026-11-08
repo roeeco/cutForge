@@ -16,6 +16,7 @@ import { edgeLabel, isAutoName, panelLabel } from '../model/names';
 import { panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
+import { ExtrudeSection, TraySection, TrayWallNote } from './TrayUI';
 
 export function Inspector() {
   const t = useT();
@@ -103,6 +104,7 @@ export function Inspector() {
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           <PanelHinge panelId={id} />
+          <TrayWallNote panelId={id} />
           {!parent && p.sketch.kind === 'poly' && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
@@ -124,6 +126,8 @@ export function Inspector() {
           />
           <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
           {inNet && <FoldSlider />}
+          <ExtrudeSection panelId={id} />
+          <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
           <DividerAdder panelId={id} />

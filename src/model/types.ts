@@ -84,6 +84,13 @@ export type Panel = {
   details: Detail[];
   /** Tray walls on edges that a cut removed, kept (with their shapes) until the edge returns. */
   broken?: boolean;
+  /** A tray wall with its own height instead of the tray's. */
+  customHeight?: boolean;
+  /**
+   * Derived (re-made by `solve`): how far a wall reaches past the start/end of
+   * its parent edge, to close an inside corner of a tray.
+   */
+  ext?: { s: number; e: number };
 };
 
 /** An edge of a panel by key (see src/model/edges.ts); 'face' means the panel's face. */
