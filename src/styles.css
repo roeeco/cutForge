@@ -45,6 +45,7 @@
   --op-cut: #e5322d;
   --op-score: #2f6feb;
   --op-engrave: #1c1c1c;
+  --op-add: #2e8b57;
   /* shape */
   --r-sm: 8px;
   --r-md: 12px;
@@ -240,6 +241,8 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .op-dot.cut { background: var(--op-cut); }
 .op-dot.score { background: var(--op-score); }
 .op-dot.engrave { background: var(--op-engrave); }
+.op-dot.add { background: var(--op-add); }
+.rail .op-btn[data-op='add'] .dot { color: white; font-size: 11px; line-height: 10px; font-weight: 700; display: grid; place-items: center; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-muted); margin: 8px 0; }
 .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 6px 0; }
 .btn-grid button { font-size: 12px; padding: 4px 6px; }

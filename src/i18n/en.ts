@@ -47,7 +47,7 @@ export const en = {
   'tool.roundrect': 'Rounded rectangle',
   'tool.circle': 'Circle',
   'tool.op': 'New shapes are',
-  'tool.op.cut': 'Cut-through',
+  'tool.op.cut': "Cut",
   'tool.op.engrave': 'Engraved',
   'tool.op.score': 'Score line',
   'tool.hint.select': 'Click a panel, edge or shape to select it. Drag empty space to orbit, right-drag to pan.',
@@ -460,6 +460,11 @@ export const en = {
   'outline.help': "Drag a corner to move it. Click + on an edge to add a corner. Select a corner and press Delete to remove it. Enter or Esc when done.",
   'conn.angleGap': "Corner {angle}°: the laser cuts square, so the outside corner shows gaps of about {gap} mm.",
   'part.wallN': "Wall {n}",
+  'val.split': "A cut splits {panel} into {n} pieces. Each piece is cut separately.",
+  'val.sliver': "A part of {panel} is thinner than {min} mm and may break.",
+  'val.orphan': "{panel} lost the edge it stood on (a cut removed it). Its shapes are kept; delete it or restore the edge.",
+  'val.littleContact': "Too little contact between {a} and {b} for their joint: a cut took most of the shared edge.",
+  'tool.op.add': "Add (joins the outline)",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -6,8 +6,11 @@ import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
 import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
-import { connectionGeom, findOpenSeams, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
-import { edgeNeighbours, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, sketchOf, type EdgeArg } from './edges';
+import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
+import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, type EdgeArg } from './edges';
+
+/** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
+const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
 let counter = 0;
 export function newId(prefix: string): string {
@@ -68,6 +71,7 @@ export function solve(d: Design) {
       p.h = Math.max(...p.sketch.pts.map((q) => q.y));
     }
   }
+  reconcileWallSets(d);
   const done = new Set<string>(d.order.filter((id) => !parentConnection(d, id)));
   const pending = Object.values(d.connections).filter((c) => c.grown);
   let progress = true;
@@ -98,7 +102,77 @@ export function solve(d: Design) {
     if (g) {
       c.geom = g;
       c.broken = false;
-    } else c.broken = true;
+      delete c.thin;
+    } else {
+      c.broken = true;
+      const contact = seamContact(d as Design, c as Connection);
+      if (contact > 0 && contact < minContact(d as Design, c)) c.thin = true;
+      else delete c.thin;
+    }
+  }
+}
+
+/** A wall of a wall set derived from `<wallId>` for piece n of its edge: `<wallId>~n`. */
+export const derivedOf = (id: string): { base: string; n: number } | null => {
+  const m = /^(.*)~(\d+)$/.exec(id);
+  return m ? { base: m[1], n: Number(m[2]) } : null;
+};
+
+/** World point of a panel-local point. */
+const worldAt = (p: Panel, x: number, y: number) => {
+  const f = p.frame;
+  return [f.o[0] + f.u[0] * x + f.v[0] * y, f.o[1] + f.u[1] * x + f.v[1] * y, f.o[2] + f.u[2] * x + f.v[2] * y] as [number, number, number];
+};
+
+/**
+ * Wall sets (POLYGONS_AND_CUTS.md §6): a wall is attached to an edge key, and
+ * one physical wall stands on each surviving piece of that edge. When a cut
+ * splits the edge, wall `<id>~n` is made for piece n with the wall's settings
+ * and the shapes whose centre lies on that piece; the set keeps one height,
+ * angle and joint. When a piece disappears, its wall is removed if it has no
+ * shapes of its own, and otherwise kept and flagged broken.
+ */
+export function reconcileWallSets(d: Design) {
+  for (const c of Object.values(d.connections)) {
+    if (!c.grown || c.a.edge.includes('#') || derivedOf(c.b.panelId)) continue;
+    const parent = d.panels[c.a.panelId], wall = d.panels[c.b.panelId];
+    if (!parent || !wall) continue;
+    const pieces = edgePieces(parent, c.a.edge);
+    const split = pieces.length > 1 && pieces[0].key.includes('#');
+    for (let n = 1; n < (split ? pieces.length : 1); n++) {
+      const id = `${wall.id}~${n}`;
+      const cid = `${c.id}~${n}`;
+      if (!d.panels[id]) {
+        const dir = segDir(pieces[0]);
+        const s0 = (pieces[n].a.x - pieces[0].a.x) * dir.x + (pieces[n].a.y - pieces[0].a.y) * dir.y;
+        const L = segLength(pieces[n]);
+        const moved = wall.details.filter((dt) => dt.cx >= s0 - 1e-9 && dt.cx <= s0 + L + 1e-9);
+        wall.details = wall.details.filter((dt) => !moved.includes(dt));
+        d.panels[id] = { ...plain({ ...wall, details: [] }), id, details: moved.map((dt) => ({ ...dt, cx: dt.cx - s0 })) };
+        const at = d.order.indexOf(wall.id);
+        d.order.splice(at + n, 0, id);
+        d.pieces[id] = { quantity: d.pieces[wall.id]?.quantity ?? 1 };
+      }
+      d.panels[id].broken = false;
+      if (!d.connections[cid]) d.connections[cid] = { ...plain({ ...c, geom: undefined }), id: cid, a: { panelId: parent.id, edge: `${c.a.edge}#${n}` }, b: { panelId: id, edge: 'e0' } };
+      // one set: the same height, angle and joint
+      const dc = d.connections[cid];
+      Object.assign(dc, { kind: c.kind, pref: c.pref, angle: c.angle, dir: c.dir, offset: c.offset, fingers: c.fingers, tabs: c.tabs, flap: c.flap, foldDir: c.foldDir, trayId: c.trayId });
+      d.panels[id].h = wall.h;
+    }
+    // derived walls whose piece is gone
+    for (const id of [...d.order]) {
+      const dv = derivedOf(id);
+      if (!dv || dv.base !== wall.id || (split && dv.n < pieces.length)) continue;
+      const p = d.panels[id];
+      if (!p) continue;
+      if (!p.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === id)) {
+        for (const x of Object.values(d.connections)) if (x.a.panelId === id || x.b.panelId === id) delete d.connections[x.id];
+        delete d.panels[id];
+        delete d.pieces[id];
+        d.order = d.order.filter((x) => x !== id);
+      } else p.broken = true;
+    }
   }
 }
 
@@ -179,7 +253,8 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
   const cid = newId('c');
   // fingers: `a` must be the earlier panel, which owns the corners
-  let a = seam.a, b = seam.b;
+  // a seam is kept on whole edges: its joint lays out over every piece of an edge a cut split
+  let a = { ...seam.a, edge: baseKey(seam.a.edge) }, b = { ...seam.b, edge: baseKey(seam.b.edge) };
   if (seam.type === 'corner' && d.order.indexOf(a.panelId) > d.order.indexOf(b.panelId)) [a, b] = [b, a];
   d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto };
   if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
@@ -200,7 +275,7 @@ export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${
 export function autoConnect(d: Design) {
   let removed = false;
   for (const c of Object.values(d.connections))
-    if (c.auto !== false && !c.grown && (c.broken || !seamStillFits(d, c))) {
+    if (c.auto !== false && !c.grown && ((c.broken && !c.thin) || !seamStillFits(d, c))) {
       delete d.connections[c.id];
       removed = true;
     }
@@ -438,8 +513,23 @@ export function insertVertex(d: Design, panelId: string, i: number, t = 0.5): st
   const n = s.pts.length;
   const a = s.pts[i], b = s.pts[(i + 1) % n];
   const id = nextEdgeId(s.edgeIds);
+  const key = s.edgeIds[i];
+  const L0 = Math.hypot(b.x - a.x, b.y - a.y) * t;
   s.pts.splice(i + 1, 0, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
   s.edgeIds.splice(i + 1, 0, id);
+  // a wall on the edge splits too: the second half gets a copy with the shapes whose centre is on it
+  for (const c of Object.values(d.connections)) {
+    if (!c.grown || c.a.panelId !== panelId || c.a.edge !== key) continue;
+    const wall = d.panels[c.b.panelId];
+    if (!wall) continue;
+    const nid = newId('p'), cid = newId('c');
+    const moved = wall.details.filter((dt) => dt.cx > L0);
+    wall.details = wall.details.filter((dt) => dt.cx <= L0);
+    d.panels[nid] = { ...plain({ ...wall, details: [] }), id: nid, name: `${d.order.length + 1}`, details: moved.map((dt) => ({ ...dt, cx: dt.cx - L0 })) };
+    d.order.push(nid);
+    d.pieces[nid] = { quantity: d.pieces[wall.id]?.quantity ?? 1 };
+    d.connections[cid] = { ...plain({ ...c, geom: undefined }), id: cid, a: { panelId, edge: id }, b: { panelId: nid, edge: 'e0' } };
+  }
   solve(d);
   return id;
 }
@@ -451,8 +541,30 @@ export function deleteVertex(d: Design, panelId: string, i: number): boolean {
   const s = p.sketch;
   const pts = s.pts.filter((_, k) => k !== i);
   if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
+  const n = s.pts.length;
+  const keep = s.edgeIds[(i + n - 1) % n], gone = s.edgeIds[i];
+  const start = s.pts[(i + n - 1) % n], end = s.pts[(i + 1) % n];
   s.pts = pts;
   s.edgeIds.splice(i, 1);
+  // walls on the two edges merge into one on the merged edge, keeping both walls' shapes
+  const on = (k: string) => Object.values(d.connections).find((c) => c.grown && c.a.panelId === panelId && c.a.edge === k && !(c.offset > 0 && !c.trayId && c.kind !== 'tabslot'));
+  const cKeep = on(keep), cGone = on(gone);
+  if (cGone && !cKeep) cGone.a.edge = keep;
+  else if (cGone && cKeep) {
+    const W1 = d.panels[cKeep.b.panelId], W2 = d.panels[cGone.b.panelId];
+    if (W1 && W2) {
+      // shapes keep their place in space, measured along the merged edge
+      const ws = worldAt(p, start.x, start.y), we = worldAt(p, end.x, end.y);
+      const len = Math.hypot(we[0] - ws[0], we[1] - ws[1], we[2] - ws[2]);
+      const u = [(we[0] - ws[0]) / len, (we[1] - ws[1]) / len, (we[2] - ws[2]) / len];
+      for (const dt of W2.details) {
+        const w = worldAt(W2, dt.cx, dt.cy);
+        W1.details.push({ ...dt, cx: (w[0] - ws[0]) * u[0] + (w[1] - ws[1]) * u[1] + (w[2] - ws[2]) * u[2] });
+      }
+      for (const c of Object.values(d.connections)) if (c.grown && c.a.panelId === W2.id) c.a.panelId = W1.id;
+      deletePanel(d, W2.id);
+    }
+  }
   normalizeSketch(p);
   solve(d);
   return true;

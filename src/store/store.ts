@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
 import { connectionsFor } from '../model/materials';
-import { autoConnect, createDesign } from '../model/ops';
+import { autoConnect, createDesign, solve } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
@@ -153,11 +153,13 @@ export const useStore = create<State>()((set, get) => ({
   apply: (fn) => {
     if (get().txnBase) get().commit();
     const cur = get().design;
-    const next = produce(cur, (d) => {
-      fn(d);
+    const edited = produce(cur, (d) => void fn(d));
+    if (edited === cur) return;
+    // shapes can change outlines, and outlines move walls and joints
+    const next = produce(edited, (d) => {
+      solve(d as Design);
       autoConnect(d as Design);
     });
-    if (next === cur) return;
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
   preview: (fn) => {
@@ -166,6 +168,7 @@ export const useStore = create<State>()((set, get) => ({
       txnBase: base,
       design: produce(base, (d) => {
         fn(d);
+        solve(d as Design);
         autoConnect(d as Design);
       }),
     });

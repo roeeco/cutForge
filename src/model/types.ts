@@ -147,6 +147,8 @@ export type Connection = {
   broken?: boolean;
   /** Made by a tray's reconciliation (wall-to-base or corner seam). */
   trayId?: string;
+  /** Broken because the panels still meet but too briefly for the joint (a cut took the contact). */
+  thin?: boolean;
 };
 
 export type Notch = { s0: number; s1: number; depth: number };

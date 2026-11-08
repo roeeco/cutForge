@@ -47,7 +47,7 @@ export function Inspector() {
           <Segmented
             label={t('insp.op')}
             value={dt.op}
-            options={(['cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
+            options={(['add', 'cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
             onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp }))}
           />
           {dt.shape === 'text' && dt.text ? (

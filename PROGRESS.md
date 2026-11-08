@@ -195,6 +195,28 @@ Verified
 - Golden exports: unchanged except `hand-corr-dividers` (its hand-built corrugated corners now default to tab-and-slot instead of glue flaps, as the brief asks). Templates keep glue-flap corners on card and corrugated, so their goldens are byte-identical.
 - `npm test` 141 passed; Playwright 15 passed (2 screenshot specs skipped unless `SHOTS=1`); typecheck clean.
 
+## Milestone 9 — Add/Cut on outlines ✅
+
+Implemented
+- Own outline (`src/model/outline.ts`): sketch ∪ Add shapes − Cut shapes, with booleans from `polygon-clipping`; Cuts win over Adds whatever the order. A Cut entirely inside stays a hole and keeps its arcs; a Cut across the edge becomes a notch (curves flattened at 0.01 mm). Results are cached by content.
+- Edge pieces and shape edges: each straight segment of the result is keyed by its source — a sketch edge keeps its key (`e2`, or `e2#0`, `e2#1` when split), a shape segment is `<detail>.<i>`. All of them can grow panels (5 mm or longer). A key whose edge was split finds its first piece, so a wall stays where it was.
+- Joints re-lay over the surviving contact: closing seams are kept on whole edges and laid out for every pair of pieces that meet; a piece pair too short for fingers gives way on one side; a seam whose contact a cut took is flagged *too little contact* (`Connection.thin`).
+- Wall sets (`reconcileWallSets` in `solve`): a wall on an edge a cut splits becomes one wall per piece (`<wall>~1` …, same height, angle and joint), and shapes go to the wall whose part contains their centre. A derived wall whose piece disappears is removed, or kept and flagged when it has shapes.
+- Vertex insert splits a wall the same way; vertex delete merges the walls of the two edges (both walls' shapes kept, at their place in space) or moves a lone wall onto the merged edge.
+- Fragments: a panel its cuts split gives one piece per fragment in the cut plan (*Base (1/2)*, *(2/2)*), with a warning; slivers thinner than half the minimum web are flagged.
+- Tools: the op row is **Add · Cut · Engrave · Score** (`op-add`); the shape card offers all four. Outline shapes show as dashed, selectable handles in the cut plan. Shape edits re-solve the design (walls and joints follow).
+- Validation: shapes are checked against the real outline on non-rectangular panels; an Add standing alone or a Cut that misses the panel is flagged; split, sliver, orphaned wall and too-little-contact messages (English and Hebrew).
+
+Fixes found while checking in the browser
+- Outline results were cached with references to immer drafts (crash after an edit); sketch points are now copied.
+- Wall-set copies used `structuredClone`, which cannot clone a draft; a JSON copy is used.
+- Sloped fold strips overlap their panels by 1e-5 mm so the union joins them (a hexagon card/corrugated net was silently several outlines).
+
+Verified
+- `tests/outline.test.ts` (10 tests): notch vs hole (arcs kept), piece keys and positions, Add + Cut precedence and a hole inside an Add, growing from a shape edge, **L-notch** (walls shorten, new shape edges, no overlap), **middle notch** (wall split into two with their own finger joints on `e0#0`/`e0#1`, shape moved to the right half, no overlap, orphan flag after the notch is removed), derived wall removed with its piece, corner notch re-lays fingers / flags too little contact, **vertex insert/delete** splitting and merging walls with their shapes, fragments as two pieces with a warning, slivers.
+- `tests/e2e/shapes.spec.ts`: a Cut dragged across a free edge (two growable pieces), across a walled edge (the wall splits), an Add tab, the cut plan (3 pieces, the Add selectable). Screenshots `docs/polygon-shots/*-05-*`, `*-06-*`.
+- `npm test` 151 passed; all app Playwright specs pass.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -4,7 +4,7 @@
 // changes automatically.
 import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
-import { FACE, findEdge, panelEdges, segInward, segLength, type EdgeArg } from './edges';
+import { edgePieces, FACE, findEdge, panelEdges, segInward, segLength, type EdgeArg } from './edges';
 import { minWeb } from './materials';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
@@ -47,7 +47,7 @@ export const cornerAngle = (f: { sin: number; cos: number }) => (Math.atan2(f.si
  * other's slab (an outer corner, outer dimensions), at a corner angle between
  * 30° and 150°.
  */
-export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg): CornerFit | null {
+export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1): CornerFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   const [a0, a1] = edgeWorld(A, eA), [b0, b1] = edgeWorld(B, eB);
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
@@ -60,7 +60,7 @@ export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg): CornerF
   if (perp ? ka < 0.9 || kb < 0.9 : ka < SIN_MIN || kb < SIN_MIN) return null;
   const sb0 = v3dot(v3sub(b0, a0), dirA), sb1 = v3dot(v3sub(b1, a0), dirA);
   const s0 = Math.max(0, Math.min(sb0, sb1)), s1 = Math.min(La, Math.max(sb0, sb1));
-  if (s1 - s0 < 1) return null;
+  if (s1 - s0 < minLen) return null;
   const dirB = v3norm(v3sub(b1, b0));
   // cos α = −(material direction A · material direction B)
   const cos = perp ? 0 : -v3dot(matDir(A.frame), matDir(B.frame));
@@ -100,7 +100,7 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false): FaceFit | null {
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2): FaceFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   if (!perp && !angled) return null;
   const [p0, p1] = edgeWorld(A, eA);
@@ -137,7 +137,7 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = fa
   const [t0, t1] = span;
   const L = edgeLength(A, eA);
   const s0 = t0 * L, s1 = t1 * L;
-  if (s1 - s0 < 2) return null;
+  if (s1 - s0 < minLen) return null;
   return { s0, s1, d0, d1, k: kk, zE, m, trim };
 }
 
@@ -301,6 +301,29 @@ export function fingerCountFor(c: Pick<Connection, 'fingers'>, length: number, t
   return Math.max(3, n);
 }
 
+/** Shortest contact a joint can be laid out on: three fingers or tab segments. */
+export function minContact(d: Design, c: Pick<Connection, 'kind'>): number {
+  const t = d.material.thickness;
+  if (c.kind === 'finger') return 3 * Math.max(t, 3);
+  if (c.kind === 'tabslot') return 3 * (d.material.kind === 'corrugated' ? minTabWidth(d.material) : 2);
+  return 0;
+}
+
+/** Raw length two panels of a seam share (ignoring the minimum a joint needs), or 0. */
+export function seamContact(d: Design, c: Connection): number {
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return 0;
+  if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return 0;
+  if (c.kind === 'halflap') return 0;
+  if (c.b.edge !== FACE && !c.grown) {
+    const f = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6);
+    if (f) return f.s1 - f.s0;
+  }
+  const o = ownerOf(c);
+  const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], d.material.thickness, !c.grown && c.b.edge !== FACE, 1e-6);
+  return f ? f.s1 - f.s0 : 0;
+}
+
 /** Owner (feature-carrying edge) and receiver of an edge-on-face connection. */
 export function ownerOf(c: Connection): { owner: string; edge: string; receiver: string } {
   return c.grown ? { owner: c.b.panelId, edge: c.b.edge, receiver: c.a.panelId } : { owner: c.a.panelId, edge: c.a.edge, receiver: c.b.panelId };
@@ -310,6 +333,50 @@ const empty = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [], fla
 
 /** Geometry for one connection, or null when its panels no longer meet. */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
+  // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
+  if (!c.grown && c.kind !== 'halflap') {
+    const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+    if (!A || !B) return null;
+    const pa = pieceKeys(A, c.a.edge), pb = c.b.edge === FACE ? [FACE] : pieceKeys(B, c.b.edge);
+    if (pa.length > 1 || pb.length > 1 || pa[0] !== c.a.edge || pb[0] !== c.b.edge) {
+      const g = empty();
+      let any = false;
+      for (const ka of pa)
+        for (const kb of pb) {
+          const cc = { ...c, a: { ...c.a, edge: ka }, b: { ...c.b, edge: kb } };
+          const one = connectionGeomOne(d, cc);
+          if (one) {
+            any = true;
+            g.edges.push(...one.edges);
+            g.holes.push(...one.holes);
+            g.adds.push(...one.adds);
+            g.scores.push(...one.scores);
+            g.flaps3d.push(...one.flaps3d);
+          } else if (c.kind === 'finger' && kb !== FACE) {
+            // pieces that still meet but too briefly for fingers: the second panel gives way there
+            const f = cornerFit(A, ka, B, kb, 1e-6);
+            if (f) {
+              const b0 = f.mapB(f.s0), b1 = f.mapB(f.s1);
+              g.edges.push({ panelId: B.id, edge: kb, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cornerDepths(d.material.thickness, f).depth }] });
+            }
+          }
+        }
+      return any ? g : null;
+    }
+  }
+  return connectionGeomOne(d, c);
+}
+
+/** Keys of the pieces of an edge (the edge itself when it is whole). */
+export function pieceKeys(p: Panel, key: string): string[] {
+  const ps = edgePieces(p, key);
+  return ps.length ? ps.map((e) => e.key) : [key];
+}
+
+/** The edge a piece key belongs to (`e2#1` → `e2`). */
+export const baseKey = (k: string) => k.replace(/#\d+$/, '');
+
+function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
   const t = d.material.thickness, cl = d.material.clearance;
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -323,6 +390,8 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
     const fit = cornerFit(A, c.a.edge, B, c.b.edge);
     if (!fit) return null;
     const L = fit.s1 - fit.s0;
+    // three fingers need some room: less contact than that (a notch in the edge) flags the seam
+    if (L < minContact(d, c)) return null;
     const n = fingerCountFor(c, L, t);
     const seg = L / n;
     // angled fingers: depth across the other slab along this panel's plane (t / sin α)
@@ -582,7 +651,7 @@ export function seamStillFits(d: Design, c: Connection): boolean {
   if (!s) return false;
   const type = seamTypeOf(c);
   if (s.type !== type) return false;
-  const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${r.edge}`;
+  const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${baseKey(r.edge)}`;
   const have = [key(c.a), key(c.b)].sort().join(), now = [key(s.a), key(s.b)].sort().join();
   return have === now;
 }

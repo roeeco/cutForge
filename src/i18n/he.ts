@@ -49,7 +49,7 @@ export const he: Record<MsgKey, string> = {
   'tool.roundrect': 'מלבן מעוגל',
   'tool.circle': 'עיגול',
   'tool.op': 'צורות חדשות הן',
-  'tool.op.cut': 'חיתוך מלא',
+  'tool.op.cut': "חיתוך",
   'tool.op.engrave': 'חריטה',
   'tool.op.score': 'קו סימון',
   'tool.hint.select': 'לחצו על לוח, קצה או צורה כדי לבחור. גררו שטח ריק כדי לסובב, גרירה ימנית להזזה.',
@@ -462,4 +462,9 @@ export const he: Record<MsgKey, string> = {
   'outline.help': "גררו פינה כדי להזיז. לחצו + על צלע כדי להוסיף פינה. בחרו פינה ולחצו Delete כדי למחוק. Enter או Esc לסיום.",
   'conn.angleGap': "פינה של {angle}°: הלייזר חותך ישר, ולכן בפינה החיצונית יהיו רווחים של כ־{gap} מ\"מ.",
   'part.wallN': "דופן {n}",
+  'val.split': "חיתוך מפצל את {panel} ל־{n} חלקים. כל חלק נחתך בנפרד.",
+  'val.sliver': "חלק של {panel} דק מ־{min} מ\"מ ועלול להישבר.",
+  'val.orphan': "{panel} איבד את הקצה שעליו עמד (חיתוך הסיר אותו). הצורות שלו נשמרו; מחקו אותו או החזירו את הקצה.",
+  'val.littleContact': "מגע קטן מדי בין {a} ל־{b} בשביל החיבור: חיתוך הסיר את רוב הקצה המשותף.",
+  'tool.op.add': "הוספה (מצטרף לקו המתאר)",
 };

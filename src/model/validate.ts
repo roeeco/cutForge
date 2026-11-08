@@ -1,5 +1,8 @@
 // Pre-export checks, explained in plain language by the UI.
-import type { Design, P2 } from './types';
+import type { Design, P2, Panel } from './types';
+import { instancePolys, isOutlineShape, ownOutline } from './outline';
+import { isRectSketch, segLength } from './edges';
+import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
 import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry';
 import { bboxOf } from '../geom/vec';
@@ -38,8 +41,36 @@ export function validate(d: Design): Issue[] {
     if (!fitsW || !fitsL) issues.push({ key: 'val.tooBig', vars: { panel: p.name }, target: { kind: 'panel', id } });
     const thin = (bb: { minX: number; minY: number; maxX: number; maxY: number }) =>
       bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
+    const own = ownOutline(p);
+    const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
+    const outlines = plainRect ? [] : own.rings.map((r) => panelOutline(p, notches, r));
+    // a cut that splits the panel, and pieces too thin to cut safely
+    if (own.rings.length > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: own.rings.length }, target: { kind: 'panel', id } });
+    for (const r of own.rings) {
+      const pts = r.map((e) => e.a);
+      const per = r.reduce((s2, e) => s2 + segLength(e), 0);
+      if (per > 0 && (2 * Math.abs(polygonArea(pts))) / per < min / 2) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
+    }
+    if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
     for (const dt of p.details) {
       if (dt.op === 'score') continue;
+      // Adds and Cuts across the edge shape the outline: only one that misses the panel entirely is a problem
+      if (dt.op === 'add' || isOutlineShape(p, dt.id)) {
+        // an Add standing alone (its own ring), or a Cut that misses the material, does nothing useful
+        const alone = dt.op === 'add' && own.rings.some((r) => r.every((e) => e.key.startsWith(dt.id + '.')));
+        const misses = dt.op === 'cut' && !touchesMaterial(own, dt);
+        if (alone || misses) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
+        continue;
+      }
+      if (!plainRect) {
+        // any outline: the shape must lie inside the panel's material, a cut with a web around it
+        const polys = instancePolys(dt).flatMap((ip) => ip.polys);
+        const inRing = (q: P2) => outlines.some((o) => pointInPolygon(q, o));
+        if (!polys.every((poly) => poly.every(inRing))) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
+        else if (dt.op === 'cut' && polys.some((poly) => outlines.some((o) => webTo(poly, o) < min - 1e-9)))
+          issues.push({ key: 'val.tooThin', vars: { panel: p.name, min }, target: { kind: 'detail', id: dt.id } });
+        continue;
+      }
       const bb = detailBBox(dt);
       if (bb.minX < 0 || bb.minY < 0 || bb.maxX > p.w || bb.maxY > p.h) {
         issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
@@ -55,7 +86,8 @@ export function validate(d: Design): Issue[] {
     }
   }
   for (const c of Object.values(d.connections)) {
-    if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
+    if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
+    else if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
     if (c.grown && c.kind === 'lean' && !leanSupported(d, c.b.panelId))
       issues.push({ key: 'val.unsupported', vars: { panel: name(c.b.panelId) }, target: { kind: 'panel', id: c.b.panelId } });
   }
@@ -75,6 +107,11 @@ export function webTo(poly: P2[], ring: P2[]): number {
       best = Math.min(best, segDistPoint(poly[i], ring[j], ring[(j + 1) % ring.length]), segDistPoint(ring[j], poly[i], poly[(i + 1) % poly.length]));
     }
   return best;
+}
+
+/** Does a cut shape reach the panel's material (it changed the outline)? */
+function touchesMaterial(own: ReturnType<typeof ownOutline>, dt: Panel['details'][number]): boolean {
+  return own.rings.some((r) => r.some((e) => e.key.startsWith(dt.id + '.')));
 }
 
 type Poly = [number, number][];
@@ -111,7 +148,7 @@ function shapeIssues(d: Design): Issue[] {
           out.push({ key: 'val.stencil', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
         continue; // letters are allowed to touch each other
       }
-      if (dt.op !== 'cut') continue;
+      if (dt.op !== 'cut' || isOutlineShape(p, dt.id)) continue;
       for (const inst of detailInstances(dt))
         for (const c of shapeContours(inst)) {
           const pts = flattenContour(c, 0.05);

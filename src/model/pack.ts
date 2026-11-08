@@ -2,7 +2,7 @@
 import type { Design, SheetPlacement } from './types';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { contourBBox, xformContour } from '../geom/vec';
-import { buildPieces, type NetPanel } from './pieces';
+import { buildPieces, pieceRoot, type NetPanel } from './pieces';
 
 export type PieceCopy = {
   key: string; // `${pieceKey}#${copy}`
@@ -15,6 +15,8 @@ export type PieceCopy = {
   origin: { x: number; y: number };
   /** Panels in this piece and their panel-local -> piece-local transforms. */
   panels: NetPanel[];
+  /** Fragment i of n, when cuts split the piece. */
+  frag?: { i: number; n: number };
 };
 
 export function pieceCopies(d: Design): PieceCopy[] {
@@ -27,9 +29,9 @@ export function pieceCopies(d: Design): PieceCopy[] {
     const maxX = Math.max(...bbs.map((b) => b.maxX)), maxY = Math.max(...bbs.map((b) => b.maxY));
     const shift: Xform2 = { tx: -minX, ty: -minY, rot: 0 };
     const contours = raw.map((c) => ({ ...c, contour: xformContour(shift, c.contour) }));
-    const q = Math.max(1, d.pieces[piece.key]?.quantity ?? 1);
+    const q = Math.max(1, d.pieces[pieceRoot(piece.key)]?.quantity ?? 1);
     for (let i = 0; i < q; i++)
-      out.push({ key: `${piece.key}#${i}`, pieceKey: piece.key, copy: i, contours, w: maxX - minX, h: maxY - minY, origin: { x: minX, y: minY }, panels: piece.panels });
+      out.push({ key: `${piece.key}#${i}`, pieceKey: piece.key, copy: i, contours, w: maxX - minX, h: maxY - minY, origin: { x: minX, y: minY }, panels: piece.panels, frag: piece.frag });
   }
   return out;
 }

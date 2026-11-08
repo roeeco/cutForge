@@ -67,18 +67,17 @@ describe('polygon bases', () => {
     expect(deleteVertex(d, tri, 0)).toBe(false);
   });
 
-  it('a wall whose edge is deleted is kept and its joint flagged broken', () => {
+  it('deleting a vertex merges the two edges: a wall on the removed edge moves to the merged edge', () => {
     const d = createDesign(PLY);
     const id = addPolygonPanel(d, 0, 0, regularPolygon(5, 50))!;
     const w = growPanel(d, id, 'e2', { height: 30, angle: 90, dir: 'up', kind: 'finger' })!.panelId;
-    const frame = JSON.stringify(d.panels[w].frame);
     // vertex 2 starts edge e2: e1 absorbs it and e2 is gone
     expect(deleteVertex(d, id, 2)).toBe(true);
     expect(panelEdges(d.panels[id]).map((e) => e.key)).toEqual(['e0', 'e1', 'e3', 'e4']);
-    expect(d.panels[w]).toBeTruthy();
-    expect(JSON.stringify(d.panels[w].frame)).toBe(frame);
     const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === w)!;
-    expect(c.broken).toBe(true);
+    expect(c.a.edge).toBe('e1');
+    expect(c.broken).toBe(false);
+    expect(d.panels[w].w).toBeCloseTo(segLength(panelEdges(d.panels[id])[1]), 9);
   });
 });
 

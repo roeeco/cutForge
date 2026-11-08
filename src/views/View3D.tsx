@@ -523,7 +523,7 @@ function PanelObject(props: {
       )}
       {p.details.map((dt) => {
         const isSel = selDetails.includes(dt.id);
-        const color = isSel ? STAGE.selected : dt.op === 'cut' ? '#5b4128' : dt.op === 'engrave' ? '#1c1c1c' : '#2f6feb';
+        const color = isSel ? STAGE.selected : dt.op === 'cut' ? '#5b4128' : dt.op === 'engrave' ? '#1c1c1c' : dt.op === 'add' ? '#2e8b57' : '#2f6feb';
         return (
           <group key={dt.id}>
             {detailContours(dt).map((c, i) => (

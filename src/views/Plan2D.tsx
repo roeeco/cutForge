@@ -4,13 +4,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetCount, type PieceCopy } from '../model/pack';
-import { panelPiece } from '../model/pieces';
+import { panelPiece, pieceRoot } from '../model/pieces';
+import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
-import { applyX, IDENTITY, invertPoint, xformContour } from '../geom/vec';
+import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
 import { SNAP_PX, type Vec2, type Xform2 } from '../geom/types';
 import { addDetail, findDetail, newId, updateDetail } from '../model/ops';
 import { scaleDetails } from '../model/edit';
-import { detailBBox } from '../model/geometry';
+import { detailBBox, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { LAYERS } from '../export/layers';
 import { fmtNum } from '../i18n';
@@ -474,14 +475,47 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                 );
               })}
               {pl.copy.copy === 0 &&
+                (pl.copy.frag?.i ?? 1) === 1 &&
+                pl.copy.panels.flatMap((n) => {
+                  // Add shapes and cuts across the edge are part of the outline: a dashed handle selects them
+                  const panel = d.panels[n.panelId];
+                  if (!panel) return [];
+                  return panel.details
+                    .filter((dt) => (dt.op === 'add' || dt.op === 'cut') && isOutlineShape(panel, dt.id))
+                    .map((dt) => {
+                      const dsel = idSet.has(dt.id);
+                      const path = detailContours(dt)
+                        .map((c) => {
+                          const pts = flattenContour(c, 0.1).map((q) => toSvg(pl, n.panelId, q));
+                          return pts.length ? `M${pts.map((q) => `${q.x} ${q.y}`).join(' L')} Z` : '';
+                        })
+                        .join(' ');
+                      return (
+                        <path
+                          key={`o-${dt.id}`}
+                          d={path}
+                          className={`detail outline-shape op-${dt.op} ${dsel ? 'sel' : ''}`}
+                          fill="none"
+                          stroke={dsel ? '#1fb8ac' : dt.op === 'add' ? 'var(--op-add)' : LAYERS.cut.hex}
+                          strokeDasharray={`${px * 4} ${px * 3}`}
+                          strokeWidth={px * (dsel ? 2.5 : 1)}
+                          pointerEvents="stroke"
+                          onPointerDown={onDetailDown(pl, dt, panel.id)}
+                          data-testid={`detail-${dt.id}`}
+                        />
+                      );
+                    });
+                })}
+              {pl.copy.copy === 0 &&
                 pl.copy.panels.map((n) => {
                   const panel = d.panels[n.panelId];
                   if (!panel || solo) return null;
                   const c = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h / 2 });
-                  const q = d.pieces[pl.copy.pieceKey]?.quantity ?? 1;
+                  const q = d.pieces[pieceRoot(pl.copy.pieceKey)]?.quantity ?? 1;
                   return (
                     <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none">
                       {panelLabel(d, n.panelId, t)}
+                      {pl.copy.frag ? ` (${pl.copy.frag.i}/${pl.copy.frag.n})` : ''}
                       {q > 1 && n.panelId === pl.copy.pieceKey ? ` ${t('view.copies', { n: q })}` : ''}
                     </text>
                   );

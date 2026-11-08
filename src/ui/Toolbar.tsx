@@ -85,9 +85,9 @@ export function Toolbar() {
       />
       <div className="rail-sep" />
       <div className="ops" role="radiogroup" aria-label={t('tool.op')}>
-        {(['cut', 'engrave', 'score'] as const).map((o) => (
+        {(['add', 'cut', 'engrave', 'score'] as const).map((o) => (
           <button key={o} className={`op-btn ${op === o ? 'on' : ''}`} role="radio" aria-checked={op === o} aria-label={t(`tool.op.${o}`)} data-op={o} onClick={() => setOp(o as DetailOp)} data-testid={`op-${o}`}>
-            <span className="dot" style={o === 'engrave' ? undefined : { background: `var(--op-${o})` }} />
+            <span className="dot" style={o === 'engrave' ? undefined : { background: `var(--op-${o})` }}>{o === 'add' ? '+' : null}</span>
             <span className="tip" aria-hidden>
               {t('tool.op')}: {t(`tool.op.${o}`)}
             </span>

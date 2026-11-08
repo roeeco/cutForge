@@ -45,3 +45,30 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-04-angled-joint.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`shots shapes ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    const base = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let b = '';
+      cf.store.getState().apply((d: any) => {
+        b = cf.ops.addRootPanel(d, -80, 50, 160, 100);
+        for (const e of [0, 1, 2, 3]) cf.ops.growPanel(d, b, e, { height: 45, angle: 90, dir: 'up', kind: 'finger' });
+        cf.ops.addDetail(d, b, 'rect', 'cut', 80, 100, 30, 30);
+        cf.ops.addDetail(d, b, 'circle', 'cut', 160, 0, 50, 50);
+        cf.ops.addDetail(d, b, 'rect', 'add', -8, 50, 20, 30);
+      });
+      return b;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), base);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-05-notches-3d.png` });
+    await page.getByTestId('view-2d').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-06-notches-cutplan.png` });
+  });
+}

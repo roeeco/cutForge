@@ -4,8 +4,10 @@ import type { Contour, Vec2 } from '../geom/types';
 import { circleContour, polygonContour, rectContour, roundedRectContour } from '../geom/vec';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
-import { panelEdges, segDir, segInward, segLength, type EdgeSeg } from './edges';
+import { findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from './edges';
 import { normalizeNotches } from './seams';
+// the own outline (Add/Cut shapes) feeds the edge layer
+import './outline';
 
 export type { Notch };
 
@@ -16,7 +18,12 @@ export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
   for (const e of ring) raw[e.key] = [];
   for (const c of Object.values(d.connections)) {
     if (!c.geom || (c.a.panelId !== p.id && c.b.panelId !== p.id)) continue;
-    for (const e of c.geom.edges) if (e.panelId === p.id && raw[e.edge]) raw[e.edge].push(...e.notches);
+    for (const e of c.geom.edges) {
+      if (e.panelId !== p.id) continue;
+      // a joint kept on an edge a cut split lands on the piece that key now means
+      const k = raw[e.edge] ? e.edge : findEdge(p, e.edge)?.key;
+      if (k && raw[k]) raw[k].push(...e.notches);
+    }
   }
   const out: Record<string, Notch[]> = {};
   for (const e of ring) out[e.key] = normalizeNotches(raw[e.key], segLength(e));

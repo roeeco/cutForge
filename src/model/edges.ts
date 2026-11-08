@@ -73,7 +73,9 @@ export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): Edg
   const s = sketchOf(p);
   if (s.kind === 'poly') {
     const n = s.pts.length;
-    return s.pts.map((a, i) => ({ key: s.edgeIds[i] ?? `e${i}`, a, b: s.pts[(i + 1) % n] }));
+    // plain copies: results are cached, and the sketch may be a draft that is revoked later
+    const pts = s.pts.map((q) => ({ x: q.x, y: q.y }));
+    return pts.map((a, i) => ({ key: s.edgeIds[i] ?? `e${i}`, a, b: pts[(i + 1) % n] }));
   }
   const c = wallCorners(p.w, p.h, s);
   const out: EdgeSeg[] = [];
@@ -101,31 +103,50 @@ export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): Edg
 }
 
 /**
- * Layer 3: the straight, growable edges of a panel's own outline. For now
- * the own outline is the sketch; Add/Cut shapes extend it (geometry.ts).
+ * Layer 3: the straight, growable edges of a panel's own outline (sketch ∪
+ * its Add shapes − its Cut shapes, src/model/outline.ts), all rings in turn.
  */
-export function panelEdges(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): EdgeSeg[] {
-  return ownRing(p);
+export function panelEdges(p: Edged): EdgeSeg[] {
+  const r = ownRings(p);
+  return r.length === 1 ? r[0] : r.flat();
 }
 
-// own-outline hook, replaced by geometry.ts once shapes change outlines
-let ownRing: (p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }) => EdgeSeg[] = sketchRing;
-export function setOwnRing(f: typeof ownRing) {
-  ownRing = f;
+type Edged = Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; details?: Panel['details'] };
+// own-outline hook, set by outline.ts (which needs the shape geometry)
+let ownRings: (p: Edged) => EdgeSeg[][] = (p) => [sketchRing(p)];
+export function setOwnRings(f: typeof ownRings) {
+  ownRings = f;
 }
 
-export function findEdge(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }, key: EdgeArg): EdgeSeg | undefined {
+/**
+ * An edge by key. A key whose edge a cut split into pieces finds its first
+ * piece (`<key>#0`): a wall on that edge stays on the first piece.
+ */
+export function findEdge(p: Edged, key: EdgeArg): EdgeSeg | undefined {
   const k = ek(key);
-  return panelEdges(p).find((e) => e.key === k);
+  const all = panelEdges(p);
+  return all.find((e) => e.key === k) ?? (k.includes('#') ? undefined : all.find((e) => e.key === `${k}#0`));
 }
 
-/** The edges before and after `key` around the outline (its corner neighbours). */
-export function edgeNeighbours(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }, key: EdgeArg): [EdgeSeg, EdgeSeg] | null {
-  const ring = panelEdges(p);
-  const i = ring.findIndex((e) => e.key === ek(key));
-  if (i < 0) return null;
-  const n = ring.length;
-  return [ring[(i + n - 1) % n], ring[(i + 1) % n]];
+/** Pieces an edge key was split into (just the edge itself when whole), in order. */
+export function edgePieces(p: Edged, key: string): EdgeSeg[] {
+  const all = panelEdges(p);
+  const whole = all.find((e) => e.key === key);
+  if (whole) return [whole];
+  return all.filter((e) => e.key.startsWith(key + '#') && /^\d+$/.test(e.key.slice(key.length + 1))).sort((a, b) => Number(a.key.split('#').pop()) - Number(b.key.split('#').pop()));
+}
+
+/** The edges before and after `key` around its ring (its corner neighbours). */
+export function edgeNeighbours(p: Edged, key: EdgeArg): [EdgeSeg, EdgeSeg] | null {
+  const e = findEdge(p, key);
+  if (!e) return null;
+  for (const ring of ownRings(p)) {
+    const i = ring.findIndex((x) => x.key === e.key);
+    if (i < 0) continue;
+    const n = ring.length;
+    return [ring[(i + n - 1) % n], ring[(i + 1) % n]];
+  }
+  return null;
 }
 
 /** Rectangle-sketch edge index (0–3) of a key, when the panel is a plain rectangle: for names. */

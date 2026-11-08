@@ -6,7 +6,7 @@
 // renames parts and old projects get role names too.
 import type { Design } from './types';
 import { defaultOffset } from './ops';
-import { isRectSketch, panelEdges, rectEdgeIndex } from './edges';
+import { isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
 import type { MsgKey } from '../i18n';
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string;
@@ -30,12 +30,20 @@ function templateRole(t: T, id: string): string | null {
   return t('part.lip');
 }
 
-/** Display name of a panel edge: front/right/back/left on a plain rectangle, otherwise "edge n" around the outline. */
+/**
+ * Display name of a panel edge: front/right/back/left on a rectangle sketch
+ * (with the piece number when a cut split it), otherwise "edge n", counting
+ * only edges long enough to grow from.
+ */
 export function edgeLabel(d: Design, panelId: string, key: string, t: T): string {
   const p = d.panels[panelId];
-  const i = rectEdgeIndex(key);
-  if (p && i !== null && isRectSketch(p)) return t(`edge.name.${i}` as MsgKey);
-  const n = p ? panelEdges(p).findIndex((e) => e.key === key) : -1;
+  const m = /^(e[0-3])(?:#(\d+))?$/.exec(key);
+  const i = m ? rectEdgeIndex(m[1]) : null;
+  if (p && i !== null && isRectSketch(p)) {
+    const name = t(`edge.name.${i}` as MsgKey);
+    return m![2] !== undefined ? `${name} (${Number(m![2]) + 1})` : name;
+  }
+  const n = p ? panelEdges(p).filter((e) => segLength(e) >= 5).findIndex((e) => e.key === key) : -1;
   return t('edge.nameN', { n: n + 1 });
 }
 
