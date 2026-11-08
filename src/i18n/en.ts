@@ -69,7 +69,7 @@ export const en = {
   'edge.grow': 'Grow panel',
   'edge.height': 'Height',
   'edge.angle': 'Angle',
-  'edge.angleNote': 'Angle between the new panel and this one. 90° stands it upright; smaller angles lean it over this panel.',
+  'edge.angleNote': 'Turn the new panel around this edge: 90° stands it up, 180° is flat, 270° hangs down. Drag the handle, or click the number to type.',
   'edge.dir': 'Direction',
   'edge.dir.up': 'Up',
   'edge.dir.down': 'Down',
@@ -433,6 +433,16 @@ export const en = {
   'start.ply': "Sturdy boxes with finger joints",
   'start.card': "Folds and glue flaps, light models",
   'start.corr': "Folded trays and organisers",
+  'hinge.onPanel': "Too close to the panel: it would lie on top of it.",
+  'hinge.flat': "Flat: the same as a bigger panel. Changing the size may be simpler.",
+  'hinge.floor': "It would go through the floor.",
+  'hinge.outward': "Leans out past the edge: only a glued edge holds plywood at this angle.",
+  'hinge.cantSet': "Can't turn it there: {reason}",
+  'view.joints': 'Show joints',
+  'viewset.joints': 'Show joints on the stage',
+  'insp.joints': 'Joints (advanced)',
+  'seam.pending': '{n} meeting panels are not connected yet.',
+  'seam.connectAll': 'Connect all',
 } as const;
 
 export type MsgKey = keyof typeof en;

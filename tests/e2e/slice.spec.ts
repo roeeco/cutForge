@@ -55,7 +55,7 @@ test('vertical slice', async ({ page }) => {
   await setNum(page, 'grow-height', '50');
   await expect(page.getByTestId('grow-kind')).toHaveValue('finger');
   await page.getByTestId('grow-go').click();
-  await expect(page.getByTestId('inspector-connection')).toBeVisible();
+  await expect(page.getByTestId('panel-hinge-field')).toBeVisible();
   d = await state(page);
   expect(d.order).toHaveLength(2);
   const wall = d.order[1];

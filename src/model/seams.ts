@@ -337,32 +337,49 @@ function connectedPair(d: Design, x: string, y: string) {
   return Object.values(d.connections).some((c) => (c.a.panelId === x && c.b.panelId === y) || (c.a.panelId === y && c.b.panelId === x));
 }
 
+/** How two panels meet, if they do (ignoring any connection between them). */
+export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
+  const t = d.material.thickness;
+  for (let ea = 0; ea < 4; ea++)
+    for (let eb = 0; eb < 4; eb++) if (cornerFit(A, ea, B, eb)) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true };
+  for (let e = 0; e < 4; e++) {
+    const f = faceFit(B, e, A, t);
+    if (f) return { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
+  }
+  for (let e = 0; e < 4; e++) {
+    const f = faceFit(A, e, B, t);
+    if (f) return { type: 'face', a: { panelId: A.id, edge: e }, b: { panelId: B.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
+  }
+  if (crossFit(A, B, t)) return { type: 'cross', a: { panelId: A.id, edge: -1 }, b: { panelId: B.id, edge: -1 }, overlapping: true };
+  return null;
+}
+
 /** Places where panels meet without a connection ("closing seams"). */
 export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const out: OpenSeam[] = [];
-  const t = d.material.thickness;
   const ids = d.order.filter((id) => d.panels[id]);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       const A = d.panels[ids[i]], B = d.panels[ids[j]];
       if (only && A.id !== only && B.id !== only) continue;
       if (connectedPair(d, A.id, B.id)) continue;
-      let found: OpenSeam | null = null;
-      for (let ea = 0; ea < 4 && !found; ea++)
-        for (let eb = 0; eb < 4 && !found; eb++)
-          if (cornerFit(A, ea, B, eb)) found = { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true };
-      for (let e = 0; e < 4 && !found; e++) {
-        const f = faceFit(B, e, A, t);
-        if (f) found = { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
-      }
-      for (let e = 0; e < 4 && !found; e++) {
-        const f = faceFit(A, e, B, t);
-        if (f) found = { type: 'face', a: { panelId: A.id, edge: e }, b: { panelId: B.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
-      }
-      if (!found && crossFit(A, B, t)) found = { type: 'cross', a: { panelId: A.id, edge: -1 }, b: { panelId: B.id, edge: -1 }, overlapping: true };
+      const found = seamBetween(d, A, B);
       if (found) out.push(found);
     }
   return out;
+}
+
+/** Does connection `c` still describe how its panels meet (same type and edges)? */
+export function seamStillFits(d: Design, c: Connection): boolean {
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return false;
+  const s = seamBetween(d, A, B);
+  if (!s) return false;
+  const type = c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face';
+  if (s.type !== type) return false;
+  const key = (r: { panelId: string; edge: number }) => `${r.panelId}:${r.edge}`;
+  const have = [key(c.a), key(c.b)].sort().join(), now = [key(s.a), key(s.b)].sort().join();
+  return have === now;
 }
 
 /** Connection kinds offered for a closing seam. */

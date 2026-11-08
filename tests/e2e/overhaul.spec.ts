@@ -55,23 +55,32 @@ test('start screen, drawer, stage widgets, seam pills and folding', async ({ pag
   await page.getByTestId('dim-w-input').press('Enter');
   await expect.poll(async () => (await design(page)).panels['t:base'].w).toBe(200);
 
-  // seam pill opens that joint's settings in the card
+  // joints are hidden on the stage until turned on; a pill opens that joint's settings in the card
+  await expect(page.getByTestId('seam-pill-finger')).toHaveCount(0);
+  await page.getByTestId('toggle-joints').click();
   await page.getByTestId('seam-pill-finger').first().click();
   await expect.poll(async () => (await state(page)).openJoint).toBeTruthy();
   await expect(page.getByTestId('conn-fingers')).toBeVisible();
 
-  // grow card: dial detents (click and arrow keys), flip badge, ghost height label
+  // grow card: 360° hinge dial (ticks, arrow keys, typing), zones, ghost height label
   await S(page, () => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: 't:wall0', edge: 2 }));
   await expect(page.getByTestId('edgebar')).toBeVisible();
   await page.getByTestId('grow-angle-60').click();
   expect((await state(page)).grow.angle).toBe(60);
   await page.getByTestId('grow-angle-60').press('ArrowDown');
-  expect((await state(page)).grow.angle).toBe(45);
+  expect((await state(page)).grow.angle).toBe(55);
   await expect(page.getByTestId('lean-needs-walls')).toBeVisible();
+  await page.getByTestId('grow-angle-270').click();
+  expect((await state(page)).grow.angle).toBe(270);
+  await page.getByTestId('grow-angle-value').click();
+  await page.getByTestId('grow-angle-input').fill('120');
+  await page.getByTestId('grow-angle-input').press('Enter');
+  expect((await state(page)).grow.angle).toBe(120);
+  await expect(page.getByTestId('grow-angle-msg')).toContainText('only a glued edge');
+  await expect(page.getByTestId('grow-go')).toBeEnabled();
+  await page.getByTestId('grow-angle-0').click();
+  await expect(page.getByTestId('grow-go')).toBeDisabled();
   await page.getByTestId('grow-angle-90').click();
-  const dir = (await state(page)).grow.dir;
-  await page.getByTestId('grow-flip').click();
-  expect((await state(page)).grow.dir).not.toBe(dir);
   await page.getByTestId('ghost-dim-h').click();
   await page.getByTestId('ghost-dim-h-input').fill('75');
   await page.getByTestId('ghost-dim-h-input').press('Enter');

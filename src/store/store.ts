@@ -3,9 +3,9 @@ import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
 import { connectionsFor } from '../model/materials';
-import { createDesign } from '../model/ops';
+import { autoConnect, createDesign } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
-import type { GrowDir } from '../model/frame';
+import { fromHinge } from '../model/hinge';
 
 export type Selection =
   | { kind: 'panel'; id: string }
@@ -25,14 +25,15 @@ export function detailSel(ids: string[]): Selection {
 export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'>;
 export type View = '3d' | '2d' | 'solo';
 
-export type GrowOptions = { height: number; dir: GrowDir; angle: number; kind?: ConnectionKind };
+/** Grow card settings. `angle` is the hinge angle, 0–360° (see src/model/hinge.ts). */
+export type GrowOptions = { height: number; angle: number; kind?: ConnectionKind };
 
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
-export type ViewPrefs = { outlines: boolean; quality: Quality; dims: boolean };
+export type ViewPrefs = { outlines: boolean; quality: Quality; dims: boolean; joints: boolean };
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
-  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true };
+  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -128,7 +129,7 @@ export const useStore = create<State>()((set, get) => ({
   soloPanel: null,
   prevView: '3d',
   lang: initialLang(),
-  grow: { height: 60, dir: 'up', angle: 90 },
+  grow: { height: 60, angle: 90 },
   needsMaterial: true,
   saveState: 'idle',
   exportOpen: false,
@@ -142,13 +143,22 @@ export const useStore = create<State>()((set, get) => ({
   apply: (fn) => {
     if (get().txnBase) get().commit();
     const cur = get().design;
-    const next = produce(cur, (d) => void fn(d));
+    const next = produce(cur, (d) => {
+      fn(d);
+      autoConnect(d as Design);
+    });
     if (next === cur) return;
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
   preview: (fn) => {
     const base = get().txnBase ?? get().design;
-    set({ txnBase: base, design: produce(base, (d) => void fn(d)) });
+    set({
+      txnBase: base,
+      design: produce(base, (d) => {
+        fn(d);
+        autoConnect(d as Design);
+      }),
+    });
   },
   commit: () => {
     const { txnBase, design, past } = get();
@@ -211,7 +221,7 @@ export const useStore = create<State>()((set, get) => ({
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
 export function growKind(d: Design, g: GrowOptions): ConnectionKind {
-  const options = connectionsFor(d.material, g.angle);
+  const options = connectionsFor(d.material, fromHinge(g.angle).angle);
   return g.kind && options.includes(g.kind) ? g.kind : options[0];
 }
 

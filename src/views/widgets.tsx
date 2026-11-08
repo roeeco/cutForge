@@ -1,6 +1,6 @@
 // Stage widgets: handles drawn on top of the model at a constant screen size.
 //  - PushPull: an arrow you drag along an axis (panel width/height, ghost height)
-//  - AngleArc: the angle dial at a hinge, with detents at the allowed angles
+//  - AngleArc: the hinge ring, a full circle with a rotate handle
 //  - DimLabel: an in-place dimension; click to type an exact value
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import type { V3 } from '../model/types';
 import { evalNumber } from '../ui/NumField';
 import { fmtNum } from '../i18n';
+import { snapHinge } from '../model/hinge';
 
 export const HTML_Z: [number, number] = [5, 0];
 
@@ -159,72 +160,135 @@ export function PushPull(props: {
   );
 }
 
+const ZONE_COLOR = { ok: '#1fb8ac', support: '#e0a21b', bad: '#d4543c' } as const;
+type Zone = keyof typeof ZONE_COLOR;
+
+/** Line segments through pointAt(a) for a in [a0, a1], coloured by zone. */
+function arcLine(pointAt: (a: number) => V3, zoneAt: (a: number) => Zone, a0: number, a1: number, opacity: number) {
+  const pos: number[] = [], col: number[] = [];
+  const c = new THREE.Color();
+  for (let a = a0; a < a1 - 1e-9; a += 2.5) {
+    const b = Math.min(a1, a + 2.5);
+    c.set(ZONE_COLOR[zoneAt((((a + b) / 2) % 360 + 360) % 360)]);
+    pos.push(...pointAt(a), ...pointAt(b));
+    col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, ...onTop, opacity }));
+  l.renderOrder = 18;
+  return l;
+}
+
 /**
- * Angle dial at a hinge: an arc through the far edge positions of each angle,
- * detents at `angles`. `pointAt(a)` is the handle position for angle a.
+ * Hinge handle: a small knob at the panel's far side with a short arc around
+ * the current angle. While it is dragged the whole circle shows, coloured by
+ * what can be built (green fine, amber a note, red impossible), with the
+ * reason next to the angle. 5° steps, Alt for 1°. `pointAt(a)` is the knob
+ * position for hinge angle a; `hinge` the hinge point with its 0° and 90° axes.
  */
-export function AngleArc(props: { pointAt: (a: number) => V3; angles: readonly number[]; value: number; onChange: (a: number) => void; onEnd?: (cancel: boolean) => void; label: string }) {
-  const { camera, gl } = useThree();
+export function AngleArc(props: {
+  pointAt: (a: number) => V3;
+  hinge: { o: V3; x: V3; y: V3 };
+  value: number;
+  zoneAt: (a: number) => Zone;
+  onChange: (a: number) => void;
+  onEnd?: (cancel: boolean) => void;
+  label: string;
+  message?: string;
+  testId?: string;
+}) {
   const [hover, setHover] = useState(false);
-  const arc = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    const lo = Math.min(...props.angles), hi = Math.max(...props.angles);
-    for (let a = lo; a <= hi + 1e-9; a += 2.5) pts.push(new THREE.Vector3(...props.pointAt(a)));
-    return new THREE.BufferGeometry().setFromPoints(pts);
-  }, [props.pointAt]);
-  const line = useMemo(() => new THREE.Line(arc, new THREE.LineBasicMaterial({ color: '#1fb8ac', ...onTop, opacity: 0.85 })), [arc]);
-  useEffect(() => () => (arc.dispose(), (line.material as THREE.Material).dispose()), [arc, line]);
-  const nearest = (clientX: number, clientY: number) => {
+  const [dragging, setDragging] = useState(false);
+  const show = hover || dragging;
+  const ring = useMemo(() => (show ? arcLine(props.pointAt, props.zoneAt, 0, 360, dragging ? 0.9 : 0.5) : null), [show, dragging, props.pointAt, props.zoneAt]);
+  const near = useMemo(() => arcLine(props.pointAt, props.zoneAt, props.value - 40, props.value + 40, 0.85), [props.pointAt, props.zoneAt, props.value]);
+  useEffect(() => () => void (ring && (ring.geometry.dispose(), (ring.material as THREE.Material).dispose())), [ring]);
+  useEffect(() => () => (near.geometry.dispose(), (near.material as THREE.Material).dispose()), [near]);
+  const { camera, gl } = useThree();
+  // Dragging works in screen space: where the hinge circle is seen well, the
+  // knob follows the pointer around it; seen nearly edge-on (where a plane
+  // intersection would jump), movement along the knob's path turns it, and
+  // dragging up or down always works as a fallback.
+  const drag = useRef<{ raw: number; x: number; y: number } | null>(null);
+  const toScreen = (p: THREE.Vector3) => {
     const r = gl.domElement.getBoundingClientRect();
-    let best = props.value, bd = Infinity;
-    for (const a of props.angles) {
-      const v = new THREE.Vector3(...props.pointAt(a)).project(camera);
-      const x = r.left + ((v.x + 1) / 2) * r.width, y = r.top + ((1 - v.y) / 2) * r.height;
-      const dd = (x - clientX) ** 2 + (y - clientY) ** 2;
-      if (dd < bd) (bd = dd), (best = a);
-    }
-    return best;
+    const v = p.clone().project(camera);
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
   };
   const down = useHandleDrag({
     move: (ev) => {
-      const a = nearest(ev.clientX, ev.clientY);
+      const st = drag.current;
+      if (!st) return;
+      const o = new THREE.Vector3(...props.hinge.o);
+      const R = Math.max(1, o.distanceTo(new THREE.Vector3(...props.pointAt(st.raw))));
+      const C = toScreen(o);
+      const sx = toScreen(o.clone().addScaledVector(new THREE.Vector3(...props.hinge.x), R));
+      const sy = toScreen(o.clone().addScaledVector(new THREE.Vector3(...props.hinge.y), R));
+      const X = { x: sx.x - C.x, y: sx.y - C.y }, Y = { x: sy.x - C.x, y: sy.y - C.y };
+      const det = X.x * Y.y - X.y * Y.x;
+      const lx = Math.hypot(X.x, X.y), ly = Math.hypot(Y.x, Y.y);
+      let raw: number;
+      if (Math.abs(det) > 0.35 * lx * ly && lx > 4 && ly > 4) {
+        const p = { x: ev.clientX - C.x, y: ev.clientY - C.y };
+        const c = (p.x * Y.y - p.y * Y.x) / det, sn = (X.x * p.y - X.y * p.x) / det;
+        raw = (Math.atan2(sn, c) * 180) / Math.PI;
+      } else {
+        const th = (st.raw * Math.PI) / 180;
+        const T = { x: -Math.sin(th) * X.x + Math.cos(th) * Y.x, y: -Math.sin(th) * X.y + Math.cos(th) * Y.y };
+        const dp = { x: ev.clientX - st.x, y: ev.clientY - st.y };
+        const lt = Math.hypot(T.x, T.y);
+        const dRad = lt > 20 ? (dp.x * T.x + dp.y * T.y) / Math.max(lt * lt, 3600) : -dp.y * 0.012;
+        raw = st.raw + (dRad * 180) / Math.PI;
+      }
+      drag.current = { raw, x: ev.clientX, y: ev.clientY };
+      const a = snapHinge(raw, ev.altKey);
       if (a !== props.value) props.onChange(a);
     },
-    end: (cancel) => props.onEnd?.(cancel),
+    end: (cancel) => {
+      drag.current = null;
+      setDragging(false);
+      props.onEnd?.(cancel);
+    },
   });
   const cur = props.pointAt(props.value);
+  const zone = props.zoneAt(props.value);
+  const showWhy = show && zone !== 'ok' && props.message;
   return (
     <group userData={{ noAO: true }}>
-      <primitive object={line} renderOrder={18} raycast={() => null} />
-      {props.angles
-        .filter((a) => a !== props.value)
-        .map((a) => (
-          <ScreenSized key={a} position={props.pointAt(a)}>
-            <mesh renderOrder={19} onPointerDown={(e) => (e.stopPropagation(), props.onChange(a), down(e))}>
-              <sphereGeometry args={[4, 12, 10]} />
-              <meshBasicMaterial color="white" {...onTop} />
-            </mesh>
-            <mesh renderOrder={18} raycast={() => null}>
-              <sphereGeometry args={[5.5, 12, 10]} />
-              <meshBasicMaterial color="#1fb8ac" {...onTop} />
-            </mesh>
-          </ScreenSized>
-        ))}
+      {ring && <primitive object={ring} raycast={() => null} />}
+      <primitive object={near} raycast={() => null} />
       <ScreenSized position={cur}>
-        <group onPointerOver={(e) => (e.stopPropagation(), setHover(true))} onPointerOut={() => setHover(false)} onPointerDown={down}>
+        <group
+          onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+          onPointerOut={() => setHover(false)}
+          onPointerDown={(e) => {
+            drag.current = { raw: props.value, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+            setDragging(true);
+            down(e);
+          }}
+          userData={{ testId: props.testId }}
+        >
           <mesh renderOrder={21}>
-            <sphereGeometry args={[hover ? 10 : 8.5, 16, 12]} />
-            <meshBasicMaterial color={hover ? '#0f5d59' : '#1fb8ac'} {...onTop} />
+            <sphereGeometry args={[show ? 12 : 10, 16, 12]} />
+            <meshBasicMaterial color={hover ? '#0f5d59' : ZONE_COLOR[zone]} {...onTop} />
           </mesh>
-          <mesh renderOrder={22}>
-            <sphereGeometry args={[3.5, 12, 10]} />
+          <mesh renderOrder={22} raycast={() => null}>
+            <torusGeometry args={[5, 1.4, 6, 18, Math.PI * 1.5]} />
             <meshBasicMaterial color="white" {...onTop} />
+          </mesh>
+          {/* larger invisible grab area */}
+          <mesh renderOrder={17}>
+            <sphereGeometry args={[20, 8, 6]} />
+            <meshBasicMaterial color="white" opacity={0} {...onTop} />
           </mesh>
         </group>
       </ScreenSized>
       <StageHtml position={cur} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
-        <span className="w-dim ghost" style={{ transform: 'translate(14px, -130%)' }}>
+        <span className={`w-dim ghost hinge-label zone-${zone}`} style={{ transform: 'translate(18px, -125%)' }}>
           {props.label}
+          {showWhy && <span className="why">{props.message}</span>}
         </span>
       </StageHtml>
     </group>

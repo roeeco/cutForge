@@ -18,13 +18,14 @@ export function materialById(id: string): MaterialProfile | undefined {
 export const ANGLES = [90, 60, 45, 30, 15] as const;
 
 /**
- * Connections offered when growing a panel, by the actual angle. A laser cuts
+ * Connections offered when growing a panel, by the fold angle. A laser cuts
  * square through the sheet, so slots and fingers only fit panels at 90°.
- * Plywood at other angles leans on its parent and is held by side walls.
+ * Plywood leaning over its parent is held by side walls (or glued edge to
+ * edge); leaning out past the edge, only a glued edge holds it.
  */
 export function connectionsFor(m: MaterialProfile, angle: number): ConnectionKind[] {
   const square = Math.abs(angle - 90) < 1e-6;
-  if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt'] : ['lean'];
+  if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt'] : angle < 90 ? ['lean', 'butt'] : ['butt'];
   return square ? ['fold', 'glue', 'tabslot', 'butt'] : ['fold', 'glue'];
 }
 

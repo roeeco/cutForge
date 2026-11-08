@@ -260,19 +260,36 @@ textarea { width: 100%; resize: vertical; }
 .warn-text { color: var(--danger); font-size: 12px; margin: 4px 0; }
 .ok-text { color: var(--ok); font-weight: 600; }
 
-/* angle dial (DOM) */
-.dial { display: flex; align-items: center; gap: 10px; }
-.dial svg { width: 112px; height: 70px; overflow: visible; touch-action: none; cursor: grab; }
+/* hinge dial (DOM): full circle, ring coloured by what can be built */
+.dial { display: flex; align-items: center; gap: 12px; }
+.dial svg { width: 86px; height: 86px; flex: none; overflow: visible; touch-action: none; cursor: grab; }
 .dial svg:active { cursor: grabbing; }
-.dial .arc { fill: none; stroke: var(--line-strong); stroke-width: 3; stroke-linecap: round; }
-.dial .arc-on { fill: none; stroke: var(--accent-bright); stroke-width: 3; stroke-linecap: round; }
-.dial .tick { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; cursor: pointer; }
-.dial .tick:hover { stroke: var(--accent); }
-.dial .tick[aria-checked='true'] { fill: var(--accent-bright); stroke: var(--accent); }
-.dial .tick:focus { outline: none; stroke: var(--accent); stroke-width: 3; }
-.dial .needle { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
-.dial .readout { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 52px; }
-.dial .tick-label { font-size: 9px; fill: var(--ink-faint); pointer-events: none; }
+.dial .ring { fill: none; stroke-width: 7; }
+.dial .ring.zone-ok { stroke: #9fdcd5; }
+.dial .ring.zone-support { stroke: var(--warn-line); }
+.dial .ring.zone-bad { stroke: #eea38a; }
+.dial .parent { stroke: var(--ink-muted); stroke-width: 5; stroke-linecap: round; }
+.dial .tick { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; cursor: pointer; }
+.dial .tick:hover { stroke: var(--accent); stroke-width: 2; }
+.dial .tick-label { font-size: 8.5px; fill: var(--ink-faint); pointer-events: none; }
+.dial .needle { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.dial .needle, .dial .hub, .dial .parent, .dial .ring { pointer-events: none; }
+.dial .needle.zone-support { stroke: #c27c0e; }
+.dial .needle.zone-bad { stroke: var(--danger); }
+.dial .handle { fill: var(--accent-bright); stroke: white; stroke-width: 2; pointer-events: none; }
+.dial .handle.zone-support { fill: #e0a21b; }
+.dial .handle.zone-bad { fill: var(--danger); }
+.dial .handle:focus { outline: none; stroke: var(--accent); stroke-width: 3; }
+.dial .hub { fill: var(--ink); }
+.dial-side { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dial .readout { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 60px; background: none; border: 1px dashed transparent; border-radius: var(--r-sm); padding: 0 4px; text-align: start; color: var(--ink); cursor: text; }
+.dial .readout:hover { border-color: var(--line-strong); }
+.dial .readout.zone-support { color: #a8660a; }
+.dial .readout.zone-bad { color: var(--danger); }
+.dial .readout-input { font-size: 18px; width: 72px; }
+.dial-msg { font-size: 12px; margin: 0; line-height: 1.35; color: var(--ink-muted); }
+.dial-msg.zone-bad { color: var(--danger); }
+.dial-msg.zone-support { color: #8a5508; }
 
 /* ---------- 3D stage ---------- */
 .view3d, .cutplan { position: absolute; inset: 0; }
@@ -321,6 +338,11 @@ textarea { width: 100%; resize: vertical; }
 .w-dim.ghost { background: var(--accent-bright); color: #062623; border-color: var(--accent); }
 .w-dim input { width: 56px; border: none; padding: 0; min-height: 0; text-align: center; font: inherit; background: transparent; box-shadow: none; }
 .w-dim .k { color: var(--ink-faint); font-weight: 400; }
+.w-dim.hinge-label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.w-dim.hinge-label.zone-support { background: #f6c75c; border-color: #c27c0e; color: #3d2702; }
+.w-dim.hinge-label.zone-bad { background: #f3b4a2; border-color: var(--danger); color: #4a1503; }
+.w-dim.hinge-label .why { font-weight: 400; font-size: 11px; width: max-content; max-width: 220px; white-space: normal; line-height: 1.3; }
+.stage-toggle.on { background: var(--accent-soft); color: var(--accent); }
 .w-badge {
   transform: translate(-50%, -50%); width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 50%;
   display: grid; place-items: center; background: var(--surface); border: 2px solid var(--accent-bright); color: var(--accent); box-shadow: var(--shadow-soft);

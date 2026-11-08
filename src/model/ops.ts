@@ -5,7 +5,7 @@ import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp,
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
 import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
-import { connectionGeom, findOpenSeams, seamKinds, type OpenSeam } from './seams';
+import { connectionGeom, findOpenSeams, seamKinds, seamStillFits, type OpenSeam } from './seams';
 
 let counter = 0;
 export function newId(prefix: string): string {
@@ -41,6 +41,12 @@ export function seatingOf(kind: ConnectionKind): Seating {
   return kind === 'finger' ? 'overlap' : 'onTop';
 }
 
+/** Use the preferred joint when it is allowed here, otherwise the default (first) one. */
+export function fitKind(c: Connection, allowed: ConnectionKind[]) {
+  c.pref ??= c.kind;
+  c.kind = allowed.includes(c.pref) ? c.pref : allowed[0];
+}
+
 /**
  * Re-derive everything connections own: child frames and widths (parents
  * first), then every connection's joint geometry. A connection whose panels
@@ -60,7 +66,7 @@ export function solve(d: Design) {
       progress = true;
       const parent = d.panels[c.a.panelId], child = d.panels[c.b.panelId];
       if (!parent || !child) continue;
-      if (!connectionsFor(d.material, c.angle).includes(c.kind)) c.kind = connectionsFor(d.material, c.angle)[0];
+      fitKind(c, connectionsFor(d.material, c.angle));
       child.frame = growFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset);
       child.w = edgeLength(parent, c.a.edge);
       child.h = Math.max(child.h, MIN_PANEL);
@@ -70,8 +76,7 @@ export function solve(d: Design) {
   for (const c of Object.values(d.connections)) {
     if (!c.grown) {
       const type = c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face';
-      const kinds = seamKinds(d.material, type);
-      if (!kinds.includes(c.kind)) c.kind = kinds[0];
+      fitKind(c, seamKinds(d.material, type));
     }
     const g = connectionGeom(d as Design, c as Connection);
     if (g) {
@@ -90,7 +95,8 @@ export function addRootPanel(d: Design, x: number, z: number, w: number, h: numb
   return id;
 }
 
-export type GrowOpts = { height: number; angle: number; dir: GrowDir; kind: ConnectionKind; offset?: number };
+/** `pref`: the joint wanted whenever the angle allows it (default: `kind`). */
+export type GrowOpts = { height: number; angle: number; dir: GrowDir; kind: ConnectionKind; offset?: number; pref?: ConnectionKind };
 
 /** Default distance from the edge for a tab-and-slot wall: leaves a safe web outside its slots. */
 export function defaultOffset(d: Design, kind: ConnectionKind): number {
@@ -117,6 +123,7 @@ export function growPanel(d: Design, parentId: string, edge: number, opts: GrowO
   d.connections[cid] = {
     id: cid,
     kind: opts.kind,
+    pref: opts.pref ?? opts.kind,
     a: { panelId: parentId, edge },
     b: { panelId: id, edge: 0 },
     grown: true,
@@ -141,17 +148,51 @@ export function edgeConnection(d: Design, panelId: string, edge: number): Connec
   );
 }
 
-/** Connect an open seam with the given (or default) kind. */
-export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind): string | null {
+/**
+ * Connect an open seam with the given (or default) kind. `auto` seams were
+ * made by the editor and go away again when the panels stop meeting; a seam
+ * the student connects by hand is kept (flagged broken) instead, and lifts
+ * any earlier "don't join these" choice for the pair.
+ */
+export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, auto = true): string | null {
   const kinds = seamKinds(d.material, seam.type);
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
   const cid = newId('c');
   // fingers: `a` must be the earlier panel, which owns the corners
   let a = seam.a, b = seam.b;
   if (seam.type === 'corner' && d.order.indexOf(a.panelId) > d.order.indexOf(b.panelId)) [a, b] = [b, a];
-  d.connections[cid] = { id: cid, kind: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley' };
+  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto };
+  if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
   solve(d);
   return cid;
+}
+
+export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+
+/**
+ * Keep panels that meet joined, so the student does not have to: plywood
+ * corners get finger joints, edges on a face tabs and slots, card and
+ * corrugated corners glue flaps (so a folded tray stays one net). Run after
+ * every edit. Automatic seams whose panels no longer meet are removed (and
+ * come back when they meet again); seams the student made or changed by hand
+ * are kept; pairs the student unjoined are left alone.
+ */
+export function autoConnect(d: Design) {
+  let removed = false;
+  for (const c of Object.values(d.connections))
+    if (c.auto !== false && !c.grown && (c.broken || !seamStillFits(d, c))) {
+      delete d.connections[c.id];
+      removed = true;
+    }
+  if (removed) solve(d);
+  if (d.noAutoSeams?.length) d.noAutoSeams = d.noAutoSeams.filter((k) => k.split('|').every((id) => d.panels[id]));
+  const skip = new Set(d.noAutoSeams ?? []);
+  for (let i = 0; i < 500; i++) {
+    const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)));
+    if (!s) break;
+    skip.add(pairKey(s.a.panelId, s.b.panelId));
+    connectSeam(d, s);
+  }
 }
 
 /** Connect every open seam of a panel with default kinds. */
@@ -159,10 +200,12 @@ export function connectSeams(d: Design, panelId: string) {
   for (const s of findOpenSeams(d as Design, panelId)) connectSeam(d, s);
 }
 
+/** Remove a connection. Unjoining meeting panels by hand also stops them being joined automatically. */
 export function deleteConnection(d: Design, id: string) {
   const c = d.connections[id];
   if (!c) return;
   delete d.connections[id];
+  if (!c.grown) d.noAutoSeams = [...new Set([...(d.noAutoSeams ?? []), pairKey(c.a.panelId, c.b.panelId)])];
   solve(d);
 }
 
@@ -184,14 +227,14 @@ export function addDivider(d: Design, baseId: string, edge: number, position: nu
  * Add a pair of side walls at 90° to the base on the edges next to `edge`,
  * tall enough to hold a panel leaning at `angle` with the given height.
  */
-export function addSideWalls(d: Design, baseId: string, edge: number, angle: number, leanHeight: number): string[] {
+export function addSideWalls(d: Design, baseId: string, edge: number, angle: number, leanHeight: number, dir: GrowDir = 'up'): string[] {
   const t = d.material.thickness;
   const h = Math.ceil(t + leanHeight * Math.sin((angle * Math.PI) / 180) + 5);
   const kind: ConnectionKind = d.material.kind === 'plywood' ? 'finger' : 'fold';
   const made: string[] = [];
   for (const e of [(edge + 1) % 4, (edge + 3) % 4]) {
     if (edgeConnection(d, baseId, e)) continue;
-    const r = growPanel(d, baseId, e, { height: h, angle: 90, dir: 'up', kind });
+    const r = growPanel(d, baseId, e, { height: h, angle: 90, dir, kind });
     if (r) made.push(r.panelId);
   }
   // hold any panels already leaning on this base
@@ -199,11 +242,11 @@ export function addSideWalls(d: Design, baseId: string, edge: number, angle: num
   return made;
 }
 
-/** Side walls exist next to `edge` of the base (panels at 90° on both neighbouring edges). */
-export function hasSideWalls(d: Design, baseId: string, edge: number): boolean {
+/** Side walls exist next to `edge` of the base (panels at 90° on both neighbouring edges, on the `dir` face). */
+export function hasSideWalls(d: Design, baseId: string, edge: number, dir: GrowDir = 'up'): boolean {
   return [(edge + 1) % 4, (edge + 3) % 4].every((e) => {
     const c = edgeConnection(d, baseId, e);
-    return !!c && c.grown && c.a.panelId === baseId && Math.abs(c.angle - 90) < 1e-6;
+    return !!c && c.grown && c.a.panelId === baseId && Math.abs(c.angle - 90) < 1e-6 && c.dir === dir;
   });
 }
 
@@ -327,7 +370,7 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (!c) return;
   if (patch.angle !== undefined && c.grown) {
     c.angle = patch.angle;
-    if (!connectionsFor(d.material, c.angle).includes(c.kind)) c.kind = connectionsFor(d.material, c.angle)[0];
+    fitKind(c, connectionsFor(d.material, c.angle));
   }
   if (patch.kind) {
     const allowed = c.grown
@@ -335,6 +378,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
       : seamKinds(d.material, c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face');
     if (allowed.includes(patch.kind)) {
       c.kind = patch.kind;
+      c.pref = patch.kind;
+      c.auto = false;
       if (c.grown && c.kind !== 'tabslot' && patch.offset === undefined && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
       if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot');
     }

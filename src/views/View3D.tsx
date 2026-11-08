@@ -8,15 +8,17 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Frame, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, hasSideWalls } from '../model/ops';
-import { edgeLength, frameNormal, growFrame, toLocal, toWorld } from '../model/frame';
+import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
+import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
+import { hingeText } from '../ui/AngleDial';
+import { inwardWorld } from '../model/seams';
+import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
 import { detailBBox, detailContour, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
-import { ANGLES } from '../model/materials';
 import { STAGE, partColors } from './palette';
 import { foldDisplay, type Bend } from './foldView';
 import { AngleArc, DimLabel, DimLine, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
@@ -292,6 +294,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const selPanel = sel?.kind === 'panel' ? sel.id : null;
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
   const focus = selPanel;
+  const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
   const bounds = useMemo(() => {
     const box = new THREE.Box3();
     for (const id of design.order) {
@@ -370,7 +373,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {selPanel && design.panels[selPanel] && tool === 'select' && !folded && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
-      {!folded && <SeamPills d={design} focus={focus} xf={display.xf} openJoint={openJoint} />}
+      {selPanel && tool === 'select' && !folded && selGrown && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
           <planeGeometry args={[Math.max(0.1, Math.abs(drawRect.b[0] - drawRect.a[0])), Math.max(0.1, Math.abs(drawRect.b[2] - drawRect.a[2]))]} />
@@ -683,7 +687,23 @@ function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: n
   );
 }
 
-/** Ghost of the panel that "Grow" would add, with its stage widgets: angle dial, height arrow, flip badge, height label. */
+/**
+ * Where along the edge the hinge knob sits: towards one end, so it never
+ * shares a spot with the height arrow (middle of the far edge), which it
+ * would when the panel is seen from above.
+ */
+const knobAt = (w: number) => Math.min(w * 0.2, 40);
+
+/** Hinge point (at the knob's place along the edge) and its 0° / 90° directions (into the parent, out of its material face), in display space. */
+function hingeBasis(d: Design, parent: Panel, edge: number, m: THREE.Matrix4) {
+  const [a, b] = edgeLocal(parent, edge);
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const k = knobAt(len) / len;
+  const o = W(m, parent.frame, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, d.material.thickness / 2);
+  return { o, x: Wdir(m, inwardWorld(parent, edge)), y: Wdir(m, matDir(parent.frame)) };
+}
+
+/** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow, height label. */
 function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: number; m: THREE.Matrix4 }) {
   const t = useT();
   const grow = useStore((s) => s.grow);
@@ -691,20 +711,25 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const parent = d.panels[panelId];
   const free = parent && !edgeConnection(d, panelId, edge);
   const kind = growKind(d, grow);
-  const blocked = kind === 'lean' && !hasSideWalls(d, panelId, edge);
+  const check = parent ? checkHinge(d, panelId, edge, grow.angle, grow.height) : null;
+  const blocked = !!check?.blocking;
   const th = d.material.thickness;
-  const frameAt = (a: number, dir = grow.dir) => growFrame(parent, edge, a, dir, th, seatingOf(kind), defaultOffset(d, kind));
+  const frameAt = (h: number) => {
+    const { angle, dir } = fromHinge(h);
+    return growFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind));
+  };
   const w = parent ? edgeLength(parent, edge) : 0;
   const ghost = useMemo(() => {
     if (!parent || !free) return null;
     const frame = frameAt(grow.angle);
     const p: Panel = { id: 'ghost', name: '', w, h: grow.height, frame, details: [] };
     return { p, frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
-  }, [d, parent, free, edge, grow.angle, grow.dir, grow.height, kind, m]);
+  }, [d, parent, free, edge, grow.angle, grow.height, kind, m]);
   useEffect(() => () => ghost?.geom.dispose(), [ghost]);
-  const arcR = Math.max(12, Math.min(grow.height * 0.55, 90));
-  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), w / 2, arcR, th / 2), [m, parent, edge, grow.dir, kind, arcR, w]);
-  if (!ghost) return null;
+  const arcR = Math.max(10, Math.min(grow.height * 0.4, 45));
+  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w]);
+  const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
+  if (!ghost || !check) return null;
   const f = ghost.frame;
   const color = blocked ? STAGE.blocked : STAGE.ghost;
   return (
@@ -715,7 +740,16 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
           <Edges threshold={25} lineWidth={1.8} color={blocked ? '#c27c0e' : '#15706b'} />
         </mesh>
       </group>
-      <AngleArc pointAt={pointAt} angles={ANGLES} value={grow.angle} onChange={(a) => setGrow({ angle: a })} label={`${grow.angle}°`} />
+      <AngleArc
+        pointAt={pointAt}
+        hinge={hingeBasis(d, parent, edge, m)}
+        zoneAt={zoneAt}
+        value={grow.angle}
+        onChange={(a) => setGrow({ angle: a })}
+        label={`${grow.angle}°`}
+        message={hingeText(t, check)}
+        testId="ghost-hinge"
+      />
       <PushPull
         at={W(m, f, w / 2, grow.height, th / 2)}
         axis={Wdir(m, f.v)}
@@ -728,12 +762,51 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         testId="ghost-height"
       />
       <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v })} testId="ghost-dim-h" />
-      <StageHtml position={W(m, f, Math.min(w * 0.15, 30), grow.height * 0.5, th / 2)}>
-        <button className="w-badge" onClick={() => setGrow({ dir: grow.dir === 'up' ? 'down' : 'up' })} title={t('edge.flip')} aria-label={t('edge.flip')} data-testid="grow-flip">
-          <Icon name="flip" size={16} />
-        </button>
-      </StageHtml>
     </>
+  );
+}
+
+/** Selected grown panel: the hinge ring at its parent edge, to turn it in place. */
+function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }) {
+  const t = useT();
+  const parent = d.panels[c.a.panelId], child = d.panels[c.b.panelId];
+  const th = d.material.thickness;
+  const h = hingeOf(c.angle, c.dir);
+  const [refused, setRefused] = useState<string | undefined>();
+  const pointAt = useMemo(() => {
+    if (!parent || !child) return () => [0, 0, 0] as V3;
+    const r = Math.max(10, Math.min(child.h * 0.4, 45));
+    return (a: number) => {
+      const { angle, dir } = fromHinge(a);
+      return W(m, growFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset), knobAt(child.w), r, th / 2);
+    };
+  }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th]);
+  const zoneAt = useMemo(() => (a: number) => (child ? checkHinge(d, c.a.panelId, c.a.edge, a, child.h).zone : 'ok'), [d, c.a.panelId, c.a.edge, child?.h]);
+  if (!parent || !child) return null;
+  const check = checkHinge(d, c.a.panelId, c.a.edge, h, child.h);
+  return (
+    <AngleArc
+      pointAt={pointAt}
+      hinge={hingeBasis(d, parent, c.a.edge, m)}
+      zoneAt={zoneAt}
+      value={h}
+      onChange={(a) => {
+        setRefused(undefined);
+        useStore.getState().preview((x) => setConnection(x, c.id, fromHinge(a)));
+      }}
+      onEnd={(cancel) => {
+        const st = useStore.getState();
+        const cc = st.design.connections[c.id];
+        const now = cc ? checkHinge(st.design, c.a.panelId, c.a.edge, hingeOf(cc.angle, cc.dir), child.h) : null;
+        if (cancel || !now || now.zone === 'bad') {
+          if (now && now.zone === 'bad' && !cancel) setRefused(t('hinge.cantSet', { reason: hingeText(t, now) ?? '' }));
+          st.cancel();
+        } else st.commit();
+      }}
+      label={`${h}°`}
+      message={refused ?? hingeText(t, check)}
+      testId="panel-hinge"
+    />
   );
 }
 
@@ -1001,6 +1074,9 @@ function ViewSettings({ onClose }: { onClose: () => void }) {
         <input type="checkbox" checked={prefs.outlines} onChange={(e) => setPrefs({ outlines: e.target.checked })} data-testid="pref-outlines" /> {t('viewset.outlines')}
       </label>
       <label className="check">
+        <input type="checkbox" checked={prefs.joints} onChange={(e) => setPrefs({ joints: e.target.checked })} data-testid="pref-joints" /> {t('viewset.joints')}
+      </label>
+      <label className="check">
         <input type="checkbox" checked={prefs.dims} onChange={(e) => setPrefs({ dims: e.target.checked })} data-testid="pref-dims" /> {t('viewset.dims')}
       </label>
       <Segmented
@@ -1072,6 +1148,16 @@ export function View3D() {
           </button>
           <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">
             <Icon name="fit" />
+          </button>
+          <button
+            className={`stage-toggle ${prefs.joints ? 'on' : ''}`}
+            onClick={() => useStore.getState().setPrefs({ joints: !prefs.joints })}
+            title={t('view.joints')}
+            aria-label={t('view.joints')}
+            aria-pressed={prefs.joints}
+            data-testid="toggle-joints"
+          >
+            <Icon name="finger" />
           </button>
           <button className={settings ? 'on' : ''} onClick={() => setSettings((s) => !s)} title={t('viewset.title')} aria-label={t('viewset.title')} aria-expanded={settings} data-testid="open-view-settings">
             <Icon name="settings" />

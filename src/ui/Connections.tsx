@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { AngleDial } from './AngleDial';
+import { AngleDial, hingeText } from './AngleDial';
+import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { Icon } from './icons';
 import { panelLabel } from '../model/names';
 import { connectionsFor } from '../model/materials';
@@ -57,14 +58,6 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           </select>
         </div>
       )}
-      {isChild && (
-        <div className="field">
-          <span className="label" title={t('edge.angleNote')}>
-            {t('edge.angle')}
-          </span>
-          <AngleDial value={c.angle} label={t('edge.angle')} title={t('edge.angleNote')} testIdPrefix="conn-angle-" onChange={(a) => apply((x) => setConnection(x, c.id, { angle: a }))} />
-        </div>
-      )}
       {c.kind === 'finger' && (
         <Stepper label={t('conn.fingers')} value={fingerCountFor(c, len, d.material.thickness)} step={2} min={3} max={99} slider={false} onCommit={(v) => apply((x) => setConnection(x, c.id, { fingers: v }))} testId="conn-fingers" />
       )}
@@ -85,17 +78,8 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           testId="conn-folddir"
         />
       )}
-      {isChild && c.kind === 'lean' && !leanSupported(d, panelId) && (
-        <div className="warn">
-          <strong>{t('lean.unsupported')}</strong>
-          <p className="note">{t('edge.leanHelp')}</p>
-          <button onClick={() => apply((x) => addSideWalls(x, c.a.panelId, c.a.edge, c.angle, d.panels[panelId].h))} data-testid="insp-add-side-walls">
-            {t('edge.addSideWalls')}
-          </button>
-        </div>
-      )}
       {!c.grown && (
-        <button className="link" onClick={() => apply((x) => deleteConnection(x, c.id))}>
+        <button className="link" onClick={() => apply((x) => deleteConnection(x, c.id))} data-testid="conn-delete">
           {t('conn.delete')}
         </button>
       )}
@@ -160,7 +144,7 @@ export function OpenSeams({ panelId }: { panelId: string }) {
             : mine.edge >= 0
               ? t('seam.corner', { edge: t(`edge.name.${mine.edge}` as 'edge.name.0'), panel: panelLabel(d, other.id, t) })
               : t('seam.face', { panel: panelLabel(d, other.id, t) });
-        return <SeamRow key={i} label={label} overlap={s.overlapping} kinds={seamKinds(d.material, s.type)} onConnect={(k) => apply((x) => void connectSeam(x, s, k))} />;
+        return <SeamRow key={i} label={label} overlap={s.overlapping} kinds={seamKinds(d.material, s.type)} onConnect={(k) => apply((x) => void connectSeam(x, s, k, false))} />;
       })}
     </div>
   );
@@ -255,5 +239,127 @@ export function DividerAdder({ panelId }: { panelId: string }) {
       </>
       )}
     </div>
+  );
+}
+
+/**
+ * Hinge angle of a grown panel (top level of its card): the 360° dial, a note
+ * when the angle needs one, and side walls where they help.
+ */
+export function PanelHinge({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const [refused, setRefused] = useState<string | undefined>();
+  const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === panelId);
+  const p = d.panels[panelId];
+  if (!c || !p) return null;
+  const st = useStore.getState;
+  const h = hingeOf(c.angle, c.dir);
+  const check = checkHinge(d, c.a.panelId, c.a.edge, h, p.h);
+  const held = c.kind !== 'lean' || leanSupported(d, panelId);
+  const set = (a: number, final: boolean) => {
+    setRefused(undefined);
+    st().preview((x) => setConnection(x, c.id, fromHinge(a)));
+    if (!final) return;
+    const s2 = st();
+    const now = checkHinge(s2.design, c.a.panelId, c.a.edge, a, p.h);
+    if (now.zone === 'bad') {
+      setRefused(t('hinge.cantSet', { reason: hingeText(t, now) ?? '' }));
+      s2.cancel();
+    } else s2.commit();
+  };
+  const { angle, dir } = fromHinge(h);
+  return (
+    <>
+      <div className="field dial-field" data-testid="panel-hinge-field">
+        <span className="label" title={t('edge.angleNote')}>
+          {t('edge.angle')}
+        </span>
+        <AngleDial
+          value={h}
+          label={t('edge.angle')}
+          title={t('edge.angleNote')}
+          testIdPrefix="conn-angle-"
+          zoneAt={(a) => checkHinge(d, c.a.panelId, c.a.edge, a, p.h).zone}
+          message={refused ?? (check.reason === 'needsWalls' || !held ? undefined : hingeText(t, check))}
+          onChange={set}
+        />
+      </div>
+      {((check.sideWalls && c.kind === 'lean') || !held) && (
+        <div className="warn" data-testid="hinge-support">
+          <strong>{held ? hingeText(t, check) : t('lean.unsupported')}</strong>
+          {c.kind === 'lean' && <p className="note">{t('edge.leanHelp')}</p>}
+          <button onClick={() => st().apply((x) => addSideWalls(x, c.a.panelId, c.a.edge, angle, p.h, dir))} data-testid="insp-add-side-walls">
+            {t('edge.addSideWalls')}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Joint details, collapsed by default: the panel's joints and the places it
+ * meets other panels without one. Meeting panels are joined automatically, so
+ * open seams are ones the student unjoined; they are announced above the
+ * section (they make panels overlap), with a Connect all button.
+ */
+export function JointsAdvanced({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const openJoint = useStore((s) => s.openJoint);
+  const apply = useStore((s) => s.apply);
+  const mine = (c: Connection) => c.a.panelId === panelId || c.b.panelId === panelId;
+  const n = Object.values(d.connections).filter(mine).length;
+  const open = findOpenSeams(d, panelId);
+  const [shown, setShown] = useState(false);
+  const pillOpened = !!openJoint && Object.values(d.connections).some((c) => c.id === openJoint && mine(c));
+  const expanded = shown || pillOpened;
+  if (!n && !open.length) return null;
+  return (
+    <>
+      {open.length > 0 && (
+        <div className="warn" data-testid="seams-pending">
+          <strong>{t('seam.pending', { n: open.length })}</strong>
+          <button
+            onClick={() =>
+              apply((x) => {
+                for (let i = 0; i < 50; i++) {
+                  const s = findOpenSeams(x, panelId)[0];
+                  if (!s || !connectSeam(x, s, undefined, false)) break;
+                }
+              })
+            }
+            data-testid="seam-connect-all"
+          >
+            {t('seam.connectAll')}
+          </button>
+        </div>
+      )}
+      <div className="subsection">
+        <button
+          className="collapse-head"
+          aria-expanded={expanded}
+          onClick={() => {
+            if (expanded) {
+              setShown(false);
+              if (pillOpened) useStore.getState().set({ openJoint: null });
+            } else setShown(true);
+          }}
+          data-testid="joints-advanced"
+        >
+          <span className="chev">
+            <Icon name="chevRight" size={14} />
+          </span>
+          {t('insp.joints')}
+        </button>
+        {expanded && (
+          <>
+            <PanelConnections panelId={panelId} />
+            <OpenSeams panelId={panelId} />
+          </>
+        )}
+      </div>
+    </>
   );
 }

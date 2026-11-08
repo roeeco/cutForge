@@ -36,7 +36,7 @@ async function grow(page: Page, base: string, edge: number, height: number, angl
 async function connectAll(page: Page, ids: string[]) {
   for (const id of ids) {
     await select(page, id);
-    while (await page.getByTestId('seam-connect').count()) await page.getByTestId('seam-connect').first().click();
+    if (await page.getByTestId('seam-connect-all').count()) await page.getByTestId('seam-connect-all').click();
   }
 }
 
@@ -53,9 +53,19 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   const base = await start(page, 'ply-3', 120, 90);
   for (const e of [0, 1, 2, 3]) await grow(page, base, e, 40);
   const walls = (await design(page)).order.slice(1);
+  // the corners join themselves with finger joints
+  const corners = Object.values<any>((await design(page)).connections).filter((c) => !c.grown);
+  expect(corners.map((c) => c.kind)).toEqual(['finger', 'finger', 'finger', 'finger']);
+  expect(await issues(page)).toBe('');
   await select(page, walls[0]);
-  await expect(page.getByTestId('open-seams')).toBeVisible();
+  await expect(page.getByTestId('seams-pending')).toHaveCount(0);
+  // unjoining one by hand sticks until it is connected again
+  await page.getByTestId('joints-advanced').click();
+  await page.getByTestId('joint-row-finger').nth(1).click();
+  await page.getByTestId('conn-delete').click();
+  await expect(page.getByTestId('seams-pending')).toBeVisible();
   expect(await issues(page)).toContain('overlap');
+  expect(Object.values<any>((await design(page)).connections).filter((c) => !c.grown)).toHaveLength(3);
   await connectAll(page, walls);
   expect(await issues(page)).toBe('');
 
@@ -77,6 +87,7 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   // move the first divider: half-lap follows, nothing breaks
   const div = d.order[5];
   await select(page, div);
+  await page.getByTestId('joints-advanced').click();
   await setNum(page, 'conn-offset', '30');
   const d2 = await design(page);
   expect(Object.values<any>(d2.connections).some((c) => c.broken)).toBe(false);
@@ -89,7 +100,8 @@ test('leaning plywood panel needs side walls', async ({ page }) => {
   await page.getByTestId('grow-from-0').click();
   await page.getByTestId('grow-angle-30').click();
   await expect(page.getByTestId('lean-needs-walls')).toContainText('An angled panel needs a side wall to hold it');
-  await expect(page.getByTestId('grow-go')).toBeDisabled();
+  // a note, not an error: it can still be grown (the export check flags it), or held with side walls
+  await expect(page.getByTestId('grow-go')).toBeEnabled();
   await page.getByTestId('add-side-walls').click();
   await expect(page.getByTestId('lean-needs-walls')).toHaveCount(0);
   await page.getByTestId('grow-go').click();

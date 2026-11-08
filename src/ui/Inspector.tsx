@@ -9,7 +9,7 @@ import { netGroups, pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { TemplateSection } from './TemplateUI';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
-import { ClearSizes, DividerAdder, OpenSeams, PanelConnections } from './Connections';
+import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { isAutoName, panelLabel } from '../model/names';
@@ -100,6 +100,7 @@ export function Inspector() {
           <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          <PanelHinge panelId={id} />
           <Stepper
             label={t('insp.quantity')}
             value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
@@ -112,10 +113,9 @@ export function Inspector() {
           <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
           {inNet && <FoldSlider />}
           <SheetPlacementControls panelId={id} />
-          <PanelConnections panelId={id} />
-          <OpenSeams panelId={id} />
           <ClearSizes panelId={id} />
           <DividerAdder panelId={id} />
+          <JointsAdvanced panelId={id} />
           <div className="subsection">
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">

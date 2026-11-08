@@ -11,6 +11,31 @@ Defaults chosen where the brief left room. Each is reversible.
 - A panel's frame stores its plane origin, in-plane axes `u`, `v`, and the side of the plane the material lies on. The first panel lies on the floor with material rising upward.
 - **Angle definition:** the angle between the new panel and its parent, measured inside the fold (between the two panels' material faces), so 90° stands the new panel upright. 180° would be flat.
 - **Direction:** *Up* grows from the parent face the material lies towards, *Down* from the other face.
+- **Hinge angle (interface):** students see one angle from 0° to 360°, measured from the parent's material face through the inside: 90° upright, 180° flat, 270° on the other face. It maps onto the stored angle and direction (Up a = a, Down a = 360 − a), so projects need no migration. Dragging snaps to 5° (Alt: 1°) with a pull onto multiples of 45°; any value can be typed.
+- **Buildable angles** (`src/model/hinge.ts`), shown as zones on the dial. Only impossible angles are errors:
+  - Red, and growing is blocked: within 10° of lying on the parent, or dipping below the floor.
+  - Amber is a note only and never blocks:
+    - plywood leaning over its parent without side walls: *Add side walls* is offered, and a glued edge-to-edge joint is also allowed;
+    - plywood leaning out past the edge: only a glued edge holds it;
+    - exactly flat (180°).
+  - Card and corrugated fold or glue at any angle with no note.
+  - The export check still flags a leaning panel that nothing holds.
+  - Turning an existing panel into a red zone is refused and the reason is shown.
+- **Stage hinge handle:** a knob with a short arc around the current angle and an angle label. The full colour-zoned circle and the reason appear on hover and while dragging.
+- **Preferred joint.** Each connection remembers the joint that was asked for (`pref`). It defaults to fingers on plywood and a fold on card and corrugated, or whatever the student picked. When the angle or material rules it out, the joint falls back to the default for that case, and it returns to the preferred one as soon as that is allowed again (for example, plywood fingers at 90°, an angled tab joint at 65°, then fingers again back at 90°).
+- **Automatic joining** (`autoConnect`, run after every edit and during drags). Panels that meet are joined without asking:
+  - plywood corners get finger joints;
+  - an edge meeting a face gets tabs and slots (a leaning panel against its side walls, divider ends);
+  - card and corrugated corners get glue flaps, so a folded tray stays one net.
+
+  When panels stop meeting, or now meet differently, their automatic joint is removed and re-made to match.
+
+  Overriding:
+  - Changing a joint's kind, or connecting by hand, makes it manual. A manual joint is kept, flagged broken, when the panels stop meeting.
+  - Deleting a closing joint by hand records the pair (`noAutoSeams`), and it is not joined again until the student connects it.
+  - Joints in projects saved earlier count as automatic.
+- **Hinge knob placement:** the stage knob sits 20% along the edge (at most 40 mm in), not at the middle, so it never covers the height arrow when the panel is seen from above. Dragging works in screen space: around the circle where it is seen well, and along the knob's path (or up and down) where it is seen edge-on.
+- **Joints on the stage** are hidden by default (*Show joints* toggle). Broken joints still show a pill. In the panel card the angle stays at the top level; the joint list and meeting panels are in a collapsed *Joints (advanced)* section, with a *Connect all* notice above it when panels meet without a joint.
 - The new panel's material always lies on the inside of the fold and the panels' outer faces are flush: panels are sized by **outer dimensions**, and the first `t` mm of the new panel overlap the parent's edge strip, which is where the joint is cut.
 - A connected child panel's width is owned by its parent edge. Editing the child's width resizes the parent edge instead (and the inspector says so). Child frames are re-derived from their connection after every edit (`solve`), so the assembly never needs a regeneration step.
 - **Seating:** finger joints use *overlap* seating (the new panel's first t mm overlap the parent's edge strip, where the fingers are cut). All other connections stand the new panel *on* the parent's face next to the edge, so nothing overlaps. Tab-and-slot walls stand in from the edge by a default of max(min web, t) so a web of material stays outside the slots.

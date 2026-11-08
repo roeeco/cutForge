@@ -105,6 +105,17 @@ export type Connection = {
   flap: number | null;
   /** Fold direction seen from the material side of the parent. */
   foldDir: 'valley' | 'mountain';
+  /**
+   * The joint the student (or the template) asked for. When the angle or
+   * material rules it out, `kind` falls back to the default, and it returns
+   * to `pref` as soon as that is allowed again. Missing = `kind`.
+   */
+  pref?: ConnectionKind;
+  /**
+   * Closing seams are kept automatically (removed when the panels stop meeting,
+   * re-made when they meet) unless this is `false`: joined or changed by hand.
+   */
+  auto?: boolean;
   /** Last valid derived geometry, kept when the panels stop meeting (see `broken`). */
   geom?: ConnGeom;
   /** True when the joined edges no longer meet; `geom` is the last valid result. */
@@ -148,6 +159,8 @@ export type Design = {
   sheetMargin: number;
   /** Let the packer turn pieces 90° against the grain/flute direction. */
   allowRotate?: boolean;
+  /** Panel pairs ("idA|idB", sorted) the student unjoined: never connected automatically again. */
+  noAutoSeams?: string[];
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
 };
