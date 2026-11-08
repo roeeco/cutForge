@@ -1,5 +1,8 @@
 // Pre-export checks, explained in plain language by the UI.
-import type { Design, P2, Panel } from './types';
+import type { Design, P2, Panel, V3 } from './types';
+import { allFoldOvers, foldOverDims } from './foldover';
+import { segDir, segInward } from './edges';
+import { toWorld } from './frame';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
 import { throughHits, throughRegions } from './through';
 import { isRectSketch, segLength } from './edges';
@@ -90,6 +93,7 @@ export function validate(d: Design): Issue[] {
       if (!inside || webTo(h, outline) < min - 1e-6) issues.push({ key: 'val.slotEdge', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
   }
+  issues.push(...foldOverIssues(d));
   for (const c of Object.values(d.connections)) {
     if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
     else if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
@@ -130,6 +134,73 @@ function fragmentsAfterThrough(d: Design, id: string): number {
   } catch {
     return own.rings.length;
   }
+}
+
+/** Fold-over rules (foldform's, plus webs, collisions and flute direction). */
+function foldOverIssues(d: Design): Issue[] {
+  const out: Issue[] = [];
+  const t = d.material.thickness, c = d.material.clearance;
+  const fos = allFoldOvers(d);
+  if (!fos.length) return out;
+  const pl = pack(d);
+  const copies = pieceCopies(d);
+  for (const { panelId, f, g } of fos) {
+    const p = d.panels[panelId];
+    const target = { kind: 'panel' as const, id: panelId };
+    const dims = foldOverDims(d, p, f);
+    const vars = { panel: p.name };
+    if (p.h <= 2 * t) out.push({ key: 'val.foldShort', vars, target });
+    if (f.depth !== null && f.depth > 0.45 * p.h + 1e-9) out.push({ key: 'val.hemDeep', vars, target });
+    if (f.lock === 'tabs') {
+      if (f.depth !== null) out.push({ key: 'val.lockHem', vars, target });
+      if (dims.lockDepth > 0.6 * p.h + 1e-9) out.push({ key: 'val.lockDeep', vars, target });
+      const L = g.liner.x1 - g.liner.x0;
+      const w = g.tabs[0] ? g.tabs[0].x1 - g.tabs[0].x0 : 0;
+      if (L < 2 * c + 2 + 2 * w) out.push({ key: 'val.foldNarrow', vars, target });
+      if (c < 0.75 * t) out.push({ key: 'val.foldClearance', vars: { ...vars, c, min: Math.round(0.75 * t * 100) / 100 }, target });
+    }
+    // flute direction on 4 mm board: a fold-over score across the flutes cracks
+    if (d.material.kind === 'corrugated' && t >= 3.5 && d.material.grain !== 'none') {
+      const copy = copies.find((x) => x.copy === 0 && x.panels.some((n) => n.panelId === panelId));
+      const place = copy && pl[copy.key];
+      const n = copy?.panels.find((x) => x.panelId === panelId);
+      if (place && n) {
+        const e = g.liner.e;
+        const a = applyX(n.xf, e.a), b = applyX(n.xf, e.b);
+        let dx = b.x - a.x, dy = b.y - a.y;
+        if (place.rot === 90) [dx, dy] = [-dy, dx];
+        const along = d.material.grain === 'x' ? Math.abs(dx) : Math.abs(dy);
+        if (along < 0.7 * Math.hypot(dx, dy)) out.push({ key: 'val.flute', vars, target });
+      }
+    }
+  }
+  // liners must not meet each other (inside corners)
+  for (let i = 0; i < fos.length; i++)
+    for (let j = i + 1; j < fos.length; j++) {
+      const A = linerBox(d, fos[i]), B = linerBox(d, fos[j]);
+      if (A && B && boxesOverlap(A, B)) out.push({ key: 'val.linerCollide', vars: { a: d.panels[fos[i].panelId].name, b: d.panels[fos[j].panelId].name }, target: { kind: 'panel', id: fos[i].panelId } });
+    }
+  return out;
+}
+
+/** World corner points of a folded liner slab. */
+function linerBox(d: Design, fo: ReturnType<typeof allFoldOvers>[number]) {
+  const p = d.panels[fo.panelId];
+  const t = d.material.thickness;
+  const { e, x0, x1, q0, q1 } = fo.g.liner;
+  const dir = segDir(e), inw = segInward(e);
+  const pts: V3[] = [];
+  for (const s of [x0, x1]) for (const q of [q0, q1]) for (const z of [t + 0.01, 2 * t - 0.01]) pts.push(toWorld(p.frame, e.a.x + dir.x * s + inw.x * q, e.a.y + dir.y * s + inw.y * q, z));
+  return pts;
+}
+/** Do two convex point sets' volumes overlap (separating-axis test on their bounding boxes in a shared frame)? */
+function boxesOverlap(a: V3[], b: V3[]): boolean {
+  for (let k = 0; k < 3; k++) {
+    const amin = Math.min(...a.map((p) => p[k])), amax = Math.max(...a.map((p) => p[k]));
+    const bmin = Math.min(...b.map((p) => p[k])), bmax = Math.max(...b.map((p) => p[k]));
+    if (amax <= bmin + 1e-6 || bmax <= amin + 1e-6) return false;
+  }
+  return true;
 }
 
 type Poly = [number, number][];

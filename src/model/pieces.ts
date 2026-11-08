@@ -90,7 +90,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       const ex = panelExtras(d, p);
       for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
-      for (const h of ex.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
+      for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
       for (const dt of p.details) {

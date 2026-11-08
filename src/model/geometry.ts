@@ -8,6 +8,7 @@ import { findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from
 import { normalizeNotches } from './seams';
 // the own outline (Add/Cut shapes) feeds the edge layer
 import './outline';
+import { allFoldOvers } from './foldover';
 
 export type { Notch };
 
@@ -32,7 +33,16 @@ export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
 
 /** Slots, glue flaps and flap score lines that connections add to a panel. */
 export function panelExtras(d: Design, p: Panel) {
-  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [];
+  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [], linerHoles: P2[][] = [];
+  // fold-overs: rim and liner on their wall, lock slots in the base
+  for (const fo of allFoldOvers(d)) {
+    for (const h of fo.g.holes) if (h.panelId === p.id) holes.push(h.poly);
+    if (fo.panelId === p.id) {
+      for (const a of fo.g.adds) adds.push(a.poly);
+      for (const s of fo.g.scores) scores.push(s);
+      linerHoles.push(...fo.g.linerHoles);
+    }
+  }
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;
     for (const k of c.geom.cuts ?? []) if (k.panelId === p.id) cuts.push(k.poly);
@@ -40,7 +50,7 @@ export function panelExtras(d: Design, p: Panel) {
     for (const a of c.geom.adds) if (a.panelId === p.id) adds.push(a.poly);
     for (const s of c.geom.scores) if (s.panelId === p.id) scores.push(s);
   }
-  return { holes, adds, scores, cuts };
+  return { holes, adds, scores, cuts, linerHoles };
 }
 
 const EPS = 1e-7;

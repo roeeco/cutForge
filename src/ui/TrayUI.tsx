@@ -2,9 +2,11 @@
 // then "Add walls"), the tray section of a base's card (height, joints,
 // open edges with "Wall it"), and the own-height switch on a tray wall.
 import { useStore, useT } from '../store/store';
-import { NumField, Segmented } from './NumField';
+import { NumField, Segmented, Stepper } from './NumField';
+import { allFoldOvers, foldOverDims } from '../model/foldover';
+import { validate } from '../model/validate';
 import { Icon } from './icons';
-import { addTray, parentConnection, setCustomHeight, setTrayHeight, setTrayKinds, wallIt } from '../model/ops';
+import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayHeight, setTrayKinds, updateFoldOver, wallIt } from '../model/ops';
 import { shortEdges, trayKinds, trayOf, MIN_EDGE } from '../model/trays';
 import { panelEdges, segLength } from '../model/edges';
 import { connectionsFor } from '../model/materials';
@@ -139,6 +141,68 @@ export function TrayWallNote({ panelId }: { panelId: string }) {
         <input type="checkbox" checked={!!p.customHeight} onChange={(e) => apply((x) => setCustomHeight(x, panelId, e.target.checked))} data-testid="custom-height" />
         {t('tray.ownHeight')}
       </label>
+    </div>
+  );
+}
+
+/** Fold-over (double wall) on a card or corrugated wall's top edge. */
+export function FoldOverSection({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const p = d.panels[panelId];
+  if (!p || d.material.kind === 'plywood' || !parentConnection(d, panelId)) return null;
+  const f = p.foldOvers?.[0];
+  const mm = t('unit.mm');
+  if (!f)
+    return canFoldOver(d, panelId, 'e2') ? (
+      <div className="subsection" data-testid="fold-section">
+        <h4>{t('fold.title')}</h4>
+        <p className="note">{t('fold.help')}</p>
+        <button onClick={() => apply((x) => void addFoldOver(x, panelId, 'e2'))} data-testid="fold-add">
+          {t('fold.add')}
+        </button>
+      </div>
+    ) : null;
+  const dims = foldOverDims(d, p, f);
+  const geom = allFoldOvers(d).find((x) => x.panelId === panelId);
+  const flute = validate(d).some((i) => i.key === 'val.flute' && i.target.id === panelId);
+  return (
+    <div className="subsection" data-testid="fold-section">
+      <h4>{t('fold.title')}</h4>
+      <Segmented
+        label={t('fold.depth')}
+        value={f.depth === null ? 'full' : 'hem'}
+        options={[
+          { value: 'full', label: t('fold.full'), testId: 'fold-depth-full' },
+          { value: 'hem', label: t('fold.hem'), testId: 'fold-depth-hem' },
+        ]}
+        onChange={(v) => apply((x) => updateFoldOver(x, panelId, f.id, { depth: v === 'full' ? null : Math.round(0.4 * p.h), ...(v === 'hem' ? { lock: 'glue' as const } : {}) }))}
+      />
+      {f.depth !== null && <NumField label={t('fold.hemDepth')} value={f.depth} unit={mm} min={5} max={p.h} onCommit={(v) => apply((x) => updateFoldOver(x, panelId, f.id, { depth: v }))} testId="fold-hem" />}
+      <Segmented
+        label={t('fold.lock')}
+        value={f.lock}
+        options={[
+          { value: 'glue', label: t('fold.glue'), testId: 'fold-lock-glue' },
+          { value: 'tabs', label: t('fold.tabs'), testId: 'fold-lock-tabs' },
+        ]}
+        onChange={(v) => apply((x) => updateFoldOver(x, panelId, f.id, { lock: v as 'glue' | 'tabs', ...(v === 'tabs' ? { depth: null } : {}) }))}
+      />
+      {f.lock === 'tabs' && (
+        <>
+          <Stepper label={t('fold.locks')} value={f.locks ?? geom?.g.tabs.length ?? 2} min={1} max={4} slider={false} onCommit={(v) => apply((x) => updateFoldOver(x, panelId, f.id, { locks: v }))} testId="fold-locks" />
+          <NumField label={t('fold.lockDepth')} value={dims.lockDepth} unit={mm} min={2} max={60} onCommit={(v) => apply((x) => updateFoldOver(x, panelId, f.id, { lockDepth: v }))} testId="fold-lockdepth" />
+        </>
+      )}
+      {flute && (
+        <p className="warn-text" data-testid="fold-flute">
+          {t('fold.flute')}
+        </p>
+      )}
+      <button className="link" onClick={() => apply((x) => removeFoldOver(x, panelId, f.id))} data-testid="fold-remove">
+        {t('fold.remove')}
+      </button>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 // owned by connections, so every operation ends with a consistent design.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
@@ -727,6 +727,42 @@ export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
   if (!s?.inserts) return;
   s.inserts = s.inserts.filter((x) => x.id !== insertId);
   if (!s.inserts.length) delete s.inserts;
+  solve(d);
+}
+
+/** Can this wall edge take a fold-over: card or corrugated, a grown wall, a free edge? */
+export function canFoldOver(d: Design, wallId: string, edge: string): boolean {
+  const p = d.panels[wallId];
+  if (!p || d.material.kind === 'plywood' || !parentConnection(d, wallId) || !findEdge(p, edge)) return false;
+  if (edge === 'e0' || edgeConnection(d, wallId, edge)) return false;
+  return !(p.foldOvers ?? []).some((f) => f.edge === edge);
+}
+
+/** Add a fold-over on a wall's free edge (default: its top). Lock tabs on corrugated, glue on card. */
+export function addFoldOver(d: Design, wallId: string, edge = 'e2'): string | null {
+  if (!canFoldOver(d, wallId, edge)) return null;
+  const p = d.panels[wallId];
+  const id = newId('f');
+  p.foldOvers = [...(p.foldOvers ?? []), { id, edge, depth: null, lock: d.material.kind === 'corrugated' ? 'tabs' : 'glue', locks: null, lockDepth: null }];
+  solve(d);
+  return id;
+}
+
+export function updateFoldOver(d: Design, wallId: string, id: string, patch: Partial<Omit<FoldOver, 'id' | 'edge'>>) {
+  const f = d.panels[wallId]?.foldOvers?.find((x) => x.id === id);
+  if (!f) return;
+  Object.assign(f, patch);
+  if (f.depth !== null) f.depth = Math.max(5, f.depth);
+  if (f.locks !== null) f.locks = Math.max(1, Math.min(4, Math.round(f.locks)));
+  if (f.lockDepth !== null) f.lockDepth = Math.max(2, f.lockDepth);
+  solve(d);
+}
+
+export function removeFoldOver(d: Design, wallId: string, id: string) {
+  const p = d.panels[wallId];
+  if (!p?.foldOvers) return;
+  p.foldOvers = p.foldOvers.filter((x) => x.id !== id);
+  if (!p.foldOvers.length) delete p.foldOvers;
   solve(d);
 }
 

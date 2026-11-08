@@ -86,11 +86,29 @@ export type Panel = {
   broken?: boolean;
   /** A tray wall with its own height instead of the tray's. */
   customHeight?: boolean;
+  /** Fold-over (double-wall) reinforcement on free edges (card and corrugated). */
+  foldOvers?: FoldOver[];
   /**
    * Derived (re-made by `solve`): how far a wall reaches past the start/end of
    * its parent edge, to close an inside corner of a tray.
    */
   ext?: { s: number; e: number };
+};
+
+/**
+ * Fold-over on a free edge: a rim strip and a liner folded onto the wall's
+ * inner face, glued or locked with tabs through slots in the base.
+ */
+export type FoldOver = {
+  id: string;
+  edge: string;
+  /** null = the liner runs down to the base; a number = a partial hem (mm, at most 0.45 h). */
+  depth: number | null;
+  lock: 'glue' | 'tabs';
+  /** Lock tab count (null = automatic: two when they fit, else one). */
+  locks: number | null;
+  /** Tab reach past the liner's end (null = t + max(4, 1.5t)). */
+  lockDepth: number | null;
 };
 
 /** An edge of a panel by key (see src/model/edges.ts); 'face' means the panel's face. */

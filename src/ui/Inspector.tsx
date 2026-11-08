@@ -17,7 +17,7 @@ import { panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { panelsCutBy } from '../model/through';
-import { ExtrudeSection, TraySection, TrayWallNote } from './TrayUI';
+import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 
 export function Inspector() {
   const t = useT();
@@ -115,6 +115,7 @@ export function Inspector() {
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           <PanelHinge panelId={id} />
           <TrayWallNote panelId={id} />
+          <FoldOverSection panelId={id} />
           {((!parent && p.sketch.kind === 'poly') || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}

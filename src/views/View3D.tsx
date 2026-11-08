@@ -31,6 +31,8 @@ import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/ed
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
 import { isOutlineShape } from '../model/outline';
+import { allFoldOvers } from '../model/foldover';
+import { FoldOverObject } from './foldOver3d';
 import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../model/through';
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
@@ -320,6 +322,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   }, [drawingId, sel, design]);
   const cutHits = useMemo(() => (activeThrough ? new Set(panelsCutBy(design, activeThrough.detail.id)) : null), [activeThrough, design]);
   const throughMap = useMemo(() => throughHits(design), [design]);
+  const foldOvers = useMemo(() => allFoldOvers(design), [design]);
   const selEdge = sel?.kind === 'edge' ? sel : null;
   const selPanel = sel?.kind === 'panel' ? sel.id : null;
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
@@ -398,6 +401,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         );
       })}
       <Flaps d={design} xf={display.xf} />
+      {foldOvers.map((fo) => (
+        <FoldOverObject key={fo.f.id} d={design} p={design.panels[fo.panelId]} g={fo.g} m={display.xf.get(fo.panelId) ?? IDM} foldT={foldT} index={design.order.indexOf(fo.panelId)} />
+      ))}
       {display.bends.map((b) => (
         <BendBead key={b.id} b={b} d={design} index={design.order.indexOf(b.panelId)} outlines={prefs.outlines} />
       ))}

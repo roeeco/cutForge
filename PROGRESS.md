@@ -280,6 +280,21 @@ Verified
 Not done
 - The 3D view draws through tabs straight (as cut), not folded under.
 
+## Milestone 14 — Fold-over reinforcement ✅
+
+Implemented
+- `Panel.foldOvers[]` (`src/model/foldover.ts`), an edge feature on a card or corrugated wall's free edge: `{ edge, depth (null = down to the base, or a partial hem), lock: 'glue' | 'tabs', locks, lockDepth }`. Its geometry is drawn in the wall's own flat coordinates, so the net needs no change: a rim strip 2t + fa with a score at each edge; the liner (h − t, or the hem depth), shortened by t at each end where a neighbouring wall meets it and by 2t where that neighbour also has a fold-over; lock tabs (trapezoids tapered 18% of their width, width clamp(0.16L, max(4, 3t), max(14, 6t)), two at 0.3L/0.7L when they fit, else one; reach t + max(4, 1.5t)) with a score at each root.
+- Lock slots in the base: each tab's volume inside the base projected and grown by c/2 (clearance once, CutForge's rule), set back so at least the minimum web stays to the base edge.
+- The wall's cut holes continue through the liner where they overlap it, aligned by the fold; engrave and score shapes stay on the outer wall.
+- 3D: the liner on the wall's inner face, a rounded rim along the folded edge, the tabs through the base (straight); the fold slider swings the liner and tabs out to the flat net pose.
+- Card: *Fold-over (double wall)* on a wall's card — add (top edge), liner down to the base / partial hem, glue / lock tabs, tab count and length, remove. Default lock: tabs on corrugated, glue on card. Not offered on plywood.
+- Validation: wall height ≤ 2t, hem > 0.45h, lock tabs on a hem, lock depth > 0.6h, edge < 2c + 2 mm + 2 × tab width, clearance < 0.75t (advice), liners meeting at a corner, and on 4 mm board a fold score running across the flutes (also shown on the fold-over card). Slot webs are checked by the existing slot check.
+
+Verified
+- `tests/foldover.test.ts`: offered on card/corrugated free edges only (tabs default on corrugated, glue on card); a **corr-1.6 tray with fold-over and lock tabs on all walls makes one net**, rim 2t + fa, liner h − t, lock depth t + 4, two tabs, 2 + 2 scores per wall, export check clean apart from the clearance advice; **liners shortened 2t at both ends where both walls fold over** (t where only one does), no liner collision; **every slot keeps at least the minimum web**; **a handle hole on a reinforced wall also cuts the liner**, at the folded-back position; validation of a low wall, a deep hem, tabs on a hem, and flute direction on 4 mm board.
+- `tests/e2e/foldover.spec.ts`: add from the wall card, lock tabs and tab length shown, partial hem switches to glue, unfold with the fold slider, one net in the cut plan, remove. Screenshots `docs/polygon-shots/*-13..15-*` (folded, unfolding, net).
+- `npm test` 175 passed.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

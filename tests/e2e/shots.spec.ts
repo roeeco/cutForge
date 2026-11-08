@@ -162,3 +162,35 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-12-through-cutplan.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`shots foldover ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'corr-1.6');
+    const front = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let f = '';
+      cf.store.getState().apply((d: any) => {
+        const b = cf.ops.addRootPanel(d, -75, 50, 150, 100);
+        const t = cf.ops.addTray(d, b, 60);
+        const ws = d.order.filter((id: string) => id.startsWith(t + '/'));
+        for (const w of ws) cf.ops.addFoldOver(d, w);
+        f = ws[0];
+        cf.ops.addDetail(d, f, 'roundrect', 'cut', 75, 40, 40, 12);
+      });
+      return f;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), front);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-13-foldover.png` });
+    await S(page, () => (window as any).__cutforge.store.getState().set({ foldT: 0.45 }));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-14-foldover-unfolding.png` });
+    await S(page, () => (window as any).__cutforge.store.getState().set({ foldT: 1 }));
+    await page.getByTestId('view-2d').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-15-foldover-net.png` });
+  });
+}
