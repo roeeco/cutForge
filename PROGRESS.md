@@ -295,6 +295,38 @@ Verified
 - `tests/e2e/foldover.spec.ts`: add from the wall card, lock tabs and tab length shown, partial hem switches to glue, unfold with the fold slider, one net in the cut plan, remove. Screenshots `docs/polygon-shots/*-13..15-*` (folded, unfolding, net).
 - `npm test` 175 passed.
 
+## Final verification — polygons, cuts and corrugated (milestones 7–14) ✅
+
+Acceptance checks (`polygons-and-corrugated-agent-prompt.md` §8) and where each is verified:
+
+1. **Rectangle safety** — every pre-existing unit test and Playwright spec passes; golden SVG/DXF of both templates in every material and five hand-built designs are byte-identical, and five saved v5 project files migrate to byte-identical exports (`tests/golden.test.ts`). The one intended golden change is `hand-corr-dividers` (corrugated corners now default to tab-and-slot, milestone 8).
+2. **Polygons** — click-drawn base with a typed 120 mm segment and a Shift-locked 15° segment, extruded (`tests/e2e/flow.spec.ts`); an 8-gon and a hexagon n-gon (`polygon.spec.ts`, `trays.spec.ts`); vertex move re-angles walls and re-lays joints, insert splits a wall with shapes going to the half with their centre (`polygon.test.ts`, `outline.test.ts`, `trays.test.ts`).
+3. **Shapes** — hole vs notch, Add joins, Cuts win whatever the order, notches re-lay fingers or flag too little contact (`outline.test.ts`, `shapes.spec.ts`).
+4. **Through-cuts** — the front-wall chamfer cuts the front and back walls and trims the left wall's top; joints re-lay; moving the source updates every panel; deleting restores every panel (`through.test.ts`, `through.spec.ts`).
+5. **Fragments** — *(1/2)*, *(2/2)* pieces with a warning (own cuts and through-cuts); a fully removed panel is flagged, ghosted and restored (`outline.test.ts`, `through.test.ts`).
+6. **Hinge on polygon edges** — zones and side-wall offers on polygon and sloped edges; red only for lying on the parent and below the floor (`edges.test.ts`, `walls.test.ts`).
+7. **Corrugated** — tab-and-slot corners at 120° with through tabs and fold-over: clearance applied once, slot webs at least `minWeb`, and an independent reader (ezdxf, svgpathtools) confirms every closed cut and every score in the export; save/reload gives the same SVG (`acceptance.test.ts`, `locks.test.ts`, `foldover.test.ts`).
+8. **Interface** — every new string in `en.ts` and `he.ts` (`i18n.test.ts`); Hebrew screenshots of each new widget in `docs/polygon-shots/he-*`; new controls have testids; new joint details (tab length, fold-under length, angle gap) are in *Joints (advanced)*; the stage still renders on demand (no new per-frame work).
+
+The brief's end-to-end flow (§14) runs in `tests/e2e/flow.spec.ts`: draw a polygon base, extrude, push-pull the height on the stage, cut through a corner (live count), see the bevel warning in the export check, then autosave, reload and download the identical SVG.
+
+Fixed during the final pass
+- **Autosave missed drag edits** (pre-existing): a drag (push-pull, drawing a shape, moving a vertex) ends its transaction without a new design object, so the autosave waited for the next edit; it now saves on commit.
+- The inspector card could cover the stage's bottom-right buttons when tall (tray card); it now stops above them and scrolls.
+- Sloped walls with fold-overs (or other additions) are joined to their additions in their own exact coordinates before being turned into the net, so no hairline gaps split the net.
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (178 tests in 22 files, including the Worker API tests and the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (23 passed, 12 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` pointing at the pre-installed headless shell.
+
+Remaining limitations (polygons, cuts and corrugated)
+- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments.
+- Through-cuts go through the whole design; there is no per-cut depth.
+- Fold scores are plain SCORE lines: no crush-score style for 4 mm board.
+- The packer does not turn pieces for flute direction; fold-over scores across the flutes are only warned about.
+- Inside corners that are not square are closed by an approximate reach (`t / sin` of the turn); a crease between two tray walls is not offered (it would need nets that fold across closing seams).
+- Through tabs and fold-over lock tabs are drawn straight in 3D (not folded under).
+- The cut plan has no hover link marker for derived through-cuts, and the polygon tool's count badge appears once the polygon is closed.
+- Digital checks are not physical proof: fold-over and lock fits need a test cut on the classroom's board.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

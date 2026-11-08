@@ -26,7 +26,9 @@ export function useAutosave(onLoaded: () => void) {
       if (cancelled) return;
       onLoaded();
       unsub = useStore.subscribe((s, prev) => {
-        if (s.design === prev.design || s.txnBase) return;
+        // a drag commits by ending its transaction without a new design object: save then too
+        const committed = !!prev.txnBase && !s.txnBase && s.design !== prev.txnBase;
+        if ((s.design === prev.design && !committed) || s.txnBase) return;
         if (timer) clearTimeout(timer);
         useStore.getState().set({ saveState: 'saving' });
         timer = setTimeout(async () => {

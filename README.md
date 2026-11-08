@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1–6 complete** (vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates, class submission and teacher view). See `PROGRESS.md` for what was verified and the remaining limitations. See `PROGRESS.md` for what works and what is still to come; the full brief is in `laser-fabrication-editor-agent-prompt.md`.
+Status: **Milestones 1–14 complete** — the original brief (`laser-fabrication-editor-agent-prompt.md`: vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates, class submission and teacher view), the visual overhaul, and polygons, cuts and corrugated joints (`polygons-and-corrugated-agent-prompt.md`: polygon bases, Add/Cut shapes, trays, wall outlines, through-cuts, corrugated locks, fold-over reinforcement). See `PROGRESS.md` for what was verified and the remaining limitations.
 
 ## Run locally
 
@@ -28,6 +28,8 @@ npm run dev          # http://localhost:5199 — teacher view at /#/teacher
 ```bash
 npm test             # Vitest: geometry, joints, export writers, history, project files, i18n coverage
 npm run e2e          # Playwright: full vertical slice + offline check (starts the dev server)
+npx playwright test -c pw-app.config.ts --grep-invert classroom   # app specs only, no Worker
+SHOTS=1 npx playwright test -c pw-app.config.ts shots             # review screenshots into docs/polygon-shots/
 ```
 
 - Export tests also run an **independent reader check** with Python (`ezdxf` for DXF, `svgpathtools` for SVG) when available: `pip install ezdxf svgpathtools`. Without them that one test is skipped.
@@ -49,9 +51,19 @@ npm run e2e          # Playwright: full vertical slice + offline check (starts t
 
 8. **Text and icons:** the *Text* tool places Hebrew or English text (edit it in the inspector; it is exported as outlines). *Import SVG* puts a simple icon on the selected panel. Set *Copies to cut* per piece; drag pieces on the cut plan to place them by hand; *Repack* to start over.
 
+9. **Polygon bases** (`G`): click corners on the floor (Shift: 15° steps; type a number and Enter for an exact segment length; close on the first point or Enter, Backspace removes a corner, Esc cancels), or switch the tool's card to *Regular* and drag out an n-gon (3–12 sides). *Edit outline* on a base's card shows handles: drag a corner, click **+** on an edge to add one, select one and press Delete to remove it — walls standing on the edges follow. On a panel, the polygon tool draws a polygon shape.
+
+10. **Extrude:** on a base with no walls, *Extrude walls* shows a ghost tray; drag its arrow or type the height, then **Add walls**. Every straight edge gets a wall at one height (card and corrugated walls fold up from the base; corners are glue flaps on card, tab-and-slot on corrugated, fingers on plywood). The tray card changes the height and joints; deleting a wall opens that side, *Wall it* closes it. Push-pull on any tray wall changes all of them (tick *Own height* to keep one wall different).
+
+11. **Add / Cut / Engrave / Score:** the four dots under the tools. *Add* joins the outline (a tab), *Cut* is a hole inside or a notch across an edge (cuts always win over adds). Every straight edge a shape makes can grow a panel; walls on an edge a cut splits become one wall per piece. With **Cut** chosen, the **#** switch is *Cut through*: the shape removes material from every panel in its path through the whole design. While you draw it (or when it is selected), the panels it will cut are outlined in amber with a *Cuts N panels* badge; click it on any of those panels to select the original.
+
+12. **Wall outlines:** *Edit outline* on a wall's card: drag its top corners, click **+** on its top or sides to add a point (pull it up for a gable). Grow a roof from a sloped edge like any other edge.
+
+13. **Corrugated locks and fold-over:** in *Joints (advanced)*, tab-and-slot joints can have tabs that go *Through, fold under* (and the tray card has the same switch for its corners). On a card or corrugated wall, *Fold-over (double wall)* folds the top over into a liner on the inside: down to the base or a partial hem, glued or locked with tabs through slots in the base. Holes in the wall continue through the liner. The fold slider unfolds liners too.
+
 **View settings** (sliders icon, bottom corner): outlines on/off, dimensions on/off, quality (*Auto*, *Simple*, *Rich*), and for folded card/corrugated designs a fold/unfold slider that shows the flat net (also in the part's card).
 
-Keyboard: `V` select, `P` panel, `R` rectangle, `U` rounded rectangle, `C` circle, `T` text, `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
+Keyboard: `V` select, `P` panel, `R` rectangle, `U` rounded rectangle, `C` circle, `G` polygon, `T` text, `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
 
 ## LightBurn
 

@@ -102,7 +102,7 @@ export function ExportDialog() {
           </div>
         )}
         <div className="modal-actions">
-          <button onClick={close}>{t('export.cancel')}</button>
+          <button onClick={close} data-testid="export-cancel">{t('export.cancel')}</button>
           <button className="primary" onClick={go} data-testid="export-go" disabled={!d.order.length || blocked}>
             {issues.length ? t('export.anyway') : t('export.go')}
           </button>

@@ -184,7 +184,8 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 
 .card-dock {
   position: absolute; top: 16px; inset-inline-end: 16px; z-index: 7; width: 300px;
-  max-height: calc(100% - 32px); display: flex; flex-direction: column; pointer-events: none;
+  /* stops above the stage's bottom-right buttons (fit view, view cube), scrolling inside */
+  max-height: calc(100% - 210px); display: flex; flex-direction: column; pointer-events: none;
 }
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-float);

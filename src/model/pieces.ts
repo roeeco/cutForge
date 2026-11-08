@@ -86,10 +86,18 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       const tf = (q: P2) => applyX(xf, q);
       const own = ownOutline(p);
       const notches = panelNotches(d, p);
-      for (const ring of own.rings) polys.push([toRing(panelOutline(p, notches, ring).map(tf))]);
-      for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       const ex = panelExtras(d, p);
-      for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
+      const square = Math.abs(Math.sin(2 * xf.rot)) < 1e-12;
+      if (square || !ex.adds.length) {
+        for (const ring of own.rings) polys.push([toRing(panelOutline(p, notches, ring).map(tf))]);
+        for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
+      } else {
+        // turned by an angle that is not square: join the panel and its own additions (flaps, fold-over rim and liner)
+        // in its exact local coordinates first, so rounding after the turn cannot leave hairline gaps between them
+        const local: Polygon[] = [...own.rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
+        for (const poly of polygonClipping.union(local[0], ...local.slice(1))) polys.push(poly.map((r) => toRing(r.slice(0, -1).map(([x, y]) => tf({ x, y })))) as Polygon);
+      }
+      for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
