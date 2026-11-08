@@ -4,7 +4,8 @@
 // changes automatically.
 import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
-import { ek, FACE, panelEdges, type EdgeArg } from './edges';
+import { FACE, findEdge, panelEdges, segInward, segLength, type EdgeArg } from './edges';
+import { minWeb } from './materials';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 
@@ -25,14 +26,29 @@ export function edgePoint(p: Pick<Panel, 'w' | 'h' | 'sketch'>, e: EdgeArg, s: n
   return { x: a.x + dx * s + i.x * depth, y: a.y + dy * s + i.y * depth };
 }
 
-export type CornerFit = { s0: number; s1: number; mapB: (s: number) => number };
+export type CornerFit = {
+  s0: number;
+  s1: number;
+  mapB: (s: number) => number;
+  /** sin and cos of the corner (dihedral) angle α, measured inside between the two panels. */
+  sin: number;
+  cos: number;
+};
+
+/** Corner angles that joints are laid out for (POLYGONS_AND_CUTS.md §7). */
+export const MIN_CORNER = 30, MAX_CORNER = 150;
+const SIN_MIN = Math.sin((MIN_CORNER * Math.PI) / 180) - 1e-6;
+
+/** Corner angle α in degrees from a fit. */
+export const cornerAngle = (f: { sin: number; cos: number }) => (Math.atan2(f.sin, f.cos) * 180) / Math.PI;
 
 /**
- * Two edges that coincide along a line, on perpendicular panels, each panel's
- * material overlapping the other's slab (an outer corner, outer dimensions).
+ * Two edges that coincide along a line, each panel's material overlapping the
+ * other's slab (an outer corner, outer dimensions), at a corner angle between
+ * 30° and 150°.
  */
 export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg): CornerFit | null {
-  if (Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) > PERP) return null;
+  const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   const [a0, a1] = edgeWorld(A, eA), [b0, b1] = edgeWorld(B, eB);
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
   const off = (p: V3) => {
@@ -40,12 +56,27 @@ export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg): CornerF
     return v3len(v3sub(r, v3mul(dirA, v3dot(r, dirA))));
   };
   if (off(b0) > TOL || off(b1) > TOL) return null;
-  if (v3dot(inwardWorld(A, eA), matDir(B.frame)) < 0.9 || v3dot(inwardWorld(B, eB), matDir(A.frame)) < 0.9) return null;
+  const ka = v3dot(inwardWorld(A, eA), matDir(B.frame)), kb = v3dot(inwardWorld(B, eB), matDir(A.frame));
+  if (perp ? ka < 0.9 || kb < 0.9 : ka < SIN_MIN || kb < SIN_MIN) return null;
   const sb0 = v3dot(v3sub(b0, a0), dirA), sb1 = v3dot(v3sub(b1, a0), dirA);
   const s0 = Math.max(0, Math.min(sb0, sb1)), s1 = Math.min(La, Math.max(sb0, sb1));
   if (s1 - s0 < 1) return null;
   const dirB = v3norm(v3sub(b1, b0));
-  return { s0, s1, mapB: (s) => v3dot(v3sub(v3add(a0, v3mul(dirA, s)), b0), dirB) };
+  // cos α = −(material direction A · material direction B)
+  const cos = perp ? 0 : -v3dot(matDir(A.frame), matDir(B.frame));
+  return { s0, s1, mapB: (s) => v3dot(v3sub(v3add(a0, v3mul(dirA, s)), b0), dirB), sin: perp ? 1 : (ka + kb) / 2, cos };
+}
+
+/**
+ * Corner of two panels at angle α (outer faces flush, square-cut ends): how
+ * far the panel that gives way is cut back so it clears the other's slab
+ * (t / sin α, or t·cot(α/2) when acute), and how far the owning panel's end
+ * is trimmed so it does not poke out past the other's outer face when acute
+ * (t·cot α). At 90° these are t and 0.
+ */
+export function cornerDepths(t: number, f: { sin: number; cos: number }): { depth: number; trim: number } {
+  if (f.sin === 1 && f.cos === 0) return { depth: t, trim: 0 };
+  return { depth: (t + Math.max(0, t * f.cos)) / f.sin, trim: Math.max(0, (t * f.cos) / f.sin) };
 }
 
 export type FaceFit = {
@@ -58,6 +89,10 @@ export type FaceFit = {
   k: number;
   /** Receiver depth of the owner edge (0 or t). */
   zE: number;
+  /** Owner material direction · receiver material direction (0 when perpendicular). */
+  m: number;
+  /** Owner trim that keeps its end inside the receiver's outer face (acute corners). */
+  trim: number;
 };
 
 /**
@@ -65,8 +100,9 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number): FaceFit | null {
-  if (Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) > PERP) return null;
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false): FaceFit | null {
+  const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
+  if (!perp && !angled) return null;
   const [p0, p1] = edgeWorld(A, eA);
   const mB = matDir(B.frame);
   const z0 = v3dot(v3sub(p0, B.frame.o), mB), z1 = v3dot(v3sub(p1, B.frame.o), mB);
@@ -76,9 +112,25 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number): FaceFit | 
   else if (Math.abs(z0 - tB) < TOL) zE = tB;
   else return null;
   const k = v3dot(inwardWorld(A, eA), mB);
-  if (Math.abs(k) < 0.99) return null;
-  const kk = Math.sign(k);
-  const da = (0 - zE) / kk, db = (tB - zE) / kk;
+  if (Math.abs(k) < (perp ? 0.99 : SIN_MIN)) return null;
+  let d0: number, d1: number, kk: number, m = 0, trim = 0;
+  if (perp) {
+    kk = Math.sign(k);
+    const da = (0 - zE) / kk, db = (tB - zE) / kk;
+    d0 = Math.min(da, db);
+    d1 = Math.max(da, db);
+  } else {
+    // receiver depth of the owner point at inward distance d, owner depth z: zE + d·k + z·m
+    kk = k;
+    m = v3dot(matDir(A.frame), mB);
+    const tA = tB;
+    const at = (target: number, z: number) => (target - zE - z * m) / k;
+    const ds = [at(0, 0), at(0, tA), at(tB, 0), at(tB, tA)];
+    d0 = Math.min(...ds);
+    d1 = Math.max(...ds);
+    // the owner's square end must not poke out past the face its edge lies on (acute corners)
+    trim = Math.max(0, at(zE, 0), at(zE, tA));
+  }
   const q0 = toLocal(B.frame, p0), q1 = toLocal(B.frame, p1);
   const span = clipToOutline(B, q0, q1);
   if (!span) return null;
@@ -86,7 +138,7 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number): FaceFit | 
   const L = edgeLength(A, eA);
   const s0 = t0 * L, s1 = t1 * L;
   if (s1 - s0 < 2) return null;
-  return { s0, s1, d0: Math.min(da, db), d1: Math.max(da, db), k: kk, zE };
+  return { s0, s1, d0, d1, k: kk, zE, m, trim };
 }
 
 /**
@@ -262,6 +314,8 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
+  // an edge that no longer exists (a deleted vertex): the joint is broken
+  if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return null;
 
   if (c.kind === 'fold' || c.kind === 'lean' || (c.kind === 'butt' && c.grown)) return g;
 
@@ -271,13 +325,21 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
     const L = fit.s1 - fit.s0;
     const n = fingerCountFor(c, L, t);
     const seg = L / n;
+    // angled fingers: depth across the other slab along this panel's plane (t / sin α)
+    const { depth, trim } = cornerDepths(t, fit);
     const na: Notch[] = [], nb: Notch[] = [];
+    const onB = (s0: number, s1: number, dd: number) => {
+      const b0 = fit.mapB(s0), b1 = fit.mapB(s1);
+      nb.push({ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: dd });
+    };
     for (let k = 0; k < n; k++) {
       const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
-      if (k % 2 === 1) na.push({ s0: Math.max(fit.s0, s0 - cl / 2), s1: Math.min(fit.s1, s1 + cl / 2), depth: t });
-      else {
-        const b0 = fit.mapB(s0), b1 = fit.mapB(s1);
-        nb.push({ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: t });
+      if (k % 2 === 1) {
+        na.push({ s0: Math.max(fit.s0, s0 - cl / 2), s1: Math.min(fit.s1, s1 + cl / 2), depth });
+        if (trim > 0) onB(s0, s1, trim);
+      } else {
+        onB(s0, s1, depth);
+        if (trim > 0) na.push({ s0, s1, depth: trim });
       }
     }
     g.edges.push({ panelId: A.id, edge: c.a.edge, notches: na }, { panelId: B.id, edge: c.b.edge, notches: nb });
@@ -304,9 +366,12 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   // edge-on-face kinds: tabslot, slide, glue
   const { owner, edge, receiver } = ownerOf(c);
   const O = d.panels[owner], R = d.panels[receiver];
-  const fit = faceFit(O, edge, R, t);
+  const corner = !c.grown && c.b.edge !== FACE;
+  const fit = faceFit(O, edge, R, t, corner);
   if (!fit) return null;
   const len = fit.s1 - fit.s0;
+  if (corner && c.kind === 'tabslot') return cornerTabs(d, c, O, edge, R, c.b.edge, fit);
+  if (corner && c.kind === 'glue' && fit.m !== 0) return cornerGlue(d, c, O, edge, R, c.b.edge, fit);
 
   if (c.kind === 'slide') {
     g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + cl }] });
@@ -314,7 +379,7 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   }
 
   if (c.kind === 'tabslot') {
-    const n = Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1));
+    const n = d.material.kind === 'corrugated' ? tabCount(d, c, len) : Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1));
     const seg = len / (2 * n + 1);
     const notches: Notch[] = [];
     for (let k = 0; k < 2 * n + 1; k++) {
@@ -367,6 +432,86 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
 }
 
 /**
+ * Tab-and-slot at a corner where two edges meet (any corner angle): the owner
+ * is cut back to the receiver's inner face except at its tabs, which run
+ * through the receiver's thickness. Slots are each tab's volume projected onto
+ * the receiver, grown by c/2 (clearance once). The receiver's end is extended
+ * past the corner by a web so the slots are closed holes.
+ */
+function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
+  const t = d.material.thickness, cl = d.material.clearance;
+  const g = empty();
+  const len = fit.s1 - fit.s0;
+  const n = tabCount(d, c, len);
+  const seg = len / (2 * n + 1);
+  const notches: Notch[] = [];
+  const slots: P2[][] = [];
+  for (let k = 0; k < 2 * n + 1; k++) {
+    const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
+    notches.push({ s0, s1, depth: k % 2 ? fit.trim : fit.d1 });
+    if (k % 2) {
+      const corners: P2[] = [];
+      for (const s of [s0, s1])
+        for (const dd of [fit.trim, fit.d1])
+          for (const z of [0, t]) {
+            const lp = edgePoint(O, eO, s, dd);
+            corners.push(toLocal(R.frame, toWorld(O.frame, lp.x, lp.y, z)));
+          }
+      slots.push(offsetConvex(hull(corners), cl / 2));
+    }
+  }
+  g.edges.push({ panelId: O.id, edge: eO, notches });
+  for (const poly of slots) g.holes.push({ panelId: R.id, poly });
+  // extend the receiver's end so a web stays outside the slots
+  const re = findEdge(R, eR);
+  const cf = cornerFit(O, eO, R, eR);
+  if (re && cf) {
+    const inw = segInward(re);
+    let out = 0;
+    for (const poly of slots) for (const q of poly) out = Math.max(out, -((q.x - re.a.x) * inw.x + (q.y - re.a.y) * inw.y));
+    const b0 = cf.mapB(fit.s0), b1 = cf.mapB(fit.s1);
+    g.edges.push({ panelId: R.id, edge: eR, notches: [{ s0: Math.max(0, Math.min(b0, b1)), s1: Math.min(segLength(re), Math.max(b0, b1)), depth: -(out + minWeb(d.material)) }] });
+  }
+  return g;
+}
+
+/** Tab count for a tab-and-slot seam of this length (explicit or automatic), keeping tabs at least the material's minimum width. */
+export function tabCount(d: Design, c: Pick<Connection, 'tabs'>, len: number): number {
+  const minW = minTabWidth(d.material);
+  const most = Math.max(1, Math.floor((len / minW - 1) / 2));
+  return Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1, most));
+}
+
+/** Smallest tab width: 6 mm segments generally; on corrugated at least max(4 mm, 3t) so a tab spans several flutes. */
+export function minTabWidth(m: MaterialProfile): number {
+  return m.kind === 'corrugated' ? Math.max(4, 3 * m.thickness) : 6;
+}
+
+/**
+ * Glue flap at a corner that is not square: the owner is cut back to the
+ * receiver's inner face and its flap folds by the corner angle onto that face.
+ */
+function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
+  const t = d.material.thickness;
+  const g = empty();
+  const len = fit.s1 - fit.s0;
+  const fh = c.flap ?? autoFlap(d.material);
+  const taper = Math.min(fh, len / 3);
+  g.edges.push({ panelId: O.id, edge: eO, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
+  const p = (s: number, u: number) => edgePoint(O, eO, s, fit.d1 - u);
+  g.adds.push({ panelId: O.id, poly: [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)] });
+  g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
+  const cf = cornerFit(O, eO, R, eR);
+  if (cf) {
+    // on the receiver's inner face, starting where the owner's inner face meets it
+    const x0 = (t * (1 + cf.cos)) / cf.sin;
+    const q = (s: number, u: number) => edgePoint(R, eR, cf.mapB(s), x0 + u);
+    g.flaps3d.push({ panelId: R.id, poly: [q(fit.s0, 0), q(fit.s0 + taper, fh), q(fit.s1 - taper, fh), q(fit.s1, 0)], z0: t, z1: 2 * t });
+  }
+  return g;
+}
+
+/**
  * Glue flap on a grown child's bottom edge, folded onto the parent's face
  * towards the parent's interior. Works at any angle.
  */
@@ -387,7 +532,7 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
 }
 
 export type SeamType = 'corner' | 'face' | 'cross';
-export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b: { panelId: string; edge: string }; overlapping: boolean };
+export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b: { panelId: string; edge: string }; overlapping: boolean; /** Corner angle (degrees). */ angle?: number };
 
 function connectedPair(d: Design, x: string, y: string) {
   return Object.values(d.connections).some((c) => (c.a.panelId === x && c.b.panelId === y) || (c.a.panelId === y && c.b.panelId === x));
@@ -398,7 +543,10 @@ export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
   const t = d.material.thickness;
   const ka = panelEdges(A).map((e) => e.key), kb = panelEdges(B).map((e) => e.key);
   for (const ea of ka)
-    for (const eb of kb) if (cornerFit(A, ea, B, eb)) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true };
+    for (const eb of kb) {
+      const f = cornerFit(A, ea, B, eb);
+      if (f) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) };
+    }
   for (const e of kb) {
     const f = faceFit(B, e, A, t);
     if (f) return { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: FACE }, overlapping: f.d1 > 1e-6 };
@@ -448,6 +596,7 @@ export function seamTypeOf(c: Pick<Connection, 'kind' | 'b'>): SeamType {
 export function seamKinds(m: MaterialProfile, type: SeamType): ConnectionKind[] {
   if (type === 'cross') return ['halflap'];
   const ply = m.kind === 'plywood';
-  if (type === 'corner') return ply ? ['finger', 'butt'] : ['glue', 'slide', 'butt'];
+  // corners: tab-and-slot for every material at any corner angle; the corrugated default
+  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'slide', 'butt'] : ['glue', 'tabslot', 'slide', 'butt'];
   return ply ? ['tabslot', 'slide', 'butt'] : ['slide', 'glue', 'butt'];
 }

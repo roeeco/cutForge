@@ -76,7 +76,7 @@ export function useKeyboard() {
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (ids.length) s.apply((d) => deleteDetails(d, ids));
-        else if (sel?.kind === 'panel') s.apply((d) => deletePanel(d, sel.id));
+        else if (sel?.kind === 'panel' && !s.editOutline) s.apply((d) => deletePanel(d, sel.id));
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
@@ -85,7 +85,7 @@ export function useKeyboard() {
         else if (s.view === 'solo') s.closeSolo();
       } else if (!mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
-        if (tool !== 'panel' || s.view === '3d') s.setTool(tool);
+        if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

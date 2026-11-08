@@ -9,7 +9,7 @@ import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { addDivider, addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
-import { autoFlap, autoTabs, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, faceFit, ownerOf } from '../model/seams';
+import { autoFlap, autoTabs, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design } from '../model/types';
@@ -18,6 +18,14 @@ import { fmtNum } from '../i18n';
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
   if (c.grown) return connectionsFor(d.material, c.angle);
   return seamKinds(d.material, seamTypeOf(c));
+}
+
+/** Corner angle of a closing corner seam (degrees), or null. */
+function cornerAngleOf(d: Design, c: Connection): number | null {
+  if (c.grown || c.b.edge === FACE) return null;
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  const f = A && B ? cornerFit(A, c.a.edge, B, c.b.edge) : null;
+  return f ? cornerAngle(f) : null;
 }
 
 /** Length of the joint, for automatic finger and tab counts. */
@@ -44,9 +52,15 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
   const isChild = c.grown && c.b.panelId === panelId;
   const kinds = kindsFor(d, c);
   const len = jointLength(d, c);
+  const ang = cornerAngleOf(d, c);
   return (
     <div className="conn-edit" data-testid={`conn-${c.kind}`}>
       {c.broken && <p className="warn-text">{t('conn.broken')}</p>}
+      {ang !== null && Math.abs(ang - 90) > 0.5 && (c.kind === 'finger' || c.kind === 'tabslot') && (
+        <p className="note" data-testid="conn-angle-gap">
+          {t('conn.angleGap', { angle: fmtNum(ang, 0), gap: fmtNum(d.material.thickness * Math.abs(1 / Math.tan((ang * Math.PI) / 180)), 1) })}
+        </p>
+      )}
       {kinds.length > 1 && (
         <div className="field">
           <label htmlFor={`k-${c.id}`}>{t('edge.connection')}</label>

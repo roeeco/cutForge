@@ -72,6 +72,12 @@ type State = {
   foldT: number;
   /** Connection whose joint card is open (seam pill or inspector). */
   openJoint: string | null;
+  /** Polygon tool: click vertices, or drag a regular n-gon. */
+  polyMode: 'click' | 'ngon';
+  ngonSides: number;
+  /** Base whose outline vertices are being edited, and the picked vertex. */
+  editOutline: string | null;
+  selVertex: number | null;
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -92,7 +98,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -139,6 +145,10 @@ export const useStore = create<State>()((set, get) => ({
   hoverPart: null,
   foldT: 1,
   openJoint: null,
+  polyMode: 'click',
+  ngonSides: 6,
+  editOutline: null,
+  selVertex: null,
 
   apply: (fn) => {
     if (get().txnBase) get().commit();
@@ -184,8 +194,8 @@ export const useStore = create<State>()((set, get) => ({
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
   replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
-  select: (s) => set({ selection: s, openJoint: null }),
-  setTool: (t) => set({ tool: t }),
+  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
+  setTool: (t) => set({ tool: t, editOutline: null, selVertex: null }),
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
   openSolo: (panelId) => {

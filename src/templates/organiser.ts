@@ -19,7 +19,8 @@ function tray(d: Design, x: number, z: number, W: number, D: number, H: number, 
     role(`${prefix}wall${e}`, r.panelId);
     return r.panelId;
   });
-  for (const w of walls) connectSeams(d, w);
+  // folded trays keep glue-flap corners (one net)
+  for (const w of walls) connectSeams(d, w, ply ? undefined : 'glue');
   return base;
 }
 

@@ -1,7 +1,8 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, Panel } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel } from './types';
+import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
 import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
@@ -79,6 +80,9 @@ export function solve(d: Design) {
       progress = true;
       const parent = d.panels[c.a.panelId], child = d.panels[c.b.panelId];
       if (!parent || !child) continue;
+      done.add(child.id);
+      // the parent edge is gone (a vertex was deleted): keep the panel where it was, flagged
+      if (!findEdge(parent, c.a.edge)) continue;
       fitKind(c, connectionsFor(d.material, c.angle));
       child.frame = growFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset);
       child.w = edgeLength(parent, c.a.edge);
@@ -211,9 +215,9 @@ export function autoConnect(d: Design) {
   }
 }
 
-/** Connect every open seam of a panel with default kinds. */
-export function connectSeams(d: Design, panelId: string) {
-  for (const s of findOpenSeams(d as Design, panelId)) connectSeam(d, s);
+/** Connect every open seam of a panel with default kinds (or `cornerKind` on corners, where allowed). */
+export function connectSeams(d: Design, panelId: string, cornerKind?: ConnectionKind) {
+  for (const s of findOpenSeams(d as Design, panelId)) connectSeam(d, s, s.type === 'corner' ? cornerKind : undefined);
 }
 
 /** Remove a connection. Unjoining meeting panels by hand also stops them being joined automatically. */
@@ -355,6 +359,105 @@ export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
   solve(d);
 }
 
+/** Is a closed polygon simple (no two non-adjacent edges cross or touch) with some area? */
+export function isSimplePolygon(pts: P2[]): boolean {
+  const n = pts.length;
+  if (n < 3 || Math.abs(polygonArea(pts)) < 1) return false;
+  const cross = (o: P2, a: P2, b: P2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const hit = (p1: P2, p2: P2, q1: P2, q2: P2) => {
+    const d1 = cross(q1, q2, p1), d2 = cross(q1, q2, p2), d3 = cross(p1, p2, q1), d4 = cross(p1, p2, q2);
+    if (((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) && ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9))) return true;
+    const on = (a: P2, b: P2, c: P2, dd: number) => Math.abs(dd) <= 1e-9 && Math.min(a.x, b.x) - 1e-9 <= c.x && c.x <= Math.max(a.x, b.x) + 1e-9 && Math.min(a.y, b.y) - 1e-9 <= c.y && c.y <= Math.max(a.y, b.y) + 1e-9;
+    return on(q1, q2, p1, d1) || on(q1, q2, p2, d2) || on(p1, p2, q1, d3) || on(p1, p2, q2, d4);
+  };
+  for (let i = 0; i < n; i++) {
+    if (Math.hypot(pts[(i + 1) % n].x - pts[i].x, pts[(i + 1) % n].y - pts[i].y) < 1e-6) return false;
+    for (let j = i + 1; j < n; j++) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+      if (hit(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) return false;
+    }
+  }
+  return true;
+}
+
+/** Vertices of a regular n-gon of circumradius r around (0, 0), with its first edge level at the bottom (turned by `rot` radians). */
+export function regularPolygon(n: number, r: number, rot = 0): P2[] {
+  const k = Math.max(3, Math.min(12, Math.round(n)));
+  const a0 = -Math.PI / 2 - Math.PI / k + rot;
+  return Array.from({ length: k }, (_, i) => ({ x: r * Math.cos(a0 + (2 * Math.PI * i) / k), y: r * Math.sin(a0 + (2 * Math.PI * i) / k) }));
+}
+
+/**
+ * A base panel on the floor from a polygon (floor-local points: x along world
+ * X, y along world −Z, relative to world (x, z)). Refused when it crosses itself.
+ */
+export function addPolygonPanel(d: Design, x: number, z: number, pts: P2[]): string | null {
+  let q = pts.map((p) => ({ x: p.x, y: p.y }));
+  if (!isSimplePolygon(q)) return null;
+  if (polygonArea(q) < 0) q = q.reverse();
+  const minX = Math.min(...q.map((p) => p.x)), minY = Math.min(...q.map((p) => p.y));
+  q = q.map((p) => ({ x: p.x - minX, y: p.y - minY }));
+  const id = addRootPanel(d, x + minX, z - minY, 10, 10);
+  const p = d.panels[id];
+  p.sketch = { kind: 'poly', pts: q, edgeIds: q.map((_, i) => `e${i}`) };
+  normalizeSketch(p);
+  solve(d);
+  return id;
+}
+
+/** Next unused sketch edge id of a polygon. */
+function nextEdgeId(ids: string[]): string {
+  let n = 0;
+  for (const k of ids) {
+    const m = /^e(\d+)$/.exec(k);
+    if (m) n = Math.max(n, Number(m[1]) + 1);
+  }
+  return `e${n}`;
+}
+
+/** Move vertex i of a root polygon (local coordinates). Refused if the outline would cross itself. */
+export function moveVertex(d: Design, panelId: string, i: number, to: P2): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return false;
+  const pts = p.sketch.pts.map((q, k) => (k === i ? { x: to.x, y: to.y } : q));
+  if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
+  p.sketch.pts = pts;
+  normalizeSketch(p);
+  solve(d);
+  return true;
+}
+
+/**
+ * Insert a vertex on edge i of a root polygon at fraction `t` along it. The
+ * first half keeps the edge's id, the second half gets a new one.
+ */
+export function insertVertex(d: Design, panelId: string, i: number, t = 0.5): string | null {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return null;
+  const s = p.sketch;
+  const n = s.pts.length;
+  const a = s.pts[i], b = s.pts[(i + 1) % n];
+  const id = nextEdgeId(s.edgeIds);
+  s.pts.splice(i + 1, 0, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  s.edgeIds.splice(i + 1, 0, id);
+  solve(d);
+  return id;
+}
+
+/** Delete vertex i of a root polygon (at least three stay); the edge before it absorbs the edge after it. */
+export function deleteVertex(d: Design, panelId: string, i: number): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || p.sketch.pts.length <= 3 || parentConnection(d, panelId)) return false;
+  const s = p.sketch;
+  const pts = s.pts.filter((_, k) => k !== i);
+  if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
+  s.pts = pts;
+  s.edgeIds.splice(i, 1);
+  normalizeSketch(p);
+  solve(d);
+  return true;
+}
+
 export function deletePanel(d: Design, panelId: string) {
   for (const c of Object.values(d.connections)) {
     if (c.a.panelId === panelId || c.b.panelId === panelId) delete d.connections[c.id];
@@ -391,6 +494,26 @@ export function addPathShape(d: Design, panelId: string, polys: { x: number; y: 
   if (!p) return null;
   const id = newId('x');
   p.details.push({ id, shape: 'path', op, cx, cy, w, h, path: { polys } });
+  return id;
+}
+
+/**
+ * A polygon shape on a panel from panel-local points, stored like an imported
+ * path (points in a unit box scaled to w × h), so move, resize, array, align
+ * and snapping treat it like any other shape.
+ */
+export function addPolygonShape(d: Design, panelId: string, pts: P2[], op: DetailOp, regular?: number, fixedId?: string): string | null {
+  const p = d.panels[panelId];
+  if (!p || !isSimplePolygon(pts)) return null;
+  const q = polygonArea(pts) < 0 ? [...pts].reverse() : pts;
+  const xs = q.map((v) => v.x), ys = q.map((v) => v.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = Math.max(0.5, maxX - minX), h = Math.max(0.5, maxY - minY);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const id = fixedId ?? newId('x');
+  const dt: Detail = { id, shape: 'polygon', op, cx, cy, w, h, path: { polys: [q.map((v) => ({ x: (v.x - cx) / w, y: (v.y - cy) / h }))] } };
+  if (regular) dt.regular = { n: regular };
+  p.details.push(dt);
   return id;
 }
 

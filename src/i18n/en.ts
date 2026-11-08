@@ -446,6 +446,20 @@ export const en = {
   'edge.nameN': "edge {n}",
   'shape.polygon': "Polygon",
   'op.add': "Add",
+  'tool.polygon': "Polygon",
+  'tool.hint.polygon': "Click to place corners — on the floor for a new base, on a panel for a shape. Click the first point or press Enter to close. Shift: 15° steps. Type a number for the segment length.",
+  'poly.mode': "Polygon mode",
+  'poly.mode.click': "Click corners",
+  'poly.mode.ngon': "Regular",
+  'poly.sides': "Sides",
+  'poly.help.click': "Backspace removes the last corner, Esc cancels.",
+  'poly.help.ngon': "Drag out from the centre. Shift turns it in 15° steps.",
+  'poly.crosses': "crosses itself",
+  'outline.edit': "Edit outline",
+  'outline.done': "Done",
+  'outline.help': "Drag a corner to move it. Click + on an edge to add a corner. Select a corner and press Delete to remove it. Enter or Esc when done.",
+  'conn.angleGap': "Corner {angle}°: the laser cuts square, so the outside corner shows gaps of about {gap} mm.",
+  'part.wallN': "Wall {n}",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -117,3 +117,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - A grown panel's width follows its parent edge. On a rectangle parent, typing the width resizes the parent as before; on a polygon parent it moves that edge's end vertex along the edge.
 - **Edge-on-face clipping** uses the receiving panel's outline polygon (the longest inside run on a non-convex outline), so tabs stop where a polygon or notched panel ends.
 - Edges shorter than 5 mm (`MIN_PANEL`) get no grow handle.
+- **Polygon tool** works on the 3D stage only (its rail button is hidden in the cut plan and face-on view, like the panel tool); shapes drawn on panels are stored like imported paths. Double-click still opens the face-on view; outline editing is on the base's card (*Edit outline*), so the existing gesture keeps its meaning.
+- **Corner angle range:** corners are detected and jointed from 30° to 150° (sin α ≥ 0.5). At 90° the old code path runs unchanged (byte-identical output).
+- **Angled finger depth:** the panel that gives way is cut back `t / sin α` (obtuse) or `t·cot(α/2)` (acute); when acute, the owning panel's end is also trimmed by `t·cot α` so its square-cut end does not poke out past the other's outer face. Outer faces stay flush; the gaps are shown as a note in the joint card.
+- **Corner tab-and-slot:** two walls whose ends meet at an outside corner cannot carry closed slots with flush outer faces (any slot would open at the receiver's end). The receiver's end is therefore extended past the corner by the slot's reach plus the minimum web; this small lip is the visible cost of closed slots. Tabs are as long as the receiver is deep along the owner (flush with its outer face).
+- **Corrugated corners default to tab-and-slot** for hand-built designs. The organiser and card stand templates ask for glue flaps explicitly, so template designs (and their exports) are unchanged.
+- **Corrugated tabs** are at least max(4 mm, 3t) wide, so a tab spans several flutes; the tab count drops to fit.
+- **Vertex editing:** vertices snap to whole millimetres; a move or delete that would make the outline cross itself (or turn it inside out) is refused.

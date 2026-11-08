@@ -112,7 +112,7 @@ export function shapeContours(dt: Detail): Contour[] {
     if (!o) return [];
     return o.polys.map((p) => polygonContour(p.map((q) => ({ x: q.x + dt.cx, y: q.y + dt.cy }))));
   }
-  if (dt.shape === 'path' && dt.path) return dt.path.polys.map((p) => polygonContour(p.map((q) => ({ x: dt.cx + q.x * dt.w, y: dt.cy + q.y * dt.h }))));
+  if ((dt.shape === 'path' || dt.shape === 'polygon') && dt.path) return dt.path.polys.map((p) => polygonContour(p.map((q) => ({ x: dt.cx + q.x * dt.w, y: dt.cy + q.y * dt.h }))));
   return [detailContour(dt)];
 }
 

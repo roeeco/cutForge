@@ -57,7 +57,7 @@ export const stand: TemplateDef = {
     const lip = growPanel(d, base, 0, { height: ply ? 10 + t : 10, angle: 90, dir: 'up', kind: ply ? 'finger' : 'fold' });
     if (lip) {
       role('lip', lip.panelId);
-      connectSeams(d, lip.panelId);
+      connectSeams(d, lip.panelId, ply ? undefined : 'glue');
     }
   },
   check(d, p) {

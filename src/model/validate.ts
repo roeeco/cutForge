@@ -1,14 +1,14 @@
 // Pre-export checks, explained in plain language by the UI.
 import type { Design, P2 } from './types';
 import type { MsgKey } from '../i18n';
-import { detailBBox, panelExtras, panelNotches } from './geometry';
+import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry';
 import { bboxOf } from '../geom/vec';
 import { minWeb as materialMinWeb } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported } from './ops';
 import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
-import { flattenContour, pointInPolygon } from '../geom/vec';
+import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
@@ -47,10 +47,11 @@ export function validate(d: Design): Issue[] {
         issues.push({ key: 'val.tooThin', vars: { panel: p.name, min }, target: { kind: 'detail', id: dt.id } });
       }
     }
+    const outline = panelOutline(p, notches);
     for (const h of panelExtras(d, p).holes) {
-      const bb = bboxOf(h as P2[]);
-      if (bb.minX < -1e-6 || bb.minY < -1e-6 || bb.maxX > p.w + 1e-6 || bb.maxY > p.h + 1e-6 || thin(bb))
-        issues.push({ key: 'val.slotEdge', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
+      // a slot must lie inside the manufactured outline with at least a web of material around it
+      const inside = h.every((q) => pointInPolygon(q, outline));
+      if (!inside || webTo(h, outline) < min - 1e-6) issues.push({ key: 'val.slotEdge', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
   }
   for (const c of Object.values(d.connections)) {
@@ -64,6 +65,16 @@ export function validate(d: Design): Issue[] {
     if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId } });
   }
   return issues;
+}
+
+/** Smallest distance from a closed polygon's edges to a ring's edges (they do not cross). */
+export function webTo(poly: P2[], ring: P2[]): number {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++)
+    for (let j = 0; j < ring.length; j++) {
+      best = Math.min(best, segDistPoint(poly[i], ring[j], ring[(j + 1) % ring.length]), segDistPoint(ring[j], poly[i], poly[(i + 1) % poly.length]));
+    }
+  return best;
 }
 
 type Poly = [number, number][];

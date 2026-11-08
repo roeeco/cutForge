@@ -1,0 +1,391 @@
+// Polygon tool (G) and outline vertex editing on the 3D stage.
+//
+// Polygon: click to place vertices on the floor (a new base) or on a panel
+// (a polygon shape with the current op). Close by clicking the first point or
+// pressing Enter; Backspace removes the last point; Esc cancels. Vertices
+// snap to the 1 mm grid and to the first point; Shift locks the segment to
+// 15° steps; typing a number sets the current segment's length (Enter
+// places it). n-gon mode: drag from the centre (Shift turns it in 15° steps).
+//
+// Outline editing: handles on a base's vertices (drag; select and Delete) and
+// "+" handles on edge midpoints (click to insert a vertex).
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useThree, type ThreeEvent } from '@react-three/fiber';
+import * as THREE from 'three';
+import type { Frame, P2, Panel, V3 } from '../model/types';
+import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
+import { addPolygonPanel, addPolygonShape, deleteVertex, insertVertex, isSimplePolygon, moveVertex, regularPolygon } from '../model/ops';
+import { detailSel, useStore, useT } from '../store/store';
+import { fmtNum } from '../i18n';
+import { mmPerPx, StageHtml } from './widgets';
+import { STAGE } from './palette';
+import { frameMatrix, faceZ } from './three-geom';
+
+const FLOOR = GROUND_FRAME(0, 0);
+
+/** When the last polygon was closed: the stage ignores the click that ends that gesture. */
+export const closedAt = { t: 0 };
+
+type Draft = {
+  /** Panel the shape goes on, or null for a new base on the floor. */
+  panelId: string | null;
+  frame: Frame;
+  /** Face z (material depth) where the drawing is shown. */
+  z: number;
+  plane: THREE.Plane;
+  pts: P2[];
+  cur: P2 | null;
+  typed: string;
+  /** n-gon drag: its centre. */
+  centre?: P2;
+  /** Pointer-down time of the click that started the draft (the DOM listener ignores it). */
+  stamp: number;
+  shift?: boolean;
+};
+
+export type PolyToolHandle = { start: (e: ThreeEvent<PointerEvent>, panel: Panel | null) => void; active: () => boolean };
+
+const snap1 = (x: number) => Math.round(x);
+const STEP = Math.PI / 12; // 15°
+
+export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolean) => void }>(function PolygonTool({ setControls }, ref) {
+  const t = useT();
+  const { camera, gl } = useThree();
+  const [draft, setDraftState] = useState<Draft | null>(null);
+  const dr = useRef<Draft | null>(null);
+  // keep the ref current at once, so quick clicks never build on a stale draft
+  const setDraft = (d: Draft | null) => {
+    dr.current = d;
+    setDraftState(d);
+  };
+  const mode = useStore((s) => s.polyMode);
+  const sides = useStore((s) => s.ngonSides);
+  const rc = useMemo(() => new THREE.Raycaster(), []);
+
+  const localAt = (d: Draft, clientX: number, clientY: number): P2 | null => {
+    const r = gl.domElement.getBoundingClientRect();
+    rc.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
+    const hit = rc.ray.intersectPlane(d.plane, new THREE.Vector3());
+    return hit ? toLocal(d.frame, [hit.x, hit.y, hit.z]) : null;
+  };
+  const pxTol = (d: Draft) => 10 * mmPerPx(camera, gl.domElement.clientHeight || 600, new THREE.Vector3(...toWorld(d.frame, d.pts[0]?.x ?? 0, d.pts[0]?.y ?? 0)));
+
+  /** Snapped next vertex for a pointer position. */
+  const nextPoint = (d: Draft, raw: P2, shift: boolean): P2 => {
+    const last = d.pts[d.pts.length - 1];
+    if (d.pts.length >= 3 && Math.hypot(raw.x - d.pts[0].x, raw.y - d.pts[0].y) < pxTol(d)) return d.pts[0];
+    if (last && shift) {
+      const a = Math.round(Math.atan2(raw.y - last.y, raw.x - last.x) / STEP) * STEP;
+      const len = Math.round(Math.hypot(raw.x - last.x, raw.y - last.y));
+      return { x: last.x + Math.cos(a) * len, y: last.y + Math.sin(a) * len };
+    }
+    return { x: snap1(raw.x), y: snap1(raw.y) };
+  };
+
+  const ngonPts = (d: Draft, to: P2, shift: boolean): P2[] | null => {
+    if (!d.centre) return null;
+    const r = Math.hypot(to.x - d.centre.x, to.y - d.centre.y);
+    if (r < 2.5) return null;
+    const rot = shift ? Math.round((Math.atan2(to.y - d.centre.y, to.x - d.centre.x) + Math.PI / 2 + Math.PI / sides) / STEP) * STEP : 0;
+    return regularPolygon(sides, Math.round(r * 2) / 2, rot).map((p) => ({ x: p.x + d.centre!.x, y: p.y + d.centre!.y }));
+  };
+
+  const finish = (pts: P2[], regular?: number) => {
+    // the click that closes a polygon must not also reach the stage (which would deselect)
+    closedAt.t = performance.now();
+    const d = dr.current;
+    setDraft(null);
+    setControls(true);
+    if (!d || pts.length < 3 || !isSimplePolygon(pts)) return;
+    const st = useStore.getState();
+    let id: string | null = null;
+    if (d.panelId === null) {
+      st.apply((x) => void (id = addPolygonPanel(x, 0, 0, pts)));
+      if (id) {
+        st.setTool('select');
+        st.select({ kind: 'panel', id });
+      }
+    } else {
+      const pid = d.panelId;
+      st.apply((x) => void (id = addPolygonShape(x, pid, pts, st.shapeOp, regular)));
+      if (id) st.select(detailSel([id]));
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    active: () => !!dr.current,
+    start: (e, panel) => {
+      if (e.button !== 0 || dr.current) return;
+      e.stopPropagation();
+      const st = useStore.getState();
+      const frame = panel ? panel.frame : FLOOR;
+      const z = panel ? faceZ(panel, st.design.material.thickness)[1] : 0;
+      const n = new THREE.Vector3(...frameNormal(frame));
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(e.point.x, e.point.y, e.point.z));
+      const l = toLocal(frame, [e.point.x, e.point.y, e.point.z]);
+      const p0 = { x: snap1(l.x), y: snap1(l.y) };
+      const d: Draft = { panelId: panel?.id ?? null, frame, z, plane, pts: [], cur: p0, typed: '', stamp: e.nativeEvent.timeStamp };
+      if (st.polyMode === 'ngon') {
+        d.centre = p0;
+        setControls(false);
+      } else d.pts = [p0];
+      setDraft(d);
+    },
+  }));
+
+  useEffect(() => {
+    if (!draft) return;
+    const el = gl.domElement;
+    const down = (ev: PointerEvent) => {
+      const d = dr.current;
+      if (!d || ev.button !== 0 || ev.timeStamp === d.stamp || d.centre) return;
+      const raw = localAt(d, ev.clientX, ev.clientY);
+      if (!raw) return;
+      ev.stopPropagation();
+      const p = nextPoint(d, raw, ev.shiftKey);
+      if (d.pts.length >= 3 && p === d.pts[0]) return finish(d.pts);
+      const last = d.pts[d.pts.length - 1];
+      if (last && Math.hypot(p.x - last.x, p.y - last.y) < 0.5) return;
+      setDraft({ ...d, pts: [...d.pts, p], typed: '' });
+    };
+    const move = (ev: PointerEvent) => {
+      const d = dr.current;
+      if (!d) return;
+      const raw = localAt(d, ev.clientX, ev.clientY);
+      if (!raw) return;
+      setDraft({ ...d, cur: d.centre ? raw : nextPoint(d, raw, ev.shiftKey), shift: ev.shiftKey });
+    };
+    const up = (ev: PointerEvent) => {
+      const d = dr.current;
+      if (!d?.centre) return;
+      const raw = localAt(d, ev.clientX, ev.clientY);
+      const pts = raw && ngonPts(d, raw, ev.shiftKey);
+      if (pts) finish(pts, sides);
+      else {
+        setDraft(null);
+        setControls(true);
+      }
+    };
+    const key = (ev: KeyboardEvent) => {
+      const d = dr.current;
+      if (!d) return;
+      const tgt = ev.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setDraft(null);
+        setControls(true);
+      } else if (/^[0-9.]$/.test(ev.key) && !d.centre) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setDraft({ ...d, typed: d.typed + ev.key });
+      } else if (ev.key === 'Backspace' && !d.centre) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (d.typed) setDraft({ ...d, typed: d.typed.slice(0, -1) });
+        else if (d.pts.length > 1) setDraft({ ...d, pts: d.pts.slice(0, -1) });
+        else {
+          setDraft(null);
+          setControls(true);
+        }
+      } else if (ev.key === 'Enter' && !d.centre) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const len = parseFloat(d.typed);
+        const last = d.pts[d.pts.length - 1];
+        if (d.typed && len > 0 && last && d.cur) {
+          const a = Math.atan2(d.cur.y - last.y, d.cur.x - last.x);
+          setDraft({ ...d, pts: [...d.pts, { x: last.x + Math.cos(a) * len, y: last.y + Math.sin(a) * len }], typed: '' });
+        } else if (d.pts.length >= 3) finish(d.pts);
+      }
+    };
+    el.addEventListener('pointerdown', down, true);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('keydown', key, true);
+    return () => {
+      el.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', key, true);
+    };
+  }, [!!draft, sides]);
+
+  // the drawing: placed edges, the rubber-band segment and the closing segment (red when it would cross)
+  const view = useMemo(() => {
+    if (!draft) return null;
+    const shift = draft.shift ?? false;
+    const pts = draft.centre ? (draft.cur && ngonPts(draft, draft.cur, shift)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])];
+    const closedOk = pts.length >= 3 && isSimplePolygon(pts);
+    const m = frameMatrix(draft.frame);
+    const zz = draft.z + (draft.frame.side === 1 ? 0.4 : -0.4);
+    const v = (p: P2) => new THREE.Vector3(p.x, p.y, draft.panelId ? zz : 0.4).applyMatrix4(m);
+    const open = pts.map(v);
+    const close = pts.length >= 3 ? [v(pts[pts.length - 1]), v(pts[0])] : [];
+    const last = draft.pts[draft.pts.length - 1];
+    const seg = last && draft.cur && !draft.centre ? Math.hypot(draft.cur.x - last.x, draft.cur.y - last.y) : null;
+    return { open, close, closedOk, seg, label: pts.length ? v(draft.cur ?? pts[0]) : null, n: draft.centre ? sides : null, r: draft.centre && draft.cur ? Math.hypot(draft.cur.x - draft.centre.x, draft.cur.y - draft.centre.y) : null };
+  }, [draft, sides]);
+
+  if (!draft || !view) return null;
+  const lineGeom = (ps: THREE.Vector3[]) => new THREE.BufferGeometry().setFromPoints(ps);
+  return (
+    <group userData={{ noAO: true }}>
+      {view.open.length >= 2 && (
+        <line>
+          <primitive object={lineGeom(draft.centre ? [...view.open, view.open[0]] : view.open)} attach="geometry" />
+          <lineBasicMaterial color={STAGE.selected} depthTest={false} transparent />
+        </line>
+      )}
+      {!draft.centre && view.close.length === 2 && (
+        <line>
+          <primitive object={lineGeom(view.close)} attach="geometry" />
+          <lineBasicMaterial color={view.closedOk ? STAGE.selected : '#d1372b'} depthTest={false} transparent opacity={0.55} />
+        </line>
+      )}
+      {view.open.map((p, i) => (
+        <mesh key={i} position={p} renderOrder={8} raycast={() => null}>
+          <sphereGeometry args={[i === 0 ? 1.6 : 1.1, 10, 8]} />
+          <meshBasicMaterial color={i === 0 ? '#ffffff' : STAGE.selected} depthTest={false} />
+        </mesh>
+      ))}
+      {view.label && (
+        <StageHtml position={view.label.toArray() as V3} style={{ pointerEvents: 'none' }}>
+          <span className="dim-label poly-label" data-testid="poly-label" dir="ltr">
+            {draft.typed ? `${draft.typed}▍ ${t('unit.mm')}` : view.n ? `${view.n} × r ${fmtNum(view.r ?? 0)}` : view.seg !== null ? `${fmtNum(view.seg)} ${t('unit.mm')}` : ''}
+            {!draft.centre && !view.closedOk && draft.pts.length >= 3 ? ` · ${t('poly.crosses')}` : ''}
+          </span>
+        </StageHtml>
+      )}
+    </group>
+  );
+});
+
+/** Vertex handles of a base being edited: drag a vertex, select it and press Delete, click "+" on an edge to insert one. */
+export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: number }) {
+  const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
+  const selVertex = useStore((s) => s.selVertex);
+  const rc = useMemo(() => new THREE.Raycaster(), []);
+  const [hover, setHover] = useState<string | null>(null);
+  const s = p.sketch;
+  const mat = useMemo(() => m.clone().multiply(frameMatrix(p.frame)), [m, p.frame]);
+  const z = faceZ(p, t)[1] + 0.3;
+  const k = mmPerPx(camera, gl.domElement.clientHeight || 600, new THREE.Vector3(...toWorld(p.frame, p.w / 2, p.h / 2))) * 7;
+
+  useEffect(() => {
+    const key = (ev: KeyboardEvent) => {
+      const st = useStore.getState();
+      const tgt = ev.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && st.selVertex !== null) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const i = st.selVertex;
+        st.apply((x) => void deleteVertex(x, p.id, i));
+        st.set({ selVertex: null });
+      } else if (ev.key === 'Escape' || ev.key === 'Enter') {
+        ev.stopPropagation();
+        st.set({ editOutline: null, selVertex: null });
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [p.id]);
+
+  if (s.kind !== 'poly') return null;
+  const n = s.pts.length;
+  const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const st = useStore.getState();
+    st.set({ selVertex: i });
+    if (controls) controls.enabled = false;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
+    const frame = p.frame;
+    const move = (ev: PointerEvent) => {
+      const r = gl.domElement.getBoundingClientRect();
+      rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
+      if (!hit) return;
+      const l = toLocal(frame, [hit.x, hit.y, hit.z]);
+      useStore.getState().preview((x) => void moveVertex(x, p.id, i, { x: Math.round(l.x), y: Math.round(l.y) }));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (controls) controls.enabled = true;
+      useStore.getState().commit();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      {s.pts.map((q, i) => (
+        <mesh key={`v${i}`} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={startDrag(i)} onPointerOver={() => setHover(`v${i}`)} onPointerOut={() => setHover(null)} userData={{ vertex: i }}>
+          <sphereGeometry args={[k * (hover === `v${i}` || selVertex === i ? 1.3 : 1), 12, 10]} />
+          <meshBasicMaterial color={selVertex === i ? '#d1372b' : STAGE.selected} depthTest={false} />
+        </mesh>
+      ))}
+      {s.pts.map((q, i) => {
+        const b = s.pts[(i + 1) % n];
+        const mid: V3 = [(q.x + b.x) / 2, (q.y + b.y) / 2, z];
+        return (
+          <mesh
+            key={`m${i}`}
+            position={mid}
+            renderOrder={9}
+            onPointerOver={() => setHover(`m${i}`)}
+            onPointerOut={() => setHover(null)}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              e.stopPropagation();
+              const st = useStore.getState();
+              st.apply((x) => void insertVertex(x, p.id, i));
+              st.set({ selVertex: i + 1 });
+            }}
+          >
+            <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
+            <meshBasicMaterial color={hover === `m${i}` ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={0.9} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+/** Floating card for the polygon tool: click mode or regular n-gon with its number of sides. */
+export function PolygonToolCard() {
+  const t = useT();
+  const tool = useStore((s) => s.tool);
+  const mode = useStore((s) => s.polyMode);
+  const sides = useStore((s) => s.ngonSides);
+  if (tool !== 'polygon') return null;
+  const set = useStore.getState().set;
+  return (
+    <div className="card poly-card" data-testid="poly-card">
+      <p className="kicker">{t('tool.polygon')}</p>
+      <div className="seg" role="radiogroup" aria-label={t('poly.mode')}>
+        {(['click', 'ngon'] as const).map((x) => (
+          <button key={x} role="radio" aria-checked={mode === x} className={mode === x ? 'on' : ''} onClick={() => set({ polyMode: x })} data-testid={`poly-mode-${x}`}>
+            {t(`poly.mode.${x}`)}
+          </button>
+        ))}
+      </div>
+      {mode === 'ngon' && (
+        <div className="field stepper-row">
+          <span className="label">{t('poly.sides')}</span>
+          <button className="ghost" onClick={() => set({ ngonSides: Math.max(3, sides - 1) })} aria-label="−" data-testid="ngon-minus" disabled={sides <= 3}>
+            −
+          </button>
+          <output data-testid="ngon-sides">{sides}</output>
+          <button className="ghost" onClick={() => set({ ngonSides: Math.min(12, sides + 1) })} aria-label="+" data-testid="ngon-plus" disabled={sides >= 12}>
+            +
+          </button>
+        </div>
+      )}
+      <p className="note">{t(mode === 'ngon' ? 'poly.help.ngon' : 'poly.help.click')}</p>
+    </div>
+  );
+}

@@ -179,6 +179,22 @@ Verified
 - New `tests/edges.test.ts`: migration shape, rectangle keys, a pentagon base's keys and neighbours, a wall grown from a sloped edge, side walls on polygon neighbours, hinge zones on a sloped edge.
 - Playwright: all 13 specs pass (including the classroom spec against the real Worker).
 
+## Milestone 8 — Polygon bases ✅
+
+Implemented
+- Polygon tool (`G`, `src/views/polyTool.tsx`): click corners on the floor for a new base or on a panel for a `polygon` shape (stored like an imported path, so move/resize/array/snap work). Closes on the first point or Enter; Backspace removes the last corner; Esc cancels; Shift locks 15° steps; typing a number sets the segment length; the closing segment turns red and says "crosses itself" when the outline would cross. Its floating card switches to a regular n-gon (3–12 sides, drag from the centre, Shift turns in 15° steps).
+- Model: `addPolygonPanel`, `regularPolygon`, `isSimplePolygon`, `moveVertex`, `insertVertex` (first half keeps the id, the second gets a new `e<n>`), `deleteVertex` (the edge before absorbs the next; at least three stay), `addPolygonShape`. A wall whose edge is deleted stays where it was and its joint is flagged broken.
+- Outline editing: *Edit outline* on a base's card shows vertex handles (drag; select + Delete) and edge-midpoint "+" handles; other parts ignore the pointer meanwhile. Enter/Esc ends it.
+- Joints at any corner angle (`src/model/seams.ts`): corners are detected from 30° to 150°. Angled fingers cut `t / sin α` deep (`t·cot(α/2)` when acute, with the owner's end trimmed by `t·cot α` so it does not poke out); square-cut corners leave gaps of `t·|cot α|`, noted in the joint card. Glue flaps fold by the corner angle onto the other wall's inner face. New corner tab-and-slot (every material, the corrugated default): the owner is cut back to the receiver's inner face except at its tabs; slots are the tab volume projected onto the receiver plus c/2; the receiver's end is extended by a web so the slots are closed holes. Corrugated tabs are at least max(4 mm, 3t) wide.
+- Validation: slots are checked against the real manufactured outline (inside it, with at least the minimum web).
+- Polygon walls are named *Wall n* (by edge).
+
+Verified
+- `tests/polygon.test.ts`: hexagon geometry, self-intersection refused, vertex move/insert/delete, deleted-edge wall flagged; a hand-built **hexagon plywood tray**: six finger corners at 120°, volume occupied at most once (0.55 mm sampling), gap on every corner's inner face = `t·|cot 120°|` ± 0.03 mm, export check clean, 7 pieces; **corrugated hexagon tray**: six tab-and-slot corners with closed slots, one folded net, clean export check; card hexagon tray with glue flaps on the inner faces; a 60° triangle tray without overlap.
+- `tests/e2e/polygon.spec.ts`: click-drawn pentagon base, grow from its sloped edge, vertex drag re-sizes the wall, 8-sided n-gon, a polygon shape on a panel, cut plan; Hebrew card. Screenshots in `docs/polygon-shots/` (English and Hebrew).
+- Golden exports: unchanged except `hand-corr-dividers` (its hand-built corrugated corners now default to tab-and-slot instead of glue flaps, as the brief asks). Templates keep glue-flap corners on card and corrugated, so their goldens are byte-identical.
+- `npm test` 141 passed; Playwright 15 passed (2 screenshot specs skipped unless `SHOTS=1`); typecheck clean.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

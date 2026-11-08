@@ -60,5 +60,9 @@ export function panelLabel(d: Design, id: string, t: T): string {
   const parentIsRoot = !conns.some((c) => c.grown && c.b.panelId === parentC.a.panelId);
   const side = parentIsRoot && isRectSketch(d.panels[parentC.a.panelId]) ? rectEdgeIndex(parentC.a.edge) : null;
   if (side !== null && Math.abs(parentC.angle - 90) < 1e-6) return t('part.wallSide', { side: t(SIDE[side]) });
+  if (parentIsRoot && side === null && Math.abs(parentC.angle - 90) < 1e-6) {
+    const n = panelEdges(d.panels[parentC.a.panelId]).findIndex((e) => e.key === parentC.a.edge);
+    if (n >= 0) return t('part.wallN', { n: n + 1 });
+  }
   return t('part.panel', { n: d.order.indexOf(id) + 1 });
 }

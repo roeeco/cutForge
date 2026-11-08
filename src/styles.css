@@ -495,3 +495,17 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .design-name { width: 130px; }
   .topbar .hide-narrow { display: none; }
 }
+
+/* ---------- polygon tool card and outline editing ---------- */
+.poly-card {
+  position: absolute; top: 16px; inset-inline-start: 84px; z-index: 6; width: 250px;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+}
+.poly-card .kicker { margin: 0; }
+.poly-card .note { margin: 0; }
+.poly-card .stepper-row { display: flex; align-items: center; gap: 8px; }
+.poly-card .stepper-row .label { flex: 1; }
+.poly-card .stepper-row output { min-width: 2ch; text-align: center; font-weight: 600; }
+.poly-label { white-space: nowrap; }
+.inspector [data-testid=edit-outline] { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.inspector [data-testid=edit-outline].on { background: var(--accent-soft, #d8efec); border-color: var(--accent, #15706b); }

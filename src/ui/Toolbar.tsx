@@ -12,6 +12,7 @@ const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolea
   { id: 'rect', key: 'tool.rect', icon: 'rect', kbd: 'R' },
   { id: 'roundrect', key: 'tool.roundrect', icon: 'roundrect', kbd: 'U' },
   { id: 'circle', key: 'tool.circle', icon: 'circle', kbd: 'C' },
+  { id: 'polygon', key: 'tool.polygon', icon: 'polygon', kbd: 'G', only3d: true },
   { id: 'text', key: 'tool.text', icon: 'text', kbd: 'T' },
 ];
 

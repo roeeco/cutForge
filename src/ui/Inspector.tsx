@@ -23,6 +23,7 @@ export function Inspector() {
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
+  const editOutline = useStore((s) => s.editOutline);
   const mm = t('unit.mm');
   if (sel?.kind === 'edge') return view === '3d' ? <EdgeBar panelId={sel.panelId} edge={sel.edge} /> : null;
 
@@ -102,6 +103,16 @@ export function Inspector() {
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           <PanelHinge panelId={id} />
+          {!parent && p.sketch.kind === 'poly' && view === '3d' && (
+            <button
+              className={editOutline === id ? 'on' : ''}
+              aria-pressed={editOutline === id}
+              onClick={() => useStore.getState().set({ editOutline: editOutline === id ? null : id, selVertex: null })}
+              data-testid="edit-outline"
+            >
+              <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
+            </button>
+          )}
           <Stepper
             label={t('insp.quantity')}
             value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}

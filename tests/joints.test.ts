@@ -228,7 +228,9 @@ describe('dividers and half-laps', () => {
 
   it('corrugated dividers have no wall slots; they slide in with clearance', () => {
     const { d, walls, a } = organiser(CORR);
-    for (const w of walls) expect(panelExtras(d, d.panels[w]).holes).toHaveLength(0);
+    // (wall corners are tab-and-slot on corrugated: only the divider's own joints matter here)
+    for (const c of Object.values(d.connections).filter((x) => x.a.panelId === a || x.b.panelId === a))
+      for (const w of walls) expect(c.geom!.holes.filter((h) => h.panelId === w)).toHaveLength(0);
     const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap');
     expect(ends.map((c) => c.kind)).toEqual(['slide', 'slide']);
     expect(panelNotches(d, d.panels[a]).e1[0].depth).toBeCloseTo(CORR.thickness + CORR.clearance, 9);

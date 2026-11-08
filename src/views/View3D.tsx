@@ -28,6 +28,7 @@ import { netGroups } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/edges';
+import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
@@ -64,6 +65,7 @@ function planeOf(p: Panel, point: THREE.Vector3) {
 }
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const IDM = new THREE.Matrix4();
+const NO_RAYCAST = () => null;
 
 /** World point of a panel-local point (x, y, depth z into the material), through a display transform. */
 function W(m: THREE.Matrix4, f: Frame, x: number, y: number, z = 0): V3 {
@@ -89,6 +91,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
   const drag = useRef<Drag | null>(null);
+  const polyRef = useRef<PolyToolHandle>(null);
+  const editOutline = useStore((s) => s.editOutline);
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
   const [guides, setGuides] = useState<GuideState | null>(null);
   const three = useThree();
@@ -226,6 +230,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       useStore.getState().select({ kind: 'panel', id: p.id });
       return;
     }
+    if (tool === 'polygon') return polyRef.current?.start(e, p);
     if (tool === 'text') {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -269,6 +274,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   };
 
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
+    if (tool === 'polygon') return polyRef.current?.start(e, null);
     if (tool !== 'panel') return;
     const p: V3 = [snap(e.point.x), 0, snap(e.point.z)];
     begin(e, { kind: 'panel-draw', start: p, cur: p });
@@ -284,6 +290,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       if (!p) return null;
       const z = faceZ(p, useStore.getState().design.material.thickness)[top ? 1 : 0];
       const v = new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame)).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    w.__cutforge.projectWorld = (x: number, y: number, z: number) => {
+      const v = new THREE.Vector3(x, y, z).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
@@ -335,7 +346,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         userData={{ noAO: true }}
       />
       {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
@@ -362,6 +373,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             onPanelDown={onPanelDown(p)}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
+            inert={!!editOutline}
           />
         );
       })}
@@ -371,8 +383,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
       {selEdge && !folded && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
-      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && (
+      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && editOutline !== selPanel && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
+      )}
+      {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
+      {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
+        <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
       {selPanel && tool === 'select' && !folded && selGrown && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
       {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
@@ -462,6 +478,8 @@ function PanelObject(props: {
   onPanelDown: (e: ThreeEvent<PointerEvent>) => void;
   onDetailDown: (id: string) => (e: ThreeEvent<PointerEvent>) => void;
   onDouble: () => void;
+  /** Outline editing: parts do not catch the pointer, so the vertex handles always can. */
+  inert?: boolean;
 }) {
   const { d, p, selDetails, selEdge, tool } = props;
   const t = d.material.thickness;
@@ -484,6 +502,7 @@ function PanelObject(props: {
         geometry={geom}
         material={mats}
         onPointerDown={props.onPanelDown}
+        raycast={props.inert ? NO_RAYCAST : THREE.Mesh.prototype.raycast}
         onPointerOver={(e) => {
           e.stopPropagation();
           if (useStore.getState().hoverPart !== p.id) useStore.getState().set({ hoverPart: p.id });
@@ -510,14 +529,14 @@ function PanelObject(props: {
             {detailContours(dt).map((c, i) => (
               <group key={i}>
                 <DetailLines c={c} zs={[z0 - 0.15, z1 + 0.15]} color={color} />
-                <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} />
-                <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} />
+                {!props.inert && <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} />}
+                {!props.inert && <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} />}
               </group>
             ))}
           </group>
         );
       })}
-      {tool === 'select' && !props.folded && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
+      {tool === 'select' && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
     </group>
   );
 }
@@ -1122,7 +1141,21 @@ export function View3D() {
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, []);
-  const hint = foldT < 0.999 ? 'fold.hint' : tool === 'select' ? 'tool.hint.select' : tool === 'panel' ? 'tool.hint.panel' : tool === 'text' ? 'tool.hint.text' : 'tool.hint.shape';
+  const editing = useStore((s) => !!s.editOutline);
+  const hint =
+    foldT < 0.999
+      ? 'fold.hint'
+      : editing && tool === 'select'
+        ? 'outline.help'
+        : tool === 'select'
+          ? 'tool.hint.select'
+          : tool === 'panel'
+            ? 'tool.hint.panel'
+            : tool === 'polygon'
+              ? 'tool.hint.polygon'
+              : tool === 'text'
+                ? 'tool.hint.text'
+                : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
@@ -1168,6 +1201,7 @@ export function View3D() {
         {settings && <ViewSettings onClose={() => setSettings(false)} />}
       </div>
       <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
+      <PolygonToolCard />
       <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );
