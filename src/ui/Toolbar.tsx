@@ -35,6 +35,7 @@ export function Toolbar() {
   const tool = useStore((s) => s.tool);
   const view = useStore((s) => s.view);
   const op = useStore((s) => s.shapeOp);
+  const through = useStore((s) => s.shapeThrough);
   const setTool = useStore((s) => s.setTool);
   const setOp = useStore((s) => s.setShapeOp);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -93,6 +94,21 @@ export function Toolbar() {
             </span>
           </button>
         ))}
+        {op === 'cut' && (
+          <button
+            className={`op-btn through ${through ? 'on' : ''}`}
+            role="switch"
+            aria-checked={through}
+            aria-label={t('tool.op.through')}
+            onClick={() => useStore.getState().set({ shapeThrough: !through })}
+            data-testid="op-through"
+          >
+            <Icon name="through" size={18} />
+            <span className="tip" aria-hidden>
+              {t('tool.op.through')}
+            </span>
+          </button>
+        )}
       </div>
     </nav>
   );

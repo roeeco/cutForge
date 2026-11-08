@@ -248,6 +248,23 @@ Verified
 - `tests/e2e/walls.spec.ts`: "+" on a wall's top edge, drag the point up into a gable, grow a roof from the slope in the grow card. Screenshot `docs/polygon-shots/*-10-gable-roof.png`.
 - `npm test` 161 passed; golden exports unchanged.
 
+## Milestone 12 — Through-cuts ✅
+
+Implemented
+- `src/model/through.ts` (layer 5): a Cut with `through` removes material from every other panel along its source panel's normal, both ways. Parallel panels get the shape translated; oblique panels get the shape swept between their two faces (the laser cuts square, so any part of the thickness in the path is removed); edge-on panels get strips across them where the shape crosses the band their thickness makes in the source plane. Panels grown from edges the cut made on its source are left out. The regions are derived (cached by content), never stored; the source keeps one live shape.
+- Joints re-lay over the contact that is left (`survivingContact`, sampled every 0.25 mm on both panels): fingers and tabs are laid out per surviving interval.
+- Layer 7: the regions are subtracted in the cut file and in 3D (holes where they fall inside). A panel split by a through-cut becomes fragments (*Divider 1 (1/2)*, *(2/2)*) with a warning; a panel removed entirely is flagged *removed by a cut*, left out of the cut file and shown as a faint ghost, and comes back when the cut is deleted. Oblique and edge-on cuts are flagged as approximated bevels.
+- Interface: the op row's *Cut through* switch (`op-through`) appears with Cut; the shape card has a *Cut through* checkbox and "Cuts N panels". While a through-cut is drawn or selected, every panel it reaches is outlined in amber and a badge shows the count. Clicking where it cut another panel selects the source shape, so move, resize and array act on the one feature.
+
+Verified
+- `tests/through.test.ts`: **the chamfer** (front wall's own corner notch, the back wall loses the same 200 mm² triangle, the edge-on left wall loses its top 20 mm along its whole length, the right wall untouched; the front/left finger seam re-lays with no overlap; bevel flagged); **moving the source** updates the panels it reaches; **deleting it restores every panel**; a through-slot that splits a wall into two pieces with a warning; a cut covering a whole panel removes it (kept, flagged, not in the cut file) and deleting the cut restores it; **a base hole cuts a full-height slot in the divider over it** (two fragments), with the count known before commit.
+- `tests/e2e/through.spec.ts`: Cut + Cut through, a rectangle across a wall corner shows "Cuts 2 panels" **before the mouse is released**, the shape card agrees, Engrave hides the switch, clicking the cut on the back wall selects the source, unticking restores; a circle under a divider shows "Cuts 1 panels" mid-drag. Screenshots `docs/polygon-shots/*-11-*`, `*-12-*`.
+- `npm test` 165 passed; app Playwright specs pass.
+
+Not done
+- The cut plan draws derived cuts in the normal cut colour but has no link marker on hover.
+- A polygon drawn with the polygon tool shows its count once closed (the drag preview is for rectangles, rounded rectangles and circles).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

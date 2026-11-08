@@ -16,6 +16,7 @@ import { edgeLabel, isAutoName, panelLabel } from '../model/names';
 import { panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
+import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, TraySection, TrayWallNote } from './TrayUI';
 
 export function Inspector() {
@@ -51,6 +52,15 @@ export function Inspector() {
             options={(['add', 'cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
             onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp }))}
           />
+          {dt.op === 'cut' && (
+            <div className="through-row">
+              <label className="check" title={t('through.help')}>
+                <input type="checkbox" checked={!!dt.through} onChange={(e) => apply((x) => updateDetail(x, dt.id, { through: e.target.checked }))} data-testid="detail-through" />
+                {t('through.label')}
+              </label>
+              {dt.through && <span className="note" data-testid="detail-through-count">{t('through.cuts', { n: panelsCutBy(d, dt.id).length })}</span>}
+            </div>
+          )}
           {dt.shape === 'text' && dt.text ? (
             <TextFields id={dt.id} text={dt.text} />
           ) : isCircle ? (

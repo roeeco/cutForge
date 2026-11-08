@@ -3,6 +3,7 @@ import type { Design, V3 } from '../src/model/types';
 import { matDir, toLocal } from '../src/model/frame';
 import { panelExtras, panelNotches, panelOutline } from '../src/model/geometry';
 import { pointInPolygon } from '../src/geom/vec';
+import { throughRegions } from '../src/model/through';
 import { v3dot, v3sub } from '../src/geom/v3';
 
 export function solidCounter(d: Design) {
@@ -10,7 +11,7 @@ export function solidCounter(d: Design) {
   const solids = d.order.map((id) => {
     const p = d.panels[id];
     const ex = panelExtras(d, p);
-    return { p, outline: panelOutline(p, panelNotches(d, p)), holes: [...ex.holes, ...ex.cuts], m: matDir(p.frame) };
+    return { p, outline: panelOutline(p, panelNotches(d, p)), holes: [...ex.holes, ...ex.cuts, ...throughRegions(d, p.id)], m: matDir(p.frame) };
   });
   return (P: V3) => {
     let n = 0;

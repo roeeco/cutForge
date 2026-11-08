@@ -512,3 +512,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .poly-label { white-space: nowrap; }
 .inspector [data-testid=edit-outline] { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
 .inspector [data-testid=edit-outline].on { background: var(--accent-soft, #d8efec); border-color: var(--accent, #15706b); }
+.rail .op-btn.through { color: #c7cfdb; }
+.rail .op-btn.through.on { background: var(--rail-on); color: #0b2724; }
+.through-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block: 6px; }
+.through-badge { background: #b45309; color: white; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; transform: translate(12px, -30px); }

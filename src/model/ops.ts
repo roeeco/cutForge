@@ -746,12 +746,13 @@ export function deletePanel(d: Design, panelId: string) {
   solve(d);
 }
 
-export function addDetail(d: Design, panelId: string, shape: DetailShape, op: DetailOp, cx: number, cy: number, w: number, h: number, fixedId?: string): string | null {
+export function addDetail(d: Design, panelId: string, shape: DetailShape, op: DetailOp, cx: number, cy: number, w: number, h: number, fixedId?: string, through = false): string | null {
   const p = d.panels[panelId];
   if (!p) return null;
   const id = fixedId ?? newId('x');
   const dt: Detail = { id, shape, op, cx, cy, w: Math.max(0.5, w), h: Math.max(0.5, shape === 'circle' ? w : h) };
   if (shape === 'roundrect') dt.r = Math.min(dt.w, dt.h) / 4;
+  if (through && op === 'cut') dt.through = true;
   p.details.push(dt);
   return id;
 }
@@ -779,7 +780,7 @@ export function addPathShape(d: Design, panelId: string, polys: { x: number; y: 
  * path (points in a unit box scaled to w × h), so move, resize, array, align
  * and snapping treat it like any other shape.
  */
-export function addPolygonShape(d: Design, panelId: string, pts: P2[], op: DetailOp, regular?: number, fixedId?: string): string | null {
+export function addPolygonShape(d: Design, panelId: string, pts: P2[], op: DetailOp, regular?: number, fixedId?: string, through = false): string | null {
   const p = d.panels[panelId];
   if (!p || !isSimplePolygon(pts)) return null;
   const q = polygonArea(pts) < 0 ? [...pts].reverse() : pts;
@@ -790,6 +791,7 @@ export function addPolygonShape(d: Design, panelId: string, pts: P2[], op: Detai
   const id = fixedId ?? newId('x');
   const dt: Detail = { id, shape: 'polygon', op, cx, cy, w, h, path: { polys: [q.map((v) => ({ x: (v.x - cx) / w, y: (v.y - cy) / h }))] } };
   if (regular) dt.regular = { n: regular };
+  if (through && op === 'cut') dt.through = true;
   p.details.push(dt);
   return id;
 }
@@ -810,7 +812,7 @@ export function findDetail(d: Design, detailId: string): { panel: Panel; detail:
   return null;
 }
 
-export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op'>>) {
+export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op' | 'through'>>) {
   const f = findDetail(d, detailId);
   if (!f) return;
   const dt = f.detail;
@@ -822,6 +824,8 @@ export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<De
     dt.h = dt.w;
   }
   if (dt.r !== undefined) dt.r = Math.max(0, Math.min(dt.r, dt.w / 2, dt.h / 2));
+  // only a Cut goes through
+  if (dt.op !== 'cut' || !dt.through) delete dt.through;
 }
 
 export function deleteDetail(d: Design, detailId: string) {

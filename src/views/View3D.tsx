@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Design, Frame, Panel, V3 } from '../model/types';
+import type { Connection, Design, Frame, P2, Panel, V3 } from '../model/types';
 import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
@@ -31,6 +31,9 @@ import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/ed
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
 import { isOutlineShape } from '../model/outline';
+import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../model/through';
+import polygonClipping from 'polygon-clipping';
+import { polygonContour } from '../geom/vec';
 
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
@@ -96,6 +99,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const polyRef = useRef<PolyToolHandle>(null);
   const editOutline = useStore((s) => s.editOutline);
   const extrude = useStore((s) => s.extrude);
+  const [drawingId, setDrawingId] = useState<string | null>(null);
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
   const [guides, setGuides] = useState<GuideState | null>(null);
   const three = useThree();
@@ -138,7 +142,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         }
         if (w < 0.5 && h < 0.5) return;
         st.preview((d) => {
-          addDetail(d, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id);
+          addDetail(d, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id, st.shapeThrough);
         });
         setLabel({ text: shape === 'circle' ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'detail-move') {
@@ -175,6 +179,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const g = drag.current;
       if (!g) return;
       drag.current = null;
+      setDrawingId(null);
       setLabel(null);
       setGuides(null);
       setControls(true);
@@ -246,7 +251,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const ctx = e.nativeEvent.altKey ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
       const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
-      begin(e, { kind: 'shape-draw', panelId: p.id, id: newId('x'), start, plane: planeOf(p, e.point) });
+      const nid = newId('x');
+      setDrawingId(nid);
+      begin(e, { kind: 'shape-draw', panelId: p.id, id: nid, start, plane: planeOf(p, e.point) });
     } else if (tool === 'select') {
       e.stopPropagation();
       useStore.getState().select({ kind: 'panel', id: p.id });
@@ -305,6 +312,14 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   }, [camera, gl]);
 
   const sel = selection;
+  // the through-cut being drawn or selected: the panels it reaches are highlighted, with a count
+  const activeThrough = useMemo(() => {
+    const id = drawingId ?? (sel?.kind === 'detail' && sel.ids.length === 1 ? sel.id : null);
+    const f = id ? findDetail(design, id) : null;
+    return f && f.detail.op === 'cut' && f.detail.through ? f : null;
+  }, [drawingId, sel, design]);
+  const cutHits = useMemo(() => (activeThrough ? new Set(panelsCutBy(design, activeThrough.detail.id)) : null), [activeThrough, design]);
+  const throughMap = useMemo(() => throughHits(design), [design]);
   const selEdge = sel?.kind === 'edge' ? sel : null;
   const selPanel = sel?.kind === 'panel' ? sel.id : null;
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
@@ -377,6 +392,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
             inert={!!editOutline}
+            cutHit={!!cutHits?.has(id)}
+            through={throughMap.get(id)}
           />
         );
       })}
@@ -388,6 +405,13 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {selEdge && !folded && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
       {selPanel && design.panels[selPanel] && tool === 'select' && !folded && editOutline !== selPanel && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
+      )}
+      {activeThrough && (
+        <StageHtml position={W(display.xf.get(activeThrough.panel.id) ?? IDM, activeThrough.panel.frame, activeThrough.detail.cx, activeThrough.detail.cy, design.material.thickness)} style={{ pointerEvents: 'none' }}>
+          <span className="through-badge" data-testid="through-count">
+            {t('through.cuts', { n: cutHits?.size ?? 0 })}
+          </span>
+        </StageHtml>
       )}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
@@ -484,10 +508,15 @@ function PanelObject(props: {
   onDouble: () => void;
   /** Outline editing: parts do not catch the pointer, so the vertex handles always can. */
   inert?: boolean;
+  /** Reached by the through-cut being drawn or selected. */
+  cutHit?: boolean;
+  /** Through-cuts from other panels that reach this one. */
+  through?: ThroughHit;
 }) {
   const { d, p, selDetails, selEdge, tool } = props;
   const t = d.material.thickness;
-  const geom = useMemo(() => panelGeometry(d, p), [d.material, d.connections, p]);
+  const geom = useMemo(() => panelGeometry(d, p), [d.material, d.connections, p, props.through]);
+  const removed = useMemo(() => !!props.through && removedByCut(d, p.id), [d, p.id, props.through]);
   const outline = useMemo(() => (props.outlines ? new THREE.EdgesGeometry(geom, 25) : null), [geom, props.outlines]);
   const matrix = useMemo(() => props.m.clone().multiply(frameMatrix(p.frame)), [p.frame, props.m]);
   const [z0, z1] = faceZ(p, t);
@@ -518,8 +547,12 @@ function PanelObject(props: {
         }}
         userData={{ panelId: p.id }}
       >
-        {(props.selected || props.hover) && <Edges threshold={25} lineWidth={props.selected ? 2.6 : 1.6} color={props.selected ? STAGE.selected : STAGE.hover} renderOrder={4} />}
+        {(props.selected || props.hover || props.cutHit) && (
+          <Edges threshold={25} lineWidth={props.selected ? 2.6 : props.cutHit ? 2.2 : 1.6} color={props.cutHit ? '#d97706' : props.selected ? STAGE.selected : STAGE.hover} renderOrder={4} />
+        )}
       </mesh>
+      {removed && <RemovedGhost d={d} p={p} />}
+      {props.through && tool === 'select' && !props.inert && <ThroughLinks p={p} hit={props.through} z0={z0} z1={z1} />}
       {outline && !props.selected && (
         <lineSegments geometry={outline} raycast={() => null}>
           <lineBasicMaterial color={STAGE.outline} transparent opacity={props.emphasis === -1 ? 0.35 : 0.62} />
@@ -696,6 +729,50 @@ function DetailLines({ c, zs, color }: { c: ReturnType<typeof detailContour>; zs
     <>
       {lines.map((l, i) => (
         <primitive key={i} object={l} raycast={() => null} />
+      ))}
+    </>
+  );
+}
+
+/** A panel a through-cut removed entirely: shown faintly, so deleting the cut brings it back. */
+function RemovedGhost({ d, p }: { d: Design; p: Panel }) {
+  const g = useMemo(() => panelGeometry(d, p, { joints: false }), [d, p]);
+  useEffect(() => () => g.dispose(), [g]);
+  return (
+    <mesh geometry={g} raycast={() => null} userData={{ noAO: true }} data-testid="removed-ghost">
+      <meshStandardMaterial color="#d97706" transparent opacity={0.16} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** On a panel a through-cut reaches: clicking where it cut selects the source shape (one live feature). */
+function ThroughLinks({ p, hit, z0, z1 }: { p: Panel; hit: ThroughHit; z0: number; z1: number }) {
+  const contours = useMemo(() => {
+    // the regions clipped to the panel, so the hit areas stay on it
+    const ring = (pts: P2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
+    const box = [ring([{ x: -1, y: -1 }, { x: p.w + 1, y: -1 }, { x: p.w + 1, y: p.h + 1 }, { x: -1, y: p.h + 1 }])];
+    const out: { c: ReturnType<typeof detailContour>; src: string }[] = [];
+    hit.regions.forEach((r, i) => {
+      try {
+        for (const poly of polygonClipping.intersection([ring(r)], box)) out.push({ c: polygonContour(poly[0].slice(0, -1).map(([x, y]) => ({ x, y }))), src: hit.sources[Math.min(i, hit.sources.length - 1)] });
+      } catch {
+        /* skip */
+      }
+    });
+    return out;
+  }, [p, hit]);
+  const select = (src: string) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    useStore.getState().select(detailSel([src]));
+  };
+  return (
+    <>
+      {contours.map((x, i) => (
+        <group key={i}>
+          <DetailHit c={x.c} z={z1 + 0.35} onDown={select(x.src)} />
+          <DetailHit c={x.c} z={z0 - 0.35} onDown={select(x.src)} />
+        </group>
       ))}
     </>
   );

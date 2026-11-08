@@ -1,6 +1,7 @@
 // Pre-export checks, explained in plain language by the UI.
 import type { Design, P2, Panel } from './types';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
+import { throughHits, throughRegions } from './through';
 import { isRectSketch, segLength } from './edges';
 import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
@@ -44,8 +45,12 @@ export function validate(d: Design): Issue[] {
     const own = ownOutline(p);
     const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
     const outlines = plainRect ? [] : own.rings.map((r) => panelOutline(p, notches, r));
-    // a cut that splits the panel, and pieces too thin to cut safely
-    if (own.rings.length > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: own.rings.length }, target: { kind: 'panel', id } });
+    // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
+    const hit = throughHits(d).get(id);
+    const frags = hit ? fragmentsAfterThrough(d, id) : own.rings.length;
+    if (hit && frags === 0) issues.push({ key: 'val.removed', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    else if (frags > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: frags }, target: { kind: 'panel', id } });
+    if (hit?.approx && frags > 0) issues.push({ key: 'val.bevel', vars: { panel: p.name }, target: { kind: 'detail', id: hit.sources[0] } });
     for (const r of own.rings) {
       const pts = r.map((e) => e.a);
       const per = r.reduce((s2, e) => s2 + segLength(e), 0);
@@ -112,6 +117,19 @@ export function webTo(poly: P2[], ring: P2[]): number {
 /** Does a cut shape reach the panel's material (it changed the outline)? */
 function touchesMaterial(own: ReturnType<typeof ownOutline>, dt: Panel['details'][number]): boolean {
   return own.rings.some((r) => r.some((e) => e.key.startsWith(dt.id + '.')));
+}
+
+/** Connected pieces a panel's material falls into after through-cuts (0 = removed). */
+function fragmentsAfterThrough(d: Design, id: string): number {
+  const p = d.panels[id];
+  const own = ownOutline(p);
+  try {
+    const mat = own.rings.map((r) => [ring(r.map((e) => e.a))]);
+    const left = polygonClipping.difference(mat, ...throughRegions(d, id).map((r) => [ring(r)]));
+    return left.filter((pp) => Math.abs(polygonArea(pp[0].slice(0, -1).map(([x, y]) => ({ x, y })))) > 0.5).length;
+  } catch {
+    return own.rings.length;
+  }
 }
 
 type Poly = [number, number][];

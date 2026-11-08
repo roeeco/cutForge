@@ -135,3 +135,30 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-10-gable-roof.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`shots through ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    const cut = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let id = '';
+      cf.store.getState().apply((d: any) => {
+        const b = cf.ops.addRootPanel(d, -70, 50, 140, 100);
+        const ws = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, b, e, { height: 60, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+        id = cf.ops.addPolygonShape(d, ws[0], [{ x: -5, y: 65 }, { x: 30, y: 65 }, { x: 30, y: 60 }, { x: -5, y: 25 }], 'cut', undefined, undefined, true);
+        cf.ops.addDivider(d, b, 3, 70, 30);
+        cf.ops.addDetail(d, b, 'circle', 'cut', 70, 50, 16, 16, undefined, true);
+      });
+      return id;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'detail', id, ids: [id] }), cut);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-11-through-chamfer.png` });
+    await page.getByTestId('view-2d').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-12-through-cutplan.png` });
+  });
+}

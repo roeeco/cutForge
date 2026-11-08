@@ -52,6 +52,8 @@ type State = {
   selection: Selection;
   tool: Tool;
   shapeOp: DetailOp;
+  /** New Cut shapes cut through the whole design. */
+  shapeThrough: boolean;
   view: View;
   /** Solo view: the panel shown face-on, and the view to return to. */
   soloPanel: string | null;
@@ -101,7 +103,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -134,6 +136,7 @@ export const useStore = create<State>()((set, get) => ({
   selection: null,
   tool: 'select',
   shapeOp: 'cut',
+  shapeThrough: false,
   view: '3d',
   soloPanel: null,
   prevView: '3d',

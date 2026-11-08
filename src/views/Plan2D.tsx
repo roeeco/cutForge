@@ -237,7 +237,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         if (g.kind === 'resize') st.preview((x) => updateDetail(x, g.id, { cx, cy, w: Math.max(0.5, w), h: Math.max(0.5, h) }));
         else {
           const shape = st.tool === 'select' || st.tool === 'panel' ? 'rect' : st.tool;
-          st.preview((x) => void addDetail(x, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id));
+          st.preview((x) => void addDetail(x, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id, st.shapeThrough));
         }
         setLabel({ text: circle ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, ...svgPoint(ev) });
       }

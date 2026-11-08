@@ -8,6 +8,7 @@ import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Not
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgeNeighbours, edgePieces, FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
 import { minWeb } from './materials';
+import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 
@@ -49,7 +50,7 @@ export const cornerAngle = (f: { sin: number; cos: number }) => (Math.atan2(f.si
  * other's slab (an outer corner, outer dimensions), at a corner angle between
  * 30° and 150°.
  */
-export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1): CornerFit | null {
+export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1, range?: [number, number]): CornerFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   const [a0, a1] = edgeWorld(A, eA), [b0, b1] = edgeWorld(B, eB);
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
@@ -61,7 +62,11 @@ export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen =
   const ka = v3dot(inwardWorld(A, eA), matDir(B.frame)), kb = v3dot(inwardWorld(B, eB), matDir(A.frame));
   if (perp ? ka < 0.9 || kb < 0.9 : ka < SIN_MIN || kb < SIN_MIN) return null;
   const sb0 = v3dot(v3sub(b0, a0), dirA), sb1 = v3dot(v3sub(b1, a0), dirA);
-  const s0 = Math.max(0, Math.min(sb0, sb1)), s1 = Math.min(La, Math.max(sb0, sb1));
+  let s0 = Math.max(0, Math.min(sb0, sb1)), s1 = Math.min(La, Math.max(sb0, sb1));
+  if (range) {
+    s0 = Math.max(s0, range[0]);
+    s1 = Math.min(s1, range[1]);
+  }
   if (s1 - s0 < minLen) return null;
   const dirB = v3norm(v3sub(b1, b0));
   // cos α = −(material direction A · material direction B)
@@ -102,7 +107,7 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2): FaceFit | null {
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2, range?: [number, number]): FaceFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   if (!perp && !angled) return null;
   const [p0, p1] = edgeWorld(A, eA);
@@ -138,7 +143,11 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = fa
   if (!span) return null;
   const [t0, t1] = span;
   const L = edgeLength(A, eA);
-  const s0 = t0 * L, s1 = t1 * L;
+  let s0 = t0 * L, s1 = t1 * L;
+  if (range) {
+    s0 = Math.max(s0, range[0]);
+    s1 = Math.min(s1, range[1]);
+  }
   if (s1 - s0 < minLen) return null;
   return { s0, s1, d0, d1, k: kk, zE, m, trim };
 }
@@ -402,7 +411,62 @@ export function pieceKeys(p: Panel, key: string): string[] {
 /** The edge a piece key belongs to (`e2#1` → `e2`). */
 export const baseKey = (k: string) => k.replace(/#\d+$/, '');
 
-function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
+/**
+ * Contact left between the two panels of a seam along the owner edge after
+ * through-cuts (layer 5), as intervals of [s0, s1]; null when nothing was cut.
+ */
+function survivingContact(d: Design, A: Panel, eA: string, B: Panel, eB: string, s0: number, s1: number): [number, number][] | null {
+  const hits = throughHits(d);
+  if (!hits.has(A.id) && !hits.has(B.id)) return null;
+  const ea = findEdge(A, eA);
+  if (!ea) return null;
+  const rA = throughRegions(d, A.id), rB = throughRegions(d, B.id);
+  const L = segLength(ea);
+  const dx = (ea.b.x - ea.a.x) / L, dy = (ea.b.y - ea.a.y) / L;
+  const eb = eB !== FACE ? findEdge(B, eB) : undefined;
+  const ib = eb ? segInward(eb) : null;
+  const gone = (s: number) => {
+    const q = { x: ea.a.x + dx * s - dy * 0.05, y: ea.a.y + dy * s + dx * 0.05 };
+    if (rA.some((r) => pointInPolygon(q, r))) return true;
+    if (!rB.length) return false;
+    const w = toWorld(A.frame, ea.a.x + dx * s, ea.a.y + dy * s, d.material.thickness / 2);
+    let qb = toLocal(B.frame, w);
+    if (ib) qb = { x: qb.x + ib.x * 0.05, y: qb.y + ib.y * 0.05 };
+    return rB.some((r) => pointInPolygon(qb, r));
+  };
+  const out: [number, number][] = [];
+  let start: number | null = null, any = false;
+  const step = 0.25;
+  for (let s = s0; s <= s1 + 1e-9; s += step) {
+    const g = gone(Math.min(s, s1));
+    if (g) any = true;
+    if (!g && start === null) start = Math.max(s0, s - step / 2);
+    if (g && start !== null) {
+      out.push([start, s - step / 2]);
+      start = null;
+    }
+  }
+  if (start !== null) out.push([start, s1]);
+  return any ? out : null;
+}
+
+function mergeGeoms(parts: (ConnGeom | null)[]): ConnGeom | null {
+  const g = empty();
+  let any = false;
+  for (const one of parts) {
+    if (!one) continue;
+    any = true;
+    g.edges.push(...one.edges);
+    g.holes.push(...one.holes);
+    g.adds.push(...one.adds);
+    g.scores.push(...one.scores);
+    g.flaps3d.push(...one.flaps3d);
+    if (one.cuts?.length) g.cuts = [...(g.cuts ?? []), ...one.cuts];
+  }
+  return any ? g : null;
+}
+
+function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): ConnGeom | null {
   const t = d.material.thickness, cl = d.material.clearance;
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -413,8 +477,13 @@ function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
   if (c.kind === 'fold' || c.kind === 'lean' || (c.kind === 'butt' && c.grown)) return g;
 
   if (c.kind === 'finger') {
-    const fit = cornerFit(A, c.a.edge, B, c.b.edge);
+    const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1, rng);
     if (!fit) return null;
+    if (!rng) {
+      // a through-cut took part of the contact: lay fingers out on what is left
+      const parts = survivingContact(d, A, c.a.edge, B, c.b.edge, fit.s0, fit.s1);
+      if (parts) return mergeGeoms(parts.map((r) => (r[1] - r[0] >= minContact(d, c) ? connectionGeomOne(d, c, r) : null)));
+    }
     const L = fit.s1 - fit.s0;
     // three fingers need some room: less contact than that (a notch in the edge) flags the seam
     if (L < minContact(d, c)) return null;
@@ -472,8 +541,12 @@ function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
   const { owner, edge, receiver } = ownerOf(c);
   const O = d.panels[owner], R = d.panels[receiver];
   const corner = !c.grown && c.b.edge !== FACE;
-  const fit = faceFit(O, edge, R, t, corner);
+  const fit = faceFit(O, edge, R, t, corner, 2, rng);
   if (!fit) return null;
+  if (!rng) {
+    const parts = survivingContact(d, O, edge, R, c.grown ? FACE : c.b.edge === FACE ? FACE : c.b.edge, fit.s0, fit.s1);
+    if (parts) return mergeGeoms(parts.map((r) => (r[1] - r[0] >= 2 ? connectionGeomOne(d, c, r) : null)));
+  }
   const len = fit.s1 - fit.s0;
   if (corner && c.kind === 'tabslot') return cornerTabs(d, c, O, edge, R, c.b.edge, fit);
   if (corner && c.kind === 'glue' && fit.m !== 0) return cornerGlue(d, c, O, edge, R, c.b.edge, fit);

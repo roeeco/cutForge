@@ -6,6 +6,7 @@ import type { EdgeArg } from './edges';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, flattenContour, IDENTITY, pointInPolygon, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { holeCuts, ownOutline } from './outline';
+import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
 
@@ -122,7 +123,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     let merged: MultiPolygon = polys.length === 1 ? [polys[0]] : polygonClipping.union(polys[0], ...polys.slice(1));
     // material joints remove past a corner (layer 7)
     const cutPolys: Polygon[] = [];
-    for (const { panelId, xf } of group) for (const k of panelExtras(d, d.panels[panelId]).cuts) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
+    for (const { panelId, xf } of group) {
+      for (const k of panelExtras(d, d.panels[panelId]).cuts) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
+      // through-cuts from other panels (layer 5)
+      for (const k of throughRegions(d, panelId)) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
+    }
     if (cutPolys.length) merged = polygonClipping.difference(merged, ...cutPolys);
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
@@ -134,6 +139,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       return out;
     };
     const key = group[0].panelId;
+    if (!merged.length) return []; // removed by a cut: flagged, not cut
     if (merged.length < 2) {
       const outer = merged.flatMap(ringContours);
       // the largest outer ring first (packing and selection use contours[0])

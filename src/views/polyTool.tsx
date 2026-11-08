@@ -108,7 +108,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       }
     } else {
       const pid = d.panelId;
-      st.apply((x) => void (id = addPolygonShape(x, pid, pts, st.shapeOp, regular)));
+      st.apply((x) => void (id = addPolygonShape(x, pid, pts, st.shapeOp, regular, undefined, st.shapeThrough)));
       if (id) st.select(detailSel([id]));
     }
   };
