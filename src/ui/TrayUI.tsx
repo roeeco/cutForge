@@ -2,7 +2,7 @@
 // then "Add walls"), the tray section of a base's card (height, joints,
 // open edges with "Wall it"), and the own-height switch on a tray wall.
 import { useStore, useT } from '../store/store';
-import { NumField } from './NumField';
+import { NumField, Segmented } from './NumField';
 import { Icon } from './icons';
 import { addTray, parentConnection, setCustomHeight, setTrayHeight, setTrayKinds, wallIt } from '../model/ops';
 import { shortEdges, trayKinds, trayOf, MIN_EDGE } from '../model/trays';
@@ -99,6 +99,14 @@ export function TraySection({ panelId }: { panelId: string }) {
           ))}
         </select>
       </div>
+      {tray.cornerKind === 'tabslot' && (
+        <Segmented
+          label={t('conn.tabLen')}
+          value={tray.tabLen ?? 'flush'}
+          options={(['flush', 'through'] as const).map((o) => ({ value: o, label: t(`conn.tabLen.${o}`), testId: `tray-tablen-${o}` }))}
+          onChange={(o) => apply((x) => setTrayKinds(x, tray.id, { tabLen: o as 'flush' | 'through' }))}
+        />
+      )}
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (

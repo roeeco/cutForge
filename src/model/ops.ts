@@ -242,11 +242,15 @@ export function setTrayHeight(d: Design, trayId: string, height: number) {
   solve(d);
 }
 
-/** Change a tray's wall-to-base or corner joint for all its walls and corners. */
-export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray, 'wallKind' | 'cornerKind'>>) {
+/** Change a tray's wall-to-base or corner joint (or its tab length) for all its walls and corners. */
+export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'tabLen'>>) {
   const tray = d.trays?.[trayId];
   if (!tray) return;
   Object.assign(tray, patch);
+  if (patch.tabLen) for (const c of Object.values(d.connections)) if (c.trayId === trayId && !c.grown) {
+    if (patch.tabLen === 'through') c.tabLen = 'through';
+    else delete c.tabLen;
+  }
   for (const c of Object.values(d.connections)) {
     if (c.trayId !== trayId) continue;
     if (c.grown && patch.wallKind) {
@@ -360,7 +364,7 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   // a seam is kept on whole edges: its joint lays out over every piece of an edge a cut split
   let a = { ...seam.a, edge: baseKey(seam.a.edge) }, b = { ...seam.b, edge: baseKey(seam.b.edge) };
   if (seam.type === 'corner' && d.order.indexOf(a.panelId) > d.order.indexOf(b.panelId)) [a, b] = [b, a];
-  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}) };
+  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}), ...(tray?.tabLen === 'through' ? { tabLen: 'through' as const } : {}) };
   if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
   solve(d);
   return cid;
@@ -840,7 +844,7 @@ export function setMaterial(d: Design, m: MaterialProfile) {
   solve(d);
 }
 
-export type ConnPatch = Partial<Pick<Connection, 'kind' | 'fingers' | 'tabs' | 'flap' | 'foldDir' | 'angle' | 'offset' | 'dir'>>;
+export type ConnPatch = Partial<Pick<Connection, 'kind' | 'fingers' | 'tabs' | 'flap' | 'foldDir' | 'angle' | 'offset' | 'dir' | 'tabLen' | 'lockDepth'>>;
 
 export function setConnection(d: Design, connectionId: string, patch: ConnPatch) {
   const c = d.connections[connectionId];
@@ -863,6 +867,12 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.tabs !== undefined) c.tabs = patch.tabs === null ? null : Math.max(1, Math.round(patch.tabs));
   if (patch.flap !== undefined) c.flap = patch.flap === null ? null : Math.max(3, patch.flap);
   if (patch.foldDir) c.foldDir = patch.foldDir;
+  if (patch.tabLen) {
+    if (patch.tabLen === 'through') c.tabLen = 'through';
+    else delete c.tabLen;
+    c.auto = false;
+  }
+  if (patch.lockDepth !== undefined) c.lockDepth = patch.lockDepth === null ? null : Math.max(2, patch.lockDepth);
   if (patch.dir && c.grown) c.dir = patch.dir;
   if (patch.offset !== undefined && c.grown) c.offset = Math.max(0, patch.offset);
   solve(d);

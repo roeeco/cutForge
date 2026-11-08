@@ -138,3 +138,5 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Through-cut regions** are sampled for joints at 0.25 mm along each shared edge; a surviving stretch shorter than three fingers' room gets no fingers. Edge-on strips run the full panel along the cut direction (the cut goes through the whole design).
 - **A removed panel** stays in the model and the 3D view (faint amber ghost) and is left out of the cut plan; its joints break, which the export check also reports.
 - **Linked selection** works in 3D (click the cut region on any panel it reaches). In the cut plan the derived cuts are part of each piece's outline and holes.
+- **Through tab length:** `t + lockDepth`, where `lockDepth` (default max(4 mm, 1.5t): 6 mm on 4 mm board, 4 mm on 1.6 mm) is the part past the receiver's far face that folds under. This is the same reach as a fold-over lock tab (t + max(4, 1.5t)). The score is a plain SCORE-layer line across the tab.
+- **Through tabs are set per joint** (*Joints, advanced*) or for all the corners of a tray (tray card); changing it makes an automatic joint manual, so it is kept.

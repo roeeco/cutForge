@@ -265,6 +265,21 @@ Not done
 - The cut plan draws derived cuts in the normal cut colour but has no link marker on hover.
 - A polygon drawn with the polygon tool shows its count once closed (the drag preview is for rectangles, rounded rectangles and circles).
 
+## Milestone 13 — Corrugated locks ✅
+
+Implemented
+- Through tabs on tab-and-slot joints (`Connection.tabLen: 'flush' | 'through'`, `lockDepth`, default max(4 mm, 1.5t)): a through tab passes the receiver and reaches `lockDepth` past its far face, with a score across the tab where it leaves the slot, so it folds under and locks without glue. Works on edge-on-face seams (a wall on a base: the score is at the base's underside) and on corner tab-and-slot (the score is at the receiving wall's outer face). Slots are unchanged: the tab's volume inside the receiver, + c/2 all round — (t + c) × (w + c).
+- Flute-aware minimum tab width: on corrugated, tabs are at least max(4 mm, 3t) wide; the tab count drops to fit (already used by corner tab-and-slot since milestone 8).
+- Interface: the joint card (Joints, advanced) for tab-and-slot has *Tabs: Flush / Through, fold under*, the fold-under length, and the minimum-width note on corrugated; a tray with tab-and-slot corners has the same switch on its card for all its corners (and corners it makes later).
+
+Verified
+- `tests/locks.test.ts`: a **corr-4 tray with through tabs**: four tab-and-slot corners whose slots are exactly (t + c) × (w + c), and the exported file has every one of them; tabs protrude by the lock depth (6 mm), one score per tab on the owner's edge line (the receiver's far face) as long as the tab, the outline really reaches 6 mm past the edge, clean export check; corrugated tabs at least 12 mm wide even when 20 tabs are asked for; a corrugated wall on a base with through tabs (score at the underside, slot t + c across, no overlap).
+- `tests/e2e/trays.spec.ts`: the tray card's *Through* switch sets every corner and the joint card shows the fold-under length.
+- `npm test` 169 passed.
+
+Not done
+- The 3D view draws through tabs straight (as cut), not folded under.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

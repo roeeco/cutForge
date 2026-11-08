@@ -491,4 +491,10 @@ export const he: Record<MsgKey, string> = {
   'through.label': "חיתוך עובר",
   'through.help': "מסיר חומר מכל לוח שבדרכו, במבט ישר דרך הלוח הזה. הוא לא מזיז דבר.",
   'through.linked': "חיתוך עובר מ־{panel}",
+  'conn.tabLen': "לשוניות",
+  'conn.tabLen.flush': "בגובה הפנים",
+  'conn.tabLen.through': "עוברות ומתקפלות",
+  'conn.lockDepth': "אורך הקיפול",
+  'conn.throughHelp': "כל לשונית עוברת בחריץ שלה ומתקפלת לאורך קו הסימון, ונועלת את החיבור בלי דבק.",
+  'conn.minTab': "הלשוניות ברוחב {w} מ\"מ לפחות, כדי שכל אחת תתפוס כמה גלים.",
 };

@@ -70,3 +70,36 @@ test('card hexagon: extrude, one net, shared height, open a side and wall it aga
   await expect(page.locator('[data-piece]')).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+test('corrugated tray: tab-and-slot corners switched to through tabs on the tray card', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('mat-corr-4').click();
+  await page.getByTestId('start-go').click();
+  await page.getByTestId('hints-dismiss').click();
+  const base = await S<string>(page, () => {
+    const cf = (window as any).__cutforge;
+    let b = '';
+    cf.store.getState().apply((d: any) => {
+      b = cf.ops.addRootPanel(d, -75, 50, 150, 100);
+      cf.ops.addTray(d, b, 60);
+    });
+    return b;
+  });
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), base);
+  await expect(page.getByTestId('tray-corner-kind')).toHaveValue('tabslot');
+  await page.getByTestId('tray-tablen-through').click();
+  const d = await design(page);
+  const cs = Object.values(d.connections).filter((x: any) => !x.grown && x.trayId);
+  expect(cs).toHaveLength(4);
+  for (const c of cs as any[]) {
+    expect(c.tabLen).toBe('through');
+    expect(c.geom.scores.length).toBeGreaterThan(0);
+  }
+  // the joint card shows the fold-under length
+  const wall = (cs[0] as any).a.panelId;
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), wall);
+  await page.getByTestId('joints-advanced').click();
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().set({ openJoint: id }), (cs[0] as any).id);
+  await expect(page.getByTestId('conn-tablen-through')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('conn-lockdepth')).toBeVisible();
+});

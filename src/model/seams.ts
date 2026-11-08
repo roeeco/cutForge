@@ -560,9 +560,12 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const n = d.material.kind === 'corrugated' ? tabCount(d, c, len) : Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1));
     const seg = len / (2 * n + 1);
     const notches: Notch[] = [];
+    const lock = throughLock(d, c);
     for (let k = 0; k < 2 * n + 1; k++) {
       const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
-      notches.push({ s0, s1, depth: k % 2 ? fit.d0 : fit.d1 });
+      notches.push({ s0, s1, depth: k % 2 ? fit.d0 - lock : fit.d1 });
+      // a through tab folds under where it leaves the slot
+      if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, edge, s0, fit.d0), b: edgePoint(O, edge, s1, fit.d0) });
       if (k % 2) {
         const corners: P2[] = [];
         for (const s of [s0, s1])
@@ -624,9 +627,11 @@ function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   const seg = len / (2 * n + 1);
   const notches: Notch[] = [];
   const slots: P2[][] = [];
+  const lock = throughLock(d, c);
   for (let k = 0; k < 2 * n + 1; k++) {
     const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
-    notches.push({ s0, s1, depth: k % 2 ? fit.trim : fit.d1 });
+    notches.push({ s0, s1, depth: k % 2 ? fit.trim - lock : fit.d1 });
+    if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, eO, s0, fit.trim), b: edgePoint(O, eO, s1, fit.trim) });
     if (k % 2) {
       const corners: P2[] = [];
       for (const s of [s0, s1])
@@ -651,6 +656,16 @@ function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
     g.edges.push({ panelId: R.id, edge: eR, notches: [{ s0: Math.max(0, Math.min(b0, b1)), s1: Math.min(segLength(re), Math.max(b0, b1)), depth: -(out + minWeb(d.material)) }] });
   }
   return g;
+}
+
+/** Default length a through tab reaches past the receiver's far face, before it folds under. */
+export function autoLockDepth(m: MaterialProfile): number {
+  return Math.max(4, 1.5 * m.thickness);
+}
+
+/** How far a tab-and-slot joint's tabs reach past the receiver (0 for flush tabs). */
+export function throughLock(d: Design, c: Pick<Connection, 'tabLen' | 'lockDepth'>): number {
+  return c.tabLen === 'through' ? (c.lockDepth ?? autoLockDepth(d.material)) : 0;
 }
 
 /** Tab count for a tab-and-slot seam of this length (explicit or automatic), keeping tabs at least the material's minimum width. */

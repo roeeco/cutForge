@@ -489,6 +489,12 @@ export const en = {
   'through.label': "Cut through",
   'through.help': "Removes material from every panel in its path, looking straight through this panel. It never moves anything.",
   'through.linked': "Through-cut from {panel}",
+  'conn.tabLen': "Tabs",
+  'conn.tabLen.flush': "Flush",
+  'conn.tabLen.through': "Through, fold under",
+  'conn.lockDepth': "Fold-under length",
+  'conn.throughHelp': "Each tab passes through its slot and folds under along the score line, locking the joint without glue.",
+  'conn.minTab': "Tabs are at least {w} mm wide, so each spans several flutes.",
 } as const;
 
 export type MsgKey = keyof typeof en;

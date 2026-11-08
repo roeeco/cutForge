@@ -9,7 +9,7 @@ import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { addDivider, addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
-import { autoFlap, autoTabs, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
+import { autoFlap, autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design } from '../model/types';
@@ -77,6 +77,23 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
         <Stepper label={t('conn.fingers')} value={fingerCountFor(c, len, d.material.thickness)} step={2} min={3} max={99} slider={false} onCommit={(v) => apply((x) => setConnection(x, c.id, { fingers: v }))} testId="conn-fingers" />
       )}
       {c.kind === 'tabslot' && <Stepper label={t('conn.tabs')} value={c.tabs ?? autoTabs(len)} min={1} max={30} onCommit={(v) => apply((x) => setConnection(x, c.id, { tabs: v }))} testId="conn-tabs" />}
+      {c.kind === 'tabslot' && (
+        <>
+          <Segmented
+            label={t('conn.tabLen')}
+            value={c.tabLen ?? 'flush'}
+            options={(['flush', 'through'] as const).map((o) => ({ value: o, label: t(`conn.tabLen.${o}`), testId: `conn-tablen-${o}` }))}
+            onChange={(o) => apply((x) => setConnection(x, c.id, { tabLen: o as 'flush' | 'through' }))}
+          />
+          {c.tabLen === 'through' && (
+            <>
+              <NumField label={t('conn.lockDepth')} value={c.lockDepth ?? autoLockDepth(d.material)} unit={mm} min={2} max={60} onCommit={(v) => apply((x) => setConnection(x, c.id, { lockDepth: v }))} testId="conn-lockdepth" />
+              <p className="note">{t('conn.throughHelp')}</p>
+            </>
+          )}
+          {d.material.kind === 'corrugated' && <p className="note">{t('conn.minTab', { w: fmtNum(minTabWidth(d.material), 1) })}</p>}
+        </>
+      )}
       {c.kind === 'glue' && <NumField label={t('conn.flap')} value={c.flap ?? autoFlap(d.material)} unit={mm} min={3} max={100} onCommit={(v) => apply((x) => setConnection(x, c.id, { flap: v }))} />}
       {c.grown && isChild && (c.kind === 'tabslot' || c.offset > 0) && (
         <NumField label={t('conn.offset')} value={c.offset} unit={mm} min={0} max={2000} onCommit={(v) => apply((x) => setConnection(x, c.id, { offset: v }))} testId="conn-offset" />

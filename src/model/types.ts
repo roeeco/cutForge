@@ -156,6 +156,13 @@ export type Connection = {
   trayId?: string;
   /** Broken because the panels still meet but too briefly for the joint (a cut took the contact). */
   thin?: boolean;
+  /**
+   * Tab-and-slot: tabs flush with the receiver's far face (default), or long
+   * enough to pass through and fold under (`lockDepth` mm past the far face,
+   * null = max(4, 1.5t)), with a score where they leave the slot.
+   */
+  tabLen?: 'flush' | 'through';
+  lockDepth?: number | null;
 };
 
 export type Notch = { s0: number; s1: number; depth: number };
@@ -215,6 +222,8 @@ export type Tray = {
   cornerKind: ConnectionKind;
   /** Edges left without a wall (deleted walls; "Wall it" removes them again). */
   openEdges: string[];
+  /** Tab-and-slot corners: tabs that pass through and fold under. */
+  tabLen?: 'flush' | 'through';
 };
 
 export const SCHEMA_VERSION = 6;
