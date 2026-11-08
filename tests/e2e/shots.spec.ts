@@ -109,3 +109,29 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-09-ply-L-tray.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`shots gable ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    const front = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let f = '';
+      cf.store.getState().apply((d: any) => {
+        const b = cf.ops.addRootPanel(d, -70, 50, 140, 100);
+        const ws = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, b, e, { height: 60, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+        f = ws[0];
+        cf.ops.addWallInsert(d, ws[0], 'e2', 0.5, 35);
+        cf.ops.addWallInsert(d, ws[2], 'e2', 0.5, 35);
+        cf.ops.growPanel(d, ws[0], 'e2', { height: 100, angle: 90, dir: 'up', kind: 'finger' });
+      });
+      return f;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), front);
+    await page.getByTestId('edit-outline').click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-10-gable-roof.png` });
+  });
+}

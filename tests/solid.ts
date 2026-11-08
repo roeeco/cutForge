@@ -9,7 +9,8 @@ export function solidCounter(d: Design) {
   const t = d.material.thickness;
   const solids = d.order.map((id) => {
     const p = d.panels[id];
-    return { p, outline: panelOutline(p, panelNotches(d, p)), holes: panelExtras(d, p).holes, m: matDir(p.frame) };
+    const ex = panelExtras(d, p);
+    return { p, outline: panelOutline(p, panelNotches(d, p)), holes: [...ex.holes, ...ex.cuts], m: matDir(p.frame) };
   });
   return (P: V3) => {
     let n = 0;

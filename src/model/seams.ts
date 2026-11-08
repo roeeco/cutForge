@@ -6,7 +6,7 @@
 import './outline';
 import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
-import { edgePieces, FACE, findEdge, panelEdges, segInward, segLength, type EdgeArg } from './edges';
+import { edgeNeighbours, edgePieces, FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
 import { minWeb } from './materials';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
@@ -333,6 +333,29 @@ export function ownerOf(c: Connection): { owner: string; edge: string; receiver:
 
 const empty = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [], flaps3d: [] });
 
+/**
+ * Past the ends of a corner's shared edge, a panel whose outline turns back
+ * into the other's slab (a wall lowered at the corner) would overlap it: that
+ * sliver is cut away (a strip `depth` deep along the edge line, beyond the edge).
+ */
+function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string; poly: P2[] }[] {
+  const e = findEdge(P, key);
+  const nb = edgeNeighbours(P, key);
+  if (!e || !nb || depth <= 0) return [];
+  const out: { panelId: string; poly: P2[] }[] = [];
+  const dir = segDir(e), inw = segInward(e), L = segLength(e);
+  const far = 10000;
+  const strip = (s0: number, s1: number) => [0, 1, 2, 3].map((i) => {
+    const s = i === 0 || i === 3 ? s0 : s1, dd = i < 2 ? -0.001 : depth;
+    return { x: e.a.x + dir.x * s + inw.x * dd, y: e.a.y + dir.y * s + inw.y * dd };
+  });
+  // material runs on past the edge's end (the next edge carries on forward and inward: a corner over 90°), or before its start
+  const nd = segDir(nb[1]), pd = segDir(nb[0]);
+  if (nd.x * dir.x + nd.y * dir.y > 1e-6 && nd.x * inw.x + nd.y * inw.y > 1e-6) out.push({ panelId: P.id, poly: strip(L, L + far) });
+  if (pd.x * dir.x + pd.y * dir.y > 1e-6 && pd.x * inw.x + pd.y * inw.y < -1e-6) out.push({ panelId: P.id, poly: strip(-far, 0) });
+  return out;
+}
+
 /** Geometry for one connection, or null when its panels no longer meet. */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
@@ -354,6 +377,7 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
             g.adds.push(...one.adds);
             g.scores.push(...one.scores);
             g.flaps3d.push(...one.flaps3d);
+            if (one.cuts?.length) g.cuts = [...(g.cuts ?? []), ...one.cuts];
           } else if (c.kind === 'finger' && kb !== FACE) {
             // pieces that still meet but too briefly for fingers: the second panel gives way there
             const f = cornerFit(A, ka, B, kb, 1e-6);
@@ -420,6 +444,10 @@ function connectionGeomOne(d: Design, c: Connection): ConnGeom | null {
       if (B.ext.e > 0) nb.push({ s0: L - B.ext.e, s1: L, depth: t });
     }
     g.edges.push({ panelId: A.id, edge: c.a.edge, notches: na }, { panelId: B.id, edge: c.b.edge, notches: nb });
+    if (!c.grown) {
+      const sl = [...cornerSlivers(A, c.a.edge, depth), ...cornerSlivers(B, c.b.edge, depth)];
+      if (sl.length) g.cuts = sl;
+    }
     return g;
   }
 

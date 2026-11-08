@@ -77,7 +77,8 @@ type State = {
   ngonSides: number;
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
-  selVertex: number | null;
+  /** A base vertex index, or on a wall a free corner ('tl' | 'tr') or an inserted point's id. */
+  selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
   extrude: { baseId: string; height: number } | null;
 

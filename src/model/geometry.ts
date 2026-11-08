@@ -32,14 +32,15 @@ export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
 
 /** Slots, glue flaps and flap score lines that connections add to a panel. */
 export function panelExtras(d: Design, p: Panel) {
-  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [];
+  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [];
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;
+    for (const k of c.geom.cuts ?? []) if (k.panelId === p.id) cuts.push(k.poly);
     for (const h of c.geom.holes) if (h.panelId === p.id) holes.push(h.poly);
     for (const a of c.geom.adds) if (a.panelId === p.id) adds.push(a.poly);
     for (const s of c.geom.scores) if (s.panelId === p.id) scores.push(s);
   }
-  return { holes, adds, scores };
+  return { holes, adds, scores, cuts };
 }
 
 const EPS = 1e-7;

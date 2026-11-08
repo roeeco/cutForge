@@ -235,6 +235,19 @@ Verified
 Not done
 - A crease between two walls of a tray is not offered (it would need nets that fold across closing seams); the tray card says why.
 
+## Milestone 11 — Wall outline editing ✅
+
+Implemented
+- Wall sketch editing (`src/model/ops.ts`): `setWallCorner` (top corners move freely; the attached bottom edge is locked), `addWallInsert` / `moveWallInsert` / `deleteWallInsert` (a point at fraction t along a free edge, pushed `off` mm outward; a gable is one insert on `e2`). The part of an edge after an insert takes the insert's id as its key. Points scale with the width and keep their offsets when the height changes.
+- *Edit outline* on a wall's card: draggable top-corner and insert handles, "+" on every free edge segment, greyed bottom corners; Delete removes a selected insert (or resets a corner).
+- Sloped edges are ordinary keyed edges: grow from them with the hinge dial and zones (a roof on a gable), and joints re-lay when the gable changes.
+- Corner slivers: where a wall's outline runs on past the end of a shared corner edge into the other panel's slab (a wall lowered at the corner), that sliver is cut away (`ConnGeom.cuts`, subtracted in layer 7, in the cut file and in 3D).
+
+Verified
+- `tests/walls.test.ts`: gable keys and apex, bottom corners locked to the edge, points keep offsets on height change, insert delete; a top corner lowered at a finger corner (corner re-lays, no overlap); **a roof grown from a gable's sloped edge**: hinge zones on the slope, roof width = slope length and runs along it, **steeper gable re-lays the roof's fingers**, no overlap at the joint.
+- `tests/e2e/walls.spec.ts`: "+" on a wall's top edge, drag the point up into a gable, grow a roof from the slope in the grow card. Screenshot `docs/polygon-shots/*-10-gable-roof.png`.
+- `npm test` 161 passed; golden exports unchanged.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

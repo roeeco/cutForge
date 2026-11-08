@@ -105,7 +105,7 @@ export function Inspector() {
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           <PanelHinge panelId={id} />
           <TrayWallNote panelId={id} />
-          {!parent && p.sketch.kind === 'poly' && view === '3d' && (
+          {((!parent && p.sketch.kind === 'poly') || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
               aria-pressed={editOutline === id}

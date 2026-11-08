@@ -4,6 +4,7 @@ import type { Design, Frame, Panel } from '../model/types';
 import type { Contour, Vec2 } from '../geom/types';
 import { flattenContour, pointInPolygon } from '../geom/vec';
 import { holeCuts, ownOutline } from '../model/outline';
+import polygonClipping from 'polygon-clipping';
 import { panelExtras, panelNotches, panelOutline } from '../model/geometry';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
@@ -27,7 +28,14 @@ export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = 
   const t = d.material.thickness;
   const own = ownOutline(p);
   const notches = opts.joints === false ? {} : panelNotches(d, p);
-  const rings = own.rings.map((r) => panelOutline(p, notches, r));
+  let rings = own.rings.map((r) => panelOutline(p, notches, r));
+  const cuts = opts.joints === false ? [] : panelExtras(d, p).cuts;
+  if (cuts.length) {
+    // material a joint removes past a corner
+    const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
+    const res = polygonClipping.difference(rings.map((r) => [ring(r)]), ...cuts.map((k) => [ring(k)]));
+    rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
+  }
   const shapes = rings.map((r) => new THREE.Shape(toShapePts(r)));
   // each hole goes into the ring that contains it
   const addHole = (pts: Vec2[]) => {

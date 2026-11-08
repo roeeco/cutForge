@@ -394,7 +394,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
-      {selPanel && tool === 'select' && !folded && selGrown && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
       {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>

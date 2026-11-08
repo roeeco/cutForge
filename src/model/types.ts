@@ -173,6 +173,8 @@ export type ConnGeom = {
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
   flaps3d: { panelId: string; poly: P2[]; z0: number; z1: number }[];
+  /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
+  cuts?: { panelId: string; poly: P2[] }[];
 };
 
 export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean };

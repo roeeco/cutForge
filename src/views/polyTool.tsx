@@ -12,9 +12,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Frame, P2, Panel, V3 } from '../model/types';
+import type { Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
-import { addPolygonPanel, addPolygonShape, deleteVertex, insertVertex, isSimplePolygon, moveVertex, regularPolygon } from '../model/ops';
+import { addPolygonPanel, addPolygonShape, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
+import { sketchRing, wallCorners } from '../model/edges';
 import { detailSel, useStore, useT } from '../store/store';
 import { fmtNum } from '../i18n';
 import { mmPerPx, StageHtml } from './widgets';
@@ -282,7 +283,9 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
         ev.preventDefault();
         ev.stopPropagation();
         const i = st.selVertex;
-        st.apply((x) => void deleteVertex(x, p.id, i));
+        if (typeof i === 'number') st.apply((x) => void deleteVertex(x, p.id, i));
+        else if (i === 'tl' || i === 'tr') st.apply((x) => setWallCorner(x, p.id, i, { dx: 0, dy: 0 }));
+        else st.apply((x) => deleteWallInsert(x, p.id, i));
         st.set({ selVertex: null });
       } else if (ev.key === 'Escape' || ev.key === 'Enter') {
         ev.stopPropagation();
@@ -293,7 +296,7 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
     return () => window.removeEventListener('keydown', key, true);
   }, [p.id]);
 
-  if (s.kind !== 'poly') return null;
+  if (s.kind === 'wall') return <WallHandles p={p} mat={mat} z={z} k={k} />;
   const n = s.pts.length;
   const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -351,6 +354,107 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
           </mesh>
         );
       })}
+    </group>
+  );
+}
+
+/**
+ * A wall's outline handles: its two top corners and inserted points can be
+ * dragged; "+" on a free edge inserts a point; the attached bottom edge is
+ * locked (its corners are shown greyed).
+ */
+function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number; k: number }) {
+  const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
+  const selVertex = useStore((s) => s.selVertex);
+  const [hover, setHover] = useState<string | null>(null);
+  const rc = useMemo(() => new THREE.Raycaster(), []);
+  const s = p.sketch as WallSketch;
+  const c = wallCorners(p.w, p.h, s);
+  const ring = sketchRing(p);
+  const drag = (id: string, at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    useStore.getState().set({ selVertex: id });
+    if (controls) controls.enabled = false;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
+    const frame = p.frame;
+    const move = (ev: PointerEvent) => {
+      const r = gl.domElement.getBoundingClientRect();
+      rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
+      if (hit) at(toLocal(frame, [hit.x, hit.y, hit.z]));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (controls) controls.enabled = true;
+      useStore.getState().commit();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const corner = (name: 'tl' | 'tr', base: P2) =>
+    drag(name, (l) => useStore.getState().preview((x) => setWallCorner(x, p.id, name, { dx: Math.round(l.x - base.x), dy: Math.round(l.y - base.y) })));
+  // an insert's base edge (between the rectangle's corners, after their offsets)
+  const baseEdge = (edge: 'e1' | 'e2' | 'e3') => {
+    const i = Number(edge[1]);
+    return { a: c[i], b: c[(i + 1) % 4] };
+  };
+  const toInsert = (edge: 'e1' | 'e2' | 'e3', l: P2) => {
+    const { a, b } = baseEdge(edge);
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const dx = (b.x - a.x) / L, dy = (b.y - a.y) / L;
+    const t = ((l.x - a.x) * dx + (l.y - a.y) * dy) / L;
+    // outward = right of the edge direction
+    const off = (l.x - a.x) * dy - (l.y - a.y) * dx;
+    return { t, off: Math.round(off) };
+  };
+  const ball = (id: string, q: P2, on: ((e: ThreeEvent<PointerEvent>) => void) | null, color?: string) => (
+    <mesh key={id} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={on ?? undefined} onPointerOver={() => on && setHover(id)} onPointerOut={() => setHover(null)} userData={{ vertex: id }}>
+      <sphereGeometry args={[k * (hover === id || selVertex === id ? 1.3 : 1), 12, 10]} />
+      <meshBasicMaterial color={color ?? (selVertex === id ? '#d1372b' : STAGE.selected)} depthTest={false} transparent opacity={on ? 1 : 0.45} />
+    </mesh>
+  );
+  const rect = [{ x: 0, y: p.h }, { x: p.w, y: p.h }];
+  return (
+    <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      {ball('bl', c[0], null, '#9aa3b2')}
+      {ball('br', c[1], null, '#9aa3b2')}
+      {ball('tr', c[2], corner('tr', rect[1]))}
+      {ball('tl', c[3], corner('tl', rect[0]))}
+      {(s.inserts ?? []).map((ins) => {
+        const seg = ring.find((e) => e.key === ins.id);
+        return seg ? ball(ins.id, seg.a, drag(ins.id, (l) => useStore.getState().preview((x) => moveWallInsert(x, p.id, ins.id, toInsert(ins.edge, l))))) : null;
+      })}
+      {ring
+        .filter((e) => e.key !== 'e0')
+        .map((e) => {
+          const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+          const ins = (s.inserts ?? []).find((x) => x.id === e.key);
+          const edge = (ins ? ins.edge : e.key) as 'e1' | 'e2' | 'e3';
+          if (!['e1', 'e2', 'e3'].includes(edge)) return null;
+          const id = `m-${e.key}`;
+          return (
+            <mesh
+              key={id}
+              position={[mid.x, mid.y, z]}
+              renderOrder={9}
+              onPointerOver={() => setHover(id)}
+              onPointerOut={() => setHover(null)}
+              onPointerDown={(ev) => {
+                if (ev.button !== 0) return;
+                ev.stopPropagation();
+                const at = toInsert(edge, mid);
+                let nid: string | null = null;
+                useStore.getState().apply((x) => void (nid = addWallInsert(x, p.id, edge, at.t, at.off)));
+                if (nid) useStore.getState().set({ selVertex: nid });
+              }}
+            >
+              <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
+              <meshBasicMaterial color={hover === id ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={0.9} />
+            </mesh>
+          );
+        })}
     </group>
   );
 }

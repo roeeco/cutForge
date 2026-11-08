@@ -119,7 +119,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
       contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: c.b.panelId, foldId: c.id } });
     }
-    const merged: MultiPolygon = polys.length === 1 ? [polys[0]] : polygonClipping.union(polys[0], ...polys.slice(1));
+    let merged: MultiPolygon = polys.length === 1 ? [polys[0]] : polygonClipping.union(polys[0], ...polys.slice(1));
+    // material joints remove past a corner (layer 7)
+    const cutPolys: Polygon[] = [];
+    for (const { panelId, xf } of group) for (const k of panelExtras(d, d.panels[panelId]).cuts) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
+    if (cutPolys.length) merged = polygonClipping.difference(merged, ...cutPolys);
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {

@@ -3,7 +3,7 @@
 // owned by connections, so every operation ends with a consistent design.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel, Tray } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
@@ -676,6 +676,54 @@ export function deleteVertex(d: Design, panelId: string, i: number): boolean {
   normalizeSketch(p);
   solve(d);
   return true;
+}
+
+/** A grown wall's sketch, if the panel is one. */
+function wallSketch(d: Design, wallId: string): WallSketch | null {
+  const p = d.panels[wallId];
+  return p && p.sketch.kind === 'wall' && parentConnection(d, wallId) ? p.sketch : null;
+}
+
+/**
+ * Move a free corner of a wall (offsets from its rectangle corner). The
+ * bottom corners slide only along the attached edge (dy stays 0).
+ */
+export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off: { dx: number; dy: number }) {
+  const s = wallSketch(d, wallId);
+  if (!s) return;
+  const bottom = corner === 'bl' || corner === 'br';
+  const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100 };
+  s.corners = { ...(s.corners ?? {}), [corner]: v };
+  if (!v.dx && !v.dy) delete s.corners[corner];
+  if (!Object.keys(s.corners).length) delete s.corners;
+  solve(d);
+}
+
+/** Insert a point on a free edge of a wall at fraction t along it, pushed `off` mm outward (a gable: e2, 0.5, 30). */
+export function addWallInsert(d: Design, wallId: string, edge: WallInsert['edge'], t: number, off = 0): string | null {
+  const s = wallSketch(d, wallId);
+  if (!s) return null;
+  const id = newId('i');
+  s.inserts = [...(s.inserts ?? []), { id, edge, t: Math.max(0.01, Math.min(0.99, t)), off }];
+  solve(d);
+  return id;
+}
+
+export function moveWallInsert(d: Design, wallId: string, insertId: string, patch: Partial<Pick<WallInsert, 't' | 'off'>>) {
+  const s = wallSketch(d, wallId);
+  const ins = s?.inserts?.find((x) => x.id === insertId);
+  if (!ins) return;
+  if (patch.t !== undefined) ins.t = Math.max(0.01, Math.min(0.99, patch.t));
+  if (patch.off !== undefined) ins.off = Math.round(patch.off * 100) / 100;
+  solve(d);
+}
+
+export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
+  const s = wallSketch(d, wallId);
+  if (!s?.inserts) return;
+  s.inserts = s.inserts.filter((x) => x.id !== insertId);
+  if (!s.inserts.length) delete s.inserts;
+  solve(d);
 }
 
 export function deletePanel(d: Design, panelId: string) {
