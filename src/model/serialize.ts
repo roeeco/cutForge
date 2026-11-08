@@ -35,6 +35,26 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   },
   // v4 -> v5: optional template reference (nothing to convert).
   4: (d) => d,
+  // v5 -> v6: sketches and edge keys. Root panels become 4-point polygons and
+  // grown panels plain wall sketches; edge n becomes `e<n>` and the face
+  // (-1) becomes `face`, in connections and their stored joint geometry.
+  5: (d) => {
+    const key = (e: any) => (typeof e === 'number' ? (e < 0 ? 'face' : `e${e}`) : e);
+    const conns = Object.values<any>(d.connections ?? {});
+    const children = new Set(conns.filter((c) => c.grown).map((c) => c.b?.panelId));
+    for (const p of Object.values<any>(d.panels ?? {})) {
+      p.sketch ??= children.has(p.id)
+        ? { kind: 'wall' }
+        : { kind: 'poly', pts: [{ x: 0, y: 0 }, { x: p.w, y: 0 }, { x: p.w, y: p.h }, { x: 0, y: p.h }], edgeIds: ['e0', 'e1', 'e2', 'e3'] };
+    }
+    for (const c of conns) {
+      if (c.a) c.a.edge = key(c.a.edge);
+      if (c.b) c.b.edge = key(c.b.edge);
+      for (const e of c.geom?.edges ?? []) e.edge = key(e.edge);
+    }
+    d.trays ??= {};
+    return d;
+  },
 };
 
 export function serializeProject(d: Design): string {

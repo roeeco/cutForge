@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Frame, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
+import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
@@ -27,6 +27,7 @@ import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
+import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/edges';
 
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
@@ -455,7 +456,7 @@ function PanelObject(props: {
   outlines: boolean;
   showEdges: boolean;
   selDetails: string[];
-  selEdge: number | null;
+  selEdge: string | null;
   tool: string;
   folded: boolean;
   onPanelDown: (e: ThreeEvent<PointerEvent>) => void;
@@ -476,7 +477,7 @@ function PanelObject(props: {
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
   }, [d.material.kind, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
-  const free = [0, 1, 2, 3].filter((e) => !edgeConnection(d, p.id, e));
+  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !edgeConnection(d, p.id, e.key));
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
@@ -516,38 +517,37 @@ function PanelObject(props: {
           </group>
         );
       })}
-      {tool === 'select' && !props.folded && free.map((e) => <EdgeHandle key={e} p={p} edge={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e} />)}
+      {tool === 'select' && !props.folded && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
     </group>
   );
 }
 
 /** A free edge: an invisible, screen-sized hit target, a dashed hint when the panel is in focus, and a "+ Grow" pill on hover. */
-function EdgeHandle({ p, edge, t, z0, z1, show, active }: { p: Panel; edge: number; t: number; z0: number; z1: number; show: boolean; active: boolean }) {
+function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSeg; t: number; z0: number; z1: number; show: boolean; active: boolean }) {
   const tt = useT();
   const [hover, setHover] = useState(false);
   const hit = useRef<THREE.Mesh>(null);
   const { camera, size } = useThree();
-  const L = edgeLength(p, edge);
+  const edge = seg.key;
+  const L = segLength(seg);
   const mid = (z0 + z1) / 2;
-  const pos: V3 = edge === 0 ? [p.w / 2, 0, mid] : edge === 1 ? [p.w, p.h / 2, mid] : edge === 2 ? [p.w / 2, p.h, mid] : [0, p.h / 2, mid];
-  const along = edge % 2 === 0;
+  const pos: V3 = [(seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, mid];
+  const rot: [number, number, number] = [0, 0, Math.atan2(seg.b.y - seg.a.y, seg.b.x - seg.a.x)];
   useFrame(() => {
     const m = hit.current;
     if (!m) return;
     const wp = m.getWorldPosition(new THREE.Vector3());
     const k = Math.max(2, 14 * mmPerPx(camera, size.height, wp));
-    m.scale.set(along ? L : k, along ? k : L, t + k);
+    m.scale.set(L, k, t + k);
   });
   const line = useMemo(() => {
-    const a = edge === 0 ? [0, 0] : edge === 1 ? [p.w, 0] : edge === 2 ? [p.w, p.h] : [0, p.h];
-    const b = edge === 0 ? [p.w, 0] : edge === 1 ? [p.w, p.h] : edge === 2 ? [0, p.h] : [0, 0];
-    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a[0], a[1], z1 + 0.2), new THREE.Vector3(b[0], b[1], z1 + 0.2)]);
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(seg.a.x, seg.a.y, z1 + 0.2), new THREE.Vector3(seg.b.x, seg.b.y, z1 + 0.2)]);
     const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: STAGE.selected, dashSize: 4, gapSize: 3, depthTest: false, transparent: true }));
     l.computeLineDistances();
     l.renderOrder = 6;
     l.userData.noAO = true;
     return l;
-  }, [p.w, p.h, edge, z1]);
+  }, [seg.a.x, seg.a.y, seg.b.x, seg.b.y, z1]);
   useEffect(() => () => (line.geometry.dispose(), (line.material as THREE.Material).dispose()), [line]);
   const lit = hover || active;
   return (
@@ -555,6 +555,7 @@ function EdgeHandle({ p, edge, t, z0, z1, show, active }: { p: Panel; edge: numb
       <mesh
         ref={hit}
         position={pos}
+        rotation={rot}
         visible={false}
         onPointerOver={(ev) => (ev.stopPropagation(), setHover(true))}
         onPointerOut={() => setHover(false)}
@@ -569,8 +570,8 @@ function EdgeHandle({ p, edge, t, z0, z1, show, active }: { p: Panel; edge: numb
       </mesh>
       {(show || lit) && <primitive object={line} raycast={() => null} />}
       {lit && (
-        <mesh position={pos} renderOrder={7} raycast={() => null} userData={{ noAO: true }}>
-          <boxGeometry args={along ? [L, 1.2, t + 1.2] : [1.2, L, t + 1.2]} />
+        <mesh position={pos} rotation={rot} renderOrder={7} raycast={() => null} userData={{ noAO: true }}>
+          <boxGeometry args={[L, 1.2, t + 1.2]} />
           <meshBasicMaterial color={active ? STAGE.selected : STAGE.hover} transparent opacity={0.9} depthTest={false} />
         </mesh>
       )}
@@ -695,7 +696,7 @@ function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: n
 const knobAt = (w: number) => Math.min(w * 0.2, 40);
 
 /** Hinge point (at the knob's place along the edge) and its 0° / 90° directions (into the parent, out of its material face), in display space. */
-function hingeBasis(d: Design, parent: Panel, edge: number, m: THREE.Matrix4) {
+function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4) {
   const [a, b] = edgeLocal(parent, edge);
   const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
   const k = knobAt(len) / len;
@@ -704,7 +705,7 @@ function hingeBasis(d: Design, parent: Panel, edge: number, m: THREE.Matrix4) {
 }
 
 /** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow, height label. */
-function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: number; m: THREE.Matrix4 }) {
+function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: string; m: THREE.Matrix4 }) {
   const t = useT();
   const grow = useStore((s) => s.grow);
   const setGrow = useStore((s) => s.setGrow);
@@ -722,7 +723,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const ghost = useMemo(() => {
     if (!parent || !free) return null;
     const frame = frameAt(grow.angle);
-    const p: Panel = { id: 'ghost', name: '', w, h: grow.height, frame, details: [] };
+    const p: Panel = { id: 'ghost', name: '', w, h: grow.height, sketch: { kind: 'wall' }, frame, details: [] };
     return { p, frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
   }, [d, parent, free, edge, grow.angle, grow.height, kind, m]);
   useEffect(() => () => ghost?.geom.dispose(), [ghost]);
@@ -839,16 +840,17 @@ function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4
 
 /** Where a connection's seam is, in display space. */
 function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at = 0.5): V3 | null {
-  const end = c.b.edge >= 0 ? c.b : c.a.edge >= 0 ? c.a : null;
+  const end = c.b.edge !== FACE ? c.b : c.a.edge !== FACE ? c.a : null;
   if (!end) {
     const p = d.panels[c.a.panelId];
     return p ? W(xf.get(p.id) ?? IDM, p.frame, p.w / 2, p.h, d.material.thickness / 2) : null;
   }
   const p = d.panels[end.panelId];
   if (!p) return null;
-  const e = end.edge;
+  const e = findEdge(p, end.edge);
+  if (!e) return null;
   const s = at;
-  const [x, y] = e === 0 ? [p.w * s, 0] : e === 1 ? [p.w, p.h * s] : e === 2 ? [p.w * (1 - s), p.h] : [0, p.h * (1 - s)];
+  const x = e.a.x + (e.b.x - e.a.x) * s, y = e.a.y + (e.b.y - e.a.y) * s;
   return W(xf.get(p.id) ?? IDM, p.frame, x, y, d.material.thickness / 2);
 }
 

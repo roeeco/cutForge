@@ -32,7 +32,9 @@ function renameIds(d: Design, map: Map<string, string>) {
     if (c.geom)
       c.geom = JSON.parse(JSON.stringify(c.geom), (k, v) => (k === 'panelId' && typeof v === 'string' ? r(v) : v));
     // stable connection id from its two ends
-    const id = c.a.panelId.startsWith(PREFIX) && c.b.panelId.startsWith(PREFIX) ? `${PREFIX}c:${c.a.panelId.slice(2)}.${c.a.edge}-${c.b.panelId.slice(2)}.${c.b.edge}` : c.id;
+    // (edge keys written as the old edge numbers, so ids stay the same across schema versions)
+    const n = (e: string) => (e === 'face' ? '-1' : e.replace(/^e(\d+)$/, '$1'));
+    const id = c.a.panelId.startsWith(PREFIX) && c.b.panelId.startsWith(PREFIX) ? `${PREFIX}c:${c.a.panelId.slice(2)}.${n(c.a.edge)}-${c.b.panelId.slice(2)}.${n(c.b.edge)}` : c.id;
     conns[id] = { ...c, id };
   }
   d.connections = conns;

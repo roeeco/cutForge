@@ -231,7 +231,7 @@ describe('dividers and half-laps', () => {
     for (const w of walls) expect(panelExtras(d, d.panels[w]).holes).toHaveLength(0);
     const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap');
     expect(ends.map((c) => c.kind)).toEqual(['slide', 'slide']);
-    expect(panelNotches(d, d.panels[a])[1][0].depth).toBeCloseTo(CORR.thickness + CORR.clearance, 9);
+    expect(panelNotches(d, d.panels[a]).e1[0].depth).toBeCloseTo(CORR.thickness + CORR.clearance, 9);
   });
 });
 

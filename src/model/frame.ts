@@ -1,4 +1,5 @@
-import type { Frame, Panel, V3 } from './types';
+import type { Frame, Panel, Sketch, V3 } from './types';
+import { ek, findEdge, segInward, segLength, type EdgeArg, type EdgeSeg } from './edges';
 import type { Vec2 } from '../geom/types';
 import { v3add, v3clean, v3cross, v3dot, v3mul, v3norm, v3sub } from '../geom/v3';
 
@@ -25,18 +26,25 @@ export function panelCorners(p: { w: number; h: number }): Vec2[] {
     { x: 0, y: p.h },
   ];
 }
-export function edgeLength(p: { w: number; h: number }, edge: number) {
-  return edge % 2 === 0 ? p.w : p.h;
+type Edged = Pick<Panel, 'w' | 'h'> & { sketch?: Sketch };
+function seg(p: Edged, edge: EdgeArg): EdgeSeg {
+  const e = findEdge(p, edge);
+  if (!e) throw new Error(`no edge ${ek(edge)}`);
+  return e;
 }
-export function edgeLocal(p: { w: number; h: number }, edge: number): [Vec2, Vec2] {
-  const c = panelCorners(p);
-  return [c[edge], c[(edge + 1) % 4]];
+export function edgeLength(p: Edged, edge: EdgeArg) {
+  const e = findEdge(p, edge);
+  return e ? segLength(e) : 0;
+}
+export function edgeLocal(p: Edged, edge: EdgeArg): [Vec2, Vec2] {
+  const e = seg(p, edge);
+  return [e.a, e.b];
 }
 /** In-plane unit vector pointing from the edge into the panel (local). */
-export function edgeInwardLocal(edge: number): Vec2 {
-  return [{ x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }, { x: 1, y: 0 }][edge];
+export function edgeInwardLocal(p: Edged, edge: EdgeArg): Vec2 {
+  return segInward(seg(p, edge));
 }
-export function edgeWorld(p: Panel, edge: number): [V3, V3] {
+export function edgeWorld(p: Panel, edge: EdgeArg): [V3, V3] {
   const [a, b] = edgeLocal(p, edge);
   return [toWorld(p.frame, a.x, a.y), toWorld(p.frame, b.x, b.y)];
 }
@@ -60,10 +68,10 @@ export type Seating = 'overlap' | 'onTop';
  * so the outer faces stay flush (outer dimensions). `offset` moves the new
  * panel in from the edge (dividers, tab-and-slot walls).
  */
-export function growFrame(parent: Panel, edge: number, angleDeg: number, dir: GrowDir, t: number, seating: Seating = 'overlap', offset = 0): Frame {
+export function growFrame(parent: Panel, edge: EdgeArg, angleDeg: number, dir: GrowDir, t: number, seating: Seating = 'overlap', offset = 0): Frame {
   const [A0, B] = edgeWorld(parent, edge);
   const U = v3norm(v3sub(B, A0));
-  const inL = edgeInwardLocal(edge);
+  const inL = edgeInwardLocal(parent, edge);
   const dIn = v3norm(v3add(v3mul(parent.frame.u, inL.x), v3mul(parent.frame.v, inL.y)));
   const A = v3add(A0, v3mul(dIn, offset));
   const m = matDir(parent.frame);

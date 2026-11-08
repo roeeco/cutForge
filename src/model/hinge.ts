@@ -12,6 +12,7 @@ import type { GrowDir } from './frame';
 import { edgeLength, growFrame, toWorld } from './frame';
 import { connectionsFor } from './materials';
 import { defaultOffset, hasSideWalls, seatingOf } from './ops';
+import type { EdgeArg } from './edges';
 
 const EPS = 1e-6;
 
@@ -66,7 +67,7 @@ export type HingeCheck = {
  * angles get a note (and side walls where they would hold the panel), and the
  * export check still flags a leaning panel that nothing holds.
  */
-export function checkHinge(d: Design, parentId: string, edge: number, h: number, height: number): HingeCheck {
+export function checkHinge(d: Design, parentId: string, edge: EdgeArg, h: number, height: number): HingeCheck {
   const x = norm360(h);
   const m = d.material;
   const parent = d.panels[parentId];
@@ -83,7 +84,7 @@ export function checkHinge(d: Design, parentId: string, edge: number, h: number,
 }
 
 /** Would the new panel dip below the floor (world y = 0)? */
-function belowFloor(d: Design, parentId: string, edge: number, angle: number, dir: GrowDir, height: number): boolean {
+function belowFloor(d: Design, parentId: string, edge: EdgeArg, angle: number, dir: GrowDir, height: number): boolean {
   const parent = d.panels[parentId];
   const t = d.material.thickness;
   const kind = connectionsFor(d.material, Math.abs(angle - 90) < EPS ? 90 : angle)[0];

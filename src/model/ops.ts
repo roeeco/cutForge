@@ -5,7 +5,8 @@ import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp,
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
 import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
-import { connectionGeom, findOpenSeams, seamKinds, seamStillFits, type OpenSeam } from './seams';
+import { connectionGeom, findOpenSeams, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
+import { edgeNeighbours, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, sketchOf, type EdgeArg } from './edges';
 
 let counter = 0;
 export function newId(prefix: string): string {
@@ -25,6 +26,7 @@ export function createDesign(material: MaterialProfile = DEFAULT_MATERIAL): Desi
     connections: {},
     pieces: {},
     placements: {},
+    trays: {},
     sheetSpacing: 3,
     sheetMargin: 5,
   };
@@ -54,6 +56,17 @@ export function fitKind(c: Connection, allowed: ConnectionKind[]) {
  */
 export function solve(d: Design) {
   const t = d.material.thickness;
+  d.trays ??= {};
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p) continue;
+    p.sketch ??= parentConnection(d, id) ? { kind: 'wall' } : rectSketch(p.w, p.h);
+    // a polygon sketch decides the bounding size
+    if (p.sketch.kind === 'poly' && !isRectSketch(p)) {
+      p.w = Math.max(...p.sketch.pts.map((q) => q.x));
+      p.h = Math.max(...p.sketch.pts.map((q) => q.y));
+    }
+  }
   const done = new Set<string>(d.order.filter((id) => !parentConnection(d, id)));
   const pending = Object.values(d.connections).filter((c) => c.grown);
   let progress = true;
@@ -75,8 +88,7 @@ export function solve(d: Design) {
   }
   for (const c of Object.values(d.connections)) {
     if (!c.grown) {
-      const type = c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face';
-      fitKind(c, seamKinds(d.material, type));
+      fitKind(c, seamKinds(d.material, seamTypeOf(c)));
     }
     const g = connectionGeom(d as Design, c as Connection);
     if (g) {
@@ -89,7 +101,8 @@ export function solve(d: Design) {
 export function addRootPanel(d: Design, x: number, z: number, w: number, h: number): string {
   const id = newId('p');
   const n = d.order.length + 1;
-  d.panels[id] = { id, name: `${n}`, w: Math.max(MIN_PANEL, w), h: Math.max(MIN_PANEL, h), frame: GROUND_FRAME(x, z), details: [] };
+  const pw = Math.max(MIN_PANEL, w), ph = Math.max(MIN_PANEL, h);
+  d.panels[id] = { id, name: `${n}`, w: pw, h: ph, sketch: rectSketch(pw, ph), frame: GROUND_FRAME(x, z), details: [] };
   d.order.push(id);
   d.pieces[id] = { quantity: 1 };
   return id;
@@ -103,9 +116,10 @@ export function defaultOffset(d: Design, kind: ConnectionKind): number {
   return kind === 'tabslot' ? Math.max(minWeb(d.material), d.material.thickness) : 0;
 }
 
-export function growPanel(d: Design, parentId: string, edge: number, opts: GrowOpts): { panelId: string; connectionId: string } | null {
+export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: GrowOpts): { panelId: string; connectionId: string } | null {
   const parent = d.panels[parentId];
-  if (!parent) return null;
+  const edge = ek(edgeArg);
+  if (!parent || !findEdge(parent, edge)) return null;
   const offset = opts.offset ?? defaultOffset(d, opts.kind);
   if (offset === 0 && edgeConnection(d, parentId, edge)) return null;
   const id = newId('p');
@@ -114,6 +128,7 @@ export function growPanel(d: Design, parentId: string, edge: number, opts: GrowO
     name: `${d.order.length + 1}`,
     w: edgeLength(parent, edge),
     h: Math.max(MIN_PANEL, opts.height),
+    sketch: { kind: 'wall' },
     frame: growFrame(parent, edge, opts.angle, opts.dir, d.material.thickness, seatingOf(opts.kind), offset),
     details: [],
   };
@@ -125,7 +140,7 @@ export function growPanel(d: Design, parentId: string, edge: number, opts: GrowO
     kind: opts.kind,
     pref: opts.pref ?? opts.kind,
     a: { panelId: parentId, edge },
-    b: { panelId: id, edge: 0 },
+    b: { panelId: id, edge: 'e0' },
     grown: true,
     angle: opts.angle,
     dir: opts.dir,
@@ -142,7 +157,8 @@ export function growPanel(d: Design, parentId: string, edge: number, opts: GrowO
 }
 
 /** Connection using this edge at the edge itself (not a divider standing in from it). */
-export function edgeConnection(d: Design, panelId: string, edge: number): Connection | undefined {
+export function edgeConnection(d: Design, panelId: string, edgeArg: EdgeArg): Connection | undefined {
+  const edge = ek(edgeArg);
   return Object.values(d.connections).find(
     (c) => (c.a.panelId === panelId && c.a.edge === edge && !(c.grown && c.offset > 0)) || (c.b.panelId === panelId && c.b.edge === edge),
   );
@@ -215,7 +231,7 @@ export function deleteConnection(d: Design, id: string) {
  * (plywood) or resting on the base (paper), ends into the walls, half-laps
  * with crossing dividers.
  */
-export function addDivider(d: Design, baseId: string, edge: number, position: number, height: number): string | null {
+export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: number, height: number): string | null {
   const kind: ConnectionKind = d.material.kind === 'plywood' ? 'tabslot' : 'butt';
   const r = growPanel(d, baseId, edge, { height, angle: 90, dir: 'up', kind, offset: Math.max(0.5, position) });
   if (!r) return null;
@@ -227,12 +243,15 @@ export function addDivider(d: Design, baseId: string, edge: number, position: nu
  * Add a pair of side walls at 90° to the base on the edges next to `edge`,
  * tall enough to hold a panel leaning at `angle` with the given height.
  */
-export function addSideWalls(d: Design, baseId: string, edge: number, angle: number, leanHeight: number, dir: GrowDir = 'up'): string[] {
+export function addSideWalls(d: Design, baseId: string, edge: EdgeArg, angle: number, leanHeight: number, dir: GrowDir = 'up'): string[] {
   const t = d.material.thickness;
+  const base = d.panels[baseId];
+  const nb = base && edgeNeighbours(base, edge);
+  if (!nb) return [];
   const h = Math.ceil(t + leanHeight * Math.sin((angle * Math.PI) / 180) + 5);
   const kind: ConnectionKind = d.material.kind === 'plywood' ? 'finger' : 'fold';
   const made: string[] = [];
-  for (const e of [(edge + 1) % 4, (edge + 3) % 4]) {
+  for (const e of [nb[1].key, nb[0].key]) {
     if (edgeConnection(d, baseId, e)) continue;
     const r = growPanel(d, baseId, e, { height: h, angle: 90, dir, kind });
     if (r) made.push(r.panelId);
@@ -243,8 +262,11 @@ export function addSideWalls(d: Design, baseId: string, edge: number, angle: num
 }
 
 /** Side walls exist next to `edge` of the base (panels at 90° on both neighbouring edges, on the `dir` face). */
-export function hasSideWalls(d: Design, baseId: string, edge: number, dir: GrowDir = 'up'): boolean {
-  return [(edge + 1) % 4, (edge + 3) % 4].every((e) => {
+export function hasSideWalls(d: Design, baseId: string, edge: EdgeArg, dir: GrowDir = 'up'): boolean {
+  const base = d.panels[baseId];
+  const nb = base && edgeNeighbours(base, edge);
+  if (!nb) return false;
+  return [nb[1].key, nb[0].key].every((e) => {
     const c = edgeConnection(d, baseId, e);
     return !!c && c.grown && c.a.panelId === baseId && Math.abs(c.angle - 90) < 1e-6 && c.dir === dir;
   });
@@ -252,7 +274,7 @@ export function hasSideWalls(d: Design, baseId: string, edge: number, dir: GrowD
 
 /** A leaning panel needs tab-and-slot seams on both side edges to be held. */
 export function leanSupported(d: Design, panelId: string): boolean {
-  return [1, 3].every((e) =>
+  return ['e1', 'e3'].every((e) =>
     Object.values(d.connections).some((c) => !c.grown && c.kind === 'tabslot' && !c.broken && c.a.panelId === panelId && c.a.edge === e),
   );
 }
@@ -268,11 +290,62 @@ export function setPanelSize(d: Design, panelId: string, w: number | undefined, 
     const pc = parentConnection(d, panelId);
     if (pc) {
       const parent = d.panels[pc.a.panelId];
-      if (parent) setPanelSize(d, parent.id, pc.a.edge % 2 === 0 ? w : undefined, pc.a.edge % 2 === 1 ? w : undefined);
-    } else p.w = Math.max(MIN_PANEL, w);
+      if (parent) {
+        const i = isRectSketch(parent) ? rectEdgeIndex(pc.a.edge) : null;
+        if (i !== null) setPanelSize(d, parent.id, i % 2 === 0 ? w : undefined, i % 2 === 1 ? w : undefined);
+        else setEdgeLength(d, parent.id, pc.a.edge, w);
+      }
+    } else scaleSketch(p, Math.max(MIN_PANEL, w), p.h);
   }
-  if (h !== undefined) p.h = Math.max(MIN_PANEL, h);
+  if (h !== undefined) {
+    if (parentConnection(d, panelId)) p.h = Math.max(MIN_PANEL, h);
+    else scaleSketch(p, p.w, Math.max(MIN_PANEL, h));
+  }
   solve(d);
+}
+
+/** Stretch a root panel's sketch to a new bounding size. */
+function scaleSketch(p: Panel, w: number, h: number) {
+  const s = sketchOf(p);
+  if (s.kind === 'poly') {
+    const ow = p.w, oh = p.h;
+    s.pts = s.pts.map((q) => ({ x: (q.x / ow) * w, y: (q.y / oh) * h }));
+    p.sketch = s;
+  }
+  p.w = w;
+  p.h = h;
+}
+
+/** Lengthen or shorten one straight edge of a root polygon by moving its end vertex along it. */
+export function setEdgeLength(d: Design, panelId: string, key: string, length: number) {
+  const p = d.panels[panelId];
+  const e = p && findEdge(p, key);
+  if (!p || !e || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return;
+  const i = p.sketch.edgeIds.indexOf(key);
+  if (i < 0) return;
+  const dir = segDir(e);
+  const L = Math.max(MIN_PANEL, length);
+  const n = p.sketch.pts.length;
+  p.sketch.pts[(i + 1) % n] = { x: e.a.x + dir.x * L, y: e.a.y + dir.y * L };
+  normalizeSketch(p);
+}
+
+/** Keep a root polygon's bounding box at the local origin (moving the frame to match) and its edges CCW. */
+export function normalizeSketch(p: Panel) {
+  const s = p.sketch;
+  if (s.kind !== 'poly') return;
+  const minX = Math.min(...s.pts.map((q) => q.x)), minY = Math.min(...s.pts.map((q) => q.y));
+  if (Math.abs(minX) > 1e-9 || Math.abs(minY) > 1e-9) {
+    s.pts = s.pts.map((q) => ({ x: q.x - minX, y: q.y - minY }));
+    const f = p.frame;
+    p.frame = { ...f, o: [f.o[0] + f.u[0] * minX + f.v[0] * minY, f.o[1] + f.u[1] * minX + f.v[1] * minY, f.o[2] + f.u[2] * minX + f.v[2] * minY] };
+    for (const dt of p.details) {
+      dt.cx -= minX;
+      dt.cy -= minY;
+    }
+  }
+  p.w = Math.max(...s.pts.map((q) => q.x));
+  p.h = Math.max(...s.pts.map((q) => q.y));
 }
 
 export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
@@ -373,9 +446,7 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
     fitKind(c, connectionsFor(d.material, c.angle));
   }
   if (patch.kind) {
-    const allowed = c.grown
-      ? connectionsFor(d.material, c.angle)
-      : seamKinds(d.material, c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face');
+    const allowed = c.grown ? connectionsFor(d.material, c.angle) : seamKinds(d.material, seamTypeOf(c));
     if (allowed.includes(patch.kind)) {
       c.kind = patch.kind;
       c.pref = patch.kind;

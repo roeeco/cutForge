@@ -4,19 +4,23 @@ import type { Contour, Vec2 } from '../geom/types';
 import { circleContour, polygonContour, rectContour, roundedRectContour } from '../geom/vec';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
-import { edgeInwardLocal, edgeLength, panelCorners } from './frame';
+import { panelEdges, segDir, segInward, segLength, type EdgeSeg } from './edges';
 import { normalizeNotches } from './seams';
 
 export type { Notch };
 
-/** Joint notches on every edge of a panel, from all its connections (normalised). */
-export function panelNotches(d: Design, p: Panel): Notch[][] {
-  const raw: Notch[][] = [[], [], [], []];
+/** Joint notches on every edge of a panel by edge key, from all its connections (normalised). */
+export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
+  const ring = panelEdges(p);
+  const raw: Record<string, Notch[]> = {};
+  for (const e of ring) raw[e.key] = [];
   for (const c of Object.values(d.connections)) {
     if (!c.geom || (c.a.panelId !== p.id && c.b.panelId !== p.id)) continue;
-    for (const e of c.geom.edges) if (e.panelId === p.id && e.edge >= 0 && e.edge < 4) raw[e.edge].push(...e.notches);
+    for (const e of c.geom.edges) if (e.panelId === p.id && raw[e.edge]) raw[e.edge].push(...e.notches);
   }
-  return raw.map((ns, e) => normalizeNotches(ns, edgeLength(p, e)));
+  const out: Record<string, Notch[]> = {};
+  for (const e of ring) out[e.key] = normalizeNotches(raw[e.key], segLength(e));
+  return out;
 }
 
 /** Slots, glue flaps and flap score lines that connections add to a panel. */
@@ -33,26 +37,38 @@ export function panelExtras(d: Design, p: Panel) {
 
 const EPS = 1e-7;
 
-/** Manufactured outline (nominal size, joint notches applied, no kerf) as a CCW polygon. */
-export function panelOutline(p: { w: number; h: number }, notches: Notch[][]): Vec2[] {
-  const c = panelCorners(p);
-  const dirs: Vec2[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
-  const at = (e: number, s: number, dd: number): Vec2 => {
-    const inn = edgeInwardLocal(e);
-    return { x: c[e].x + dirs[e].x * s + inn.x * dd, y: c[e].y + dirs[e].y * s + inn.y * dd };
-  };
-  const L = (e: number) => edgeLength(p, e);
-  const startDepth = (e: number) => notches[e].find((n) => n.s0 <= EPS)?.depth ?? 0;
-  const endDepth = (e: number) => notches[e].find((n) => n.s1 >= L(e) - EPS)?.depth ?? 0;
+/**
+ * Manufactured outline (nominal size, joint notches applied, no kerf) as a CCW
+ * polygon: each keyed edge of the ring carries its notches (positive depth cuts
+ * back, negative protrudes), and corners meet where the offset edges cross.
+ */
+export function panelOutline(p: Pick<Panel, 'w' | 'h'> & { sketch?: Panel['sketch'] }, notches: Record<string, Notch[]>, ring: EdgeSeg[] = panelEdges(p)): Vec2[] {
+  const n = ring.length;
+  const N = (e: EdgeSeg) => notches[e.key] ?? [];
+  const startDepth = (e: EdgeSeg) => N(e).find((x) => x.s0 <= EPS)?.depth ?? 0;
+  const endDepth = (e: EdgeSeg) => N(e).find((x) => x.s1 >= segLength(e) - EPS)?.depth ?? 0;
   const pts: Vec2[] = [];
-  for (let e = 0; e < 4; e++) {
-    const prev = (e + 3) % 4;
+  for (let i = 0; i < n; i++) {
+    const e = ring[i], prev = ring[(i + n - 1) % n];
     const de = endDepth(prev), ds = startDepth(e);
-    const ip = edgeInwardLocal(prev), ie = edgeInwardLocal(e);
-    pts.push({ x: c[e].x + ip.x * de + ie.x * ds, y: c[e].y + ip.y * de + ie.y * ds });
-    for (const n of notches[e]) {
-      if (n.s0 > EPS) pts.push(at(e, n.s0, 0), at(e, n.s0, n.depth));
-      if (n.s1 < L(e) - EPS) pts.push(at(e, n.s1, n.depth), at(e, n.s1, 0));
+    const ip = segInward(prev), ie = segInward(e), dp = segDir(prev), dir = segDir(e);
+    const c = e.a;
+    const along = dp.x * dir.x + dp.y * dir.y;
+    if ((de === 0 && ds === 0) || Math.abs(along) < 1e-9) pts.push({ x: c.x + ip.x * de + ie.x * ds, y: c.y + ip.y * de + ie.y * ds });
+    else {
+      // where the edge lines, each moved inward by its depth, cross
+      const k = dp.x * ie.x + dp.y * ie.y;
+      if (Math.abs(k) < 1e-9) pts.push({ x: c.x + ip.x * de, y: c.y + ip.y * de }, { x: c.x + ie.x * ds, y: c.y + ie.y * ds });
+      else {
+        const tt = (ds - de * (ip.x * ie.x + ip.y * ie.y)) / k;
+        pts.push({ x: c.x + ip.x * de + dp.x * tt, y: c.y + ip.y * de + dp.y * tt });
+      }
+    }
+    const L = segLength(e);
+    const at = (s: number, dd: number): Vec2 => ({ x: c.x + dir.x * s + ie.x * dd, y: c.y + dir.y * s + ie.y * dd });
+    for (const x of N(e)) {
+      if (x.s0 > EPS) pts.push(at(x.s0, 0), at(x.s0, x.depth));
+      if (x.s1 < L - EPS) pts.push(at(x.s1, x.depth), at(x.s1, 0));
     }
   }
   return cleanPolygon(pts);

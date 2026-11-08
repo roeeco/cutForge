@@ -9,7 +9,7 @@ import { fromHinge } from '../model/hinge';
 
 export type Selection =
   | { kind: 'panel'; id: string }
-  | { kind: 'edge'; panelId: string; edge: number }
+  | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
   | null;

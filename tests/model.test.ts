@@ -61,13 +61,13 @@ describe('finger joints', () => {
     const { d, base, wall, cid } = box();
     setMaterial(d, { ...MATERIALS[3], clearance: 0 });
     setConnection(d, cid, { fingers: 5 });
-    const parent = panelNotches(d, d.panels[base])[0], child = panelNotches(d, d.panels[wall])[0];
+    const parent = panelNotches(d, d.panels[base]).e0, child = panelNotches(d, d.panels[wall]).e0;
     const cover = [...parent, ...child].map((n) => [n.s0, n.s1]).sort((a, b) => a[0] - b[0]);
     expect(cover[0][0]).toBe(0);
     for (let i = 1; i < cover.length; i++) expect(cover[i][0]).toBeCloseTo(cover[i - 1][1], 12);
     expect(cover[cover.length - 1][1]).toBe(100);
     setMaterial(d, { ...MATERIALS[3], clearance: 0.2 });
-    const p2 = panelNotches(d, d.panels[base])[0], c2 = panelNotches(d, d.panels[wall])[0];
+    const p2 = panelNotches(d, d.panels[base]).e0, c2 = panelNotches(d, d.panels[wall]).e0;
     expect(p2[0].s1 - p2[0].s0).toBeCloseTo(20.2, 9);
     expect(c2[1].s1 - c2[1].s0).toBeCloseTo(20, 9);
   });
@@ -92,8 +92,8 @@ describe('finger joints', () => {
     const lost = 100 * 60 - polygonArea(panelOutline(d.panels[base], panelNotches(d, d.panels[base]))) + (100 * 40 - polygonArea(panelOutline(d.panels[wall], panelNotches(d, d.panels[wall]))));
     expect(lost).toBeCloseTo(600, 6);
     setConnection(d, cid, { fingers: 7 });
-    expect(panelNotches(d, d.panels[wall])[0].length).toBe(4);
-    expect(panelNotches(d, d.panels[base])[0].length).toBe(3);
+    expect(panelNotches(d, d.panels[wall]).e0.length).toBe(4);
+    expect(panelNotches(d, d.panels[base]).e0.length).toBe(3);
   });
 
   it('falls back to a fold on materials without finger joints', () => {

@@ -1,7 +1,8 @@
 // Pieces: one connected flat outline to cut. Panels joined by folds form one
 // flat net (unfolded about their fold lines); everything else is separate.
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
-import type { Design, P2 } from './types';
+import type { Design, P2, Panel } from './types';
+import type { EdgeArg } from './edges';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, IDENTITY, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { edgeInwardLocal, edgeLocal } from './frame';
@@ -11,11 +12,11 @@ export type NetPanel = { panelId: string; xf: Xform2 };
 export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[] };
 
 /** Rigid unfolding of a folded child into its parent's coordinates. */
-export function foldXform(parent: { w: number; h: number }, edge: number, allowance: number): Xform2 {
+export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number): Xform2 {
   const [A, B] = edgeLocal(parent, edge);
   const l = Math.hypot(B.x - A.x, B.y - A.y);
   const U = { x: (B.x - A.x) / l, y: (B.y - A.y) / l };
-  const i = edgeInwardLocal(edge);
+  const i = edgeInwardLocal(parent, edge);
   const O = { x: -i.x, y: -i.y };
   const det = U.x * O.y - U.y * O.x;
   const tx = A.x + O.x * allowance, ty = A.y + O.y * allowance;
@@ -92,7 +93,7 @@ function groupPiece(d: Design, group: NetPanel[]): Piece {
       const parent = d.panels[c.a.panelId];
       const xf = group.find((g) => g.panelId === parent.id)!.xf;
       const [A, B] = edgeLocal(parent, c.a.edge);
-      const i = edgeInwardLocal(c.a.edge);
+      const i = edgeInwardLocal(parent, c.a.edge);
       const al = d.material.foldAllowance;
       const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });
       if (al > 1e-9) polys.push([toRing([off(A, 0), off(B, 0), off(B, al), off(A, al)])]);

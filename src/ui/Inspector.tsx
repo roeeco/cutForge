@@ -4,7 +4,7 @@
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { deleteDetail, deletePanel, edgeConnection, findDetail, parentConnection, setPanelSize, updateDetail } from '../model/ops';
+import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, parentConnection, setPanelSize, updateDetail } from '../model/ops';
 import { netGroups, pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { TemplateSection } from './TemplateUI';
@@ -12,7 +12,8 @@ import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
-import { isAutoName, panelLabel } from '../model/names';
+import { edgeLabel, isAutoName, panelLabel } from '../model/names';
+import { panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 
@@ -119,19 +120,21 @@ export function Inspector() {
           <div className="subsection">
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">
-              {[0, 1, 2, 3].map((e) => (
-                <button
-                  key={e}
-                  disabled={!!edgeConnection(d, id, e)}
-                  onClick={() => {
-                    useStore.getState().select({ kind: 'edge', panelId: id, edge: e });
-                    useStore.getState().setView('3d');
-                  }}
-                  data-testid={`grow-from-${e}`}
-                >
-                  {t('insp.growFrom', { edge: t(`edge.name.${e}` as 'edge.name.0') })}
-                </button>
-              ))}
+              {panelEdges(p)
+                .filter((e) => segLength(e) >= MIN_PANEL)
+                .map(({ key: e }) => (
+                  <button
+                    key={e}
+                    disabled={!!edgeConnection(d, id, e)}
+                    onClick={() => {
+                      useStore.getState().select({ kind: 'edge', panelId: id, edge: e });
+                      useStore.getState().setView('3d');
+                    }}
+                    data-testid={`grow-from-${e.replace(/^e(\d+)$/, '$1')}`}
+                  >
+                    {t('insp.growFrom', { edge: edgeLabel(d, id, e, t) })}
+                  </button>
+                ))}
             </div>
           </div>
         </section>

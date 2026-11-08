@@ -443,6 +443,9 @@ export const en = {
   'insp.joints': 'Joints (advanced)',
   'seam.pending': '{n} meeting panels are not connected yet.',
   'seam.connectAll': 'Connect all',
+  'edge.nameN': "edge {n}",
+  'shape.polygon': "Polygon",
+  'op.add': "Add",
 } as const;
 
 export type MsgKey = keyof typeof en;

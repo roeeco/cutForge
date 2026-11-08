@@ -9,9 +9,9 @@ import { checkHinge, fromHinge } from '../model/hinge';
 import type { ConnectionKind } from '../model/types';
 import { AngleDial, hingeText } from './AngleDial';
 import { Icon } from './icons';
-import { panelLabel } from '../model/names';
+import { edgeLabel, panelLabel } from '../model/names';
 
-export function EdgeBar({ panelId, edge }: { panelId: string; edge: number }) {
+export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const t = useT();
   const design = useStore((s) => s.design);
   const grow = useStore((s) => s.grow);
@@ -38,7 +38,7 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: number }) {
       <div className="card inspector grow-card-inner" role="toolbar" aria-label={t('edge.grow')} data-testid="edgebar">
         <p className="kicker">{t('edge.kicker')}</p>
         <div className="card-head">
-          <h3 dir="auto">{t('edge.title', { edge: t(`edge.name.${edge}` as 'edge.name.0'), panel: panelLabel(design, panelId, t) })}</h3>
+          <h3 dir="auto">{t('edge.title', { edge: edgeLabel(design, panelId, edge, t), panel: panelLabel(design, panelId, t) })}</h3>
           <button className="ghost icon-btn" onClick={() => useStore.getState().select({ kind: 'panel', id: panelId })} aria-label={t('sub.close')} title={t('sub.close')}>
             <Icon name="close" />
           </button>

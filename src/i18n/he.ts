@@ -445,4 +445,7 @@ export const he: Record<MsgKey, string> = {
   'insp.joints': 'חיבורים (מתקדם)',
   'seam.pending': '{n} לוחות נפגשים עדיין לא מחוברים.',
   'seam.connectAll': 'חיבור הכול',
+  'edge.nameN': "צלע {n}",
+  'shape.polygon': "מצולע",
+  'op.add': "הוספה",
 };

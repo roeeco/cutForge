@@ -4,7 +4,7 @@ Defaults chosen where the brief left room. Each is reversible.
 
 ## Coordinates and units
 - Internal units are floating-point millimetres. Geometric tolerance `1e-6 mm`, curve tolerance `0.01 mm`, display precision 0.1 mm (students) / 0.01 mm (material settings), snap in screen pixels — separate constants in `src/geom/types.ts`.
-- 3D world is y-up; the floor is the XZ plane. A panel's local 2D coordinates have their origin at the bottom-left corner of its outline; edges are numbered 0 bottom, 1 right, 2 top, 3 left (counter-clockwise).
+- 3D world is y-up; the floor is the XZ plane. A panel's local 2D coordinates have their origin at the bottom-left corner of its outline's bounding box; edges are named by keys (see *Polygons and cuts*), and a rectangle's edges are `e0` bottom, `e1` right, `e2` top, `e3` left (counter-clockwise).
 - The cut plan uses sheet coordinates with y up from the bottom-left; SVG export flips y. Shelf packing starts at the top-left so files look like LightBurn's usual top-left origin.
 
 ## Panels, thickness and growing
@@ -109,3 +109,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Folds:** a rounded bead (radius t/√2, centred on the corner square) along each fold with a dashed score-blue crease on the outside. The fold slider unfolds nets in the view only: each fold child's subtree turns rigidly about a hinge half a thickness below and into its bottom edge, which lays it flat beside its parent. Editing is paused while unfolded.
 - **Number controls:** sizes are scrub fields (drag the label: 0.5 mm per 2 px, Shift ×10, Alt fine) that commit once on release; counts are − / + steppers with a short slider when the range is small (finger counts step by 2).
 - **Cut plan:** the sheet is a light tint of the material (hairline flutes for corrugated), with a chip naming the sheet, material and size. Pieces use their part's tint and role name; lines keep the LightBurn operation colours. *Fit* frames the sheets in the area the rail and card leave free, on the correct sides in RTL.
+
+## Polygons and cuts (see `POLYGONS_AND_CUTS.md`)
+- **Sketch is the authority for a root panel's shape.** `w`/`h` are re-derived from the sketch's bounding box, which is kept at the local origin (moving the frame and the shapes when a vertex edit would move it). Resizing a root panel scales its sketch (`x / oldW × newW`, so a rectangle stays exact).
+- **Edge keys** are strings throughout the model. Model functions also accept a number `n` for `e<n>` (and -1 for `face`), so rectangle code reads the same; anything stored is a key.
+- **Template ids** keep the old edge numbers in derived connection ids (`t:c:base.0-wall0.0`), so ids are the same in v5 and v6 projects.
+- A grown panel's width follows its parent edge. On a rectangle parent, typing the width resizes the parent as before; on a polygon parent it moves that edge's end vertex along the edge.
+- **Edge-on-face clipping** uses the receiving panel's outline polygon (the longest inside run on a non-convex outline), so tabs stop where a polygon or notched panel ends.
+- Edges shorter than 5 mm (`MIN_PANEL`) get no grow handle.

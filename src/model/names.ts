@@ -6,6 +6,7 @@
 // renames parts and old projects get role names too.
 import type { Design } from './types';
 import { defaultOffset } from './ops';
+import { isRectSketch, panelEdges, rectEdgeIndex } from './edges';
 import type { MsgKey } from '../i18n';
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string;
@@ -29,6 +30,15 @@ function templateRole(t: T, id: string): string | null {
   return t('part.lip');
 }
 
+/** Display name of a panel edge: front/right/back/left on a plain rectangle, otherwise "edge n" around the outline. */
+export function edgeLabel(d: Design, panelId: string, key: string, t: T): string {
+  const p = d.panels[panelId];
+  const i = rectEdgeIndex(key);
+  if (p && i !== null && isRectSketch(p)) return t(`edge.name.${i}` as MsgKey);
+  const n = p ? panelEdges(p).findIndex((e) => e.key === key) : -1;
+  return t('edge.nameN', { n: n + 1 });
+}
+
 export function panelLabel(d: Design, id: string, t: T): string {
   const p = d.panels[id];
   if (!p) return '?';
@@ -48,6 +58,7 @@ export function panelLabel(d: Design, id: string, t: T): string {
     return t('part.divider', { n: divs.indexOf(id) + 1 });
   }
   const parentIsRoot = !conns.some((c) => c.grown && c.b.panelId === parentC.a.panelId);
-  if (parentIsRoot && Math.abs(parentC.angle - 90) < 1e-6 && parentC.a.edge >= 0) return t('part.wallSide', { side: t(SIDE[parentC.a.edge]) });
+  const side = parentIsRoot && isRectSketch(d.panels[parentC.a.panelId]) ? rectEdgeIndex(parentC.a.edge) : null;
+  if (side !== null && Math.abs(parentC.angle - 90) < 1e-6) return t('part.wallSide', { side: t(SIDE[side]) });
   return t('part.panel', { n: d.order.indexOf(id) + 1 });
 }

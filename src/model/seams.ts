@@ -4,22 +4,24 @@
 // changes automatically.
 import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
+import { ek, FACE, panelEdges, type EdgeArg } from './edges';
+import { pointInPolygon } from '../geom/vec';
 import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
 
-export function inwardWorld(p: Panel, e: number): V3 {
-  const i = edgeInwardLocal(e);
+export function inwardWorld(p: Panel, e: EdgeArg): V3 {
+  const i = edgeInwardLocal(p, e);
   return v3norm(v3add(v3mul(p.frame.u, i.x), v3mul(p.frame.v, i.y)));
 }
 
 /** Local point at parameter s along edge e, `depth` mm inward from it. */
-export function edgePoint(p: { w: number; h: number }, e: number, s: number, depth: number): P2 {
+export function edgePoint(p: Pick<Panel, 'w' | 'h' | 'sketch'>, e: EdgeArg, s: number, depth: number): P2 {
   const [a, b] = edgeLocal(p, e);
   const L = edgeLength(p, e);
   const dx = (b.x - a.x) / L, dy = (b.y - a.y) / L;
-  const i = edgeInwardLocal(e);
+  const i = edgeInwardLocal(p, e);
   return { x: a.x + dx * s + i.x * depth, y: a.y + dy * s + i.y * depth };
 }
 
@@ -29,7 +31,7 @@ export type CornerFit = { s0: number; s1: number; mapB: (s: number) => number };
  * Two edges that coincide along a line, on perpendicular panels, each panel's
  * material overlapping the other's slab (an outer corner, outer dimensions).
  */
-export function cornerFit(A: Panel, eA: number, B: Panel, eB: number): CornerFit | null {
+export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg): CornerFit | null {
   if (Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) > PERP) return null;
   const [a0, a1] = edgeWorld(A, eA), [b0, b1] = edgeWorld(B, eB);
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
@@ -63,7 +65,7 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: number, B: Panel, tB: number): FaceFit | null {
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number): FaceFit | null {
   if (Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) > PERP) return null;
   const [p0, p1] = edgeWorld(A, eA);
   const mB = matDir(B.frame);
@@ -77,22 +79,76 @@ export function faceFit(A: Panel, eA: number, B: Panel, tB: number): FaceFit | n
   if (Math.abs(k) < 0.99) return null;
   const kk = Math.sign(k);
   const da = (0 - zE) / kk, db = (tB - zE) / kk;
-  // clip the edge to B's rectangle (Liang–Barsky), with a small tolerance
   const q0 = toLocal(B.frame, p0), q1 = toLocal(B.frame, p1);
-  let t0 = 0, t1 = 1;
-  const dx = q1.x - q0.x, dy = q1.y - q0.y;
-  const clip = (pp: number, qq: number) => {
-    if (Math.abs(pp) < 1e-12) return qq >= -TOL;
-    const r = qq / pp;
-    if (pp < 0) t0 = Math.max(t0, r);
-    else t1 = Math.min(t1, r);
-    return true;
-  };
-  if (!clip(-dx, q0.x + TOL) || !clip(dx, B.w + TOL - q0.x) || !clip(-dy, q0.y + TOL) || !clip(dy, B.h + TOL - q0.y)) return null;
+  const span = clipToOutline(B, q0, q1);
+  if (!span) return null;
+  const [t0, t1] = span;
   const L = edgeLength(A, eA);
   const s0 = t0 * L, s1 = t1 * L;
   if (s1 - s0 < 2) return null;
   return { s0, s1, d0: Math.min(da, db), d1: Math.max(da, db), k: kk, zE };
+}
+
+/**
+ * Parameter range [t0, t1] of segment q0 → q1 (B-local) that lies on B's
+ * outline polygon, with a small tolerance; the longest inside run for a
+ * non-convex outline.
+ */
+function clipToOutline(B: Panel, q0: P2, q1: P2): [number, number] | null {
+  const ring = panelEdges(B);
+  const dx = q1.x - q0.x, dy = q1.y - q0.y;
+  const rect =
+    ring.length === 4 &&
+    ring.every((e, i) => e.key === `e${i}`) &&
+    ring[0].a.x === 0 && ring[0].a.y === 0 && ring[1].a.x === B.w && ring[1].a.y === 0 && ring[2].a.x === B.w && ring[2].a.y === B.h && ring[3].a.x === 0 && ring[3].a.y === B.h;
+  if (rect) {
+    // Liang–Barsky against the rectangle
+    let t0 = 0, t1 = 1;
+    const clip = (pp: number, qq: number) => {
+      if (Math.abs(pp) < 1e-12) return qq >= -TOL;
+      const r = qq / pp;
+      if (pp < 0) t0 = Math.max(t0, r);
+      else t1 = Math.min(t1, r);
+      return true;
+    };
+    if (!clip(-dx, q0.x + TOL) || !clip(dx, B.w + TOL - q0.x) || !clip(-dy, q0.y + TOL) || !clip(dy, B.h + TOL - q0.y)) return null;
+    return t1 > t0 ? [t0, t1] : null;
+  }
+  // general polygon: split at every crossing with an edge, keep runs whose midpoints are inside (or on) the outline
+  const poly = ring.map((e) => e.a);
+  const ts = [0, 1];
+  for (const e of ring) {
+    const ex = e.b.x - e.a.x, ey = e.b.y - e.a.y;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = ((e.a.x - q0.x) * ey - (e.a.y - q0.y) * ex) / den;
+    const u = ((e.a.x - q0.x) * dy - (e.a.y - q0.y) * dx) / den;
+    if (t > 0 && t < 1 && u >= -1e-9 && u <= 1 + 1e-9) ts.push(t);
+  }
+  ts.sort((a, b) => a - b);
+  const inside = (t: number) => {
+    const q = { x: q0.x + dx * t, y: q0.y + dy * t };
+    if (pointInPolygon(q, poly)) return true;
+    return ring.some((e) => distToSeg(q, e.a, e.b) <= TOL);
+  };
+  let best: [number, number] | null = null, cur: [number, number] | null = null;
+  for (let i = 0; i + 1 < ts.length; i++) {
+    const a = ts[i], b = ts[i + 1];
+    if (b - a < 1e-12) continue;
+    if (inside((a + b) / 2)) {
+      if (cur && Math.abs(cur[1] - a) < 1e-12) cur[1] = b;
+      else cur = [a, b];
+      if (!best || cur[1] - cur[0] > best[1] - best[0]) best = [cur[0], cur[1]];
+    } else cur = null;
+  }
+  return best;
+}
+
+function distToSeg(p: P2, a: P2, b: P2): number {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 < 1e-18 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2));
+  return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
 }
 
 export type CrossFit = { xA: number; xB: number; widthA: number; widthB: number; depthA: number; depthB: number };
@@ -194,7 +250,7 @@ export function fingerCountFor(c: Pick<Connection, 'fingers'>, length: number, t
 }
 
 /** Owner (feature-carrying edge) and receiver of an edge-on-face connection. */
-export function ownerOf(c: Connection): { owner: string; edge: number; receiver: string } {
+export function ownerOf(c: Connection): { owner: string; edge: string; receiver: string } {
   return c.grown ? { owner: c.b.panelId, edge: c.b.edge, receiver: c.a.panelId } : { owner: c.a.panelId, edge: c.a.edge, receiver: c.b.panelId };
 }
 
@@ -233,14 +289,14 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
     if (!fit) return null;
     const w = t + cl;
     // A (the earlier panel) is slotted from its top edge, B from its bottom edge.
-    g.edges.push({ panelId: A.id, edge: 2, notches: [{ s0: A.w - fit.xA - w / 2, s1: A.w - fit.xA + w / 2, depth: fit.depthA }] });
-    g.edges.push({ panelId: B.id, edge: 0, notches: [{ s0: fit.xB - w / 2, s1: fit.xB + w / 2, depth: fit.depthB }] });
+    g.edges.push({ panelId: A.id, edge: 'e2', notches: [{ s0: A.w - fit.xA - w / 2, s1: A.w - fit.xA + w / 2, depth: fit.depthA }] });
+    g.edges.push({ panelId: B.id, edge: 'e0', notches: [{ s0: fit.xB - w / 2, s1: fit.xB + w / 2, depth: fit.depthB }] });
     return g;
   }
 
   if (c.kind === 'butt') {
     // a closing seam left as plain edges: valid while the panels still meet
-    return faceFit(A, c.a.edge, B, t) || (c.b.edge >= 0 && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
+    return faceFit(A, c.a.edge, B, t) || (c.b.edge !== FACE && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
   }
 
   if (c.kind === 'glue' && c.grown) return grownGlue(d, c, A, B);
@@ -320,7 +376,7 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const L = C.w;
   const fh = c.flap ?? autoFlap(d.material);
   const taper = Math.min(fh, L / 3);
-  const p = (s: number, u: number) => edgePoint(C, 0, s, -u);
+  const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
   g.adds.push({ panelId: C.id, poly: [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)] });
   g.scores.push({ panelId: C.id, a: p(0, 0), b: p(L, 0) });
   // on the parent: along the parent edge, from the child's position inwards
@@ -331,7 +387,7 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
 }
 
 export type SeamType = 'corner' | 'face' | 'cross';
-export type OpenSeam = { type: SeamType; a: { panelId: string; edge: number }; b: { panelId: string; edge: number }; overlapping: boolean };
+export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b: { panelId: string; edge: string }; overlapping: boolean };
 
 function connectedPair(d: Design, x: string, y: string) {
   return Object.values(d.connections).some((c) => (c.a.panelId === x && c.b.panelId === y) || (c.a.panelId === y && c.b.panelId === x));
@@ -340,17 +396,18 @@ function connectedPair(d: Design, x: string, y: string) {
 /** How two panels meet, if they do (ignoring any connection between them). */
 export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
   const t = d.material.thickness;
-  for (let ea = 0; ea < 4; ea++)
-    for (let eb = 0; eb < 4; eb++) if (cornerFit(A, ea, B, eb)) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true };
-  for (let e = 0; e < 4; e++) {
+  const ka = panelEdges(A).map((e) => e.key), kb = panelEdges(B).map((e) => e.key);
+  for (const ea of ka)
+    for (const eb of kb) if (cornerFit(A, ea, B, eb)) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true };
+  for (const e of kb) {
     const f = faceFit(B, e, A, t);
-    if (f) return { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
+    if (f) return { type: 'face', a: { panelId: B.id, edge: e }, b: { panelId: A.id, edge: FACE }, overlapping: f.d1 > 1e-6 };
   }
-  for (let e = 0; e < 4; e++) {
+  for (const e of ka) {
     const f = faceFit(A, e, B, t);
-    if (f) return { type: 'face', a: { panelId: A.id, edge: e }, b: { panelId: B.id, edge: -1 }, overlapping: f.d1 > 1e-6 };
+    if (f) return { type: 'face', a: { panelId: A.id, edge: e }, b: { panelId: B.id, edge: FACE }, overlapping: f.d1 > 1e-6 };
   }
-  if (crossFit(A, B, t)) return { type: 'cross', a: { panelId: A.id, edge: -1 }, b: { panelId: B.id, edge: -1 }, overlapping: true };
+  if (crossFit(A, B, t)) return { type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true };
   return null;
 }
 
@@ -375,11 +432,16 @@ export function seamStillFits(d: Design, c: Connection): boolean {
   if (!A || !B) return false;
   const s = seamBetween(d, A, B);
   if (!s) return false;
-  const type = c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face';
+  const type = seamTypeOf(c);
   if (s.type !== type) return false;
-  const key = (r: { panelId: string; edge: number }) => `${r.panelId}:${r.edge}`;
+  const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${r.edge}`;
   const have = [key(c.a), key(c.b)].sort().join(), now = [key(s.a), key(s.b)].sort().join();
   return have === now;
+}
+
+/** What kind of meeting a closing seam is. */
+export function seamTypeOf(c: Pick<Connection, 'kind' | 'b'>): SeamType {
+  return c.kind === 'halflap' ? 'cross' : c.b.edge !== FACE ? 'corner' : 'face';
 }
 
 /** Connection kinds offered for a closing seam. */

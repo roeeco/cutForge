@@ -5,10 +5,11 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { AngleDial, hingeText } from './AngleDial';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { Icon } from './icons';
-import { panelLabel } from '../model/names';
+import { edgeLabel, panelLabel } from '../model/names';
+import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { addDivider, addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
-import { autoFlap, autoTabs, findOpenSeams, fingerCountFor, seamKinds, cornerFit, faceFit, ownerOf } from '../model/seams';
+import { autoFlap, autoTabs, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design } from '../model/types';
@@ -16,7 +17,7 @@ import { fmtNum } from '../i18n';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
   if (c.grown) return connectionsFor(d.material, c.angle);
-  return seamKinds(d.material, c.kind === 'halflap' ? 'cross' : c.b.edge >= 0 ? 'corner' : 'face');
+  return seamKinds(d.material, seamTypeOf(c));
 }
 
 /** Length of the joint, for automatic finger and tab counts. */
@@ -29,7 +30,7 @@ function jointLength(d: Design, c: Connection): number {
   }
   if (c.kind !== 'tabslot') return 0;
   const o = ownerOf(c);
-  if (o.edge < 0) return 0;
+  if (o.edge === FACE) return 0;
   const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], d.material.thickness);
   return f ? f.s1 - f.s0 : 0;
 }
@@ -141,8 +142,8 @@ export function OpenSeams({ panelId }: { panelId: string }) {
         const label =
           s.type === 'cross'
             ? t('seam.cross', { panel: panelLabel(d, other.id, t) })
-            : mine.edge >= 0
-              ? t('seam.corner', { edge: t(`edge.name.${mine.edge}` as 'edge.name.0'), panel: panelLabel(d, other.id, t) })
+            : mine.edge !== FACE
+              ? t('seam.corner', { edge: edgeLabel(d, mine.panelId, mine.edge, t), panel: panelLabel(d, other.id, t) })
               : t('seam.face', { panel: panelLabel(d, other.id, t) });
         return <SeamRow key={i} label={label} overlap={s.overlapping} kinds={seamKinds(d.material, s.type)} onConnect={(k) => apply((x) => void connectSeam(x, s, k, false))} />;
       })}

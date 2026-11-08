@@ -155,6 +155,30 @@ Known limitations after the overhaul
 - Rich quality was checked on a GPU; software rendering always uses Simple.
 - The grow card sits in the card slot, not next to the edge (see DECISIONS.md).
 
+## Hinge dial and joints display ✅
+
+Implemented (supersedes the overhaul's flip badge and dial detents)
+- One hinge angle from 0° to 360° replaces Up/Down (`src/model/hinge.ts`): 90 upright, 180 flat, 270 on the other face. The model still stores `angle` + `dir` (`fromHinge` / `hingeOf`).
+- `checkHinge` zones on the card dial (`AngleDial`) and the stage knob (`AngleArc`): red only for lying on the parent (within 10°) or going below the floor; amber notes for plywood leaning without side walls, leaning outward, or flat; green otherwise. *Add side walls* is offered where it helps. Plywood off 90° may also be butt-glued.
+- Preferred joints (`pref`) come back when the angle allows; meeting panels are joined automatically after every edit (`autoConnect`), unjoined pairs are remembered.
+- Joint pills hidden by default (*Show joints*); the angle is at the top of the panel card; joint list and open seams are in a collapsed *Joints (advanced)* section with a *Connect all* notice.
+
+Verified: `tests/hinge.test.ts`, `tests/autojoin.test.ts`, `overhaul.spec.ts` and `joints.spec.ts`.
+
+## Milestone 7 — Foundation: schema v6 ✅
+
+Implemented
+- Schema v6 (`src/model/types.ts`): every panel has a `sketch` — root panels a free polygon (`pts`, `edgeIds`), grown panels a parametric wall (`corners`, `inserts`); `w`/`h` are the sketch's bounding size. Details may be `add` and `polygon` with `through`/`regular`; `Design.trays`; `Connection.trayId`.
+- Edge keys (`src/model/edges.ts`): `e<n>`, wall inserts, `<detail>.<i>`, `<key>#<n>` pieces, `face`. `EdgeRef.edge`, `ConnGeom.edges[].edge` and per-edge notch maps are keyed. `panelEdges` is the one place that lists a panel's growable edges.
+- Migration v5 → v6 (`serialize.ts`): roots become 4-point polygons, grown panels plain wall sketches, edge n → `e<n>`, -1 → `face`, in connections and stored geometry.
+- Generalised to keyed polygon edges: frames and `growFrame`, edge-on-face clipping to any outline (`faceFit`), seam detection over all edges, the manufactured outline (offset edges meet at any corner angle), fold nets (`foldXform`), `checkHinge`, `hasSideWalls` / `addSideWalls` (the polygon's neighbouring edges), part and edge names, the inspector's *Grow from* buttons, stage edge picking and hinge widgets.
+
+Verified
+- `npx tsc -b --noEmit` and the Worker typecheck: clean.
+- `npm test`: 129 tests pass, including the golden exports (both templates in every material, five hand-built designs) and the five v5 project files, all byte-identical in SVG and DXF; the `ezdxf` checks ran.
+- New `tests/edges.test.ts`: migration shape, rectangle keys, a pentagon base's keys and neighbours, a wall grown from a sloped edge, side walls on polygon neighbours, hinge zones on a sloped edge.
+- Playwright: all 13 specs pass (including the classroom spec against the real Worker).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

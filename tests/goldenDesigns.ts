@@ -6,7 +6,7 @@ import { MATERIALS } from '../src/model/materials';
 import type { Design } from '../src/model/types';
 
 const [CARD, , CORR4, PLY] = MATERIALS;
-const E = (n: number) => n as any;
+const E = (n: number) => `e${n}`;
 
 /** Plywood box by hand: finger corners, a shelf grown from a wall, dividers with a half-lap, cutouts, text, an array, a score. */
 export function plyBox(): Design {

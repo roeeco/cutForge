@@ -31,7 +31,7 @@ export function validate(d: Design): Issue[] {
     if (!p) continue;
     const notches = panelNotches(d, p);
     // inner limits: an edge cut back by joint notches loses that depth
-    const inset = notches.map((ns) => Math.max(0, ...ns.map((n) => n.depth)));
+    const inset = [0, 1, 2, 3].map((e) => Math.max(0, ...(notches[`e${e}`] ?? []).map((n) => n.depth)));
     const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
     const fitsW = Math.min(p.w, p.h) <= Math.min(d.material.sheetW, d.material.sheetH) - 2 * d.sheetMargin;
     const fitsL = Math.max(p.w, p.h) <= Math.max(d.material.sheetW, d.material.sheetH) - 2 * d.sheetMargin;

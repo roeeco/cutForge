@@ -28,8 +28,9 @@ export type MaterialProfile = {
  */
 export type Frame = { o: V3; u: V3; v: V3; side: 1 | -1 };
 
-export type DetailShape = 'rect' | 'roundrect' | 'circle' | 'text' | 'path';
-export type DetailOp = 'cut' | 'engrave' | 'score';
+export type DetailShape = 'rect' | 'roundrect' | 'circle' | 'text' | 'path' | 'polygon';
+/** add: joins the panel outline; cut: a hole inside, a notch across the edge. */
+export type DetailOp = 'add' | 'cut' | 'engrave' | 'score';
 
 /** A detail drawn on a panel, in the panel's local coordinates (centre based). */
 export type Detail = {
@@ -43,26 +44,50 @@ export type Detail = {
   r?: number; // corner radius for roundrect
   /** Text shapes: the text stays editable; outlines are derived (see src/text). */
   text?: { value: string; font: string; size: number };
-  /** Imported vector shapes: closed polygons in a unit box (-0.5..0.5), scaled to w × h. */
+  /** Imported vector shapes and polygons: closed polygons in a unit box (-0.5..0.5), scaled to w × h. */
   path?: { polys: P2[][] };
+  /** Cut only: removes material from every panel in its path, along this panel's normal (both ways). */
+  through?: boolean;
+  /** Polygon shapes drawn as a regular n-gon (kept until a vertex is edited). */
+  regular?: { n: number };
   /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */
   array?: DetailArray;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
 
+/** A wall inserted point: at fraction t along a free edge, pushed `off` mm outward. */
+export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off: number };
+export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
+export type WallSketch = {
+  kind: 'wall';
+  /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
+  corners?: Partial<Record<WallCorner, { dx: number; dy: number }>>;
+  inserts?: WallInsert[];
+};
+/**
+ * Layer 1 of a panel's outline (POLYGONS_AND_CUTS.md §3). Root panels are
+ * free polygons (edge i runs pts[i] → pts[i+1], CCW, named edgeIds[i]);
+ * grown panels are a parametric w × h rectangle with corner offsets and
+ * inserted points on their free edges.
+ */
+export type Sketch = { kind: 'poly'; pts: P2[]; edgeIds: string[] } | WallSketch;
+
 export type Panel = {
   id: string;
   name: string;
-  /** Nominal outline: rectangle (0,0)-(w,h) in local coordinates. Edges: 0 bottom, 1 right, 2 top, 3 left (CCW). */
+  /** Bounding size of the sketch, in local coordinates from (0,0). A grown panel's w comes from its parent edge. */
   w: number;
   h: number;
+  sketch: Sketch;
   frame: Frame;
   details: Detail[];
+  /** Tray walls on edges that a cut removed, kept (with their shapes) until the edge returns. */
+  broken?: boolean;
 };
 
-/** An edge of a panel; edge -1 means the panel's face (for edge-on-face and crossing seams). */
-export type EdgeRef = { panelId: string; edge: number };
+/** An edge of a panel by key (see src/model/edges.ts); 'face' means the panel's face. */
+export type EdgeRef = { panelId: string; edge: string };
 
 export type ConnectionKind =
   | 'finger' // complementary fingers on two meeting edges (plywood, 90°)
@@ -120,6 +145,8 @@ export type Connection = {
   geom?: ConnGeom;
   /** True when the joined edges no longer meet; `geom` is the last valid result. */
   broken?: boolean;
+  /** Made by a tray's reconciliation (wall-to-base or corner seam). */
+  trayId?: string;
 };
 
 export type Notch = { s0: number; s1: number; depth: number };
@@ -128,7 +155,7 @@ export type P2 = { x: number; y: number };
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
   /** Edge profile changes: positive depth cuts back, negative protrudes. */
-  edges: { panelId: string; edge: number; notches: Notch[] }[];
+  edges: { panelId: string; edge: string; notches: Notch[] }[];
   /** Interior cut-outs (slots). */
   holes: { panelId: string; poly: P2[] }[];
   /** Extra material joined to a panel outline (glue flaps). */
@@ -161,8 +188,22 @@ export type Design = {
   allowRotate?: boolean;
   /** Panel pairs ("idA|idB", sorted) the student unjoined: never connected automatically again. */
   noAutoSeams?: string[];
+  /** Trays: bases extruded into walls on every edge (see src/model/trays.ts). */
+  trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
 };
 
-export const SCHEMA_VERSION = 5;
+/** A base extruded into walls on every straight edge, at one shared height. */
+export type Tray = {
+  id: string;
+  baseId: string;
+  height: number;
+  /** Wall-to-base joint and wall-to-wall corner joint. */
+  wallKind: ConnectionKind;
+  cornerKind: ConnectionKind;
+  /** Edges left without a wall (deleted walls; "Wall it" removes them again). */
+  openEdges: string[];
+};
+
+export const SCHEMA_VERSION = 6;
