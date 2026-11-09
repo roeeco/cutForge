@@ -48,6 +48,10 @@ import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../mode
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
+import { featureState, shown, useFeature, useMode } from '../easy/features';
+import { boxFootprintGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
+import { isBoxBase, quickWallHeight } from '../easy/recipes';
+import { workshopOnly } from '../easy/mode';
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
 const snap = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
@@ -115,6 +119,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
   const panelGhost = useStore((s) => s.panelGhost);
+  const fHinge = shown(useFeature('hinge')), fJoints = shown(useFeature('joints'));
+  // Quick build shows parts made with Workshop tools read-only (milestone 37): no edges, gizmo or slide on them
+  const quick = useMode() === 'quick';
+  const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
   const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
   const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
@@ -170,7 +178,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
         const x = sn?.dx ? l.x + sn.dx : snap(l.x, ev), y = sn?.dy ? l.y + sn.dy : snap(l.y, ev);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
-        const shape = st.tool === 'select' || st.tool === 'panel' ? 'rect' : st.tool;
+        const shape = st.tool === 'circle' || st.tool === 'roundrect' ? st.tool : 'rect';
         let w = Math.abs(x - g.start.x), h = Math.abs(y - g.start.y);
         let cx = (x + g.start.x) / 2, cy = (y + g.start.y) / 2;
         if (shape === 'circle') {
@@ -231,6 +239,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const cur = st.panelGhost;
         // a ghost too small to be a panel is dropped; otherwise it waits for ✓ or ✕
         if (cur) st.set({ panelGhost: ghostPlace({ ...cur, drawing: false }) ? { ...cur, drawing: false } : null });
+        return;
+      }
+      if (g.kind === 'panel-draw' && st.tool === 'box') {
+        setDrawRect(null);
+        boxFootprintGo(g.start, g.cur);
         return;
       }
       if (g.kind === 'panel-draw') {
@@ -299,6 +312,28 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return;
     }
     if (tool === 'polygon') return polyRef.current?.start(e, p);
+    if (tool === 'box') return;
+    if (tool === 'divider') {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const pt: V3 = [e.point.x, e.point.y, e.point.z];
+      // on a box's base, or on a part of the box (a wall, a lid): the line is drawn on its base
+      const host = (() => {
+        for (let id: string | undefined = p.id, k = 0; id && k < 20; id = parentConnection(design, id)?.a.panelId, k++) if (isBoxBase(design, id)) return id;
+        return null;
+      })();
+      if (!host) return;
+      const hf = hostFace(design, host, 1);
+      const hit = hf && host !== p.id ? new THREE.Ray(camera.position.clone(), new THREE.Vector3(...pt).sub(camera.position).normalize()).intersectPlane(hf.plane, new THREE.Vector3()) : null;
+      return startGhost(e, host, 1, hit ? [hit.x, hit.y, hit.z] : pt, true);
+    }
+    if (tool === 'sticker') {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      placeSticker(p.id, l.x, l.y);
+      return;
+    }
     if (tool === 'panel') {
       if (e.button !== 0) return;
       const pt: V3 = [e.point.x, e.point.y, e.point.z];
@@ -337,6 +372,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       // a panel placed on a face moves in that face's plane
       const pl = p.place;
       const hf = pl && pl.host !== null ? hostFace(design, pl.host, pl.face) : null;
+      if (locked(p.id)) return;
       if (hf && e.button === 0) {
         setControls(false);
         drag.current = { kind: 'placed-move', id: p.id, plane: hf.plane, H: hf.H, start: toLocal(hf.H, [e.point.x, e.point.y, e.point.z]) };
@@ -362,6 +398,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     const cur = selectedDetailIds(st.selection);
     const group = cur.includes(id) ? cur : [id];
     if (!cur.includes(id)) st.select(detailSel([id]));
+    if (locked(p.id)) return e.stopPropagation();
     const boxes = group.map((x) => findDetail(design, x)).filter((f) => f && f.panel.id === p.id).map((f) => detailBBox(f!.detail));
     const box = { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
     const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
@@ -370,18 +407,27 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
 
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'polygon') return polyRef.current?.start(e, null);
+    if (tool === 'box') {
+      // Quick build's Box (milestone 38): drag the footprint on the floor
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const p: V3 = [snap(e.point.x, e.nativeEvent), 0, snap(e.point.z, e.nativeEvent)];
+      setControls(false);
+      drag.current = { kind: 'panel-draw', start: p, cur: p };
+      return;
+    }
     if (tool !== 'panel') return;
     startGhost(e, null, 1, [e.point.x, 0, e.point.z]);
   };
 
   /** The Panel tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
-  const startGhost = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, point: V3) => {
+  const startGhost = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, point: V3, divider = false) => {
     const hf = hostFace(design, host, face);
     if (!hf || e.button !== 0) return;
     const targets = faceTargets(design, host, face);
     const q = snapGhostPoint(targets, toLocal(hf.H, point), tolAt(point), e.nativeEvent).p;
     const st = useStore.getState();
-    st.set({ panelGhost: { host, face, pose: st.panelPose, a: q, b: q, height: st.standHeight, side: 1, construction: false, drawing: true } });
+    st.set({ panelGhost: { host, face, pose: divider ? 'standing' : st.panelPose, a: q, b: q, height: st.standHeight, side: 1, construction: false, drawing: true, ...(divider ? { divider: true } : {}) } });
     begin(e, { kind: 'ghost-draw', plane: hf.plane, H: hf.H, targets });
   };
 
@@ -395,6 +441,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       if (!p) return null;
       const z = faceZ(p, tOf(useStore.getState().design, panelId))[top ? 1 : 0];
       const v = new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame)).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    // a world point (milestone 38: the floor, for Box)
+    w.__cutforge.projectWorld = (x: number, y: number, z: number) => {
+      const v = new THREE.Vector3(x, y, z).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
@@ -461,6 +513,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
   const focus = selPanel;
   const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
+  const selLocked = locked(selPanel);
+  const shapeLocked = sel?.kind === 'detail' && locked(findDetail(design, sel.id)?.panel.id);
   const bounds = useMemo(() => {
     const box = new THREE.Box3();
     for (const id of design.order) {
@@ -519,7 +573,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             emphasis={selected ? 1 : sel ? -1 : hoverPart === id ? 0.5 : 0}
             hover={hoverPart === id}
             outlines={prefs.outlines}
-            showEdges={tool === 'select' && !folded && (selPanel === id || hoverPart === id)}
+            showEdges={(tool === 'select' || tool === 'wall') && !folded && (selPanel === id || hoverPart === id) && !locked(id)}
             selDetails={selectedDetailIds(sel)}
             selEdge={selEdge && selEdge.panelId === id ? selEdge.edge : null}
             tool={tool}
@@ -566,30 +620,30 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       )}
       {tool === 'select' && !folded && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
-      {tool === 'panel' && !folded && <PanelGhostView d={design} />}
+      {(tool === 'panel' || tool === 'divider') && !folded && <PanelGhostView d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
       {tool === 'panel' && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
-      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
-      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && (
+      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && !selLocked && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
-      {multi && tool === 'select' && !folded && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
-      {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
+      {multi && tool === 'select' && !folded && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
+      {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && !selLocked && design.panels[selPanel] && (
         design.panels[selPanel].place?.host ? (
           <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         ) : (
           <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         )
       )}
-      {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && (
+      {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && !shapeLocked && (
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
-      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
-      {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
+      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
+      {!folded && (fJoints || prefs.joints) && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
           <planeGeometry args={[Math.max(0.1, Math.abs(drawRect.b[0] - drawRect.a[0])), Math.max(0.1, Math.abs(drawRect.b[2] - drawRect.a[2]))]} />
@@ -746,7 +800,7 @@ function PanelObject(props: {
           </group>
         );
       })}
-      {tool === 'select' && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
+      {(tool === 'select' || tool === 'wall') && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
     </group>
   );
 }
@@ -889,7 +943,7 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
             const ne = ev.nativeEvent;
             const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
             // Cmd-drag (Mac) / Ctrl-drag: pick the part of the edge to grow on (milestone 35)
-            if (mac ? ne.metaKey : ne.ctrlKey) return startSpanPick(ev);
+            if ((mac ? ne.metaKey : ne.ctrlKey) && shown(featureState('grow.advanced'))) return startSpanPick(ev);
             useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
           }}
           userData={{ edgeHit: edge }}
@@ -1141,6 +1195,12 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
   const angTargets = useMemo(() => (parent ? angleTargets(d, panelId, edge, grow.height, defaultOffset(d, kind), span) : []), [d, panelId, edge, grow.height, kind, span?.[0], span?.[1]]);
   const hTargets = useMemo(() => (eg?.plain ? heightTargets(d, eg.plain, new Set([panelId])) : []), [d, eg?.plain, panelId]);
+  // Quick build (milestone 37): 90°, the whole edge, adapting: no dial, span ends or outline handles
+  const advanced = shown(useFeature('grow.advanced'));
+  // … and it starts at the height that fits: a lid across to the opposite wall, a wall as tall as its neighbours (milestone 38)
+  useEffect(() => {
+    if (!advanced) useStore.getState().setGrow({ height: quickWallHeight(useStore.getState().design, panelId, edge, useStore.getState().grow.height) });
+  }, [panelId, edge, advanced]);
   // a fold whose net would overlap when flat (milestone 35): amber, with a way out
   const over = useMemo(() => (parent && free && eg?.ghost ? growOverlap(d, panelId, edge, grow) : []), [d, panelId, edge, grow, !!eg?.ghost, free]);
   if (!ghost || !check || !eg) return null;
@@ -1192,7 +1252,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         )}
       </ConfirmBar>
       {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
-      <AngleArc
+      {advanced && <AngleArc
         pointAt={pointAt}
         hinge={hingeBasis(d, parent, edge, m, sp[0], w)}
         zoneAt={zoneAt}
@@ -1202,7 +1262,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         message={hingeText(t, check)}
         testId="ghost-hinge"
         targets={angTargets}
-      />
+      />}
       <PushPull
         at={W(m, f, ghostTop.x, ghostTop.y, th / 2)}
         axis={Wdir(m, f.v)}
@@ -1220,10 +1280,10 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         onCancel={() => setSnapped(null)}
         testId="ghost-height"
       />
-      {eg.offset === 0 &&
+      {eg.offset === 0 && advanced &&
         ([0, 1] as const).map((i) => <SpanEnd key={i} at={edgeW(sp[i])} base={edgeW(0)} dir={Wdir(m, [parent.frame.u[0] * dir.x + parent.frame.v[0] * dir.y, parent.frame.u[1] * dir.x + parent.frame.v[1] * dir.y, parent.frame.u[2] * dir.x + parent.frame.v[2] * dir.y])} onMove={(s, ev) => setEnd(i, s, ev)} testId={`ghost-span-${i}`} />)}
       <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v, sketch: null })} testId="ghost-dim-h" />
-      {grow.editGhost && <GhostOutlineHandles ghost={ghost.p} m={m} th={th} />}
+      {grow.editGhost && advanced && <GhostOutlineHandles ghost={ghost.p} m={m} th={th} />}
       <SpanPickLabel panelId={panelId} edge={edge} L={L} at={edgeW} />
     </>
   );
@@ -1446,14 +1506,8 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       <DimLabel at={W(m, first.frame, first.w, first.h / 2, th / 2)} k="H" value={height} unit={t('unit.mm')} ghost onCommit={setH} testId="tray-ghost-dim" />
       <ConfirmBar
         at={W(m, first.frame, first.w / 2, first.h + 14, th / 2)}
-        onOk={() => {
-          const st = useStore.getState();
-          const ex = st.extrude;
-          if (!ex) return;
-          st.apply((x) => void addTray(x, ex.baseId, ex.height));
-          st.set({ extrude: null });
-        }}
-        onCancel={() => useStore.getState().set({ extrude: null })}
+        onOk={extrudeGo}
+        onCancel={extrudeCancel}
         okTestId="extrude-go"
         cancelTestId="extrude-cancel"
         testId="tray-ghost-bar"
@@ -2244,6 +2298,8 @@ function FoldBar() {
 
 export function View3D() {
   const t = useT();
+  // Quick build calls the joints view "How it's built" (milestone 37)
+  const jointsKey = shown(useFeature('joints')) ? 'view.joints' : 'quick.howBuilt';
   const tool = useStore((s) => s.tool);
   const empty = useStore((s) => s.design.order.length === 0);
   const prefs = useStore((s) => s.viewPrefs);
@@ -2292,7 +2348,15 @@ export function View3D() {
               ? 'tool.hint.polygon'
               : tool === 'text'
                 ? 'tool.hint.text'
-                : 'tool.hint.shape';
+                : tool === 'box'
+                  ? 'quick.boxHelp'
+                  : tool === 'wall'
+                    ? 'quick.wallHelp'
+                    : tool === 'divider'
+                      ? 'quick.dividerHelp'
+                      : tool === 'sticker'
+                        ? 'quick.stickerHelp'
+                        : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
@@ -2324,8 +2388,8 @@ export function View3D() {
           <button
             className={`stage-toggle ${prefs.joints ? 'on' : ''}`}
             onClick={() => useStore.getState().setPrefs({ joints: !prefs.joints })}
-            title={t('view.joints')}
-            aria-label={t('view.joints')}
+            title={t(jointsKey)}
+            aria-label={t(jointsKey)}
             aria-pressed={prefs.joints}
             data-testid="toggle-joints"
           >

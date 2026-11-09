@@ -8,6 +8,8 @@ import { StartScreen } from './ui/StartScreen';
 import { MaterialDrawer } from './ui/MaterialDrawer';
 import { ExportDialog } from './ui/ExportDialog';
 import { Hints } from './ui/Hints';
+import { Gate } from './easy/Gate';
+import { joinClassFromLink } from './easy/mode';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
@@ -25,6 +27,7 @@ export function App() {
   const needsMaterial = useStore((s) => s.needsMaterial);
   const exportOpen = useStore((s) => s.exportOpen);
   const drawerOpen = useStore((s) => s.drawerOpen);
+  useEffect(() => void joinClassFromLink(), []);
   const [route, setRoute] = useState(() => location.hash);
   useEffect(() => {
     const h = () => setRoute(location.hash);
@@ -48,7 +51,11 @@ export function App() {
         <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
         <Toolbar />
         <Inspector />
-        {!needsMaterial && <Hints />}
+        {!needsMaterial && (
+          <Gate f="hints">
+            <Hints />
+          </Gate>
+        )}
       </div>
       {needsMaterial && <StartScreen />}
       {drawerOpen && <MaterialDrawer />}

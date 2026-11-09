@@ -1,4 +1,5 @@
 import { TOOL_KEYS } from '../ui/Toolbar';
+import { QUICK_KEYS, startAction } from '../easy/QuickRail';
 import { useEffect } from 'react';
 import { useStore } from './store';
 import { loadLocal, saveLocal } from './persist';
@@ -96,7 +97,12 @@ export function useKeyboard() {
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();
-      } else if (!mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
+      } else if (s.viewPrefs.mode === 'quick' && !mod && !e.altKey && e.key.length === 1 && QUICK_KEYS[e.key.toLowerCase()]) {
+        // Quick build's actions (milestone 37)
+        const a = QUICK_KEYS[e.key.toLowerCase()];
+        if (a === 'select') s.setTool('select');
+        else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
+      } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
         if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {

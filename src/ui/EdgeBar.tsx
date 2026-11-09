@@ -14,6 +14,7 @@ import type { ConnectionKind } from '../model/types';
 import { AngleDial, hingeText } from './AngleDial';
 import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
+import { shown, useFeature } from '../easy/features';
 
 export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const t = useT();
@@ -21,6 +22,8 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const grow = useStore((s) => s.grow);
   const setGrow = useStore((s) => s.setGrow);
   const panel = design.panels[panelId];
+  // Quick build (milestone 37): only the height; the app grows at 90° on the whole edge
+  const advanced = shown(useFeature('grow.advanced'));
   if (!panel) return null;
   const check = checkHinge(design, panelId, edge, grow.angle, grow.height);
   const options = check.kinds;
@@ -44,6 +47,9 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
           <p className="note">{t('edge.used')}</p>
         ) : (
           <>
+            <NumField label={t('edge.height')} value={grow.height} unit={t('unit.mm')} min={5} max={2000} onCommit={(v) => setGrow({ height: v })} testId="grow-height" />
+            {advanced && (
+              <>
             <div className="field dial-field">
               <span className="label" title={t('edge.angleNote')}>
                 {t('edge.angle')}
@@ -58,7 +64,6 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
                 onChange={(a) => setGrow({ angle: a })}
               />
             </div>
-            <NumField label={t('edge.height')} value={grow.height} unit={t('unit.mm')} min={5} max={2000} onCommit={(v) => setGrow({ height: v })} testId="grow-height" />
             {options.length > 0 && (
               <div className="field">
                 <label htmlFor="grow-kind">{t('edge.connection')}</label>
@@ -98,6 +103,8 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
                   {t('edge.addSideWalls')}
                 </button>
               </div>
+            )}
+              </>
             )}
             <p className="note">{t('edge.confirmOnStage')}</p>
           </>

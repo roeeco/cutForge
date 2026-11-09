@@ -14,12 +14,14 @@ import { fmtNum } from '../i18n';
 import { TemplateSection, templateSummary } from './TemplateUI';
 import { useMaterialEdit } from './MaterialDrawer';
 import { Icon } from './icons';
+import { shown, useFeature } from '../easy/features';
 
 const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping'];
 /** Below this stage height (px) the sections start closed. */
 const SHORT_STAGE = 700;
 
 export function DesignSettings() {
+  const fj = useFeature('settings.joints'), fs = useFeature('settings.snapping'), fm = useFeature('settings.material');
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
@@ -118,12 +120,15 @@ export function DesignSettings() {
       </>
     );
   };
+  // Quick build (milestone 37): the app chooses joints and snapping; the material is shown, not changed
+  const fJoints = shown(fj), fSnap = shown(fs), fMaterial = shown(fm), matRO = fm === 'readonly';
   return (
     <section ref={ref} data-testid="inspector-design">
       <p className="kicker">{t('settings.kicker')}</p>
       <h3>{t('settings.title')}</h3>
       {tplSum !== null && section('template', t('tpl.title'), tplSum, <TemplateSection bare />)}
-      {section(
+      {fJoints &&
+        section(
         'joints',
         t('settings.joints'),
         `${short_(groupShown(d, 'base'))} · ${short_(groupShown(d, 'corner'))}`,
@@ -151,21 +156,23 @@ export function DesignSettings() {
           </p>
         </>,
       )}
-      {section(
+      {fMaterial &&
+        section(
         'material',
         t('settings.material'),
         t('settings.sumMaterial', { kind: t(`settings.kind.${m.kind}` as 'settings.kind.card'), t: fmtNum(m.thickness, 2), c: fmtNum(m.clearance, 2) }),
         <>
           <p className="note">{t(m.nameKey as 'mat.ply3')}</p>
-          <NumField label={t('mat.thickness')} value={m.thickness} decimals={2} unit={mm} min={0.1} max={20} onCommit={(v) => setM({ thickness: v })} testId="settings-thickness" />
-          <NumField label={t('mat.kerf')} value={m.kerf} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => setM({ kerf: v })} testId="settings-kerf" />
-          <NumField label={t('mat.clearance')} value={m.clearance} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => setM({ clearance: v })} testId="settings-clearance" />
+          <NumField label={t('mat.thickness')} value={m.thickness} decimals={2} unit={mm} min={0.1} max={20} disabled={matRO} onCommit={(v) => setM({ thickness: v })} testId="settings-thickness" />
+          <NumField label={t('mat.kerf')} value={m.kerf} decimals={2} unit={mm} min={0} max={2} disabled={matRO} onCommit={(v) => setM({ kerf: v })} testId="settings-kerf" />
+          <NumField label={t('mat.clearance')} value={m.clearance} decimals={2} unit={mm} min={0} max={2} disabled={matRO} onCommit={(v) => setM({ clearance: v })} testId="settings-clearance" />
           <button onClick={() => useStore.getState().set({ drawerOpen: true })} data-testid="open-drawer">
             {t('settings.changeMaterial')}
           </button>
         </>,
       )}
-      {section(
+      {fSnap &&
+        section(
         'snapping',
         t('settings.snapping'),
         [prefs.snap ? t('settings.sumSmart') : t('settings.sumSmartOff'), prefs.grid ? t('settings.sumGrid', { n: fmtNum(prefs.gridStep, 1) }) : t('settings.sumGridOff'), `${fmtNum(prefs.turnStep, 0)}°`].join(' · '),

@@ -1,7 +1,7 @@
 // Contextual card: shows only what belongs to the current selection. Nothing
 // selected → the design's settings (template sizes, joints, material and fit,
 // snapping); an edge selected → the grow card on the stage takes over.
-import type { ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
@@ -23,14 +23,67 @@ import { MultiPanel } from './MultiPanel';
 import { PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
+import { Gate } from '../easy/Gate';
+import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
+import { setMode, workshopOnly } from '../easy/mode';
 
 export function Inspector() {
+  const t = useT();
+  const sel = useStore((s) => s.selection);
+  const d = useStore((s) => s.design);
+  const quick = useMode() === 'quick';
+  // More… shows a card's Workshop version until the selection changes (milestone 37)
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [sel]);
+  if (!quick || !sel || sel.kind === 'edge') return <InspectorBody />;
+  const multi = (sel.kind === 'detail' && sel.ids.length > 1) || (sel.kind === 'panel' && (sel.ids?.length ?? 0) > 1);
+  const panelId = sel.kind === 'panel' ? sel.id : findDetail(d, sel.id)?.panel.id;
+  const why = !multi && panelId ? workshopOnly(d, panelId) : null;
+  if (why) return <ReadOnlyCard panelId={panelId!} detail={sel.kind === 'detail'} why={why} />;
+  const toggle = multi ? null : (
+    <div className="more-row">
+      <button className="link" aria-expanded={more} onClick={() => setMore(!more)} data-testid="quick-more">
+        {t(more ? 'quick.less' : 'quick.more')}
+      </button>
+    </div>
+  );
+  return (
+    <ModeOverride.Provider value={more ? 'workshop' : null}>
+      <InspectorBody footer={toggle} />
+    </ModeOverride.Provider>
+  );
+}
+
+/** Quick build: a part made with Workshop tools is shown but not changed (milestone 37). */
+function ReadOnlyCard({ panelId, detail, why }: { panelId: string; detail: boolean; why: NonNullable<ReturnType<typeof workshopOnly>> }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  return (
+    <div className="card-dock">
+      <aside className="card inspector" aria-label={t('insp.title')} data-testid="inspector-readonly">
+        <p className="kicker">{detail ? t('insp.shapeOn', { panel: panelLabel(d, panelId, t) }) : t('insp.part')}</p>
+        <div className="card-head">
+          <h3 dir="auto">{panelLabel(d, panelId, t)}</h3>
+        </div>
+        <p className="note readonly-note" data-testid="readonly-why">
+          {t('quick.madeInWorkshop', { why: t(`quick.why.${why}`) })}
+        </p>
+        <button className="primary" onClick={() => setMode('workshop')} data-testid="quick-open-workshop">
+          {t('quick.openWorkshop')}
+        </button>
+      </aside>
+    </div>
+  );
+}
+
+function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const t = useT();
   const sel = useStore((s) => s.selection);
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
+  const opsAll = shown(useFeature('op.scoreAdd'));
   const mm = t('unit.mm');
   if (sel?.kind === 'edge') return view === '3d' ? <EdgeBar panelId={sel.panelId} edge={sel.edge} /> : null;
 
@@ -51,13 +104,26 @@ export function Inspector() {
               <Icon name="trash" />
             </button>
           </div>
-          <Segmented
-            label={t('insp.op')}
-            value={dt.op}
-            options={(['add', 'cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
-            onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp }))}
-          />
-          {dt.op === 'cut' && (
+          {opsAll ? (
+            <Segmented
+              label={t('insp.op')}
+              value={dt.op}
+              options={(['add', 'cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
+              onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp }))}
+            />
+          ) : (
+            // Quick build: a hole is cut out or engraved
+            <Segmented
+              label={t('insp.op')}
+              value={dt.op === 'engrave' ? 'engrave' : 'cut'}
+              options={[
+                { value: 'cut', label: t('quick.cutOut'), testId: 'detail-op-cut' },
+                { value: 'engrave', label: t('quick.engrave'), testId: 'detail-op-engrave' },
+              ]}
+              onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp, through: false }))}
+            />
+          )}
+          {dt.op === 'cut' && opsAll && (
             <div className="through-row">
               <label className="check" title={t('through.help')}>
                 <input type="checkbox" checked={!!dt.through} onChange={(e) => apply((x) => updateDetail(x, dt.id, { through: e.target.checked }))} data-testid="detail-through" />
@@ -125,9 +191,13 @@ export function Inspector() {
           {!parent && (
             <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
           )}
-          <PanelHinge panelId={id} />
+          <Gate f="hinge">
+            <PanelHinge panelId={id} />
+          </Gate>
           <TrayWallNote panelId={id} />
-          <FoldOverSection panelId={id} />
+          <Gate f="foldover">
+            <FoldOverSection panelId={id} />
+          </Gate>
           {((!parent && p.sketch.kind === 'poly') || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
@@ -138,7 +208,11 @@ export function Inspector() {
               <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
-          {editOutline === id && <PointCurve panelId={id} />}
+          {editOutline === id && (
+            <Gate f="curves">
+              <PointCurve panelId={id} />
+            </Gate>
+          )}
           <Stepper
             label={t('insp.quantity')}
             value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
@@ -148,13 +222,19 @@ export function Inspector() {
             onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
-          <BoardMaterial ids={[id]} />
-          <PlacedSection panelId={id} />
+          <Gate f="boardMaterial">
+            <BoardMaterial ids={[id]} />
+          </Gate>
+          <Gate f="construction">
+            <PlacedSection panelId={id} />
+          </Gate>
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
-          <JointsAdvanced panelId={id} />
+          <Gate f="joints">
+            <JointsAdvanced panelId={id} />
+          </Gate>
           <div className="subsection">
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">
@@ -187,6 +267,7 @@ export function Inspector() {
     <div className="card-dock">
       <aside className="card inspector" aria-label={t('insp.title')}>
         {body}
+        {footer}
       </aside>
     </div>
   );

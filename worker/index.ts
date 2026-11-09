@@ -179,7 +179,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if ((m = /^\/api\/class\/([A-Za-z0-9]{4,10})$/.exec(p)) && M === 'GET') {
     const c = await db.select().from(classes).where(eq(classes.code, m[1].toUpperCase())).get();
     if (!c) return err(404, 'noClass');
-    return json({ name: c.name, open: c.open, material: c.material ? JSON.parse(c.material) : null });
+    return json({ name: c.name, open: c.open, material: c.material ? JSON.parse(c.material) : null, mode: c.mode ?? null, modeLocked: !!c.modeLocked, missions: c.missions ? JSON.parse(c.missions) : null });
   }
   if ((m = /^\/api\/class\/([A-Za-z0-9]{4,10})\/submit$/.exec(p)) && M === 'POST') {
     const c = await db.select().from(classes).where(eq(classes.code, m[1].toUpperCase())).get();
@@ -243,7 +243,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (p === '/api/teacher/classes' && M === 'GET') {
     const rows = await db.select().from(classes).orderBy(desc(classes.createdAt)).all();
     const counts = await db.select({ classId: submissions.classId, n: sql<number>`count(*)`, fresh: sql<number>`sum(case when status = 'new' then 1 else 0 end)` }).from(submissions).where(eq(submissions.superseded, false)).groupBy(submissions.classId).all();
-    return json(rows.map((c) => ({ ...c, material: c.material ? JSON.parse(c.material) : null, submissions: counts.find((x) => x.classId === c.id)?.n ?? 0, fresh: counts.find((x) => x.classId === c.id)?.fresh ?? 0 })));
+    return json(rows.map((c) => ({ ...c, material: c.material ? JSON.parse(c.material) : null, missions: c.missions ? JSON.parse(c.missions) : null, submissions: counts.find((x) => x.classId === c.id)?.n ?? 0, fresh: counts.find((x) => x.classId === c.id)?.fresh ?? 0 })));
   }
   if (p === '/api/teacher/classes' && M === 'POST') {
     const b = await body<{ name: string }>(req, 2000);
@@ -252,7 +252,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     for (let i = 0; i < 5; i++) {
       const code = newClassCode();
       if (await db.select().from(classes).where(eq(classes.code, code)).get()) continue;
-      const row = { id: randomId('c_'), code, name, open: true, material: null, createdAt: Date.now() };
+      const row = { id: randomId('c_'), code, name, open: true, material: null, mode: null, modeLocked: false, missions: null, createdAt: Date.now() };
       await db.insert(classes).values(row);
       return json(row, 201);
     }
@@ -261,13 +261,18 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if ((m = /^\/api\/teacher\/classes\/(c_[0-9a-f]+)$/.exec(p))) {
     const id = m[1];
     if (M === 'PATCH') {
-      const b = await body<{ open?: boolean; name?: string; material?: unknown }>(req, 20000);
+      const b = await body<{ open?: boolean; name?: string; material?: unknown; mode?: string | null; modeLocked?: boolean; missions?: string[] | null }>(req, 20000);
       if (!b) return err(400, 'badRequest');
       const patch: Partial<typeof classes.$inferInsert> = {};
       if (typeof b.open === 'boolean') patch.open = b.open;
       if (typeof b.name === 'string' && clean(b.name, 60)) patch.name = clean(b.name, 60);
       if (b.material === null) patch.material = null;
       else if (b.material && typeof b.material === 'object') patch.material = JSON.stringify(b.material).slice(0, 5000);
+      // Quick build (milestones 37, 40): the class's default mode, locked or not, and the missions it offers
+      if (b.mode === null || b.mode === 'quick' || b.mode === 'workshop') patch.mode = b.mode;
+      if (typeof b.modeLocked === 'boolean') patch.modeLocked = b.modeLocked;
+      if (b.missions === null) patch.missions = null;
+      else if (Array.isArray(b.missions)) patch.missions = JSON.stringify(b.missions.filter((x) => typeof x === 'string').slice(0, 50).map((x) => x.slice(0, 40)));
       await db.update(classes).set(patch).where(eq(classes.id, id));
       return json({ ok: true });
     }

@@ -40,7 +40,11 @@ export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
 }
 
-export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'>;
+export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool;
+/** Tools that work on the 3D stage only. */
+const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
+/** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
+export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
 /**
  * The Panel tool's ghost (milestone 29), in its host's local coordinates (the
@@ -56,6 +60,8 @@ export type PanelGhost = {
   height: number;
   side: 1 | -1;
   construction: boolean;
+  /** A divider line on a box's base (milestone 38): from wall to wall it becomes a divider, otherwise a standing panel. */
+  divider?: boolean;
   /** The pointer is still down (drawing). */
   drawing: boolean;
 };
@@ -79,6 +85,9 @@ export type GrowOptions = {
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
 export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
+/** Quick build grows at 90° on the whole edge, adapting, with the design's joint (feature 'grow.advanced' is 'auto', milestone 37). */
+const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, kind: undefined, sketch: null, editGhost: false };
+
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
 export type ViewPrefs = {
@@ -96,6 +105,10 @@ export type ViewPrefs = {
   turnStep: number;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
+  /** Quick build or Workshop (milestone 37): a viewer preference, never part of the design. */
+  mode?: 'quick' | 'workshop';
+  /** The class chose the mode and does not let it change (milestone 37). */
+  modeLocked?: boolean;
 };
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
@@ -103,11 +116,12 @@ function initialPrefs(): ViewPrefs {
   const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    if (raw) return { ...def, ...JSON.parse(raw) };
+    // someone who has used CutForge before keeps the Workshop they know; a new browser starts in Quick build
+    if (raw) return { ...def, mode: 'workshop', ...JSON.parse(raw) };
   } catch {
     /* storage unavailable */
   }
-  return def;
+  return { ...def, mode: 'quick' };
 }
 
 type State = {
@@ -119,6 +133,14 @@ type State = {
   selection: Selection;
   tool: Tool;
   shapeOp: DetailOp;
+  /** Quick build: the tool each action last used (a hole's shape, text or a sticker). */
+  quickLast: Partial<Record<string, Tool>>;
+  /** Quick build's Box (milestone 38): the footprint, a regular footprint's sides, and the last height used. */
+  boxFoot: 'rect' | 'regular';
+  boxSides: number;
+  boxHeight: number;
+  /** The sticker the Sticker tool places. */
+  sticker: string;
   /** New Cut shapes cut through the whole design. */
   shapeThrough: boolean;
   view: View;
@@ -203,7 +225,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -243,6 +265,11 @@ export const useStore = create<State>()((set, get) => ({
   selection: null,
   tool: 'select',
   shapeOp: 'cut',
+  quickLast: {},
+  boxFoot: 'rect',
+  boxSides: 6,
+  boxHeight: 45,
+  sticker: 'star',
   shapeThrough: false,
   view: '3d',
   soloPanel: null,
@@ -392,18 +419,19 @@ export const useStore = create<State>()((set, get) => ({
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
-    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
+    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
     // another tool drops what the last one made and was not confirmed
     if (get().pending) get().cancelPending();
-    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null });
+    const act = t === 'circle' || t === 'rect' || t === 'roundrect' ? 'hole' : t === 'text' || t === 'sticker' ? 'text' : null;
+    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
   },
   setShapeOp: (o) => set({ shapeOp: o }),
-  setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
+  setView: (v) => set({ view: v, tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
   openSolo: (panelId) => {
     const cur = get().view;
-    set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: get().tool === 'panel' ? 'select' : get().tool });
+    set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: ONLY_3D.has(get().tool) ? 'select' : get().tool });
   },
   closeSolo: () => set({ view: get().prevView, soloPanel: null }),
   clickPanel: (id, additive) => {

@@ -588,3 +588,21 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .ghost-bar .cancel { background: transparent; border: 1px solid var(--line-strong); }
 .ghost-bar .warn { color: #8a5a00; max-width: 220px; white-space: normal; }
 .flip-badge { cursor: pointer; }
+
+/* Quick build (milestone 37) */
+.quick-guide {
+  position: absolute; top: 16px; inset-inline-start: 84px; z-index: 5; margin: 0; max-width: 300px;
+  background: var(--rail-bg); color: white; font-size: 13px; padding: 8px 12px; border-radius: var(--r-md); box-shadow: var(--shadow-float);
+}
+.mode-seg button { white-space: nowrap; }
+.readonly-note { border-inline-start: 3px solid var(--warn, #c98a1b); padding-inline-start: 8px; }
+.more-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.quick-card {
+  position: absolute; top: 16px; inset-inline-start: 84px; z-index: 5; width: 240px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-float); padding: 10px 12px;
+}
+.quick-card h4 { margin: 0 0 6px; }
+.quick-card .note { margin: 6px 0 0; }
+.sticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
+.sticker-grid button { min-height: 0; height: 40px; padding: 0; display: grid; place-items: center; }
+.sticker-grid button.on { outline: 2px solid var(--accent, #1a9c8c); }

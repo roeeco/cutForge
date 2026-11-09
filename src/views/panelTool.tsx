@@ -21,6 +21,9 @@ import { STAGE } from './palette';
 import { DimLabel, PushPull, ScreenSized, StageHtml, mmPerPx, priorityRaycast, useHandleDrag, useRayFromScreen } from './widgets';
 import { SNAP_PX } from '../geom/types';
 import { Icon } from '../ui/icons';
+import { isBoxBase, planDividerLine, type DividerLinePlan } from '../easy/recipes';
+import { confirmDividerLine } from '../easy/actions';
+import { shown, useFeature } from '../easy/features';
 
 /** The face a point on a panel is on: its material side (1) or its plane (−1), from the point's depth in the slab. */
 export function faceAt(d: Design, p: Panel, point: V3): 1 | -1 {
@@ -52,10 +55,23 @@ export function ghostPlace(g: PanelGhost): { place: PanelPlace; w: number; h: nu
   return { place: { host: g.host, face: g.face, x: g.a.x, y: g.a.y, rot, pose: 'standing', side: g.side }, w, h: Math.max(MIN_PANEL, g.height) };
 }
 
+/** A divider line's ghost (milestone 38): what the line makes, drawn as a panel standing along it. */
+export function dividerGhost(d: Design, g: PanelGhost): { gp: { place: PanelPlace; w: number; h: number }; plan: DividerLinePlan } | null {
+  if (!g.divider || !g.host) return null;
+  const plan = planDividerLine(d, g.host, g.a, g.b, g.height);
+  if (!plan) return null;
+  const rot = (Math.atan2(plan.b.y - plan.a.y, plan.b.x - plan.a.x) * 180) / Math.PI;
+  const w = Math.hypot(plan.b.x - plan.a.x, plan.b.y - plan.a.y);
+  const h = plan.kind === 'divider' ? plan.plan.height : plan.height;
+  return { gp: { place: { host: g.host, face: 1, x: plan.a.x, y: plan.a.y, rot, pose: 'standing', side: 1 }, w, h }, plan };
+}
+
 /** Make the ghost's panel (✓): one undo step; it is selected and the tool goes back to Select. */
 export function confirmPanelGhost(): string | null {
   const st = useStore.getState();
-  const g = st.panelGhost;
+  const g0 = st.panelGhost;
+  if (g0?.divider && g0.host) return confirmDividerLine(g0.host, g0.a, g0.b, g0.height);
+  const g = g0;
   const gp = g && ghostPlace(g);
   if (!g || !gp) return null;
   let id: string | null = null;
@@ -127,7 +143,10 @@ export function PanelGhostView({ d }: { d: Design }) {
   const { camera, gl } = useThree();
   const ray = useRayFromScreen();
   const hf = g ? hostFace(d, g.host, g.face) : null;
-  const gp = g ? ghostPlace(g) : null;
+  const dv = useMemo(() => (g?.divider ? dividerGhost(d, g) : null), [d, g]);
+  const gp = g ? (g.divider ? (dv?.gp ?? null) : ghostPlace(g)) : null;
+  // Quick build draws panels only as Box and Divider: no pose or construction choice
+  const poses = shown(useFeature('construction'));
   const ghost = useMemo((): Panel | null => {
     if (!gp) return null;
     const frame = placeFrame(d, gp.place);
@@ -167,8 +186,10 @@ export function PanelGhostView({ d }: { d: Design }) {
   const barAt: V3 | null = top ? [top[0] + out[0] * 14, top[1] + out[1] * 14, top[2] + out[2] * 14] : null;
   const setPose = (pose: 'flat' | 'standing') => {
     useStore.getState().set({ panelPose: pose });
-    set({ pose });
+    set({ pose, divider: false });
   };
+  const canDivide = !!g.host && g.face === 1 && isBoxBase(d, g.host);
+  const plan = dv?.plan;
   return (
     <>
       {ghost && geom && (
@@ -210,11 +231,11 @@ export function PanelGhostView({ d }: { d: Design }) {
             onCommit={(v) => {
               const cur = useStore.getState().panelGhost!;
               if (cur.pose === 'flat') set({ b: { x: cur.b.x, y: cur.a.y + Math.sign(cur.b.y - cur.a.y || 1) * v } });
-              else set({ height: v });
+              else if (!cur.divider) set({ height: v });
             }}
             testId="ghost-h"
           />
-          {g.pose === 'standing' && top && (
+          {g.pose === 'standing' && !g.divider && top && (
             <>
               <PushPull at={top} axis={out} value={gp.h} min={MIN_PANEL} max={2000} onPreview={(v) => set({ height: v })} onCommit={() => undefined} onCancel={() => undefined} testId="ghost-height" />
               <StageHtml position={toWorld(ghost.frame, ghost.w, ghost.h / 2, th / 2)}>
@@ -226,20 +247,43 @@ export function PanelGhostView({ d }: { d: Design }) {
           )}
         </>
       )}
+      {g.divider && plan && g.drawing && (
+        // the compartments while drawing (milestone 38)
+        <StageHtml position={at({ x: (plan.a.x + plan.b.x) / 2, y: (plan.a.y + plan.b.y) / 2 })} style={{ pointerEvents: 'none' }}>
+          <span className="w-dim ghost" data-testid="divider-live" data-kind={plan.kind}>
+            {plan.kind === 'divider' ? (plan.gaps ? t('quick.dividerMakes', { a: plan.gaps[0], b: plan.gaps[1] }) : t('quick.dividerWall')) : t('quick.standingMakes')}
+          </span>
+        </StageHtml>
+      )}
       {barAt && !g.drawing && (
         <ConfirmBar at={barAt} onOk={() => void confirmPanelGhost()} onCancel={cancelPanelGhost} okDisabled={!gp} testId="panel-ghost-bar">
-          <span className="seg" role="radiogroup" aria-label={t('ghost.pose')}>
-            <button role="radio" aria-checked={g.pose === 'flat'} className={g.pose === 'flat' ? 'on' : ''} onClick={() => setPose('flat')} data-testid="ghost-flat">
-              {t('ghost.flat')}
-            </button>
-            <button role="radio" aria-checked={g.pose === 'standing'} className={g.pose === 'standing' ? 'on' : ''} onClick={() => setPose('standing')} data-testid="ghost-standing">
-              {t('ghost.standing')}
-            </button>
-          </span>
-          <label className="check">
-            <input type="checkbox" checked={g.construction} onChange={(e) => set({ construction: e.target.checked })} data-testid="ghost-construction" />
-            {t('ghost.construction')}
-          </label>
+          {poses && (
+            <span className="seg" role="radiogroup" aria-label={t('ghost.pose')}>
+              <button role="radio" aria-checked={g.pose === 'flat'} className={g.pose === 'flat' ? 'on' : ''} onClick={() => setPose('flat')} data-testid="ghost-flat">
+                {t('ghost.flat')}
+              </button>
+              <button role="radio" aria-checked={g.pose === 'standing' && !g.divider} className={g.pose === 'standing' && !g.divider ? 'on' : ''} onClick={() => setPose('standing')} data-testid="ghost-standing">
+                {t('ghost.standing')}
+              </button>
+              {canDivide && (
+                // a line from wall to wall makes a divider (milestone 38)
+                <button role="radio" aria-checked={!!g.divider} className={g.divider ? 'on' : ''} onClick={() => set({ pose: 'standing', divider: true })} data-testid="ghost-divider">
+                  {t('ghost.divider')}
+                </button>
+              )}
+            </span>
+          )}
+          {poses && !g.divider && (
+            <label className="check">
+              <input type="checkbox" checked={g.construction} onChange={(e) => set({ construction: e.target.checked })} data-testid="ghost-construction" />
+              {t('ghost.construction')}
+            </label>
+          )}
+          {g.divider && plan && (
+            <span className="note" data-testid="divider-makes" data-kind={plan.kind}>
+              {plan.kind === 'divider' ? (plan.gaps ? t('quick.dividerMakes', { a: plan.gaps[0], b: plan.gaps[1] }) : t('quick.dividerWall')) : t('quick.standingMakes')}
+            </span>
+          )}
         </ConfirmBar>
       )}
     </>
@@ -291,7 +335,10 @@ export { matDir };
  */
 export function PendingBar({ d, m }: { d: Design; m: (panelId: string) => THREE.Matrix4 }) {
   const g = useStore((s) => s.pending);
+  const ex = useStore((s) => s.extrude);
   if (!g) return null;
+  // a Box's base: the rising walls carry the ✓ (milestone 38)
+  if (ex && g.ids.includes(ex.baseId)) return null;
   const p = d.panels[g.panelId];
   if (!p) return null;
   let x = p.w / 2, y = p.h / 2;

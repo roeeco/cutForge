@@ -5,6 +5,8 @@ import { importSvg } from '../io/svgImport';
 import { addPathShape, findDetail } from '../model/ops';
 import type { MsgKey } from '../i18n';
 import { Icon } from './icons';
+import { shown, useFeature } from '../easy/features';
+import { QuickRail } from '../easy/QuickRail';
 
 const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolean }[] = [
   { id: 'select', key: 'tool.select', icon: 'select', kbd: 'V' },
@@ -30,7 +32,12 @@ function targetPanel(): string | null {
   return null;
 }
 
+/** The tool rail: Workshop's tools, or Quick build's five actions (milestone 37). */
 export function Toolbar() {
+  return shown(useFeature('rail.tools')) ? <WorkshopRail /> : <QuickRail />;
+}
+
+function WorkshopRail() {
   const t = useT();
   const tool = useStore((s) => s.tool);
   const view = useStore((s) => s.view);

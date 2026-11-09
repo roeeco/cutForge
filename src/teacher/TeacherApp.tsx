@@ -187,6 +187,39 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                 </select>
               </div>
             )}
+            {c.id === current && (
+              <div className="field">
+                <label htmlFor={`mode-${c.id}`}>{t('class.mode')}</label>
+                <select
+                  id={`mode-${c.id}`}
+                  value={c.mode ?? ''}
+                  onChange={async (e) => {
+                    const v = e.target.value as 'quick' | 'workshop' | '';
+                    await api.patchClass(c.id, { mode: v || null, ...(v ? {} : { modeLocked: false }) });
+                    reload();
+                  }}
+                  data-testid="class-mode"
+                >
+                  <option value="">{t('class.modeNone')}</option>
+                  <option value="quick">{t('mode.quick')}</option>
+                  <option value="workshop">{t('mode.workshop')}</option>
+                </select>
+                {c.mode && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={!!c.modeLocked}
+                      onChange={async (e) => {
+                        await api.patchClass(c.id, { modeLocked: e.target.checked });
+                        reload();
+                      }}
+                      data-testid="class-mode-locked"
+                    />
+                    {t('class.modeLocked')}
+                  </label>
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ul>

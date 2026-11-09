@@ -6,11 +6,12 @@
 // Worker (workerd, local D1 and R2).
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { WORKSHOP_STATE } from './util';
 
 const KEY = 'e2e-teacher-key';
 
 async function student(browser: Browser, material: string, name: string, code: string, title: string) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const page = await ctx.newPage();
   await page.goto('/');
   await page.getByTestId('tpl-organiser').check();
@@ -96,7 +97,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   await expect(page.getByTestId('class-profile')).toHaveValue('corr-4');
   await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.material?.id, cname)).toBe('corr-4');
 
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const st = await ctx.newPage();
   await st.goto('/');
   await st.getByTestId('tpl-organiser').check();
@@ -127,4 +128,43 @@ test('a class profile mismatch is explained; a failed submission offers the down
   expect((await dl).suggestedFilename()).toMatch(/\.svg$/);
   expect(await st.evaluate(() => JSON.stringify((window as any).__cutforge.store.getState().design))).toBe(before);
   await ctx.close();
+});
+
+test('a class that locks Quick build: a student from its link starts there and cannot switch (milestone 37)', async ({ browser, page }) => {
+  await teacherLogin(page);
+  const cname = `Quick ${Date.now()}`;
+  await page.getByTestId('new-class-name').fill(cname);
+  await page.getByTestId('create-class').click();
+  const code = (await page.locator('.class-list li', { hasText: cname }).getByTestId('class-code').innerText()).trim();
+  await page.getByTestId(`class-${code}`).click();
+  await page.getByTestId('class-mode').selectOption('quick');
+  await page.getByTestId('class-mode-locked').click();
+  await expect(page.getByTestId('class-mode-locked')).toBeChecked();
+  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n), cname)).toMatchObject({ mode: 'quick', modeLocked: true });
+
+  // a student who used the Workshop before follows the class link
+  const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
+  const st = await ctx.newPage();
+  await st.goto(`/?class=${code}`);
+  await st.getByTestId('mat-ply-3').click();
+  await st.getByTestId('start-go').click();
+  await expect(st.getByTestId('quick-rail')).toBeVisible();
+  await expect(st.getByTestId('mode-toggle')).toHaveCount(0);
+  await st.reload();
+  await expect(st.getByTestId('quick-rail')).toBeVisible();
+  await expect(st.getByTestId('mode-toggle')).toHaveCount(0);
+  await ctx.close();
+
+  // unlocked: the toggle is back
+  await page.getByTestId('class-mode-locked').click();
+  await expect(page.getByTestId('class-mode-locked')).not.toBeChecked();
+  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.modeLocked, cname)).toBe(false);
+  const ctx2 = await browser.newContext({ storageState: WORKSHOP_STATE });
+  const st2 = await ctx2.newPage();
+  await st2.goto(`/?class=${code}`);
+  await st2.getByTestId('mat-ply-3').click();
+  await st2.getByTestId('start-go').click();
+  await expect(st2.getByTestId('quick-rail')).toBeVisible();
+  await expect(st2.getByTestId('mode-workshop')).toBeVisible();
+  await ctx2.close();
 });

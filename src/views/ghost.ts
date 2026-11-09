@@ -56,21 +56,25 @@ export function effectiveGrow(d: Design, parentId: string, edge: string, grow: G
 export function doGrow(panelId: string, edge: string, own?: ConnectionKind): string | null {
   const st = useStore.getState();
   const grow = st.grow;
-  const d0 = st.design;
-  const effKind = own ?? growKind(d0, grow, panelId);
-  const eg = effectiveGrow(d0, panelId, edge, grow);
-  const { angle, dir } = fromHinge(grow.angle);
   let res: ReturnType<typeof growPanel> = null;
-  st.apply((d) => {
-    // a joint the student did not pick follows the design's (or the material's) default whenever the angle allows
-    const m = matOf(d, panelId);
-    const sq = connectionsFor(m, 90);
-    const pref = own ?? (grow.kind && grow.kind === effKind ? effKind : (designKind(d, 'base', sq, m.kind) ?? sq[0]));
-    res = growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref, span: eg.span, sketch: eg.sketch });
-  });
+  st.apply((d) => void (res = growWith(d, panelId, edge, grow, own)));
   const r = res as ReturnType<typeof growPanel>;
   if (r) st.select({ kind: 'panel', id: r.panelId });
+  // Quick build's Wall / lid goes back to Select (milestone 38)
+  if (r && useStore.getState().tool === 'wall') useStore.getState().setTool('select');
   return r?.panelId ?? null;
+}
+
+/** Grow what the grow ghost shows for these options (the edit `doGrow` makes). */
+export function growWith(d: Design, panelId: string, edge: string, grow: GrowOptions, own?: ConnectionKind): ReturnType<typeof growPanel> {
+  const effKind = own ?? growKind(d, grow, panelId);
+  const eg = effectiveGrow(d, panelId, edge, grow);
+  const { angle, dir } = fromHinge(grow.angle);
+  // a joint the student did not pick follows the design's (or the material's) default whenever the angle allows
+  const m = matOf(d, panelId);
+  const sq = connectionsFor(m, 90);
+  const pref = own ?? (grow.kind && grow.kind === effKind ? effKind : (designKind(d, 'base', sq, m.kind) ?? sq[0]));
+  return growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref, span: eg.span, sketch: eg.sketch });
 }
 
 /**

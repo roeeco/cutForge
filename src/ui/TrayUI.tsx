@@ -19,6 +19,8 @@ import { connectionsFor, matOf, tOf } from '../model/materials';
 import { seamKinds } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind } from '../model/types';
+import { Gate } from '../easy/Gate';
+import { shown, useFeature } from '../easy/features';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
 export function canExtrude(d: ReturnType<typeof useStore.getState>['design'], id: string): boolean {
@@ -51,9 +53,11 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
       <p className="note">{t('tray.extrudeHelp', { n })}</p>
       <NumField label={t('tray.height')} value={ex.height} unit={mm} min={5 + tOf(d, panelId)} max={1000} onCommit={(v) => set({ extrude: { ...ex, height: v } })} testId="extrude-height" />
       <FlatNote baseId={panelId} height={ex.height} />
-      <p className="note">
-        {t('tray.joints', { wall: t(`conn.${kinds.wallKind}` as 'conn.fold'), corner: t(`conn.${kinds.cornerKind}` as 'conn.fold') })}
-      </p>
+      <Gate f="tray.joints">
+        <p className="note">
+          {t('tray.joints', { wall: t(`conn.${kinds.wallKind}` as 'conn.fold'), corner: t(`conn.${kinds.cornerKind}` as 'conn.fold') })}
+        </p>
+      </Gate>
       <p className="note">{t('tray.confirmOnStage')}</p>
     </div>
   );
@@ -77,6 +81,7 @@ export function TraySection({ panelId }: { panelId: string }) {
       <h4>{t('tray.title')}</h4>
       <NumField label={t('tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
       <FlatNote baseId={panelId} height={tray.height} tray={tray} />
+      <Gate f="tray.joints">
       <div className="field">
         <label htmlFor="tray-wall-kind">{t('tray.wallJoint')}</label>
         <select id="tray-wall-kind" value={tray.wallKind} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { wallKind: e.target.value as ConnectionKind }))} data-testid="tray-wall-kind">
@@ -105,6 +110,7 @@ export function TraySection({ panelId }: { panelId: string }) {
           onChange={(o) => apply((x) => setTrayKinds(x, tray.id, { tabLen: o as 'flush' | 'through' }))}
         />
       )}
+      </Gate>
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
@@ -133,10 +139,12 @@ export function TrayWallNote({ panelId }: { panelId: string }) {
   return (
     <div className="tray-wall-note" data-testid="tray-wall">
       <p className="note">{p.customHeight ? t('tray.customHeight') : t('tray.sharedHeight')}</p>
+      <Gate f="tray.ownHeight">
       <label className="check">
         <input type="checkbox" checked={!!p.customHeight} onChange={(e) => apply((x) => setCustomHeight(x, panelId, e.target.checked))} data-testid="custom-height" />
         {t('tray.ownHeight')}
       </label>
+      </Gate>
     </div>
   );
 }
@@ -213,6 +221,8 @@ export function FlatNote({ baseId, height, tray }: { baseId: string; height: num
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const info = useMemo(() => trayFlatInfo(d, baseId, height), [d, baseId, height]);
+  // Quick build: the app decides which wall gives way
+  const pins = shown(useFeature('tray.keepWhole'));
   if (!info) return null;
   if (tray?.flat === 'off')
     return (
@@ -256,12 +266,14 @@ export function FlatNote({ baseId, height, tray }: { baseId: string; height: num
                   {t('flat.lower', { h: fmtNum(fh, 1) })}
                 </button>
               )}
-              <button className="ghost" onClick={() => apply((x) => setTrayFlat(x, tray.id, 'off'))} data-testid="flat-keep">
-                {t('flat.keep')}
-              </button>
+              <Gate f="tray.keepWhole">
+                <button className="ghost" onClick={() => apply((x) => setTrayFlat(x, tray.id, 'off'))} data-testid="flat-keep">
+                  {t('flat.keep')}
+                </button>
+              </Gate>
             </div>
           )}
-          {[...new Set([...changed, ...Object.keys(tray.pin ?? {})])].map((k) => (
+          {pins && [...new Set([...changed, ...Object.keys(tray.pin ?? {})])].map((k) => (
             <div className="field" key={k}>
               <label htmlFor={`flat-pin-${k}`}>{t('flat.pin', { wall: label(k) })}</label>
               <select id={`flat-pin-${k}`} value={tray.pin?.[k] ?? ''} onChange={(e) => apply((x) => setTrayPin(x, tray.id, k, (e.target.value || null) as 'hinge' | 'own' | 'other' | null))} data-testid={`flat-pin-${k}`}>

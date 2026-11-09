@@ -1,6 +1,7 @@
 // "Submit to class": class code + display name (remembered locally). If the
 // network or server fails, say so plainly and offer the download instead;
 // the student's local work is never touched by a failed submission.
+import { applyClassMode } from '../easy/mode';
 import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, deviceId, type ApiError, type ClassInfo } from '../net/api';
@@ -65,6 +66,8 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
     } catch (e) {
       return setState({ kind: 'error', error: (e as ApiError).code ?? 'network' });
     }
+    // the class's mode (milestone 37): its default, and kept when the teacher locks it
+    applyClassMode(cls.mode ?? null, !!cls.modeLocked);
     if (!cls.open) return setState({ kind: 'error', error: 'closed' });
     // the class's profile against the working material, and boards in other materials
     if (cls.material && (differs(cls.material, d.material) || mixedMaterials(d))) return setState({ kind: 'profile', cls });
