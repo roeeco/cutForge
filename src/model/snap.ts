@@ -26,7 +26,11 @@ export function snapContext(d: Design, panelId: string, exclude: Set<string>): S
     );
   };
   const panel = { minX: 0, minY: 0, maxX: p.w, maxY: p.h };
-  boxPts(panel);
+  // the panel's own outline: its vertices and edge midpoints (a gable's apex, a polygon's corners), and its centre;
+  // on a rectangle these are the same nine points as its box
+  const ring = panelEdges(p);
+  for (const e of ring) points.push({ x: e.a.x, y: e.a.y }, { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 });
+  points.push({ x: p.w / 2, y: p.h / 2 });
   const boxes: Box[] = [];
   for (const dt of p.details) {
     if (exclude.has(dt.id)) continue;
@@ -44,7 +48,40 @@ export function snapContext(d: Design, panelId: string, exclude: Set<string>): S
       boxPts(b);
     }
   }
+  // a through-cut being moved or resized: the panels in its path, seen in its own plane
+  const through = [...exclude].map((id) => p.details.find((dt) => dt.id === id)).find((dt) => dt?.op === 'cut' && dt.through);
+  if (through) for (const q of throughTargets(d, panelId, through.id)) points.push(q);
   return { points, boxes, panel };
+}
+
+/**
+ * Snap targets from the panels a through-cut passes through, projected along
+ * the cut direction into the source panel's plane: their outline vertices and
+ * edge midpoints, and their shapes' corners and centres. Edge-on panels (the
+ * cut runs within their plane) give none.
+ */
+export function throughTargets(d: Design, panelId: string, detailId: string): P2[] {
+  const S = d.panels[panelId];
+  if (!S) return [];
+  const n = frameNormal(S.frame);
+  const out: P2[] = [];
+  const back = (w: [number, number, number]) => {
+    const lam = (w[0] - S.frame.o[0]) * n[0] + (w[1] - S.frame.o[1]) * n[1] + (w[2] - S.frame.o[2]) * n[2];
+    return toLocal(S.frame, [w[0] - n[0] * lam, w[1] - n[1] * lam, w[2] - n[2] * lam]);
+  };
+  for (const id of panelsCutBy(d, detailId)) {
+    const P = d.panels[id];
+    if (!P || Math.abs(n[0] * frameNormal(P.frame)[0] + n[1] * frameNormal(P.frame)[1] + n[2] * frameNormal(P.frame)[2]) < 1e-6) continue;
+    for (const e of panelEdges(P)) {
+      out.push(back(toWorld(P.frame, e.a.x, e.a.y)), back(toWorld(P.frame, (e.a.x + e.b.x) / 2, (e.a.y + e.b.y) / 2)));
+    }
+    for (const dt of P.details)
+      for (const i of detailInstances(dt)) {
+        const cs = i.rot && i.shape !== 'circle' ? detailCorners(i) : [{ x: i.cx - i.w / 2, y: i.cy - i.h / 2 }, { x: i.cx + i.w / 2, y: i.cy - i.h / 2 }, { x: i.cx + i.w / 2, y: i.cy + i.h / 2 }, { x: i.cx - i.w / 2, y: i.cy + i.h / 2 }];
+        for (const q of [...cs, { x: i.cx, y: i.cy }]) out.push(back(toWorld(P.frame, q.x, q.y)));
+      }
+  }
+  return out;
 }
 
 type Cand = { delta: number; guides: Guide[]; target?: P2 };
@@ -130,7 +167,8 @@ function finish(bx: Cand | null, by: Cand | null): SnapResult {
 // the grid. Like shape snapping, this only adjusts the move.
 
 import { panelEdges } from './edges';
-import { toWorld } from './frame';
+import { frameNormal, toLocal, toWorld } from './frame';
+import { panelsCutBy } from './through';
 
 type F2 = { x: number; z: number };
 export type FloorSnap = { dx: number; dz: number; guides: [F2, F2][] };

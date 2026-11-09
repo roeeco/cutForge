@@ -414,10 +414,50 @@ Verified
 - `tests/e2e/refine.spec.ts`: dragging a lid ghost's height arrow to 79.2 mm snaps to 80 and the lid is joined to the front wall; dragging a ghost's end handle to the middle snaps the span to [0, 60], the wall is 60 wide with fingers only there, and the rest of the edge is offered next; a side wall under a roof is trimmed (*Trimmed to fit* note) into a gable joined to the roof; *Adapt to neighbours* off gives the plain rectangle; *Edit outline* on the ghost and dragging its top-left corner commits that outline.
 - Screenshots: `docs/refine-shots/{en,he}-19-adapted-gable-ghost.png`, `…-19-span-and-outline.png`.
 
+## Milestone 20 — Through-cut editing and snapping ✅
+
+What worked before: on its source panel a through-cut could be moved by dragging (3D and 2D) and resized with the cut plan's handles or the card; on the panels it reaches it could only be clicked to select the source (`ThroughLinks`). Polygon shapes have no vertex editing anywhere (only their box is resized), so that is still the case on reached panels.
+
+Implemented
+- **Editing from any panel a through-cut reaches** (`ThroughEdit` in `View3D.tsx`): with a through-cut selected, its (turned) corners are shown on its own panel and on every panel it reaches that is not edge-on, mapped along the cut direction; dragging one resizes the source about the opposite corner, along its own sides. On each reached panel a gizmo (pad, arrows, ring) moves and turns the source. Every edit changes the one live source shape.
+- **Snap targets from the real outline:** `snapContext` takes the panel's own outline (vertices and edge midpoints of `panelEdges`, e.g. a gable's apex or a polygon base's corners) and its centre; on a rectangle these are the same nine targets as before, so every existing snap test passes unchanged.
+- **Through-cut snapping:** while a through-cut is moved or resized, the outlines (vertices, edge midpoints) and shapes (corners, centres) of every panel in its path are added as targets, projected along the cut direction into its own plane (`throughTargets`).
+- **Live count while drawing a polygon through-cut:** the *Cuts N panels* badge updates as vertices are placed (it was only shown after closing).
+
+Verified
+- `tests/throughedit.test.ts`: **a shape on a gable wall snaps to its apex**; a rectangle's targets are exactly the old nine; **a through-cut's corner snaps to the top edge of a divider it passes through** (and a plain cut on the same wall does not see the divider).
+- `tests/e2e/refine.spec.ts`: **a through-cut seen on the back wall is resized there** (dragging its corner on the back wall, the opposite corner stays) **and turned there** (the back wall's gizmo ring: 32° → 30°), both changing the source on the front wall; the polygon tool shows *Cuts N panels* before the polygon is closed.
+- Screenshots: `docs/refine-shots/{en,he}-20-through-cut-edit.png`.
+
+## Final verification — interaction refinements (milestones 15–20) ✅
+
+Acceptance checks (`interaction-refinements-agent-prompt.md` §8):
+1. **Safety** — every pre-existing Vitest test and Playwright spec passes. All golden SVG/DXF exports, the v5 project fixtures and the new v6 fixtures are byte-identical; there were no intended changes to golden files.
+2. **Handles** — `tests/handles.test.ts` (plain, gable and tray walls: no grow target within the gap of a push-pull anchor); push-pull wins over grow (`refine.spec.ts`, milestone 15). Other new handles (gizmo, divider slide arrow, span ends) are placed clear of the arrows and win raycast ties like them.
+3. **Seams** — the fuzz test passes 500 seeds (and the 58 seeds that failed before); no touching pair is left without a joint or a message.
+4. **Gizmo** — shapes and floor panels move and rotate with snapping; rotation survives save/reload and the export matches (`rotate.test.ts`, `refine.spec.ts`).
+5. **Dividers** — automatic, dragged and between-faces dividers in plywood, card and corrugated, with no overlap and a clean export check (`dividers.test.ts`, `refine.spec.ts` for plywood and corrugated 4 mm).
+6. **Grow** — height and angle snapping, partial width, adaptive trims; the result is joined (`adapt.test.ts`, `refine.spec.ts`).
+7. **Through-cuts** — edited from any panel they reach, with snap targets from those panels (`throughedit.test.ts`, `refine.spec.ts`).
+8. **Interface** — every new string is in `en.ts` and `he.ts` (`i18n.test.ts`, including the hard-coded-text scan); Hebrew screenshots of each new widget in `docs/refine-shots/he-*`; new controls have testids; the fold slider is on the stage whenever there is a fold; nothing new renders continuously (the canvas still renders on demand; the new widgets only work while dragging).
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (281 tests in 28 files, with the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (34 passed, including the classroom spec against the real Worker via `wrangler dev`; 22 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+
+Fixed along the way (not in the brief): a `polygon-clipping` crash when merging some nets (found by the fuzz test); emptying a divider set left its dividers behind; a flaky linked-selection click in `through.spec.ts` that also failed on the starting commit.
+
+Remaining limitations (milestones 15–20)
+- Collisions are flagged, not resolved; panels side by side in one plane (two half-width walls on one edge, two floor panels pushed together) are reported as touching but not joined, since no joint fits there.
+- Through-cuts: corner handles and the gizmo are not shown on panels the cut meets edge-on (the strips); polygon shapes have no vertex editing (on any panel); snapping to the panels in a cut's path aligns x/y in the source plane (it does not slide along an oblique edge).
+- *Divider between* needs a base edge that runs along the faces' normal, so it cannot be used between a regular hexagon's opposite walls (greyed with that reason). Automatic dividers need a rectangular inside; lowering a count removes the last dividers with any shapes on them.
+- The adaptive trim samples the ghost's width in 96 columns, so where a partial obstacle ends the corner can be off by up to 1/96 of the width; trims are stored at commit and do not follow a neighbour that moves later (by design).
+- Floor-panel snapping compares the floor panels' outlines, not the walls standing on them. The gizmo's typed values are relative to where the drag started.
+- The fold slider moves to the left above the card on stages narrower than 900 px; that layout was checked only by CSS, not in a test.
+- Digital checks are not physical proof: through-cut bevels, slide fits and adaptive joints need a test cut on the classroom's board.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
 - Packing is bounding-box based (no true-shape nesting).
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
-- A grown panel always spans the full edge it grows from; half-laps are detected for upright panels only.
+- Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.

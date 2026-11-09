@@ -13,7 +13,7 @@ import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
 import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
-import { detailBBox, detailContour, detailContours } from '../model/geometry';
+import { detailBBox, detailContour, detailContours, detailCorners } from '../model/geometry';
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
@@ -459,6 +459,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && (
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
+      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
       {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
@@ -1244,6 +1245,109 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
       onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
       testId="gizmo"
     />
+  );
+}
+
+/**
+ * A selected through-cut, edited from any panel it reaches: on each of them
+ * (and on its own panel) its corners are shown where it cuts and can be
+ * dragged to resize it, and on each panel it reaches a gizmo moves and turns
+ * it. Every edit changes the one source shape; snapping includes the panels in
+ * its path.
+ */
+function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) => number }) {
+  const f = findDetail(d, id);
+  const reached = useMemo(() => (f && f.detail.op === 'cut' && f.detail.through ? panelsCutBy(d, id) : []), [d, id, f?.detail]);
+  if (!f || f.detail.op !== 'cut' || !f.detail.through || f.detail.shape === 'text') return null;
+  const S = f.panel, dt = f.detail;
+  const n = frameNormal(S.frame);
+  const th = d.material.thickness;
+  const st = useStore.getState;
+  // a source-local point, carried along the cut direction onto P's mid-plane
+  const onto = (P: Panel, q: P2): V3 => {
+    const w = toWorld(S.frame, q.x, q.y, 0);
+    const mP = matDir(P.frame);
+    const k = v3dot(n, mP);
+    if (Math.abs(k) < 1e-6) return w;
+    const lam = (th / 2 - v3dot([w[0] - P.frame.o[0], w[1] - P.frame.o[1], w[2] - P.frame.o[2]], mP)) / k;
+    return v3add(w, v3mul(n, lam));
+  };
+  const panels = [S, ...reached.map((pid) => d.panels[pid]).filter((P) => P && Math.abs(v3dot(n, frameNormal(P.frame))) > 1e-6)];
+  const cs = detailCorners(dt);
+  const ids = [id];
+  return (
+    <>
+      {panels.map((P, pi) => (
+        <group key={P.id}>
+          {cs.map((c, k) => (
+            <ThroughCorner key={k} at={onto(P, c)} plane={{ p: onto(P, { x: dt.cx, y: dt.cy }), n: matDir(P.frame) }} S={S} fixed={cs[(k + 2) % 4]} rot={dt.shape === 'circle' ? 0 : (dt.rot ?? 0)} circle={dt.shape === 'circle'} id={id} tolAt={tolAt} testId={`tcorner-${pi}-${k}`} />
+          ))}
+          {pi > 0 && (
+            <Gizmo
+              at={onto(P, { x: dt.cx, y: dt.cy })}
+              ax={S.frame.u}
+              ay={S.frame.v}
+              n={n}
+              onMove={(du, dv, ev) => {
+                const base = st().txnBase ?? st().design;
+                const b0 = detailBBox(findDetail(base, id)!.detail);
+                const ctx = !ev || ev.altKey ? null : snapContext(base, S.id, new Set(ids));
+                const at = onto(P, { x: dt.cx, y: dt.cy });
+                const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
+                const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
+                const o = findDetail(base, id)!.detail;
+                st().preview((dd) => updateDetail(dd, id, { cx: o.cx + x, cy: o.cy + y }));
+                return { du: x, dv: y };
+              }}
+              onRotate={(deg) => st().preview((dd) => rotateDetails(dd, ids, deg))}
+              onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+              testId={`tgizmo-${pi}`}
+            />
+          )}
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** One corner of a through-cut, shown where it cuts a panel: dragging it resizes the source shape about the opposite corner, along its own sides. */
+function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed: P2; rot: number; circle: boolean; id: string; tolAt: (p: V3) => number; testId: string }) {
+  const ray = useRayFromScreen();
+  const [hover, setHover] = useState(false);
+  const st = useStore.getState;
+  const down = useHandleDrag({
+    move: (ev) => {
+      const hit = ray(ev.clientX, ev.clientY).intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...props.plane.n), new THREE.Vector3(...props.plane.p)), new THREE.Vector3());
+      if (!hit) return;
+      let l = toLocal(props.S.frame, [hit.x, hit.y, hit.z]);
+      const base = st().txnBase ?? st().design;
+      const ctx = ev.altKey ? null : snapContext(base, props.S.id, new Set([props.id]));
+      const sn = ctx ? snapPoint(ctx, l, props.tolAt([hit.x, hit.y, hit.z])) : null;
+      l = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
+      const a = (props.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
+      const rx = l.x - props.fixed.x, ry = l.y - props.fixed.y;
+      const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
+      let w = Math.max(0.5, Math.abs(lx)), h = Math.max(0.5, Math.abs(ly));
+      if (props.circle) w = h = Math.max(w, h);
+      const hx = ((Math.sign(lx) || 1) * w) / 2, hy = ((Math.sign(ly) || 1) * h) / 2;
+      st().preview((dd) => updateDetail(dd, props.id, { cx: props.fixed.x + hx * c - hy * s2, cy: props.fixed.y + hx * s2 + hy * c, w, h }));
+    },
+    end: (cancel) => (cancel ? st().cancel() : st().commit()),
+  });
+  return (
+    <ScreenSized position={props.at}>
+      <mesh
+        renderOrder={22}
+        raycast={priorityRaycast}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        onPointerDown={down}
+        userData={{ testId: props.testId, noAO: true }}
+      >
+        <boxGeometry args={[hover ? 12 : 9, hover ? 12 : 9, hover ? 12 : 9]} />
+        <meshBasicMaterial color={hover ? '#0f5d59' : '#d97706'} depthTest={false} depthWrite={false} transparent />
+      </mesh>
+    </ScreenSized>
   );
 }
 

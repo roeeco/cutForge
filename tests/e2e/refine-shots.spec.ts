@@ -133,3 +133,24 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-19-span-and-outline.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`refine shots m20 ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    await S(page, () => {
+      const cf = (window as any).__cutforge;
+      let cut = '';
+      cf.store.getState().apply((d: any) => {
+        const base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+        const walls = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+        cut = cf.ops.addDetail(d, walls[0], 'rect', 'cut', 60, 25, 24, 12, undefined, true);
+        cf.ops.updateDetail(d, cut, { rot: 15 });
+      });
+      cf.store.getState().select({ kind: 'detail', id: cut, ids: [cut] });
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-20-through-cut-edit.png` });
+  });
+}

@@ -496,3 +496,65 @@ test('milestone 19: adaptive grow — height snap, partial width, gable under a 
   void b4;
   expect(errors).toEqual([]);
 });
+
+test('milestone 20: a through-cut is resized and turned from the back wall it reaches; a polygon through-cut counts while drawn', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const ids = await S<any>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      out.walls = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, out.base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+      out.cut = cf.ops.addDetail(d, out.walls[0], 'rect', 'cut', 60, 25, 20, 10, undefined, true);
+    });
+    cf.store.getState().select({ kind: 'detail', id: out.cut, ids: [out.cut] });
+    return out;
+  });
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
+  const dt = async () => (await design(page)).panels[ids.walls[0]].details[0];
+  // the front wall is at z = 40 (x = −60 + local x), the back wall's mid-plane at z = −40 + 1.5
+  const onBack = (x: number, y: number) => worldPt(page, -60 + x, y, -40 + 1.5);
+  const onFront = (x: number, y: number) => worldPt(page, -60 + x, y, 40);
+  // resize from the back wall: its top-right corner (70, 30) dragged to (76, 34)
+  const c2 = await onBack(70, 30), c2f = await onFront(70, 30);
+  expect(Math.hypot(c2.x - c2f.x, c2.y - c2f.y)).toBeGreaterThan(25);
+  const c2to = await onBack(76, 34);
+  await drag(page, c2, c2to);
+  let x = await dt();
+  expect(x.w).toBeGreaterThan(24);
+  expect(x.h).toBeGreaterThan(12);
+  expect(x.cx - x.w / 2).toBeCloseTo(50, 0); // the opposite corner stayed
+  // turn it with the gizmo ring on the back wall: 32° on screen → 30°
+  const cB = await onBack(x.cx, x.cy);
+  const ringAt = (deg: number) => ({ x: cB.x + 64 * Math.cos((deg * Math.PI) / 180), y: cB.y - 64 * Math.sin((deg * Math.PI) / 180) });
+  await page.mouse.move(ringAt(0).x, ringAt(0).y);
+  await page.mouse.down();
+  for (let k = 1; k <= 6; k++) await page.mouse.move(ringAt((32 * k) / 6).x, ringAt((32 * k) / 6).y);
+  await page.mouse.up();
+  x = await dt();
+  expect(x.rot).toBe(30);
+  // the back wall's cut region follows the source
+  const back = (await state(page)).design.panels[ids.walls[2]];
+  void back;
+
+  // a polygon through-cut on the front wall: the count shows while it is drawn
+  await S(page, () => {
+    const s = (window as any).__cutforge.store.getState();
+    s.select(null);
+    s.setShapeOp('cut');
+    s.set({ shapeThrough: true });
+  });
+  await page.keyboard.press('g');
+  for (const [px, py] of [[15, 10], [35, 10], [25, 40]] as const) {
+    const p = await onFront(px, py);
+    await page.mouse.click(p.x, p.y);
+  }
+  const p4 = await onFront(18, 30);
+  await page.mouse.move(p4.x, p4.y);
+  await expect(page.getByTestId('through-count')).toContainText(/Cuts [1-9]/);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});

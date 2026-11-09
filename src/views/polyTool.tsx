@@ -19,6 +19,7 @@ import { sketchRing, wallCorners } from '../model/edges';
 import { detailSel, useStore, useT } from '../store/store';
 import { fmtNum } from '../i18n';
 import { mmPerPx, StageHtml } from './widgets';
+import { panelsCutBy } from '../model/through';
 import { STAGE } from './palette';
 import { frameMatrix, faceZ } from './three-geom';
 
@@ -229,6 +230,18 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     return { open, close, closedOk, seg, label: pts.length ? v(draft.cur ?? pts[0]) : null, n: draft.centre ? sides : null, r: draft.centre && draft.cur ? Math.hypot(draft.cur.x - draft.centre.x, draft.cur.y - draft.centre.y) : null };
   }, [draft, sides]);
 
+  // a through-cut being drawn on a panel: how many panels it will cut, live (rounded to whole mm so it is not redone every pixel)
+  const through = useStore((s) => s.shapeThrough && s.shapeOp === 'cut');
+  const design = useStore((s) => s.design);
+  const throughPts = draft && through && draft.panelId ? (draft.centre ? (draft.cur && ngonPts(draft, draft.cur, draft.shift ?? false)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])]) : [];
+  const throughKey = throughPts.map((q) => `${Math.round(q.x)},${Math.round(q.y)}`).join(' ');
+  const cutCount = useMemo(() => {
+    if (!draft?.panelId || throughPts.length < 3 || !isSimplePolygon(throughPts)) return null;
+    const copy = JSON.parse(JSON.stringify(design));
+    const id = addPolygonShape(copy, draft.panelId, throughPts, 'cut', undefined, '__live_through', true);
+    return id ? panelsCutBy(copy, id).length : null;
+  }, [throughKey, design, draft?.panelId]);
+
   if (!draft || !view) return null;
   const lineGeom = (ps: THREE.Vector3[]) => new THREE.BufferGeometry().setFromPoints(ps);
   return (
@@ -256,6 +269,13 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
           <span className="dim-label poly-label" data-testid="poly-label" dir="ltr">
             {draft.typed ? `${draft.typed}▍ ${t('unit.mm')}` : view.n ? `${view.n} × r ${fmtNum(view.r ?? 0)}` : view.seg !== null ? `${fmtNum(view.seg)} ${t('unit.mm')}` : ''}
             {!draft.centre && !view.closedOk && draft.pts.length >= 3 ? ` · ${t('poly.crosses')}` : ''}
+          </span>
+        </StageHtml>
+      )}
+      {cutCount !== null && view.label && (
+        <StageHtml position={view.open[0].toArray() as V3} style={{ pointerEvents: 'none' }}>
+          <span className="through-badge" data-testid="through-count">
+            {t('through.cuts', { n: cutCount })}
           </span>
         </StageHtml>
       )}
