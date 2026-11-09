@@ -2,7 +2,7 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, useStore, useT } from '../store/store';
+import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
 import { netOverlaps, panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
@@ -389,7 +389,12 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return placeText(panelId, l.x, l.y);
     }
     if (shapeTool) return startDraw(pl, panelId, ev);
-    if (additiveKey(ev)) return; // shift-click on a piece keeps the shape selection
+    // shift-click on a piece keeps a shape selection; with panels selected it adds or removes this one (milestone 31)
+    if (additiveKey(ev)) {
+      const st = useStore.getState();
+      if (st.selection?.kind !== 'detail') st.clickPanel(panelId, true);
+      return;
+    }
     if (solo) {
       // in solo view the panel fills the view: dragging on it draws a selection box
       drag.current = { kind: 'marquee', a: svgPoint(ev), b: svgPoint(ev), additive: false, base: [] };
@@ -525,7 +530,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             );
           })}
         {layout.placed.map((pl) => {
-          const also = sel?.kind === 'panel' ? (sel.also ?? []) : [];
+          const also = selectedPanelIds(sel);
           const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
           const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
           const tint = boardTintCss(d, pieceRoot(pl.copy.pieceKey), Math.max(0, d.order.indexOf(pl.copy.pieceKey)));

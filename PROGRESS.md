@@ -626,6 +626,18 @@ Verified (`tests/e2e/boards.spec.ts`)
 - Grow is confirmed on the stage in one undo step and the card's button is gone; a rectangle drawn in the cut plan waits for ✓.
 - The older specs (editing, flow, polygon, shapes, slice, templates, text and SVG, through-cuts, trays) press ✓ where they draw; the whole app suite passes (52 specs).
 
+## Milestone 31 — Selecting and arranging boards ✅
+
+Implemented (`src/model/arrange.ts`; `selectedPanelIds`, `panelSel`, `clickPanel` in the store; `GroupGizmo` in `View3D.tsx`; `src/ui/MultiPanel.tsx`)
+- A panel selection holds every selected panel (`{ kind: 'panel', id, ids }`); Shift-click (or Ctrl, Cmd on a Mac) adds or removes a panel, in 3D and on the cut plan. It replaces the Shift-click face pick and the display-only `also` (an export-check message about two panels selects both).
+- With several panels selected the card (`inspector-multi-panel`) aligns them (left, centre, right, top, middle, bottom) and distributes them (equal gaps or equal centre spacing, the outer two staying put) when they share a surface (`commonPlane`): floor panels, or panels placed on the same face (in its plane, by their footprints there). Otherwise the buttons are greyed with the reason (*These panels are not on the same surface*). The material list sets them all (milestone 36).
+- Several parallel dividers grown from the same edge of one base get *Equal compartments* (`distributeDividers`) between their outermost neighbours (the walls' inner faces or the next dividers).
+- The group gizmo (and dragging one of the group) moves several floor panels, or several panels placed on one face, together.
+
+Verified
+- `tests/arrange.test.ts`: floor panels distributed with equal gaps (the outer two in place), aligned on their tops and left edges; panels placed on one face aligned and spaced in its plane, a mix refused; three dividers in equal compartments between the walls.
+- `tests/e2e/boards.spec.ts`: Shift-click three floor panels, distribute them, undo restores them; Shift-click takes one out again.
+
 ## Milestone 35 (engine) — Nets that lie flat ✅
 
 Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)

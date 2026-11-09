@@ -655,4 +655,12 @@ export const he: Record<MsgKey, string> = {
   'grow.overlap': "כקיפול, הפריסה שלו תחפוף ל־{panels} כשהיא שטוחה.",
   'grow.own': "חתכו אותו כחלק נפרד",
   'tray.confirmOnStage': "לחצו ✓ ליד הצל על הבמה (או Enter) כדי להוסיף את הקירות.",
+  'multiPanel.title': "נבחרו {n} לוחות",
+  'multiPanel.needThree': "פיזור דורש לפחות שלושה לוחות.",
+  'multiPanel.dividers': "תאים שווים",
+  'multiPanel.dividersNote': "מפזר את המחיצות האלה במרווחים שווים בין הקירות או המחיצות שמשני צדיהן.",
+  'multiPanel.justOne': "בחר רק את האחרון",
+  'multi.why.notSameSurface': "הלוחות האלה לא על אותו משטח.",
+  'multi.why.grown': "לוחות שצמחו מאחרים זזים איתם: בחרו לוחות על הרצפה, או לוחות שמונחים על אותה פאה.",
+  'multi.why.tooFew': "בחרו לפחות שני לוחות.",
 };

@@ -138,7 +138,7 @@ test('milestone 16: panels run into each other: the export check names both and 
   await msg.click();
   const sel = (await state(page)).selection;
   expect(sel.kind).toBe('panel');
-  expect([sel.id, ...sel.also].sort()).toEqual([...ids].sort());
+  expect([...sel.ids].sort()).toEqual([...ids].sort());
   // Hebrew
   await S(page, () => (window as any).__cutforge.store.getState().setLang('he'));
   await page.getByTestId('open-export').click();

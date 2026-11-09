@@ -1,7 +1,7 @@
 // With more than one material in use (milestone 36): a small legend by the
 // view settings, one chip per material with its board count. Clicking a chip
 // selects those boards.
-import { useStore, useT } from '../store/store';
+import { panelSel, useStore, useT } from '../store/store';
 import { materialsInUse, matIdOf, mixedMaterials } from '../model/materials';
 import { boardTintCss } from '../views/palette';
 import { materialName } from './materialName';
@@ -20,7 +20,7 @@ export function MaterialLegend() {
           <button
             key={m.id}
             className="mat-chip"
-            onClick={() => ids.length && useStore.getState().select({ kind: 'panel', id: ids[0], also: ids.slice(1) })}
+            onClick={() => ids.length && useStore.getState().select(panelSel(ids))}
             title={t('legend.select', { name })}
             aria-label={t('legend.select', { name })}
             data-testid={`legend-${m.id}`}

@@ -653,6 +653,14 @@ export const en = {
   'grow.overlap': "As a fold, its net would overlap {panels} when it lies flat.",
   'grow.own': "Cut it as its own piece",
   'tray.confirmOnStage': "Press ✓ by the ghost on the stage (or Enter) to add the walls.",
+  'multiPanel.title': "{n} panels selected",
+  'multiPanel.needThree': "Distribute needs at least three panels.",
+  'multiPanel.dividers': "Equal compartments",
+  'multiPanel.dividersNote': "Spaces these dividers evenly between the walls or dividers on either side of them.",
+  'multiPanel.justOne': "Select just the last one",
+  'multi.why.notSameSurface': "These panels are not on the same surface.",
+  'multi.why.grown': "Panels grown from others move with them: select floor panels, or panels placed on one face.",
+  'multi.why.tooFew': "Select at least two panels.",
 } as const;
 
 export type MsgKey = keyof typeof en;

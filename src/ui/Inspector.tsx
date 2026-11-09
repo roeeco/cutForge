@@ -19,6 +19,7 @@ import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { BoardMaterial } from './BoardMaterial';
+import { MultiPanel } from './MultiPanel';
 import { PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
@@ -86,6 +87,8 @@ export function Inspector() {
         </section>
       );
     }
+  } else if (sel?.kind === 'panel' && (sel.ids?.length ?? 0) > 1) {
+    body = <MultiPanel ids={sel.ids!} />;
   } else if (sel?.kind === 'panel') {
     const id = sel.id;
     const p = d.panels[id];

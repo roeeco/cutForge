@@ -9,8 +9,8 @@ import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
 export type Selection =
-  /** `also`: other panels shown selected with it (both panels a joint message is about). */
-  | { kind: 'panel'; id: string; also?: string[] }
+  /** `ids`: every selected panel (milestone 31), `id` the last clicked; absent: just `id`. */
+  | { kind: 'panel'; id: string; ids?: string[] }
   | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
@@ -23,8 +23,16 @@ export function selectedDetailIds(s: Selection): string[] {
 /** What clicking an export-check message selects: the shape, the panel, or both panels of a joint message. */
 export function issueSelection(i: { target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }): Selection {
   if (i.target.kind === 'detail') return { kind: 'detail', id: i.target.id, ids: [i.target.id] };
-  if (i.pair) return { kind: 'panel', id: i.pair[0], also: [i.pair[1]] };
+  if (i.pair) return { kind: 'panel', id: i.pair[0], ids: [i.pair[0], i.pair[1]] };
   return { kind: 'panel', id: i.target.id };
+}
+/** Ids of the selected panels (empty when none). */
+export function selectedPanelIds(s: Selection): string[] {
+  return s?.kind === 'panel' ? (s.ids?.length ? s.ids : [s.id]) : [];
+}
+/** A panel selection of these ids (the last is the one clicked). */
+export function panelSel(ids: string[]): Selection {
+  return ids.length ? (ids.length === 1 ? { kind: 'panel', id: ids[0] } : { kind: 'panel', id: ids[ids.length - 1], ids }) : null;
 }
 export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
@@ -175,6 +183,8 @@ type State = {
   closeSolo: () => void;
   /** Click on a shape: replace the selection, or toggle it with Shift/Ctrl. */
   clickDetail: (id: string, additive: boolean) => void;
+  /** Click on a panel: select it, or (Shift/Ctrl) add it to or take it from the selected panels (milestone 31). */
+  clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
   set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick' | 'panelGhost' | 'panelPose' | 'standHeight'>>) => void;
@@ -196,7 +206,7 @@ function initialLang(): Lang {
 /** Drop a selection that no longer points at anything. */
 function validSelection(d: Design, s: Selection): Selection {
   if (!s) return s;
-  if (s.kind === 'panel') return d.panels[s.id] ? s : null;
+  if (s.kind === 'panel') return panelSel(selectedPanelIds(s).filter((id) => d.panels[id]));
   if (s.kind === 'edge') return d.panels[s.panelId] ? s : null;
   const ids = s.ids.filter((x) => d.order.some((id) => d.panels[id]?.details.some((y) => y.id === x)));
   return detailSel(ids);
@@ -320,6 +330,11 @@ export const useStore = create<State>()((set, get) => ({
     set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: get().tool === 'panel' ? 'select' : get().tool });
   },
   closeSolo: () => set({ view: get().prevView, soloPanel: null }),
+  clickPanel: (id, additive) => {
+    const cur = selectedPanelIds(get().selection);
+    if (!additive) return get().select({ kind: 'panel', id });
+    get().select(panelSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  },
   clickDetail: (id, additive) => {
     const cur = selectedDetailIds(get().selection);
     if (!additive) return set({ selection: detailSel([id]) });

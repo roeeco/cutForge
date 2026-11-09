@@ -287,3 +287,40 @@ test.describe('milestone 30: one floating ✓ for every ghost', () => {
     await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
   });
 });
+
+test('milestone 31: Shift-click three floor panels, distribute them, undo', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const ids = await S<string[]>(page, () => {
+    const cf = (window as any).__cutforge;
+    let out: string[] = [];
+    cf.store.getState().apply((d: any) => void (out = [cf.ops.addRootPanel(d, -220, 20, 40, 30), cf.ops.addRootPanel(d, -40, 30, 20, 40), cf.ops.addRootPanel(d, 160, 10, 50, 30)]));
+    cf.store.getState().select(null);
+    return out;
+  });
+  await S(page, () => (window as any).__cutforge.setCamera([0, 500, 1], [0, 0, 0]));
+  const sizes = [[40, 30], [20, 40], [50, 30]];
+  for (let i = 0; i < 3; i++) {
+    const q = await proj(page, ids[i], sizes[i][0] / 2, sizes[i][1] / 2);
+    if (i) await page.keyboard.down('Shift');
+    await page.mouse.click(q.x, q.y);
+    if (i) await page.keyboard.up('Shift');
+  }
+  await expect(page.getByTestId('inspector-multi-panel')).toContainText('3 panels selected');
+  const before = await design(page);
+  await page.getByTestId('panel-dist-hgap').click();
+  const d = await design(page);
+  const x0 = (id: string) => d.panels[id].frame.o[0];
+  const gap1 = x0(ids[1]) - (x0(ids[0]) + 40), gap2 = x0(ids[2]) - (x0(ids[1]) + 20);
+  expect(gap1).toBeCloseTo(gap2, 6);
+  await page.getByTestId('undo').click();
+  expect((await design(page)).panels[ids[1]].frame.o).toEqual(before.panels[ids[1]].frame.o);
+  // the panels stay selected; Shift-click takes one out again
+  const q = await proj(page, ids[0], 20, 15);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(q.x, q.y);
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('inspector-multi-panel')).toContainText('2 panels selected');
+  expect(errors).toEqual([]);
+});

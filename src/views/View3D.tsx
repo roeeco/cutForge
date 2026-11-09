@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
+import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
@@ -29,6 +29,8 @@ import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
 import { ConfirmBar, FaceHover, PanelGhostView, PendingBar, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
 import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
+import { commonPlane } from '../model/arrange';
+import { FLOOR_FRAME } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
@@ -54,7 +56,7 @@ type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
   | { kind: 'shape-draw'; panelId: string; id: string; start: { x: number; y: number }; plane: THREE.Plane }
   | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
-  | { kind: 'panel-move'; id: string; start: V3; plane: THREE.Plane }
+  | { kind: 'panel-move'; id: string; ids?: string[]; start: V3; plane: THREE.Plane }
   /** The Panel tool drawing its ghost on a face (milestone 29). */
   | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets }
   /** A placed panel dragged in its host's plane. */
@@ -212,7 +214,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const raw = [p[0] - g.start[0], p[2] - g.start[2]];
         const sn = noSmartSnap(ev) ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
         const dx = sn ? sn.dx : snap(raw[0], ev), dz = sn ? sn.dz : snap(raw[1], ev);
-        st.preview((d) => movePanel(d, g.id, dx, dz));
+        st.preview((d) => {
+          for (const id of g.ids ?? [g.id]) movePanel(d, id, dx, dz);
+        });
       }
     };
     const up = () => {
@@ -316,19 +320,17 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     } else if (tool === 'select') {
       e.stopPropagation();
       const stx = useStore.getState();
-      if (e.nativeEvent.shiftKey) {
-        // Shift-click a face: pick it for "Divider between" (two faces). Which face: from the hit's depth in the material.
-        const z = v3dot(v3add([e.point.x, e.point.y, e.point.z], v3mul(p.frame.o, -1)), matDir(p.frame));
-        const th = design.material.thickness;
-        const side = Math.abs(z) < 0.25 * th ? -1 : Math.abs(z - th) < 0.25 * th ? 1 : 0;
-        if (side) {
-          const pickd: FacePick = { panelId: p.id, side, point: [e.point.x, e.point.y, e.point.z] };
-          stx.set({ facePick: [...stx.facePick, pickd].slice(-2) });
-          return;
-        }
+      // Shift (or Ctrl, Cmd on a Mac) adds or removes a panel (milestone 31)
+      const ne = e.nativeEvent;
+      const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+      if (ne.shiftKey || (mac ? ne.metaKey : ne.ctrlKey)) {
+        stx.clickPanel(p.id, true);
+        return;
       }
       if (stx.facePick.length) stx.set({ facePick: [] });
-      useStore.getState().select({ kind: 'panel', id: p.id });
+      // a panel already among several selected keeps the group (to drag it)
+      const group = selectedPanelIds(stx.selection);
+      if (!(group.length > 1 && group.includes(p.id))) useStore.getState().select({ kind: 'panel', id: p.id });
       // a panel placed on a face moves in that face's plane
       const pl = p.place;
       const hf = pl && pl.host !== null ? hostFace(design, pl.host, pl.face) : null;
@@ -337,7 +339,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         drag.current = { kind: 'placed-move', id: p.id, plane: hf.plane, H: hf.H, start: toLocal(hf.H, [e.point.x, e.point.y, e.point.z]) };
       } else if (!parentConnection(design, p.id) && e.button === 0) {
         setControls(false);
-        drag.current = { kind: 'panel-move', id: p.id, start: [e.point.x, e.point.y, e.point.z], plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y) };
+        // dragging one of several selected floor panels moves them all
+        const ids = group.length > 1 && group.includes(p.id) && 'surface' in commonPlane(design, group) ? group : undefined;
+        drag.current = { kind: 'panel-move', id: p.id, ids, start: [e.point.x, e.point.y, e.point.z], plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y) };
       }
     }
   };
@@ -447,8 +451,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const throughMap = useMemo(() => throughHits(design), [design]);
   const foldOvers = useMemo(() => allFoldOvers(design), [design]);
   const selEdge = sel?.kind === 'edge' ? sel : null;
-  const selPanel = sel?.kind === 'panel' ? sel.id : null;
-  const selAlso = sel?.kind === 'panel' ? (sel.also ?? []) : [];
+  const selAlso = selectedPanelIds(sel);
+  // several panels selected (milestone 31): the group gizmo instead of one panel's widgets
+  const multi = selAlso.length > 1;
+  const selPanel = sel?.kind === 'panel' && !multi ? sel.id : null;
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
   const focus = selPanel;
   const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
@@ -561,6 +567,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
+      {multi && tool === 'select' && !folded && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
       {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
         design.panels[selPanel].place?.host ? (
           <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
@@ -1644,6 +1651,45 @@ function PlacedGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4
       onRotate={(deg) => st().preview((dd) => rotatePlaced(dd, p.id, deg))}
       onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
       testId="placed-gizmo"
+    />
+  );
+}
+
+/**
+ * Several selected panels on one surface (milestone 31): the gizmo moves them
+ * together in that plane (floor panels on the floor, panels placed on one face
+ * in that face's plane).
+ */
+function GroupGizmo({ d, ids, tolAt }: { d: Design; ids: string[]; tolAt: (p: V3) => number }) {
+  const st = useStore.getState;
+  const c = commonPlane(d, ids);
+  if (!('surface' in c)) return null;
+  const s = c.surface;
+  const F = s.kind === 'floor' ? FLOOR_FRAME : d.panels[s.host]?.frame;
+  if (!F) return null;
+  // the middle of the group, on top of it
+  const pts = ids.map((id) => toWorld(d.panels[id].frame, d.panels[id].w / 2, d.panels[id].h / 2, tOf(d, id)));
+  const at: V3 = [0, 1, 2].map((k) => pts.reduce((a, q) => a + q[k], 0) / pts.length) as V3;
+  void tolAt;
+  return (
+    <Gizmo
+      at={at}
+      ax={F.u}
+      ay={F.v}
+      n={frameNormal(F)}
+      modes={['pad', 'x', 'y']}
+      onMove={(du, dv, ev) => {
+        const dx = ev ? snap(du, ev) : du, dy = ev ? snap(dv, ev) : dv;
+        st().preview((dd) => {
+          for (const id of ids) {
+            if (dd.panels[id]?.place) movePlaced(dd, id, dx, dy);
+            else movePanel(dd, id, dx, -dy);
+          }
+        });
+        return { du: dx, dv: dy };
+      }}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="group-gizmo"
     />
   );
 }
