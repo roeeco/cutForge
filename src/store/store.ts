@@ -55,16 +55,18 @@ export type ViewPrefs = {
   quality: Quality;
   dims: boolean;
   joints: boolean;
-  /** Smart snapping (to other shapes, edges, panels, rest angles); off works like holding Alt, except that the grid and turn steps still apply. */
+  /** Smart snapping (to other shapes, edges, panels, rest angles). Alt turns it off for one drag. */
   snap: boolean;
-  /** Grid step (mm) used where no smart target is near. */
+  /** Grid snapping: positions round to the grid step where no smart target is near. Alt turns it off for one drag. */
+  grid: boolean;
+  /** Grid step (mm). */
   gridStep: number;
   /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
   turnStep: number;
 };
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
-  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, gridStep: 1, turnStep: 15 };
+  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -279,10 +281,14 @@ export function noSmartSnap(ev?: { altKey: boolean } | null): boolean {
   return !!ev?.altKey || !useStore.getState().viewPrefs.snap;
 }
 
-/** Round to the grid step (mm) from the settings. */
-export function gridSnap(x: number): number {
-  const g = useStore.getState().viewPrefs.gridStep;
-  const step = g > 0 ? g : 1;
+/**
+ * Round to the grid step (mm) from the settings; with grid snapping off (or
+ * Alt held during the drag) only to 0.01 mm, so values stay readable.
+ */
+export function gridSnap(x: number, ev?: { altKey: boolean } | null): number {
+  const { grid, gridStep } = useStore.getState().viewPrefs;
+  if (ev?.altKey || grid === false) return Math.round(x * 100) / 100;
+  const step = gridStep > 0 ? gridStep : 1;
   return Math.round(Math.round(x / step) * step * 1e6) / 1e6;
 }
 

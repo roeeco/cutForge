@@ -9,7 +9,7 @@ import { validate } from '../model/validate';
 import { Icon } from './icons';
 import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayHeight, setTrayKinds, updateFoldOver, wallIt } from '../model/ops';
 import { shortEdges, trayOf, MIN_EDGE } from '../model/trays';
-import { panelEdges, segLength } from '../model/edges';
+import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { seamKinds } from '../model/seams';
 import { edgeLabel } from '../model/names';
@@ -37,7 +37,7 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
       </div>
     );
   const p = d.panels[panelId];
-  const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE).length;
+  const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length;
   const kinds = newTrayKinds(d);
   return (
     <div className="subsection extrude-card" data-testid="extrude-card">

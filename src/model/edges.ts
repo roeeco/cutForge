@@ -6,6 +6,8 @@
 //   <insertId>      the part of a wall edge after an inserted point
 //   <detailId>.<i>  segment i of an Add/Cut shape that became outline
 //   <key>#<n>       piece n of an edge a cut split into several pieces
+//   <key>~<n>       segment n of an edge flattened into a curve (next to an
+//                   auto-curve point): not growable, not joined
 //   face            the panel's face (edge-on-face and crossing seams)
 //
 // This module derives the keyed outline of a panel: layer 1 (its sketch) and
@@ -68,8 +70,71 @@ export function wallCorners(w: number, h: number, s: WallSketch): P2[] {
   ];
 }
 
-/** Layer 1: the sketch outline as keyed CCW edges. */
+/** True when an edge key is a segment of a curve (next to an auto-curve point). */
+export const isCurveKey = (key: string) => /~\d+/.test(key);
+
+/** Curve flattening tolerance (mm): the chord's largest distance from the curve. */
+const FLAT_TOL = 0.02;
+
+/**
+ * Layer 1 with curves: every straight edge next to an auto-curve point
+ * becomes a cubic through its ends, flattened into segments `<key>~<n>`.
+ * At a curve point the tangent is parallel to the line between its
+ * neighbours and the handle a third of the side's length; at a corner end the
+ * handle points along the edge, so the curve leaves a corner as straight as it
+ * can.
+ */
+function curveRing(ring: EdgeSeg[], smooth: (e: EdgeSeg) => boolean): EdgeSeg[] {
+  const n = ring.length;
+  const sm = ring.map(smooth);
+  if (n < 3 || !sm.some(Boolean)) return ring;
+  const out: EdgeSeg[] = [];
+  const unit = (x: number, y: number) => {
+    const L = Math.hypot(x, y) || 1;
+    return { x: x / L, y: y / L };
+  };
+  for (let i = 0; i < n; i++) {
+    const e = ring[i], A = e.a, B = e.b;
+    const sA = sm[i], sB = sm[(i + 1) % n];
+    if (!sA && !sB) {
+      out.push(e);
+      continue;
+    }
+    const L = Math.hypot(B.x - A.x, B.y - A.y);
+    const prev = ring[(i + n - 1) % n].a, next = ring[(i + 1) % n].b;
+    const tA = sA ? unit(B.x - prev.x, B.y - prev.y) : unit(B.x - A.x, B.y - A.y);
+    const tB = sB ? unit(next.x - A.x, next.y - A.y) : unit(B.x - A.x, B.y - A.y);
+    const P1 = { x: A.x + (tA.x * L) / 3, y: A.y + (tA.y * L) / 3 }, P2 = { x: B.x - (tB.x * L) / 3, y: B.y - (tB.y * L) / 3 };
+    const M = Math.max(Math.hypot(A.x - 2 * P1.x + P2.x, A.y - 2 * P1.y + P2.y), Math.hypot(P1.x - 2 * P2.x + B.x, P1.y - 2 * P2.y + B.y));
+    const k = Math.max(2, Math.min(64, Math.ceil(Math.sqrt((0.75 * M) / FLAT_TOL))));
+    let q = A;
+    for (let j = 1; j <= k; j++) {
+      const t = j / k, u = 1 - t;
+      const r = j === k ? B : { x: u * u * u * A.x + 3 * u * u * t * P1.x + 3 * u * t * t * P2.x + t * t * t * B.x, y: u * u * u * A.y + 3 * u * u * t * P1.y + 3 * u * t * t * P2.y + t * t * t * B.y };
+      out.push({ key: `${e.key}~${j - 1}`, a: q, b: r });
+      q = r;
+    }
+  }
+  return out;
+}
+
+/** Layer 1: the sketch outline as keyed CCW edges (curves flattened). */
 export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: Panel['ext'] }): EdgeSeg[] {
+  const ring = straightRing(p);
+  const s = sketchOf(p);
+  if (s.kind === 'poly') {
+    if (!s.pts.some((q) => q.curve)) return ring;
+    const at = new Map(s.edgeIds.map((k, i) => [k, !!s.pts[i]?.curve]));
+    return curveRing(ring, (e) => !!at.get(e.key));
+  }
+  const ins = new Map((s.inserts ?? []).map((x) => [x.id, !!x.curve]));
+  if (!s.corners?.tr?.curve && !s.corners?.tl?.curve && ![...ins.values()].some(Boolean)) return ring;
+  // the point an edge starts at: e2 at the top right corner, e3 at the top left, an insert's piece at the insert
+  return curveRing(ring, (e) => (e.key === 'e2' ? !!s.corners?.tr?.curve : e.key === 'e3' ? !!s.corners?.tl?.curve : !!ins.get(e.key)));
+}
+
+/** Layer 1 without curves: the sketch's straight edges between its points. */
+export function straightRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: Panel['ext'] }): EdgeSeg[] {
   const s = sketchOf(p);
   if (s.kind === 'poly') {
     const n = s.pts.length;
@@ -165,7 +230,7 @@ export function rectEdgeIndex(key: string): number | null {
 /** An axis-aligned rectangle sketch (0,0)–(w,h) with the four plain edge ids. */
 export function isRectSketch(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): boolean {
   const s = sketchOf(p);
-  if (s.kind === 'wall') return !s.inserts?.length && !Object.values(s.corners ?? {}).some((c) => c && (c.dx || c.dy));
+  if (s.kind === 'wall') return !s.inserts?.length && !Object.values(s.corners ?? {}).some((c) => c && (c.dx || c.dy || c.curve));
   const r = rectSketch(p.w, p.h) as Extract<Sketch, { kind: 'poly' }>;
-  return s.pts.length === 4 && s.pts.every((q, i) => q.x === r.pts[i].x && q.y === r.pts[i].y) && s.edgeIds.every((k, i) => k === `e${i}`);
+  return s.pts.length === 4 && !s.pts.some((q) => q.curve) && s.pts.every((q, i) => q.x === r.pts[i].x && q.y === r.pts[i].y) && s.edgeIds.every((k, i) => k === `e${i}`);
 }

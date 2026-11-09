@@ -15,7 +15,7 @@ import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toW
 import { panelEdges as panelEdgesOf } from './edges';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
-import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, type EdgeArg } from './edges';
+import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
 const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -75,8 +75,10 @@ export function solve(d: Design) {
     p.sketch ??= parentConnection(d, id) ? { kind: 'wall' } : rectSketch(p.w, p.h);
     // a polygon sketch decides the bounding size
     if (p.sketch.kind === 'poly' && !isRectSketch(p)) {
-      p.w = Math.max(...p.sketch.pts.map((q) => q.x));
-      p.h = Math.max(...p.sketch.pts.map((q) => q.y));
+      // the outline as drawn: a curve can bulge past its points
+      const pts = p.sketch.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : p.sketch.pts;
+      p.w = Math.max(...pts.map((q) => q.x));
+      p.h = Math.max(...pts.map((q) => q.y));
     }
   }
   reconcileWallSets(d);
@@ -325,7 +327,7 @@ export function defaultOffset(d: Design, kind: ConnectionKind): number {
 export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: GrowOpts): { panelId: string; connectionId: string } | null {
   const parent = d.panels[parentId];
   const edge = ek(edgeArg);
-  if (!parent || !findEdge(parent, edge)) return null;
+  if (!parent || !findEdge(parent, edge) || isCurveKey(edge)) return null;
   const offset = opts.offset ?? defaultOffset(d, opts.kind);
   const L = edgeLength(parent, edge);
   const partial = opts.span && spanOf(parent, edge, opts.span)[1] - spanOf(parent, edge, opts.span)[0] < L - 1e-6 ? spanOf(parent, edge, opts.span) : null;
@@ -744,9 +746,11 @@ export function setEdgeLength(d: Design, panelId: string, key: string, length: n
 export function normalizeSketch(p: Panel) {
   const s = p.sketch;
   if (s.kind !== 'poly') return;
-  const minX = Math.min(...s.pts.map((q) => q.x)), minY = Math.min(...s.pts.map((q) => q.y));
+  // the outline as drawn: a curve can bulge past its points
+  const ring = s.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : s.pts;
+  const minX = Math.min(...ring.map((q) => q.x)), minY = Math.min(...ring.map((q) => q.y));
   if (Math.abs(minX) > 1e-9 || Math.abs(minY) > 1e-9) {
-    s.pts = s.pts.map((q) => ({ x: q.x - minX, y: q.y - minY }));
+    s.pts = s.pts.map((q) => ({ ...q, x: q.x - minX, y: q.y - minY }));
     const f = p.frame;
     p.frame = { ...f, o: [f.o[0] + f.u[0] * minX + f.v[0] * minY, f.o[1] + f.u[1] * minX + f.v[1] * minY, f.o[2] + f.u[2] * minX + f.v[2] * minY] };
     for (const dt of p.details) {
@@ -754,8 +758,9 @@ export function normalizeSketch(p: Panel) {
       dt.cy -= minY;
     }
   }
-  p.w = Math.max(...s.pts.map((q) => q.x));
-  p.h = Math.max(...s.pts.map((q) => q.y));
+  const after = s.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : s.pts;
+  p.w = Math.max(...after.map((q) => q.x));
+  p.h = Math.max(...after.map((q) => q.y));
 }
 
 /** Normalise an angle to (−180, 180] degrees, rounded to 1e-9. */
@@ -892,7 +897,7 @@ function nextEdgeId(ids: string[]): string {
 export function moveVertex(d: Design, panelId: string, i: number, to: P2): boolean {
   const p = d.panels[panelId];
   if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return false;
-  const pts = p.sketch.pts.map((q, k) => (k === i ? { x: to.x, y: to.y } : q));
+  const pts = p.sketch.pts.map((q, k) => (k === i ? { ...q, x: to.x, y: to.y } : q));
   if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
   p.sketch.pts = pts;
   normalizeSketch(p);
@@ -982,9 +987,10 @@ export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off
   const s = wallSketch(d, wallId);
   if (!s) return;
   const bottom = corner === 'bl' || corner === 'br';
-  const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100 };
+  const curve = s.corners?.[corner]?.curve;
+  const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100, ...(curve ? { curve } : {}) };
   s.corners = { ...(s.corners ?? {}), [corner]: v };
-  if (!v.dx && !v.dy) delete s.corners[corner];
+  if (!v.dx && !v.dy && !curve) delete s.corners[corner];
   if (!Object.keys(s.corners).length) delete s.corners;
   solve(d);
 }
@@ -1014,6 +1020,76 @@ export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
   s.inserts = s.inserts.filter((x) => x.id !== insertId);
   if (!s.inserts.length) delete s.inserts;
   solve(d);
+}
+
+/** An outline point that can be curved: a base polygon's vertex (index), a wall's top corner or inserted point (id). */
+export type OutlinePoint = number | 'tl' | 'tr' | string;
+
+/** The edge keys either side of an outline point (from the straight sketch), or null when it has none. */
+function pointEdges(p: Panel, pt: OutlinePoint): string[] | null {
+  const ring = straightRing(p);
+  const s = p.sketch;
+  let at: P2 | undefined;
+  if (s.kind === 'poly') at = typeof pt === 'number' ? s.pts[pt] : undefined;
+  else if (pt === 'tl' || pt === 'tr') at = ring.find((e) => e.key === (pt === 'tr' ? 'e2' : 'e3'))?.a;
+  else at = ring.find((e) => e.key === pt)?.a;
+  if (!at) return null;
+  const same = (q: P2) => Math.hypot(q.x - at!.x, q.y - at!.y) < 1e-6;
+  return ring.filter((e) => same(e.a) || same(e.b)).map((e) => e.key);
+}
+
+/**
+ * Why an outline point cannot become a curve, or null: an edge either side of
+ * it carries a joint, a grown panel or a fold-over (a curved edge holds none).
+ */
+export function curveBlocked(d: Design, panelId: string, pt: OutlinePoint): 'joined' | 'none' | null {
+  const p = d.panels[panelId];
+  const keys = p && pointEdges(p, pt);
+  if (!p || !keys) return 'none';
+  const set = new Set(keys);
+  const on = (r: { panelId: string; edge: string }) => r.panelId === panelId && set.has(baseKey(r.edge));
+  if (Object.values(d.connections).some((c) => on(c.a) || on(c.b))) return 'joined';
+  if ((p.foldOvers ?? []).some((f) => set.has(f.edge))) return 'joined';
+  return null;
+}
+
+/** Is this outline point an auto curve? */
+export function pointCurve(d: Design, panelId: string, pt: OutlinePoint): boolean {
+  const s = d.panels[panelId]?.sketch;
+  if (!s) return false;
+  if (s.kind === 'poly') return typeof pt === 'number' && !!s.pts[pt]?.curve;
+  if (pt === 'tl' || pt === 'tr') return !!s.corners?.[pt]?.curve;
+  return !!s.inserts?.find((x) => x.id === pt)?.curve;
+}
+
+/** Make an outline point a smooth (auto) curve or a corner again. Refused while an edge beside it is joined. */
+export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: boolean): boolean {
+  const p = d.panels[panelId];
+  if (!p) return false;
+  if (on && curveBlocked(d, panelId, pt)) return false;
+  const s = p.sketch;
+  if (s.kind === 'poly') {
+    if (typeof pt !== 'number' || !s.pts[pt] || parentConnection(d, panelId)) return false;
+    const q = { ...s.pts[pt] };
+    if (on) q.curve = 'auto';
+    else delete q.curve;
+    s.pts = s.pts.map((x, k) => (k === pt ? q : x));
+    normalizeSketch(p);
+  } else if (pt === 'tl' || pt === 'tr') {
+    const c = { dx: 0, dy: 0, ...s.corners?.[pt] };
+    if (on) c.curve = 'auto';
+    else delete c.curve;
+    s.corners = { ...(s.corners ?? {}), [pt]: c };
+    if (!c.dx && !c.dy && !c.curve) delete s.corners[pt];
+    if (!Object.keys(s.corners).length) delete s.corners;
+  } else {
+    const ins = s.inserts?.find((x) => x.id === pt);
+    if (!ins) return false;
+    if (on) ins.curve = 'auto';
+    else delete ins.curve;
+  }
+  solve(d);
+  return true;
 }
 
 /** Can this wall edge take a fold-over: card or corrugated, a grown wall, a free edge? */

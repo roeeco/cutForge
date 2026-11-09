@@ -521,6 +521,25 @@ Remaining limitations (milestones 21–24)
 - The gizmo ring in a grazing view still measures the screen angle about its centre, which is hard to use when the ring is seen edge-on.
 - A design-wide kind that the current material does not allow (fingers after switching to card) is remembered but unused until the material allows it again; the list then shows the kind most joints have.
 - The settings card is taller than a short stage and scrolls inside the card dock.
+- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4 (milestones 25–27).
+
+## Follow-up — snapping toggles, add ghosts, outline snapping and curves ✅
+
+Implemented
+- **Separate snapping toggles** (`settings-snap`, `settings-grid-snap` in the settings card): smart snapping and grid snapping turn off independently (the grid step field is greyed while the grid is off); Alt turns off both for one drag (`gridSnap(x, ev)`, `noSmartSnap(ev)`), in the 3D view, the cut plan and outline editing.
+- **Darker add ghosts:** the grow ghost and the extrude preview (`STAGE.ghost`, `ghostEdge`, `ghostOpacity` in `src/views/palette.ts`).
+- **Outline point snapping** (`outlineTargets`, `snapOutlinePoint` in `src/model/snap.ts`; `placeVertex` in `src/views/polyTool.tsx`): base vertices, wall top corners and inserted points snap to corners, then edges, of the outline itself and of panels in or standing on its plane, then into line with its own points, then to the grid. A marker shows what it snapped to.
+- **Auto-curve points** (`setPointCurve`, `curveBlocked`, `pointCurve` in `ops.ts`; `curveRing` in `edges.ts`): in outline editing, the selected point's card row (*Point: Corner / Curve*, `point-corner`, `point-curve-auto`) makes it a smooth curve; refused with a note (`point-curve-blocked`) while an edge beside it is joined. The "+" handles sit on the curve.
+
+Verified
+- `tests/curves.test.ts`: a base corner becomes a curve through it (its two edges flattened, the others unchanged, smooth through the point, the box holds the outline); curves are not growable or joined, the design validates and exports; a joined edge blocks a curve; a wall's top corner curve keeps the attached bottom straight; moving a curve point and save/load keep it; outline snapping to a neighbouring floor panel's corner, onto its edge and in line with its own point, never to itself; grid off and Alt give 0.01 mm values.
+- `tests/e2e/gizmo.spec.ts`: on the grid with both toggles on, off it with Alt, and with the grid off while smart snapping still snaps to the wall's centre; dragging a base corner next to a neighbouring panel's corner lands on it exactly, and next to its edge lands on the edge; a selected point becomes a curve and back.
+- Screenshots: `docs/gizmo-shots/{en,he}-25-snapping-toggles.png`, `…-25-curve-point.png`.
+
+Remaining (follow-up)
+- Curves are auto only: no handles to shape them yet (`curve` leaves room for `'bezier'`). Exports carry the flattened curve (segments within 0.02 mm), not true curves.
+- An auto curve can bulge well past its points (e.g. a curve at a rectangle's corner pushes the next edge outward); there is no check that a curve crosses another edge of the outline.
+- The grow ghost's outline handles (*Edit outline* on the ghost) do not snap to corners and edges yet.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

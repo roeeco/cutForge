@@ -4,7 +4,7 @@
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, setPanelSize, setPanelYaw, updateDetail } from '../model/ops';
+import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
@@ -14,7 +14,7 @@ import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connecti
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
-import { panelEdges, segLength } from '../model/edges';
+import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { panelsCutBy } from '../model/through';
@@ -132,6 +132,7 @@ export function Inspector() {
               <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
+          {editOutline === id && <PointCurve panelId={id} />}
           <Stepper
             label={t('insp.quantity')}
             value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
@@ -152,7 +153,7 @@ export function Inspector() {
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">
               {panelEdges(p)
-                .filter((e) => segLength(e) >= MIN_PANEL)
+                .filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key))
                 .map(({ key: e }) => (
                   <button
                     key={e}
@@ -181,6 +182,30 @@ export function Inspector() {
       <aside className="card inspector" aria-label={t('insp.title')}>
         {body}
       </aside>
+    </div>
+  );
+}
+
+/** While editing an outline: the selected point as a corner or a smooth (auto) curve. */
+function PointCurve({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const sel = useStore((s) => s.selVertex);
+  if (sel === null || sel === 'bl' || sel === 'br') return <p className="note">{t('outline.pickPoint')}</p>;
+  const curved = pointCurve(d, panelId, sel);
+  const blocked = !curved && curveBlocked(d, panelId, sel);
+  return (
+    <div className="subsection" data-testid="point-curve">
+      <Segmented
+        label={t('outline.point')}
+        value={curved ? 'auto' : 'corner'}
+        options={[
+          { value: 'corner', label: t('outline.corner'), testId: 'point-corner' },
+          { value: 'auto', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve-auto' },
+        ]}
+        onChange={(v) => !(v === 'auto' && blocked) && useStore.getState().apply((x) => void setPointCurve(x, panelId, sel, v === 'auto'))}
+      />
+      {blocked === 'joined' && <p className="note" data-testid="point-curve-blocked">{t('outline.curveJoined')}</p>}
     </div>
   );
 }

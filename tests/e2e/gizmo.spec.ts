@@ -254,7 +254,8 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   await page.getByTestId('drawer-close').click();
 
   // snapping: smart snapping off (it would pull the shape's edge onto the wall's centre line), a 5 mm grid and a 10° turn step, saved per viewer
-  await page.getByTestId('settings-snap').uncheck();
+  await page.getByTestId('settings-snap').click();
+  await expect(page.getByTestId('settings-snap')).toHaveAttribute('aria-pressed', 'false');
   await setNum(page, 'settings-grid', '5');
   await setNum(page, 'settings-turn', '10');
   const shape = await S<string>(page, (wall: string) => {
@@ -288,5 +289,94 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   // kept for this viewer
   const prefs = await S<any>(page, () => JSON.parse(localStorage.getItem('cutforge.viewPrefs')!));
   expect(prefs).toMatchObject({ snap: false, gridStep: 5, turnStep: 10 });
+  expect(errors).toEqual([]);
+});
+
+test('snapping toggles: grid and smart snapping each turn off; Alt frees a drag from both', async ({ page }) => {
+  await start(page, 'ply-3');
+  const ids = await wallWithShape(page);
+  const c = await panelPt(page, ids.wall, 60, 35);
+  // a drop point clear of every smart target (the wall's centre lines, corners and edges)
+  const to = await panelPt(page, ids.wall, 73.37, 22.3);
+  // both on: on the 1 mm grid
+  await dragSteps(page, c, to, 5);
+  let s = await shapeAt(page, ids.wall);
+  expect(Number.isInteger(s.x) && Number.isInteger(s.y)).toBe(true);
+  await page.keyboard.press('ControlOrMeta+z');
+  // Alt: neither grid nor smart targets
+  await page.keyboard.down('Alt');
+  await dragSteps(page, c, to, 5);
+  await page.keyboard.up('Alt');
+  s = await shapeAt(page, ids.wall);
+  expect(Number.isInteger(s.x) && Number.isInteger(s.y)).toBe(false);
+  await page.keyboard.press('ControlOrMeta+z');
+  // grid off in the settings card: off the grid too
+  await S(page, () => (window as any).__cutforge.store.getState().select(null));
+  await page.getByTestId('settings-grid-snap').click();
+  await expect(page.getByTestId('settings-grid-snap')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('settings-grid')).toBeDisabled();
+  await expect(page.getByTestId('settings-snap')).toHaveAttribute('aria-pressed', 'true');
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'detail', id, ids: [id] }), ids.shapes[0]);
+  await dragSteps(page, c, to, 5);
+  s = await shapeAt(page, ids.wall);
+  expect(Number.isInteger(s.x) && Number.isInteger(s.y)).toBe(false);
+  // smart snapping still on: next to the wall's centre line (60) it snaps there
+  await page.keyboard.press('ControlOrMeta+z');
+  const near = await panelPt(page, ids.wall, 60.4 + 8, 35);
+  await dragSteps(page, c, near, 5);
+  expect((await shapeAt(page, ids.wall)).x).toBe(68);
+});
+
+test('outline editing: a point snaps to a neighbouring panel corner and edge; a selected point becomes a curve', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const ids = await S<{ a: string; b: string }>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.a = cf.ops.addRootPanel(d, -60, 40, 100, 60);
+      out.b = cf.ops.addRootPanel(d, 50, 40, 50, 40);
+    });
+    cf.store.getState().select({ kind: 'panel', id: out.a });
+    return out;
+  });
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
+  await page.getByTestId('edit-outline').click();
+  await expect(page.locator('aside.inspector')).toContainText('Select a point');
+  const d0 = await design(page);
+  const A = d0.panels[ids.a], B = d0.panels[ids.b];
+  // B's corners in A's local coordinates (both lie on the floor, same axes)
+  const bl = { x: B.frame.o[0] - A.frame.o[0], y: A.frame.o[2] - B.frame.o[2] };
+  const pts = A.sketch.pts as { x: number; y: number }[];
+  const i = pts.findIndex((q) => q.x === 100 && q.y === 0);
+  const from = await panelPt(page, ids.a, 100, 0);
+  // drag A's corner (100, 0) to just off B's corner (110, 0): it lands exactly on it
+  const nearB = await panelPt(page, ids.a, bl.x + 0.7, bl.y - 0.6);
+  await dragSteps(page, from, nearB, 6);
+  let p = (await design(page)).panels[ids.a].sketch.pts[i];
+  expect([p.x, p.y]).toEqual([bl.x, bl.y]);
+  await page.keyboard.press('ControlOrMeta+z');
+  // onto B's left edge, between its corners
+  const onEdge = await panelPt(page, ids.a, bl.x - 0.8, bl.y + 17.3);
+  await dragSteps(page, from, onEdge, 6);
+  p = (await design(page)).panels[ids.a].sketch.pts[i];
+  expect(p.x).toBeCloseTo(bl.x, 6);
+  expect(p.y).toBeGreaterThan(15);
+  await page.keyboard.press('ControlOrMeta+z');
+
+  // select the point (click it), make it a curve
+  const at = await panelPt(page, ids.a, 100, 60);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.getByTestId('point-curve')).toBeVisible();
+  await page.getByTestId('point-curve-auto').click();
+  let d = await design(page);
+  const j = (d.panels[ids.a].sketch.pts as any[]).findIndex((q) => q.curve === 'auto');
+  expect(j).toBeGreaterThanOrEqual(0);
+  // back to a corner
+  await page.getByTestId('point-corner').click();
+  d = await design(page);
+  expect((d.panels[ids.a].sketch.pts as any[]).some((q) => q.curve)).toBe(false);
   expect(errors).toEqual([]);
 });

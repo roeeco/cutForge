@@ -545,3 +545,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .span-row { display: flex; flex-direction: column; gap: 2px; }
 [data-testid=grow-edit-outline] { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin-block-start: 4px; }
 [data-testid=grow-edit-outline].on { background: var(--accent-soft, #d8efec); border-color: var(--accent, #15706b); }
+
+/* settings card: smart and grid snapping toggles */
+.snap-toggles { display: flex; gap: 8px; margin: 4px 0 8px; }
+.snap-toggles button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

@@ -27,7 +27,7 @@ import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
-import { FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
+import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
 import { effectiveGrow } from './ghost';
@@ -44,7 +44,7 @@ import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
-const snap = (x: number) => gridSnap(x);
+const snap = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 
 type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
@@ -129,7 +129,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       if (g.kind === 'panel-draw') {
         const p = ray(ev.clientX, ev.clientY, GROUND);
         if (!p) return;
-        g.cur = [snap(p[0]), 0, snap(p[2])];
+        g.cur = [snap(p[0], ev), 0, snap(p[2], ev)];
         setDrawRect({ a: g.start, b: g.cur });
         setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'shape-draw') {
@@ -139,7 +139,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const l = toLocal(panel.frame, p);
         const ctx = noSmartSnap(ev) ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
         const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
-        const x = sn?.dx ? l.x + sn.dx : snap(l.x), y = sn?.dy ? l.y + sn.dy : snap(l.y);
+        const x = sn?.dx ? l.x + sn.dx : snap(l.x, ev), y = sn?.dy ? l.y + sn.dy : snap(l.y, ev);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
         const shape = st.tool === 'select' || st.tool === 'panel' ? 'rect' : st.tool;
         let w = Math.abs(x - g.start.x), h = Math.abs(y - g.start.y);
@@ -163,8 +163,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const base = st.txnBase ?? st.design;
         const ctx = noSmartSnap(ev) ? null : snapContext(base, g.panelId, new Set(g.ids));
         const sn = ctx ? snapBox(ctx, { minX: g.box.minX + dx, maxX: g.box.maxX + dx, minY: g.box.minY + dy, maxY: g.box.maxY + dy }, tolAt(p)) : null;
-        dx = sn?.dx ? dx + sn.dx : snap(dx);
-        dy = sn?.dy ? dy + sn.dy : snap(dy);
+        dx = sn?.dx ? dx + sn.dx : snap(dx, ev);
+        dy = sn?.dy ? dy + sn.dy : snap(dy, ev);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
         // the same movement in space, measured on each shape's own panel
         const wd = v3add(v3mul(panel.frame.u, dx), v3mul(panel.frame.v, dy));
@@ -183,7 +183,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         // snap to other floor panels' corners and edges (Alt: off), otherwise to the grid
         const raw = [p[0] - g.start[0], p[2] - g.start[2]];
         const sn = noSmartSnap(ev) ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
-        const dx = sn ? sn.dx : snap(raw[0]), dz = sn ? sn.dz : snap(raw[1]);
+        const dx = sn ? sn.dx : snap(raw[0], ev), dz = sn ? sn.dz : snap(raw[1], ev);
         st.preview((d) => movePanel(d, g.id, dx, dz));
       }
     };
@@ -263,7 +263,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
       const ctx = noSmartSnap(e.nativeEvent) ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
-      const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
+      const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x, e.nativeEvent), y: sn?.dy ? l.y + sn.dy : snap(l.y, e.nativeEvent) };
       const nid = newId('x');
       setDrawingId(nid);
       begin(e, { kind: 'shape-draw', panelId: p.id, id: nid, start, plane: planeOf(p, e.point) });
@@ -312,7 +312,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'polygon') return polyRef.current?.start(e, null);
     if (tool !== 'panel') return;
-    const p: V3 = [snap(e.point.x), 0, snap(e.point.z)];
+    const p: V3 = [snap(e.point.x, e.nativeEvent), 0, snap(e.point.z, e.nativeEvent)];
     begin(e, { kind: 'panel-draw', start: p, cur: p });
   };
 
@@ -594,7 +594,7 @@ function PanelObject(props: {
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
   }, [d.material.kind, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
-  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
+  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
@@ -978,8 +978,8 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
     <>
       <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
         <mesh geometry={ghost.geom} raycast={() => null}>
-          <meshStandardMaterial color={color} transparent opacity={blocked ? 0.28 : 0.38} depthWrite={false} />
-          <Edges threshold={25} lineWidth={1.8} color={blocked ? '#c27c0e' : '#15706b'} />
+          <meshStandardMaterial color={color} transparent opacity={blocked ? 0.34 : STAGE.ghostOpacity} depthWrite={false} />
+          <Edges threshold={25} lineWidth={2} color={blocked ? '#a8690a' : STAGE.ghostEdge} />
         </mesh>
       </group>
       {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
@@ -1148,7 +1148,7 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
     if (!base) return [];
     const h = Math.max(MIN_PANEL, wallHeight(d, kind, height));
     return panelEdges(base)
-      .filter((e) => segLength(e) >= MIN_EDGE)
+      .filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key))
       .map((e) => {
         const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind));
         const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [] };
@@ -1167,8 +1167,8 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       {ghosts.map((g) => (
         <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true }}>
           <mesh geometry={g.geom} raycast={() => null}>
-            <meshStandardMaterial color={STAGE.ghost} transparent opacity={0.38} depthWrite={false} />
-            <Edges threshold={25} lineWidth={1.8} color="#15706b" />
+            <meshStandardMaterial color={STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
+            <Edges threshold={25} lineWidth={2} color={STAGE.ghostEdge} />
           </mesh>
         </group>
       ))}
@@ -1268,7 +1268,7 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
         const { base, fs, box: b0 } = start();
         const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, panel.id, new Set(ids));
         const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
-        const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
+        const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du, ev), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv, ev);
         st().preview((dd) => {
           for (const f of fs) updateDetail(dd, f.detail.id, { cx: f.detail.cx + x, cy: f.detail.cy + y });
         });
@@ -1335,7 +1335,7 @@ function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) =
                 const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, S.id, new Set(ids));
                 const at = onto(P, { x: dt.cx, y: dt.cy });
                 const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
-                const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
+                const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du, ev), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv, ev);
                 const o = findDetail(base, id)!.detail;
                 st().preview((dd) => updateDetail(dd, id, { cx: o.cx + x, cy: o.cy + y }));
                 return { du: x, dv: y };
@@ -1364,7 +1364,7 @@ function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed
       const base = st().txnBase ?? st().design;
       const ctx = noSmartSnap(ev) ? null : snapContext(base, props.S.id, new Set([props.id]));
       const sn = ctx ? snapPoint(ctx, l, props.tolAt([hit.x, hit.y, hit.z])) : null;
-      l = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
+      l = { x: sn?.dx ? l.x + sn.dx : snap(l.x, ev), y: sn?.dy ? l.y + sn.dy : snap(l.y, ev) };
       const a = (props.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
       const rx = l.x - props.fixed.x, ry = l.y - props.fixed.y;
       const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
@@ -1409,7 +1409,7 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
         let dx = u[0] * du + v[0] * dv, dz = u[2] * du + v[2] * dv;
         const sn = ev && !noSmartSnap(ev) ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
         if (sn) [dx, dz] = [sn.dx, sn.dz];
-        else if (ev) [dx, dz] = [snap(dx), snap(dz)];
+        else if (ev) [dx, dz] = [snap(dx, ev), snap(dz, ev)];
         st().preview((dd) => movePanel(dd, p.id, dx, dz));
         return { du: dx * u[0] + dz * u[2], dv: dx * v[0] + dz * v[2] };
       }}

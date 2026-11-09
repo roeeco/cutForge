@@ -11,6 +11,7 @@ import type { ConnectionKind } from '../model/types';
 import { fmtNum } from '../i18n';
 import { TemplateSection } from './TemplateUI';
 import { useMaterialEdit } from './MaterialDrawer';
+import { Icon } from './icons';
 
 export function DesignSettings() {
   const t = useT();
@@ -90,12 +91,17 @@ export function DesignSettings() {
       </div>
       <div className="subsection" data-testid="settings-snapping">
         <h4>{t('settings.snapping')}</h4>
-        <label className="check" title={t('settings.smartSnapHelp')}>
-          <input type="checkbox" checked={prefs.snap} onChange={(e) => setPrefs({ snap: e.target.checked })} data-testid="settings-snap" /> {t('settings.smartSnap')}
-        </label>
-        <NumField label={t('settings.grid')} value={prefs.gridStep} unit={mm} min={0.1} max={50} onCommit={(v) => setPrefs({ gridStep: v })} testId="settings-grid" />
+        <div className="snap-toggles">
+          <button className={prefs.snap ? 'on' : ''} aria-pressed={prefs.snap} title={t('settings.smartSnapHelp')} onClick={() => setPrefs({ snap: !prefs.snap })} data-testid="settings-snap">
+            <Icon name="magnet" size={16} /> {t('settings.smartSnap')}
+          </button>
+          <button className={prefs.grid ? 'on' : ''} aria-pressed={prefs.grid} title={t('settings.gridSnapHelp')} onClick={() => setPrefs({ grid: !prefs.grid })} data-testid="settings-grid-snap">
+            <Icon name="grid" size={16} /> {t('settings.gridSnap')}
+          </button>
+        </div>
+        <NumField label={t('settings.grid')} value={prefs.gridStep} unit={mm} min={0.1} max={50} disabled={!prefs.grid} onCommit={(v) => setPrefs({ gridStep: v })} testId="settings-grid" />
         <NumField label={t('settings.turn')} value={prefs.turnStep} decimals={0} unit={t('unit.deg')} min={1} max={90} onCommit={(v) => setPrefs({ turnStep: v })} testId="settings-turn" />
-        <p className="note">{t('settings.smartSnapHelp')}</p>
+        <p className="note">{t('settings.altHelp')}</p>
       </div>
     </section>
   );

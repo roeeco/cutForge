@@ -4,7 +4,7 @@
 // neighbouring shapes. The geometry being manipulated is excluded. The
 // tolerance comes from the view (a fixed number of screen pixels).
 // Snapping creates no relationship: it only adjusts the value being dragged.
-import type { Design, P2 } from './types';
+import type { Design, P2, V3 } from './types';
 import { detailCorners, detailInstances } from './geometry';
 
 export type Guide = { a: P2; b: P2; kind: 'align' | 'gap' };
@@ -29,7 +29,11 @@ export function snapContext(d: Design, panelId: string, exclude: Set<string>): S
   // the panel's own outline: its vertices and edge midpoints (a gable's apex, a polygon's corners), and its centre;
   // on a rectangle these are the same nine points as its box
   const ring = panelEdges(p);
-  for (const e of ring) points.push({ x: e.a.x, y: e.a.y }, { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 });
+  // a curve gives its ends, not its flattened points
+  for (const e of ring) {
+    if (!isCurveKey(e.key)) points.push({ x: e.a.x, y: e.a.y }, { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 });
+    else if (/~0(#|$)/.test(e.key)) points.push({ x: e.a.x, y: e.a.y });
+  }
   points.push({ x: p.w / 2, y: p.h / 2 });
   const boxes: Box[] = [];
   for (const dt of p.details) {
@@ -166,8 +170,8 @@ function finish(bx: Cand | null, by: Cand | null): SnapResult {
 // other floor panels' corners and edges (on the floor, world x/z), not just to
 // the grid. Like shape snapping, this only adjusts the move.
 
-import { panelEdges } from './edges';
-import { frameNormal, toLocal, toWorld } from './frame';
+import { isCurveKey, panelEdges, sketchRing } from './edges';
+import { frameNormal, matDir, toLocal, toWorld } from './frame';
 import { panelsCutBy } from './through';
 
 type F2 = { x: number; z: number };
@@ -232,4 +236,81 @@ export function snapFloor(base: Design, id: string, dx: number, dz: number, tol:
   const det = l1.n.x * l2.n.z - l1.n.z * l2.n.x;
   const ddx = (l1.off * l2.n.z - l1.n.z * l2.off) / det, ddz = (l1.n.x * l2.off - l1.off * l2.n.x) / det;
   return { dx: dx + ddx, dz: dz + ddz, guides: [l1.g, l2.g] };
+}
+
+// ---------------------------------------------------------------------------
+// Outline editing: a vertex being dragged snaps to corners (the outline's own
+// other vertices, and corners of panels lying in or standing on this panel's
+// plane), then onto edges (its own non-adjacent edges and those panels'
+// edges), then into line (x or y) with its own other vertices. In the
+// panel's local coordinates.
+
+export type OutlineTargets = { corners: P2[]; edges: [P2, P2][]; align: P2[] };
+/** `fixed`: the coordinates the snap set (the others are free for the grid). */
+export type OutlineSnap = { p: P2; kind: 'corner' | 'edge' | 'align' | null; target: P2 | null; guides: Guide[]; fixed: { x: boolean; y: boolean } };
+
+
+/** Targets for dragging the outline vertex now at `moving` (in the design at the start of the drag). */
+export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineTargets {
+  const S = d.panels[panelId];
+  const out: OutlineTargets = { corners: [], edges: [], align: [] };
+  if (!S) return out;
+  const t = d.material.thickness;
+  const same = (q: P2) => Math.hypot(q.x - moving.x, q.y - moving.y) < 1e-6;
+  // own outline: vertices (the start of a curve, not its flattened points), and edges not touching the moving point
+  const own = sketchRing(S);
+  for (const e of own) {
+    const k = e.key.match(/~(\d+)/);
+    if (!same(e.a) && (!k || k[1] === '0')) {
+      out.corners.push(e.a);
+      out.align.push(e.a);
+    }
+    if (!same(e.a) && !same(e.b) && !isCurveKey(e.key)) out.edges.push([e.a, e.b]);
+  }
+  // other panels in this plane or standing on it: within a thickness of the slab, seen from above
+  const m = matDir(S.frame);
+  const near = (w: V3) => {
+    const s = (w[0] - S.frame.o[0]) * m[0] + (w[1] - S.frame.o[1]) * m[1] + (w[2] - S.frame.o[2]) * m[2];
+    return s >= -t - 0.05 && s <= 2 * t + 0.05;
+  };
+  for (const id of d.order) {
+    const P = d.panels[id];
+    if (!P || id === panelId) continue;
+    for (const e of panelEdges(P))
+      for (const z of [0, t]) {
+        const wa = toWorld(P.frame, e.a.x, e.a.y, z), wb = toWorld(P.frame, e.b.x, e.b.y, z);
+        const na = near(wa), nb = near(wb);
+        const a = toLocal(S.frame, wa), b = toLocal(S.frame, wb);
+        if (na) out.corners.push(a);
+        if (na && nb && Math.hypot(b.x - a.x, b.y - a.y) > 0.5) out.edges.push([a, b]);
+      }
+  }
+  return out;
+}
+
+/** Snap a dragged outline vertex at `l` (local), within `tol` mm. */
+export function snapOutlinePoint(tg: OutlineTargets, l: P2, tol: number): OutlineSnap {
+  let bc: P2 | null = null, bd = tol;
+  for (const q of tg.corners) {
+    const dist = Math.hypot(q.x - l.x, q.y - l.y);
+    if (dist <= bd) [bc, bd] = [q, dist];
+  }
+  if (bc) return { p: { x: bc.x, y: bc.y }, kind: 'corner', target: bc, guides: [], fixed: { x: true, y: true } };
+  let be: { p: P2; e: [P2, P2] } | null = null;
+  bd = tol;
+  for (const e of tg.edges) {
+    const [a, b] = e;
+    const L2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+    if (L2 < 1e-12) continue;
+    const s = Math.max(0, Math.min(1, ((l.x - a.x) * (b.x - a.x) + (l.y - a.y) * (b.y - a.y)) / L2));
+    const q = { x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s };
+    const dist = Math.hypot(q.x - l.x, q.y - l.y);
+    if (dist <= bd) [be, bd] = [{ p: q, e }, dist];
+  }
+  if (be) return { p: be.p, kind: 'edge', target: null, guides: [{ a: be.e[0], b: be.e[1], kind: 'align' }], fixed: { x: true, y: true } };
+  const ctx: SnapContext = { points: tg.align, boxes: [], panel: { minX: 0, minY: 0, maxX: 0, maxY: 0 } };
+  const r = snapPoint(ctx, l, tol);
+  const fx = r.guides.some((g) => g.a.x === g.b.x && Math.abs(g.a.x - (l.x + r.dx)) < 1e-9), fy = r.guides.some((g) => g.a.y === g.b.y && Math.abs(g.a.y - (l.y + r.dy)) < 1e-9);
+  if (!fx && !fy) return { p: l, kind: null, target: null, guides: [], fixed: { x: false, y: false } };
+  return { p: { x: l.x + r.dx, y: l.y + r.dy }, kind: 'align', target: null, guides: r.guides, fixed: { x: fx, y: fy } };
 }

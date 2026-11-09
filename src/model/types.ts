@@ -59,12 +59,21 @@ export type Detail = {
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
 
 /** A wall inserted point: at fraction t along a free edge, pushed `off` mm outward. */
-export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off: number };
+export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off: number; curve?: CurveKind };
+/**
+ * How the outline passes a point: absent = a corner; 'auto' = a smooth curve
+ * through it, tangent to the line between its neighbours, with handles a
+ * third of each side's length (src/model/edges.ts). Room for 'bezier'
+ * (handles of its own) later.
+ */
+export type CurveKind = 'auto';
+/** A sketch point (a polygon vertex) and how the outline passes it. */
+export type SketchPt = P2 & { curve?: CurveKind };
 export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type WallSketch = {
   kind: 'wall';
   /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
-  corners?: Partial<Record<WallCorner, { dx: number; dy: number }>>;
+  corners?: Partial<Record<WallCorner, { dx: number; dy: number; curve?: CurveKind }>>;
   inserts?: WallInsert[];
 };
 /**
@@ -73,7 +82,7 @@ export type WallSketch = {
  * grown panels are a parametric w × h rectangle with corner offsets and
  * inserted points on their free edges.
  */
-export type Sketch = { kind: 'poly'; pts: P2[]; edgeIds: string[] } | WallSketch;
+export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[] } | WallSketch;
 
 export type Panel = {
   id: string;

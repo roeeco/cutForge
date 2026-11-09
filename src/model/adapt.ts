@@ -5,7 +5,7 @@
 // stored as ordinary wall corners and inserts (it is not re-derived later, so
 // it cannot form a cycle with the panels it was trimmed against).
 import type { ConnectionKind, Design, P2, Panel, WallSketch } from './types';
-import { findEdge, panelEdges, segDir, segInward, segLength, sketchRing, type EdgeArg } from './edges';
+import { findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, sketchRing, type EdgeArg } from './edges';
 import { edgeLength, frameNormal, growFrame, matDir, toLocal, toWorld, type GrowDir, type Seating } from './frame';
 import { pointInPolygon } from '../geom/vec';
 import { cornerFit } from './seams';
@@ -60,6 +60,8 @@ export function edgeFreeSpans(d: Design, parentId: string, edge: string): [numbe
 
 /** Is there room left on an edge to grow from (a free stretch of at least `min` mm)? */
 export function edgeHasRoom(d: Design, parentId: string, edge: string, min = 5): boolean {
+  // a curve's flattened segments are not growable
+  if (isCurveKey(edge)) return false;
   return edgeFreeSpans(d, parentId, edge).some(([a, b]) => b - a >= min - 1e-9);
 }
 

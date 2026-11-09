@@ -56,3 +56,55 @@ Planning notes from 2026-11-09, made after milestones 15–20 (`claude/determine
 - **Material and fit**: thickness, kerf and clearance (the same fields as the drawer, kept in sync), and *Change material…*, which opens the drawer.
 - **Snapping** (a viewer preference, saved like the view options): smart snapping on or off (off works like holding Alt), the grid step (1 mm by default), and the turn step (15° by default).
 - Template sizes, when the design has a template, stay at the top of the card.
+
+## 4. Plan for the remaining limitations (milestones 25–27)
+
+Written 2026-11-09, after milestones 21–24 and the follow-up (snapping toggles, darker add ghosts, outline point snapping, auto-curve points). Each milestone is small and independent, so they can ship in any order.
+
+### Milestone 25: the gizmo ring seen edge-on
+
+**Problem.** The ring turns by the pointer's screen angle about the gizmo centre (`Gizmo` in `src/views/widgets.tsx`). When the ring's plane is nearly edge-on it is drawn as a thin line or ellipse: the pointer can't follow it around, and a small move near the centre swings the angle wildly.
+
+**Fix.**
+- **A screen-facing ring while grazing.** When the ring's plane is within 20° of edge-on (the same `GRAZING_DEG` test as the pad), draw a second, camera-facing ring of the same screen radius in place of the flattened one, in a lighter tint, with the turn's axis shown as a short line through the centre. Dragging around it measures the screen angle as today: the angle is well-defined because the proxy is a full circle on screen.
+- **Sign.** Positive stays counter-clockwise seen from the normal's side: the sign comes from N·(camera − centre) at pointer-down, as now. Edge-on, that dot product is near zero, so use the side the camera was on when the drag began, and fall back to the normal's side when it is exactly edge-on.
+- **Dead zone.** Ignore pointer positions within 12 px of the centre (keep the last angle), so passing near the centre does not jump by 180°. Apply it in every view, not only grazing ones.
+- Typed angles, Shift for 1° and Alt for free turning are unchanged.
+
+**Tests.**
+- e2e: a wall shape with the camera 5° above the wall's plane; dragging around the proxy ring 32° lands on 30°, the same as from the front.
+- e2e: a drag that crosses the centre does not flip the angle.
+- unit: `grazingRing(N, view)` returns true within 20° of edge-on, and false at 25°.
+
+### Milestone 26: a design-wide joint the material does not allow
+
+**Problem.** `Design.joints.base` / `.corner` can hold a kind the current material does not allow (fingers, after switching plywood → card). It is kept on purpose, so switching back restores it. Meanwhile it is unused, and the list silently shows the kind most joints have.
+
+**Fix.**
+- **Say what happens.** When the stored kind is not among the group's kinds, the list shows the kind in use and a note under it: *"Finger joint does not work on card: these joints use Fold. Your choice comes back if you switch to plywood again."* (`joints-<group>-inactive`).
+- **One choice per material kind.** Store `joints` per material kind: `joints?: { plywood?: {...}; card?: {...}; corrugated?: {...} }`, and keep reading the old flat form (it migrates to the current material's kind on load). A switch to card and back then restores the plywood choices exactly, and card gets its own choices. The flap width already only applies to card and corrugated.
+- **Material change.** `setMaterial` and `changeMaterial` re-apply the new material's stored choices (`setAllJoints` for each set group), as template regeneration already does.
+- **Schema.** No version bump: `joints` is optional and the old flat form is still read. Exports of designs without `joints` stay byte-identical (golden tests).
+
+**Tests.**
+- unit: plywood with corners set to tab-and-slot, then card (the stored plywood choice is kept, card uses its default), card corners set to glue, back to plywood (tab-and-slot again), back to card (glue again).
+- unit: a flat-form `joints` file loads into the current material's slot.
+- e2e: the inactive note shows after a material change and names both kinds.
+
+### Milestone 27: a settings card that fits a short stage
+
+**Problem.** The card shows four blocks (template, joints, material and fit, snapping) and is taller than the stage on a Chromebook (1366 × 768, about 560 px of card space). It scrolls inside the dock, and *Snapping* is below the fold.
+
+**Fix.**
+- **Collapsible sections.** Joints, Material and fit, and Snapping become collapsible sections, using the existing `collapse-head` pattern from *Joints (n)* and *Add a divider*.
+- **Summaries in the headers.** Each header shows a one-line summary, so a closed section still says what is set: *Joints — Fold · Glue flap*, *Material — Corrugated 1.6 mm · clearance 0.2*, *Snapping — Smart · Grid 1 mm · 15°*.
+- **Open state per viewer.** Each section's open/closed state is saved with the view options. Defaults: Joints open, the others closed. On a stage shorter than 700 px, every section starts closed except the template's sizes.
+- **Shorter notes.** The long help note under the joint lists becomes the list's `title` (a tooltip) plus a short *Changes every joint, also new ones*.
+
+**Tests.**
+- e2e at 1366 × 768: with the default open state the card does not scroll (`scrollHeight <= clientHeight`). Opening a section and reloading keeps it open.
+- i18n: the new header summaries and notes are in `en.ts` and `he.ts`, with Hebrew screenshots.
+
+### Order and size
+
+Each milestone is a day or less. Suggested order: 27 (affects every student, on every Chromebook), then 26 (a confusing silent state), then 25 (a rare camera angle). None of them changes exports.

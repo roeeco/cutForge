@@ -15,8 +15,10 @@ import * as THREE from 'three';
 import type { Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
 import { addPolygonPanel, addPolygonShape, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
-import { sketchRing, wallCorners } from '../model/edges';
-import { detailSel, useStore, useT } from '../store/store';
+import { sketchRing, straightRing, wallCorners, type EdgeSeg } from '../model/edges';
+import { detailSel, gridSnap, noSmartSnap, useStore, useT } from '../store/store';
+import { outlineTargets, snapOutlinePoint, type OutlineSnap, type OutlineTargets } from '../model/snap';
+import { SNAP_PX } from '../geom/types';
 import { fmtNum } from '../i18n';
 import { mmPerPx, StageHtml } from './widgets';
 import { panelsCutBy } from '../model/through';
@@ -47,7 +49,7 @@ type Draft = {
 
 export type PolyToolHandle = { start: (e: ThreeEvent<PointerEvent>, panel: Panel | null) => void; active: () => boolean };
 
-const snap1 = (x: number) => Math.round(x);
+const snap1 = (x: number) => gridSnap(x);
 const STEP = Math.PI / 12; // 15°
 
 export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolean) => void }>(function PolygonTool({ setControls }, ref) {
@@ -283,12 +285,60 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
   );
 });
 
+/**
+ * Where a dragged outline vertex lands: on a corner or edge within reach
+ * (own outline, or panels in or standing on this plane), in line with its own
+ * other points, else on the grid. Alt (or smart snapping off) skips the
+ * targets; Alt also skips the grid.
+ */
+function placeVertex(tg: OutlineTargets, l: P2, ev: PointerEvent, tol: number): { p: P2; snap: OutlineSnap | null } {
+  const sn = noSmartSnap(ev) ? null : snapOutlinePoint(tg, l, tol);
+  const hit = sn && sn.kind ? sn : null;
+  return { p: { x: hit?.fixed.x ? hit.p.x : gridSnap(l.x, ev), y: hit?.fixed.y ? hit.p.y : gridSnap(l.y, ev) }, snap: hit };
+}
+
+/** Middle of a sketch edge as drawn: on its curve when it was flattened into one. */
+function edgeMid(drawn: EdgeSeg[], key: string, a: P2, b: P2): P2 {
+  const segs = drawn.filter((e) => e.key.startsWith(key + '~'));
+  if (segs.length > 1) {
+    const k = segs.length / 2;
+    const s0 = segs[Math.floor(k)];
+    return Number.isInteger(k) ? s0.a : { x: (s0.a.x + s0.b.x) / 2, y: (s0.a.y + s0.b.y) / 2 };
+  }
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/** The snap a vertex drag found: a ring on the corner it landed on, the edge or alignment line. */
+function SnapMarks({ snap, at, z, k }: { snap: OutlineSnap | null; at: P2 | null; z: number; k: number }) {
+  const lines = useMemo(() => {
+    if (!snap || !at) return null;
+    const pts: THREE.Vector3[] = [];
+    for (const g of snap.guides) pts.push(new THREE.Vector3(g.a.x, g.a.y, z), new THREE.Vector3(g.b.x, g.b.y, z));
+    return pts.length ? new THREE.BufferGeometry().setFromPoints(pts) : null;
+  }, [snap, at, z]);
+  if (!snap || !at) return null;
+  return (
+    <group userData={{ snapKind: snap.kind }}>
+      {lines && (
+        <lineSegments geometry={lines} renderOrder={10} raycast={() => null}>
+          <lineBasicMaterial color="#d97706" depthTest={false} transparent />
+        </lineSegments>
+      )}
+      <mesh position={[at.x, at.y, z]} renderOrder={10} raycast={() => null}>
+        <torusGeometry args={[k * 1.9, k * 0.28, 6, 24]} />
+        <meshBasicMaterial color="#d97706" depthTest={false} transparent />
+      </mesh>
+    </group>
+  );
+}
+
 /** Vertex handles of a base being edited: drag a vertex, select it and press Delete, click "+" on an edge to insert one. */
 export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: number }) {
   const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
   const selVertex = useStore((s) => s.selVertex);
   const rc = useMemo(() => new THREE.Raycaster(), []);
   const [hover, setHover] = useState<string | null>(null);
+  const [mark, setMark] = useState<{ snap: OutlineSnap | null; at: P2 } | null>(null);
   const s = p.sketch;
   const mat = useMemo(() => m.clone().multiply(frameMatrix(p.frame)), [m, p.frame]);
   const z = faceZ(p, t)[1] + 0.3;
@@ -317,6 +367,8 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
   }, [p.id]);
 
   if (s.kind === 'wall') return <WallHandles p={p} mat={mat} z={z} k={k} />;
+  const tolAt = (w: THREE.Vector3) => SNAP_PX * mmPerPx(camera, gl.domElement.clientHeight || 600, w);
+  const drawn = sketchRing(p);
   const n = s.pts.length;
   const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -326,18 +378,22 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
     if (controls) controls.enabled = false;
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
     const frame = p.frame;
+    const tg = outlineTargets(st.txnBase ?? st.design, p.id, s.pts[i]);
     const move = (ev: PointerEvent) => {
       const r = gl.domElement.getBoundingClientRect();
       rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
       const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
       if (!hit) return;
       const l = toLocal(frame, [hit.x, hit.y, hit.z]);
-      useStore.getState().preview((x) => void moveVertex(x, p.id, i, { x: Math.round(l.x), y: Math.round(l.y) }));
+      const v = placeVertex(tg, l, ev, tolAt(hit));
+      setMark(v.snap ? { snap: v.snap, at: v.p } : null);
+      useStore.getState().preview((x) => void moveVertex(x, p.id, i, v.p));
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (controls) controls.enabled = true;
+      setMark(null);
       useStore.getState().commit();
     };
     window.addEventListener('pointermove', move);
@@ -345,6 +401,7 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
   };
   return (
     <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      <SnapMarks snap={mark?.snap ?? null} at={mark?.at ?? null} z={z} k={k} />
       {s.pts.map((q, i) => (
         <mesh key={`v${i}`} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={startDrag(i)} onPointerOver={() => setHover(`v${i}`)} onPointerOut={() => setHover(null)} userData={{ vertex: i }}>
           <sphereGeometry args={[k * (hover === `v${i}` || selVertex === i ? 1.3 : 1), 12, 10]} />
@@ -353,7 +410,8 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
       ))}
       {s.pts.map((q, i) => {
         const b = s.pts[(i + 1) % n];
-        const mid: V3 = [(q.x + b.x) / 2, (q.y + b.y) / 2, z];
+        const m2 = edgeMid(drawn, s.edgeIds[i], q, b);
+        const mid: V3 = [m2.x, m2.y, z];
         return (
           <mesh
             key={`m${i}`}
@@ -388,33 +446,41 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
   const selVertex = useStore((s) => s.selVertex);
   const [hover, setHover] = useState<string | null>(null);
   const rc = useMemo(() => new THREE.Raycaster(), []);
+  const [mark, setMark] = useState<{ snap: OutlineSnap | null; at: P2 } | null>(null);
   const s = p.sketch as WallSketch;
   const c = wallCorners(p.w, p.h, s);
-  const ring = sketchRing(p);
-  const drag = (id: string, at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
+  const drawn = sketchRing(p);
+  // handles sit on the straight sketch's points; "+" on its edges, drawn at the middle of each edge as curved
+  const ring = straightRing(p);
+  const drag = (id: string, from: P2, at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    useStore.getState().set({ selVertex: id });
+    const st = useStore.getState();
+    st.set({ selVertex: id });
     if (controls) controls.enabled = false;
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
     const frame = p.frame;
+    const tg = outlineTargets(st.txnBase ?? st.design, p.id, from);
     const move = (ev: PointerEvent) => {
       const r = gl.domElement.getBoundingClientRect();
       rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
       const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
-      if (hit) at(toLocal(frame, [hit.x, hit.y, hit.z]));
+      if (!hit) return;
+      const v = placeVertex(tg, toLocal(frame, [hit.x, hit.y, hit.z]), ev, SNAP_PX * mmPerPx(camera, gl.domElement.clientHeight || 600, hit));
+      setMark(v.snap ? { snap: v.snap, at: v.p } : null);
+      at(v.p);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       if (controls) controls.enabled = true;
+      setMark(null);
       useStore.getState().commit();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
-  const corner = (name: 'tl' | 'tr', base: P2) =>
-    drag(name, (l) => useStore.getState().preview((x) => setWallCorner(x, p.id, name, { dx: Math.round(l.x - base.x), dy: Math.round(l.y - base.y) })));
+  const corner = (name: 'tl' | 'tr', base: P2, now: P2) => drag(name, now, (l) => useStore.getState().preview((x) => setWallCorner(x, p.id, name, { dx: l.x - base.x, dy: l.y - base.y })));
   // an insert's base edge (between the rectangle's corners, after their offsets)
   const baseEdge = (edge: 'e1' | 'e2' | 'e3') => {
     const i = Number(edge[1]);
@@ -427,7 +493,7 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
     const t = ((l.x - a.x) * dx + (l.y - a.y) * dy) / L;
     // outward = right of the edge direction
     const off = (l.x - a.x) * dy - (l.y - a.y) * dx;
-    return { t, off: Math.round(off) };
+    return { t, off: Math.round(off * 100) / 100 };
   };
   const ball = (id: string, q: P2, on: ((e: ThreeEvent<PointerEvent>) => void) | null, color?: string) => (
     <mesh key={id} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={on ?? undefined} onPointerOver={() => on && setHover(id)} onPointerOut={() => setHover(null)} userData={{ vertex: id }}>
@@ -438,18 +504,19 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
   const rect = [{ x: 0, y: p.h }, { x: p.w, y: p.h }];
   return (
     <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      <SnapMarks snap={mark?.snap ?? null} at={mark?.at ?? null} z={z} k={k} />
       {ball('bl', c[0], null, '#9aa3b2')}
       {ball('br', c[1], null, '#9aa3b2')}
-      {ball('tr', c[2], corner('tr', rect[1]))}
-      {ball('tl', c[3], corner('tl', rect[0]))}
+      {ball('tr', c[2], corner('tr', rect[1], c[2]))}
+      {ball('tl', c[3], corner('tl', rect[0], c[3]))}
       {(s.inserts ?? []).map((ins) => {
         const seg = ring.find((e) => e.key === ins.id);
-        return seg ? ball(ins.id, seg.a, drag(ins.id, (l) => useStore.getState().preview((x) => moveWallInsert(x, p.id, ins.id, toInsert(ins.edge, l))))) : null;
+        return seg ? ball(ins.id, seg.a, drag(ins.id, seg.a, (l) => useStore.getState().preview((x) => moveWallInsert(x, p.id, ins.id, toInsert(ins.edge, l))))) : null;
       })}
       {ring
         .filter((e) => e.key !== 'e0')
         .map((e) => {
-          const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+          const mid = edgeMid(drawn, e.key, e.a, e.b);
           const ins = (s.inserts ?? []).find((x) => x.id === e.key);
           const edge = (ins ? ins.edge : e.key) as 'e1' | 'e2' | 'e3';
           if (!['e1', 'e2', 'e3'].includes(edge)) return null;

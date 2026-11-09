@@ -25,7 +25,7 @@ import { snapAngle } from './widgets';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
-const grid = (x: number) => gridSnap(x);
+const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 
 type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number };
 type VB = { x: number; y: number; w: number; h: number };
@@ -205,8 +205,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           dx += sn.dx;
           dy += sn.dy;
         }
-        if (!sn?.dx) dx = grid(dx);
-        if (!sn?.dy) dy = grid(dy);
+        if (!sn?.dx) dx = grid(dx, ev);
+        if (!sn?.dy) dy = grid(dy, ev);
         setGuides(sn && sn.guides.length ? { guides: sn.guides, targets: sn.targets, placed: g.placed, panelId: g.panelId } : null);
         // the primary panel's delta, as a pointer movement on screen, applied to every shape on its own panel
         const endSvg = toSvg(g.placed, g.panelId, { x: g.start.x + dx, y: g.start.y + dy });
@@ -232,8 +232,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const exclude = new Set(g.kind === 'gresize' ? g.ids : [g.id]);
         const ctx = snapContext(st.txnBase ?? st.design, g.panelId, exclude);
         const sn = ctx && !noSnap ? snapPoint(ctx, { x: px, y: py }, tol) : null;
-        px = sn?.dx ? px + sn.dx : grid(px);
-        py = sn?.dy ? py + sn.dy : grid(py);
+        px = sn?.dx ? px + sn.dx : grid(px, ev);
+        py = sn?.dy ? py + sn.dy : grid(py, ev);
         setGuides(sn && sn.guides.length ? { guides: sn.guides, targets: sn.targets, placed: g.placed, panelId: g.panelId } : null);
         if (g.kind === 'gresize') {
           const sx = Math.abs(g.corner.x - g.fixed.x) < 1e-9 ? 1 : (px - g.fixed.x) / (g.corner.x - g.fixed.x);
@@ -351,7 +351,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     let l = toLocal(pl, panelId, svgPoint(ev));
     const ctx = snapContext(st.design, panelId, new Set());
     const sn = ctx && !noSmartSnap(ev) ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
-    l = { x: sn?.dx ? l.x + sn.dx : grid(l.x), y: sn?.dy ? l.y + sn.dy : grid(l.y) };
+    l = { x: sn?.dx ? l.x + sn.dx : grid(l.x, ev), y: sn?.dy ? l.y + sn.dy : grid(l.y, ev) };
     drag.current = { kind: 'draw', id: newId('x'), placed: pl, panelId, start: l };
   };
   const onPieceDown = (pl: Placed) => (ev: React.PointerEvent) => {

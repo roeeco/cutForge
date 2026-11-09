@@ -35,5 +35,29 @@ for (const lang of ['en', 'he']) {
     await S(page, () => (window as any).__cutforge.store.getState().set({ foldT: 0.55 }));
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/${lang}-22-flaps-half-folded.png` });
+    // the snapping toggles at the bottom of the settings card
+    await S(page, () => (window as any).__cutforge.store.getState().set({ foldT: 1 }));
+    await page.getByTestId('settings-snapping').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/${lang}-25-snapping-toggles.png` });
+  });
+
+  test(`outline curve shots ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    await S(page, () => {
+      const cf = (window as any).__cutforge;
+      let id = '';
+      cf.store.getState().apply((d: any) => {
+        id = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+        cf.ops.setPointCurve(d, id, 2, true);
+        cf.ops.growPanel(d, id, 'e0', { height: 50, angle: 90, dir: 'up', kind: 'finger' });
+      });
+      cf.store.getState().select({ kind: 'panel', id });
+      cf.store.getState().set({ editOutline: id, selVertex: 2 });
+      cf.setCamera([0, 260, 160], [0, 0, 0]);
+    });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-25-curve-point.png` });
   });
 }

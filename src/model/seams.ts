@@ -6,7 +6,7 @@
 import './outline';
 import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
-import { edgeNeighbours, edgePieces, FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
+import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
 import { minWeb } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
@@ -814,7 +814,8 @@ function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
  */
 export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   const t = d.material.thickness;
-  const ka = panelEdges(A).map((e) => e.key), kb = panelEdges(B).map((e) => e.key);
+  // a curve's flattened segments are never joined
+  const ka = panelEdges(A).map((e) => e.key).filter((k) => !isCurveKey(k)), kb = panelEdges(B).map((e) => e.key).filter((k) => !isCurveKey(k));
   const cand: OpenSeam[] = [];
   for (const ea of ka)
     for (const eb of kb) {
