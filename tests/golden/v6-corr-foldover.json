@@ -1,0 +1,758 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 6,
+ "savedAt": "2026-11-09T09:45:21.427Z",
+ "design": {
+  "schemaVersion": 6,
+  "id": "d_ccjggkg9",
+  "name": "",
+  "material": {
+   "id": "corr-1.6",
+   "kind": "corrugated",
+   "nameKey": "mat.corr16",
+   "thickness": 1.6,
+   "kerf": 0.2,
+   "clearance": 0.2,
+   "foldAllowance": 2,
+   "sheetW": 600,
+   "sheetH": 400,
+   "grain": "y"
+  },
+  "panels": {
+   "p_tmmpdyga": {
+    "id": "p_tmmpdyga",
+    "name": "1",
+    "w": 140,
+    "h": 90,
+    "sketch": {
+     "kind": "poly",
+     "pts": [
+      {
+       "x": 0,
+       "y": 0
+      },
+      {
+       "x": 140,
+       "y": 0
+      },
+      {
+       "x": 140,
+       "y": 90
+      },
+      {
+       "x": 0,
+       "y": 90
+      }
+     ],
+     "edgeIds": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ]
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "tr_d4e9vugb/e0": {
+    "id": "tr_d4e9vugb/e0",
+    "name": "2",
+    "w": 140,
+    "h": 48.4,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      1.6,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [],
+    "broken": false,
+    "foldOvers": [
+     {
+      "id": "f_0cxcvzgg",
+      "edge": "e2",
+      "depth": null,
+      "lock": "tabs",
+      "locks": null,
+      "lockDepth": null
+     }
+    ]
+   },
+   "tr_d4e9vugb/e1": {
+    "id": "tr_d4e9vugb/e1",
+    "name": "3",
+    "w": 90,
+    "h": 48.4,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      140,
+      1.6,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [],
+    "broken": false
+   },
+   "tr_d4e9vugb/e2": {
+    "id": "tr_d4e9vugb/e2",
+    "name": "4",
+    "w": 140,
+    "h": 48.4,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      140,
+      1.6,
+      -90
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [],
+    "broken": false
+   },
+   "tr_d4e9vugb/e3": {
+    "id": "tr_d4e9vugb/e3",
+    "name": "5",
+    "w": 90,
+    "h": 48.4,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      1.6,
+      -90
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [],
+    "broken": false
+   }
+  },
+  "order": [
+   "p_tmmpdyga",
+   "tr_d4e9vugb/e0",
+   "tr_d4e9vugb/e1",
+   "tr_d4e9vugb/e2",
+   "tr_d4e9vugb/e3"
+  ],
+  "connections": {
+   "tr_d4e9vugb/c/e0": {
+    "id": "tr_d4e9vugb/c/e0",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_tmmpdyga",
+     "edge": "e0"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e0",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "tr_d4e9vugb/c/e1": {
+    "id": "tr_d4e9vugb/c/e1",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_tmmpdyga",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e1",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "tr_d4e9vugb/c/e2": {
+    "id": "tr_d4e9vugb/c/e2",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_tmmpdyga",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e2",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "tr_d4e9vugb/c/e3": {
+    "id": "tr_d4e9vugb/c/e3",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_tmmpdyga",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e3",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_4p3vixgc": {
+    "id": "c_4p3vixgc",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "tr_d4e9vugb/e0",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e1",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "tr_d4e9vugb/e0",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 16.133333333333333,
+         "depth": 1.6
+        },
+        {
+         "s0": 16.133333333333333,
+         "s1": 32.266666666666666,
+         "depth": -4
+        },
+        {
+         "s0": 32.266666666666666,
+         "s1": 48.4,
+         "depth": 1.6
+        }
+       ]
+      },
+      {
+       "panelId": "tr_d4e9vugb/e1",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 48.4,
+         "depth": -3.1
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "tr_d4e9vugb/e1",
+       "poly": [
+        {
+         "x": -0.1,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.7000000000000002,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.7000000000000002,
+         "y": 32.36666666666667
+        },
+        {
+         "x": -0.10000000000000009,
+         "y": 32.36666666666667
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [
+      {
+       "panelId": "tr_d4e9vugb/e0",
+       "a": {
+        "x": 140,
+        "y": 16.133333333333333
+       },
+       "b": {
+        "x": 140,
+        "y": 32.266666666666666
+       }
+      }
+     ],
+     "flaps3d": []
+    },
+    "broken": false,
+    "tabLen": "through"
+   },
+   "c_65u3qdgd": {
+    "id": "c_65u3qdgd",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "tr_d4e9vugb/e0",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e3",
+     "edge": "e1"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "tr_d4e9vugb/e0",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 16.133333333333333,
+         "depth": 1.6
+        },
+        {
+         "s0": 16.133333333333333,
+         "s1": 32.266666666666666,
+         "depth": -4
+        },
+        {
+         "s0": 32.266666666666666,
+         "s1": 48.4,
+         "depth": 1.6
+        }
+       ]
+      },
+      {
+       "panelId": "tr_d4e9vugb/e3",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 1.3322676295501878e-15,
+         "s1": 48.4,
+         "depth": -3.0999999999999943
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "tr_d4e9vugb/e3",
+       "poly": [
+        {
+         "x": 88.30000000000001,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 90.1,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 90.1,
+         "y": 32.36666666666667
+        },
+        {
+         "x": 88.30000000000001,
+         "y": 32.36666666666667
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [
+      {
+       "panelId": "tr_d4e9vugb/e0",
+       "a": {
+        "x": 0,
+        "y": 32.266666666666666
+       },
+       "b": {
+        "x": 0,
+        "y": 16.133333333333333
+       }
+      }
+     ],
+     "flaps3d": []
+    },
+    "broken": false,
+    "tabLen": "through"
+   },
+   "c_dpd0g0ge": {
+    "id": "c_dpd0g0ge",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "tr_d4e9vugb/e1",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e2",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "tr_d4e9vugb/e1",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 16.133333333333333,
+         "depth": 1.6
+        },
+        {
+         "s0": 16.133333333333333,
+         "s1": 32.266666666666666,
+         "depth": -4
+        },
+        {
+         "s0": 32.266666666666666,
+         "s1": 48.4,
+         "depth": 1.6
+        }
+       ]
+      },
+      {
+       "panelId": "tr_d4e9vugb/e2",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 48.4,
+         "depth": -3.1
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "tr_d4e9vugb/e2",
+       "poly": [
+        {
+         "x": -0.1,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.6999999999999944,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.6999999999999944,
+         "y": 32.36666666666667
+        },
+        {
+         "x": -0.10000000000000009,
+         "y": 32.36666666666667
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [
+      {
+       "panelId": "tr_d4e9vugb/e1",
+       "a": {
+        "x": 90,
+        "y": 16.133333333333333
+       },
+       "b": {
+        "x": 90,
+        "y": 32.266666666666666
+       }
+      }
+     ],
+     "flaps3d": []
+    },
+    "broken": false,
+    "tabLen": "through"
+   },
+   "c_kuarb1gf": {
+    "id": "c_kuarb1gf",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "tr_d4e9vugb/e2",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "tr_d4e9vugb/e3",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "trayId": "tr_d4e9vugb",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "tr_d4e9vugb/e2",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 16.133333333333333,
+         "depth": 1.6
+        },
+        {
+         "s0": 16.133333333333333,
+         "s1": 32.266666666666666,
+         "depth": -4
+        },
+        {
+         "s0": 32.266666666666666,
+         "s1": 48.4,
+         "depth": 1.6
+        }
+       ]
+      },
+      {
+       "panelId": "tr_d4e9vugb/e3",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 48.4,
+         "depth": -3.1
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "tr_d4e9vugb/e3",
+       "poly": [
+        {
+         "x": -0.1,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.6999999999999944,
+         "y": 16.03333333333333
+        },
+        {
+         "x": 1.6999999999999944,
+         "y": 32.36666666666667
+        },
+        {
+         "x": -0.10000000000000009,
+         "y": 32.36666666666667
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [
+      {
+       "panelId": "tr_d4e9vugb/e2",
+       "a": {
+        "x": 140,
+        "y": 16.133333333333333
+       },
+       "b": {
+        "x": 140,
+        "y": 32.266666666666666
+       }
+      }
+     ],
+     "flaps3d": []
+    },
+    "broken": false,
+    "tabLen": "through"
+   }
+  },
+  "pieces": {
+   "p_tmmpdyga": {
+    "quantity": 1
+   },
+   "tr_d4e9vugb/e0": {
+    "quantity": 1
+   },
+   "tr_d4e9vugb/e1": {
+    "quantity": 1
+   },
+   "tr_d4e9vugb/e2": {
+    "quantity": 1
+   },
+   "tr_d4e9vugb/e3": {
+    "quantity": 1
+   }
+  },
+  "placements": {},
+  "trays": {
+   "tr_d4e9vugb": {
+    "id": "tr_d4e9vugb",
+    "baseId": "p_tmmpdyga",
+    "height": 50,
+    "wallKind": "fold",
+    "cornerKind": "tabslot",
+    "openEdges": [],
+    "tabLen": "through"
+   }
+  },
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}

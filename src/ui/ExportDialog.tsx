@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useStore, useT } from '../store/store';
+import { issueSelection, useStore, useT } from '../store/store';
 import { prepareExport, type KerfMode } from '../export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../export/svg';
 import { sheetsToDxf } from '../export/dxf';
@@ -90,7 +90,7 @@ export function ExportDialog() {
                   <button
                     className="link"
                     onClick={() => {
-                      useStore.getState().select(i.target.kind === 'detail' ? { kind: 'detail', id: i.target.id, ids: [i.target.id] } : i.target);
+                      useStore.getState().select(issueSelection(i));
                       close();
                     }}
                   >

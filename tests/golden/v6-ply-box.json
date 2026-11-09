@@ -1,0 +1,1841 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 6,
+ "savedAt": "2026-11-09T09:45:21.498Z",
+ "design": {
+  "schemaVersion": 6,
+  "id": "d_5fs1mxgz",
+  "name": "",
+  "material": {
+   "id": "ply-3",
+   "kind": "plywood",
+   "nameKey": "mat.ply3",
+   "thickness": 3,
+   "kerf": 0.15,
+   "clearance": 0.1,
+   "foldAllowance": 0,
+   "sheetW": 600,
+   "sheetH": 400,
+   "grain": "x"
+  },
+  "panels": {
+   "p_la243ih0": {
+    "id": "p_la243ih0",
+    "name": "1",
+    "w": 130,
+    "h": 80,
+    "sketch": {
+     "kind": "poly",
+     "pts": [
+      {
+       "x": 0,
+       "y": 0
+      },
+      {
+       "x": 130,
+       "y": 0
+      },
+      {
+       "x": 130,
+       "y": 80
+      },
+      {
+       "x": 0,
+       "y": 80
+      }
+     ],
+     "edgeIds": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ]
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": [
+     {
+      "id": "x_c4yrd3ht",
+      "shape": "rect",
+      "op": "score",
+      "cx": 30,
+      "cy": 30,
+      "w": 20,
+      "h": 10
+     }
+    ]
+   },
+   "p_l15jc3h1": {
+    "id": "p_l15jc3h1",
+    "name": "2",
+    "w": 130,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [
+     {
+      "id": "x_lpd061hq",
+      "shape": "circle",
+      "op": "cut",
+      "cx": 65,
+      "cy": 25,
+      "w": 20,
+      "h": 20
+     },
+     {
+      "id": "x_02su8qhr",
+      "shape": "roundrect",
+      "op": "engrave",
+      "cx": 30,
+      "cy": 15,
+      "w": 24,
+      "h": 10,
+      "r": 2.5
+     }
+    ]
+   },
+   "p_2sv82kh3": {
+    "id": "p_2sv82kh3",
+    "name": "3",
+    "w": 80,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      130,
+      0,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [
+     {
+      "id": "x_e76s7ths",
+      "shape": "rect",
+      "op": "cut",
+      "cx": 15,
+      "cy": 20,
+      "w": 6,
+      "h": 4,
+      "array": {
+       "nx": 3,
+       "ny": 2,
+       "dx": 12,
+       "dy": 10
+      }
+     }
+    ]
+   },
+   "p_pgce7ih5": {
+    "id": "p_pgce7ih5",
+    "name": "4",
+    "w": 130,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      130,
+      0,
+      -80
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [
+     {
+      "id": "x_55q8avhu",
+      "shape": "text",
+      "op": "engrave",
+      "cx": 60,
+      "cy": 25,
+      "w": 44,
+      "h": 8,
+      "text": {
+       "value": "שלום Box 7",
+       "font": "rubik",
+       "size": 8
+      }
+     }
+    ]
+   },
+   "p_5hfueoh7": {
+    "id": "p_5hfueoh7",
+    "name": "5",
+    "w": 80,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      -80
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": [
+     {
+      "id": "x_mkd70uhv",
+      "shape": "text",
+      "op": "cut",
+      "cx": 40,
+      "cy": 30,
+      "w": 6.6000000000000005,
+      "h": 12,
+      "text": {
+       "value": "A",
+       "font": "frank",
+       "size": 12
+      }
+     }
+    ]
+   },
+   "p_a9ogp2hd": {
+    "id": "p_a9ogp2hd",
+    "name": "6",
+    "w": 130,
+    "h": 35,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      3,
+      -40
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_pus3b5hh": {
+    "id": "p_pus3b5hh",
+    "name": "7",
+    "w": 80,
+    "h": 35,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      60,
+      3,
+      -80
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_g8q22jhm": {
+    "id": "p_g8q22jhm",
+    "name": "8",
+    "w": 130,
+    "h": 30,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      50,
+      -80
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      1
+     ],
+     "side": 1
+    },
+    "details": []
+   }
+  },
+  "order": [
+   "p_la243ih0",
+   "p_l15jc3h1",
+   "p_2sv82kh3",
+   "p_pgce7ih5",
+   "p_5hfueoh7",
+   "p_a9ogp2hd",
+   "p_pus3b5hh",
+   "p_g8q22jhm"
+  ],
+  "connections": {
+   "c_mnxwu7h2": {
+    "id": "c_mnxwu7h2",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e0"
+    },
+    "b": {
+     "panelId": "p_l15jc3h1",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_la243ih0",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        },
+        {
+         "s0": 49.95,
+         "s1": 60.05,
+         "depth": 3
+        },
+        {
+         "s0": 69.95,
+         "s1": 80.05,
+         "depth": 3
+        },
+        {
+         "s0": 89.95,
+         "s1": 100.05,
+         "depth": 3
+        },
+        {
+         "s0": 109.95,
+         "s1": 120.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_l15jc3h1",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 60,
+         "s1": 70,
+         "depth": 3
+        },
+        {
+         "s0": 80,
+         "s1": 90,
+         "depth": 3
+        },
+        {
+         "s0": 100,
+         "s1": 110,
+         "depth": 3
+        },
+        {
+         "s0": 120,
+         "s1": 130,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_etjm2hh4": {
+    "id": "c_etjm2hh4",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_2sv82kh3",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_la243ih0",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 11.378571428571428,
+         "s1": 22.90714285714286,
+         "depth": 3
+        },
+        {
+         "s0": 34.23571428571429,
+         "s1": 45.76428571428571,
+         "depth": 3
+        },
+        {
+         "s0": 57.09285714285715,
+         "s1": 68.62142857142857,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_2sv82kh3",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.428571428571429,
+         "depth": 3
+        },
+        {
+         "s0": 22.857142857142858,
+         "s1": 34.285714285714285,
+         "depth": 3
+        },
+        {
+         "s0": 45.714285714285715,
+         "s1": 57.142857142857146,
+         "depth": 3
+        },
+        {
+         "s0": 68.57142857142857,
+         "s1": 80,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_l9stunh6": {
+    "id": "c_l9stunh6",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_pgce7ih5",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_la243ih0",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        },
+        {
+         "s0": 49.95,
+         "s1": 60.05,
+         "depth": 3
+        },
+        {
+         "s0": 69.95,
+         "s1": 80.05,
+         "depth": 3
+        },
+        {
+         "s0": 89.95,
+         "s1": 100.05,
+         "depth": 3
+        },
+        {
+         "s0": 109.95,
+         "s1": 120.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_pgce7ih5",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 60,
+         "s1": 70,
+         "depth": 3
+        },
+        {
+         "s0": 80,
+         "s1": 90,
+         "depth": 3
+        },
+        {
+         "s0": 100,
+         "s1": 110,
+         "depth": 3
+        },
+        {
+         "s0": 120,
+         "s1": 130,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_fth6dch8": {
+    "id": "c_fth6dch8",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_5hfueoh7",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_la243ih0",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 11.378571428571428,
+         "s1": 22.90714285714286,
+         "depth": 3
+        },
+        {
+         "s0": 34.23571428571429,
+         "s1": 45.76428571428571,
+         "depth": 3
+        },
+        {
+         "s0": 57.09285714285715,
+         "s1": 68.62142857142857,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_5hfueoh7",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.42857142857143,
+         "depth": 3
+        },
+        {
+         "s0": 22.85714285714286,
+         "s1": 34.285714285714285,
+         "depth": 3
+        },
+        {
+         "s0": 45.714285714285715,
+         "s1": 57.142857142857146,
+         "depth": 3
+        },
+        {
+         "s0": 68.57142857142857,
+         "s1": 80,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_x1ftzhh9": {
+    "id": "c_x1ftzhh9",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_l15jc3h1",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_2sv82kh3",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_l15jc3h1",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_2sv82kh3",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_4p31wiha": {
+    "id": "c_4p31wiha",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_l15jc3h1",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_5hfueoh7",
+     "edge": "e1"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_l15jc3h1",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_5hfueoh7",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_1wj8j7hb": {
+    "id": "c_1wj8j7hb",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_2sv82kh3",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_pgce7ih5",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_2sv82kh3",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_pgce7ih5",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_w2unfphc": {
+    "id": "c_w2unfphc",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_pgce7ih5",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_5hfueoh7",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_pgce7ih5",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_5hfueoh7",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_jm5c86he": {
+    "id": "c_jm5c86he",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e0"
+    },
+    "b": {
+     "panelId": "p_a9ogp2hd",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 40,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_a9ogp2hd",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 18.571428571428573,
+         "depth": 0
+        },
+        {
+         "s0": 18.571428571428573,
+         "s1": 37.142857142857146,
+         "depth": -3
+        },
+        {
+         "s0": 37.142857142857146,
+         "s1": 55.71428571428572,
+         "depth": 0
+        },
+        {
+         "s0": 55.71428571428572,
+         "s1": 74.28571428571429,
+         "depth": -3
+        },
+        {
+         "s0": 74.28571428571429,
+         "s1": 92.85714285714286,
+         "depth": 0
+        },
+        {
+         "s0": 92.85714285714286,
+         "s1": 111.42857142857144,
+         "depth": -3
+        },
+        {
+         "s0": 111.42857142857144,
+         "s1": 130,
+         "depth": 0
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_la243ih0",
+       "poly": [
+        {
+         "x": 18.521428571428572,
+         "y": 39.95
+        },
+        {
+         "x": 37.19285714285714,
+         "y": 39.95
+        },
+        {
+         "x": 37.19285714285714,
+         "y": 43.05
+        },
+        {
+         "x": 18.521428571428572,
+         "y": 43.05
+        }
+       ]
+      },
+      {
+       "panelId": "p_la243ih0",
+       "poly": [
+        {
+         "x": 55.664285714285725,
+         "y": 39.95
+        },
+        {
+         "x": 74.33571428571429,
+         "y": 39.95
+        },
+        {
+         "x": 74.33571428571429,
+         "y": 43.05
+        },
+        {
+         "x": 55.664285714285725,
+         "y": 43.05
+        }
+       ]
+      },
+      {
+       "panelId": "p_la243ih0",
+       "poly": [
+        {
+         "x": 92.80714285714286,
+         "y": 39.95
+        },
+        {
+         "x": 111.47857142857144,
+         "y": 39.95
+        },
+        {
+         "x": 111.47857142857144,
+         "y": 43.05
+        },
+        {
+         "x": 92.80714285714286,
+         "y": 43.05
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_dlfiqqhf": {
+    "id": "c_dlfiqqhf",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_a9ogp2hd",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_2sv82kh3",
+     "edge": "face"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_a9ogp2hd",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.666666666666666,
+         "depth": 3
+        },
+        {
+         "s0": 11.666666666666666,
+         "s1": 23.333333333333332,
+         "depth": 0
+        },
+        {
+         "s0": 23.333333333333332,
+         "s1": 35,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_2sv82kh3",
+       "poly": [
+        {
+         "x": 39.95,
+         "y": 14.616666666666665
+        },
+        {
+         "x": 43.05,
+         "y": 14.616666666666665
+        },
+        {
+         "x": 43.05,
+         "y": 26.383333333333333
+        },
+        {
+         "x": 39.95,
+         "y": 26.383333333333333
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_3fwdp4hg": {
+    "id": "c_3fwdp4hg",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_a9ogp2hd",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_5hfueoh7",
+     "edge": "face"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_a9ogp2hd",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.666666666666666,
+         "depth": 3
+        },
+        {
+         "s0": 11.666666666666666,
+         "s1": 23.333333333333332,
+         "depth": 0
+        },
+        {
+         "s0": 23.333333333333332,
+         "s1": 35,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_5hfueoh7",
+       "poly": [
+        {
+         "x": 36.95,
+         "y": 14.616666666666667
+        },
+        {
+         "x": 40.05,
+         "y": 14.616666666666667
+        },
+        {
+         "x": 40.05,
+         "y": 26.383333333333336
+        },
+        {
+         "x": 36.95,
+         "y": 26.383333333333336
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_av0fqahi": {
+    "id": "c_av0fqahi",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_la243ih0",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_pus3b5hh",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 60,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_pus3b5hh",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 16,
+         "depth": 0
+        },
+        {
+         "s0": 16,
+         "s1": 32,
+         "depth": -3
+        },
+        {
+         "s0": 32,
+         "s1": 48,
+         "depth": 0
+        },
+        {
+         "s0": 48,
+         "s1": 64,
+         "depth": -3
+        },
+        {
+         "s0": 64,
+         "s1": 80,
+         "depth": 0
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_la243ih0",
+       "poly": [
+        {
+         "x": 59.95,
+         "y": 47.95
+        },
+        {
+         "x": 63.05,
+         "y": 47.95
+        },
+        {
+         "x": 63.05,
+         "y": 64.05
+        },
+        {
+         "x": 59.95,
+         "y": 64.05
+        }
+       ]
+      },
+      {
+       "panelId": "p_la243ih0",
+       "poly": [
+        {
+         "x": 59.95,
+         "y": 15.95
+        },
+        {
+         "x": 63.05,
+         "y": 15.95
+        },
+        {
+         "x": 63.05,
+         "y": 32.05
+        },
+        {
+         "x": 59.95,
+         "y": 32.05
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_1foty0hj": {
+    "id": "c_1foty0hj",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_pus3b5hh",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_l15jc3h1",
+     "edge": "face"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_pus3b5hh",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.666666666666666,
+         "depth": 3
+        },
+        {
+         "s0": 11.666666666666666,
+         "s1": 23.333333333333332,
+         "depth": 0
+        },
+        {
+         "s0": 23.333333333333332,
+         "s1": 35,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_l15jc3h1",
+       "poly": [
+        {
+         "x": 59.95,
+         "y": 14.616666666666665
+        },
+        {
+         "x": 63.05,
+         "y": 14.616666666666665
+        },
+        {
+         "x": 63.05,
+         "y": 26.383333333333333
+        },
+        {
+         "x": 59.95,
+         "y": 26.383333333333333
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_y2guayhk": {
+    "id": "c_y2guayhk",
+    "kind": "tabslot",
+    "pref": "tabslot",
+    "a": {
+     "panelId": "p_pus3b5hh",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_pgce7ih5",
+     "edge": "face"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_pus3b5hh",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 11.666666666666666,
+         "depth": 3
+        },
+        {
+         "s0": 11.666666666666666,
+         "s1": 23.333333333333332,
+         "depth": 0
+        },
+        {
+         "s0": 23.333333333333332,
+         "s1": 35,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [
+      {
+       "panelId": "p_pgce7ih5",
+       "poly": [
+        {
+         "x": 66.95,
+         "y": 14.616666666666667
+        },
+        {
+         "x": 70.05,
+         "y": 14.616666666666667
+        },
+        {
+         "x": 70.05,
+         "y": 26.383333333333336
+        },
+        {
+         "x": 66.95,
+         "y": 26.383333333333336
+        }
+       ]
+      }
+     ],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_bg11luhl": {
+    "id": "c_bg11luhl",
+    "kind": "halflap",
+    "pref": "halflap",
+    "a": {
+     "panelId": "p_a9ogp2hd",
+     "edge": "face"
+    },
+    "b": {
+     "panelId": "p_pus3b5hh",
+     "edge": "face"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_a9ogp2hd",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 66.95,
+         "s1": 70.05,
+         "depth": 17.5
+        }
+       ]
+      },
+      {
+       "panelId": "p_pus3b5hh",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 36.95,
+         "s1": 40.05,
+         "depth": 17.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_tzhei6hn": {
+    "id": "c_tzhei6hn",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_pgce7ih5",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_g8q22jhm",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_pgce7ih5",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        },
+        {
+         "s0": 29.95,
+         "s1": 40.05,
+         "depth": 3
+        },
+        {
+         "s0": 49.95,
+         "s1": 60.05,
+         "depth": 3
+        },
+        {
+         "s0": 69.95,
+         "s1": 80.05,
+         "depth": 3
+        },
+        {
+         "s0": 89.95,
+         "s1": 100.05,
+         "depth": 3
+        },
+        {
+         "s0": 109.95,
+         "s1": 120.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_g8q22jhm",
+       "edge": "e0",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        },
+        {
+         "s0": 40,
+         "s1": 50,
+         "depth": 3
+        },
+        {
+         "s0": 60,
+         "s1": 70,
+         "depth": 3
+        },
+        {
+         "s0": 80,
+         "s1": 90,
+         "depth": 3
+        },
+        {
+         "s0": 100,
+         "s1": 110,
+         "depth": 3
+        },
+        {
+         "s0": 120,
+         "s1": 130,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_li7ibxho": {
+    "id": "c_li7ibxho",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_2sv82kh3",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_g8q22jhm",
+     "edge": "e1"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_2sv82kh3",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 9.95,
+         "s1": 20.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_g8q22jhm",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_5737k0hp": {
+    "id": "c_5737k0hp",
+    "kind": "finger",
+    "pref": "finger",
+    "a": {
+     "panelId": "p_5hfueoh7",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_g8q22jhm",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_5hfueoh7",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 59.95,
+         "s1": 70.05,
+         "depth": 3
+        }
+       ]
+      },
+      {
+       "panelId": "p_g8q22jhm",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 10,
+         "depth": 3
+        },
+        {
+         "s0": 20,
+         "s1": 30,
+         "depth": 3
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   }
+  },
+  "pieces": {
+   "p_la243ih0": {
+    "quantity": 1
+   },
+   "p_l15jc3h1": {
+    "quantity": 1
+   },
+   "p_2sv82kh3": {
+    "quantity": 1
+   },
+   "p_pgce7ih5": {
+    "quantity": 1
+   },
+   "p_5hfueoh7": {
+    "quantity": 1
+   },
+   "p_a9ogp2hd": {
+    "quantity": 1
+   },
+   "p_pus3b5hh": {
+    "quantity": 1
+   },
+   "p_g8q22jhm": {
+    "quantity": 1
+   }
+  },
+  "placements": {},
+  "trays": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}

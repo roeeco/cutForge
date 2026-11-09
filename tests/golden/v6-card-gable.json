@@ -1,0 +1,903 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 6,
+ "savedAt": "2026-11-09T09:45:21.455Z",
+ "design": {
+  "schemaVersion": 6,
+  "id": "d_c9xj9pgh",
+  "name": "",
+  "material": {
+   "id": "card-0.5",
+   "kind": "card",
+   "nameKey": "mat.card",
+   "thickness": 0.5,
+   "kerf": 0.1,
+   "clearance": 0.1,
+   "foldAllowance": 0.6,
+   "sheetW": 500,
+   "sheetH": 300,
+   "grain": "none"
+  },
+  "panels": {
+   "p_kbbkdkgi": {
+    "id": "p_kbbkdkgi",
+    "name": "1",
+    "w": 120,
+    "h": 80,
+    "sketch": {
+     "kind": "poly",
+     "pts": [
+      {
+       "x": 0,
+       "y": 0
+      },
+      {
+       "x": 120,
+       "y": 0
+      },
+      {
+       "x": 120,
+       "y": 80
+      },
+      {
+       "x": 0,
+       "y": 80
+      }
+     ],
+     "edgeIds": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ]
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   },
+   "p_smwux9gj": {
+    "id": "p_smwux9gj",
+    "name": "2",
+    "w": 120,
+    "h": 50,
+    "sketch": {
+     "kind": "wall",
+     "inserts": [
+      {
+       "id": "i_k8k4hjgv",
+       "edge": "e2",
+       "t": 0.5,
+       "off": 30
+      }
+     ]
+    },
+    "frame": {
+     "o": [
+      0,
+      0.5,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_igul1lgl": {
+    "id": "p_igul1lgl",
+    "name": "3",
+    "w": 80,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      120,
+      0.5,
+      0
+     ],
+     "u": [
+      0,
+      0,
+      -1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_rf8t94gn": {
+    "id": "p_rf8t94gn",
+    "name": "4",
+    "w": 120,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      120,
+      0.5,
+      -80
+     ],
+     "u": [
+      -1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_klcirsgp": {
+    "id": "p_klcirsgp",
+    "name": "5",
+    "w": 80,
+    "h": 50,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      0,
+      0.5,
+      -80
+     ],
+     "u": [
+      0,
+      0,
+      1
+     ],
+     "v": [
+      0,
+      1,
+      0
+     ],
+     "side": -1
+    },
+    "details": []
+   },
+   "p_hv1anqgw": {
+    "id": "p_hv1anqgw",
+    "name": "6",
+    "w": 67.0820393249937,
+    "h": 40,
+    "sketch": {
+     "kind": "wall"
+    },
+    "frame": {
+     "o": [
+      120,
+      50.5,
+      -0.5
+     ],
+     "u": [
+      -0.8944271909999157,
+      0.44721359549995787,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": []
+   }
+  },
+  "order": [
+   "p_kbbkdkgi",
+   "p_smwux9gj",
+   "p_igul1lgl",
+   "p_rf8t94gn",
+   "p_klcirsgp",
+   "p_hv1anqgw"
+  ],
+  "connections": {
+   "c_con5afgk": {
+    "id": "c_con5afgk",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_kbbkdkgi",
+     "edge": "e0"
+    },
+    "b": {
+     "panelId": "p_smwux9gj",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_lgv767gm": {
+    "id": "c_lgv767gm",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_kbbkdkgi",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_igul1lgl",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_stj73ygo": {
+    "id": "c_stj73ygo",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_kbbkdkgi",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_rf8t94gn",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_dn9kqwgq": {
+    "id": "c_dn9kqwgq",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_kbbkdkgi",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_klcirsgp",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_qaud31gr": {
+    "id": "c_qaud31gr",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_smwux9gj",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_igul1lgl",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_smwux9gj",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 50,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_smwux9gj",
+       "poly": [
+        {
+         "x": 119.5,
+         "y": 0
+        },
+        {
+         "x": 129.5,
+         "y": 10
+        },
+        {
+         "x": 129.5,
+         "y": 40
+        },
+        {
+         "x": 119.5,
+         "y": 50
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_smwux9gj",
+       "a": {
+        "x": 119.5,
+        "y": 0
+       },
+       "b": {
+        "x": 119.5,
+        "y": 50
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_igul1lgl",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 40
+        },
+        {
+         "x": 0.5,
+         "y": 50
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_c6ogxugs": {
+    "id": "c_c6ogxugs",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_smwux9gj",
+     "edge": "e3"
+    },
+    "b": {
+     "panelId": "p_klcirsgp",
+     "edge": "e1"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_smwux9gj",
+       "edge": "e3",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 50,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_smwux9gj",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 50
+        },
+        {
+         "x": -9.5,
+         "y": 40
+        },
+        {
+         "x": -9.5,
+         "y": 10
+        },
+        {
+         "x": 0.5,
+         "y": 0
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_smwux9gj",
+       "a": {
+        "x": 0.5,
+        "y": 50
+       },
+       "b": {
+        "x": 0.5,
+        "y": 0
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_klcirsgp",
+       "poly": [
+        {
+         "x": 79.5,
+         "y": 50
+        },
+        {
+         "x": 69.5,
+         "y": 40
+        },
+        {
+         "x": 69.5,
+         "y": 10
+        },
+        {
+         "x": 79.5,
+         "y": 0
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_9u1zv4gt": {
+    "id": "c_9u1zv4gt",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_igul1lgl",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_rf8t94gn",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_igul1lgl",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 50,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_igul1lgl",
+       "poly": [
+        {
+         "x": 79.5,
+         "y": 0
+        },
+        {
+         "x": 89.5,
+         "y": 10
+        },
+        {
+         "x": 89.5,
+         "y": 40
+        },
+        {
+         "x": 79.5,
+         "y": 50
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_igul1lgl",
+       "a": {
+        "x": 79.5,
+        "y": 0
+       },
+       "b": {
+        "x": 79.5,
+        "y": 50
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_rf8t94gn",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 40
+        },
+        {
+         "x": 0.5,
+         "y": 50
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_dy16q1gu": {
+    "id": "c_dy16q1gu",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_rf8t94gn",
+     "edge": "e1"
+    },
+    "b": {
+     "panelId": "p_klcirsgp",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_rf8t94gn",
+       "edge": "e1",
+       "notches": [
+        {
+         "s0": 0,
+         "s1": 50,
+         "depth": 0.5
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_rf8t94gn",
+       "poly": [
+        {
+         "x": 119.5,
+         "y": 0
+        },
+        {
+         "x": 129.5,
+         "y": 10
+        },
+        {
+         "x": 129.5,
+         "y": 40
+        },
+        {
+         "x": 119.5,
+         "y": 50
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_rf8t94gn",
+       "a": {
+        "x": 119.5,
+        "y": 0
+       },
+       "b": {
+        "x": 119.5,
+        "y": 50
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_klcirsgp",
+       "poly": [
+        {
+         "x": 0.5,
+         "y": 0
+        },
+        {
+         "x": 10.5,
+         "y": 10
+        },
+        {
+         "x": 10.5,
+         "y": 40
+        },
+        {
+         "x": 0.5,
+         "y": 50
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   },
+   "c_h98ozsgx": {
+    "id": "c_h98ozsgx",
+    "kind": "fold",
+    "pref": "fold",
+    "a": {
+     "panelId": "p_smwux9gj",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_hv1anqgw",
+     "edge": "e0"
+    },
+    "grown": true,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "geom": {
+     "edges": [],
+     "holes": [],
+     "adds": [],
+     "scores": [],
+     "flaps3d": []
+    },
+    "broken": false
+   },
+   "c_2k20s2gy": {
+    "id": "c_2k20s2gy",
+    "kind": "glue",
+    "pref": "glue",
+    "a": {
+     "panelId": "p_igul1lgl",
+     "edge": "e2"
+    },
+    "b": {
+     "panelId": "p_hv1anqgw",
+     "edge": "e3"
+    },
+    "grown": false,
+    "angle": 90,
+    "dir": "up",
+    "offset": 0,
+    "fingers": null,
+    "tabs": null,
+    "flap": null,
+    "foldDir": "valley",
+    "auto": true,
+    "geom": {
+     "edges": [
+      {
+       "panelId": "p_igul1lgl",
+       "edge": "e2",
+       "notches": [
+        {
+         "s0": 39.48,
+         "s1": 79.52,
+         "depth": 0.5590169943749476
+        }
+       ]
+      }
+     ],
+     "holes": [],
+     "adds": [
+      {
+       "panelId": "p_igul1lgl",
+       "poly": [
+        {
+         "x": 40.52,
+         "y": 49.44098300562505
+        },
+        {
+         "x": 30.520000000000003,
+         "y": 59.44098300562505
+        },
+        {
+         "x": 10.480000000000004,
+         "y": 59.44098300562505
+        },
+        {
+         "x": 0.480000000000004,
+         "y": 49.44098300562505
+        }
+       ]
+      }
+     ],
+     "scores": [
+      {
+       "panelId": "p_igul1lgl",
+       "a": {
+        "x": 40.52,
+        "y": 49.44098300562505
+       },
+       "b": {
+        "x": 0.480000000000004,
+        "y": 49.44098300562505
+       }
+      }
+     ],
+     "flaps3d": [
+      {
+       "panelId": "p_hv1anqgw",
+       "poly": [
+        {
+         "x": 0.3090169943749475,
+         "y": 40.02
+        },
+        {
+         "x": 10.309016994374948,
+         "y": 30.020000000000003
+        },
+        {
+         "x": 10.309016994374948,
+         "y": 9.980000000000004
+        },
+        {
+         "x": 0.3090169943749475,
+         "y": -0.01999999999999602
+        }
+       ],
+       "z0": 0.5,
+       "z1": 1
+      }
+     ]
+    },
+    "broken": false
+   }
+  },
+  "pieces": {
+   "p_kbbkdkgi": {
+    "quantity": 1
+   },
+   "p_smwux9gj": {
+    "quantity": 1
+   },
+   "p_igul1lgl": {
+    "quantity": 1
+   },
+   "p_rf8t94gn": {
+    "quantity": 1
+   },
+   "p_klcirsgp": {
+    "quantity": 1
+   },
+   "p_hv1anqgw": {
+    "quantity": 1
+   }
+  },
+  "placements": {},
+  "trays": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}

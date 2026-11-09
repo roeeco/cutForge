@@ -52,17 +52,28 @@ export type Detail = {
   regular?: { n: number };
   /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */
   array?: DetailArray;
+  /** Rotation in degrees (counter-clockwise) about the shape's centre; an array turns as a group about its centre. Missing = 0. */
+  rot?: number;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
 
 /** A wall inserted point: at fraction t along a free edge, pushed `off` mm outward. */
-export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off: number };
+export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off: number; curve?: CurveKind };
+/**
+ * How the outline passes a point: absent = a corner; 'auto' = a smooth curve
+ * through it, tangent to the line between its neighbours, with handles a
+ * third of each side's length (src/model/edges.ts). Room for 'bezier'
+ * (handles of its own) later.
+ */
+export type CurveKind = 'auto';
+/** A sketch point (a polygon vertex) and how the outline passes it. */
+export type SketchPt = P2 & { curve?: CurveKind };
 export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type WallSketch = {
   kind: 'wall';
   /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
-  corners?: Partial<Record<WallCorner, { dx: number; dy: number }>>;
+  corners?: Partial<Record<WallCorner, { dx: number; dy: number; curve?: CurveKind }>>;
   inserts?: WallInsert[];
 };
 /**
@@ -71,7 +82,7 @@ export type WallSketch = {
  * grown panels are a parametric w × h rectangle with corner offsets and
  * inserted points on their free edges.
  */
-export type Sketch = { kind: 'poly'; pts: P2[]; edgeIds: string[] } | WallSketch;
+export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[] } | WallSketch;
 
 export type Panel = {
   id: string;
@@ -147,6 +158,11 @@ export type Connection = {
   dir: 'up' | 'down';
   /** Grown only: distance the child stands in from the parent edge (mm), e.g. dividers and tab-and-slot walls. */
   offset: number;
+  /**
+   * Grown only: the part of the parent edge the child stands on, [s0, s1] in mm
+   * from the edge (piece)'s start. Absent: the whole edge. Tray walls ignore it.
+   */
+  span?: [number, number];
   /** Requested finger count (odd, >=3). null = automatic from target width. */
   fingers: number | null;
   /** Requested tab count. null = automatic. */
@@ -186,6 +202,17 @@ export type Connection = {
 export type Notch = { s0: number; s1: number; depth: number };
 export type P2 = { x: number; y: number };
 
+/**
+ * A glue flap as folded in 3D: polygon in the receiving panel's local coords,
+ * slab z range there. For the fold view it also records the panel it belongs
+ * to (`owner`, where it is cut), the line it turns about (`hinge`: two points in
+ * the owner's local coords, z into the material) and the turn (degrees, right
+ * hand about hinge[0] → hinge[1]) from lying flat beside the owner, as in the
+ * cut net, to where it is folded. Older files without them draw it on the
+ * receiver.
+ */
+export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number };
+
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
   /** Edge profile changes: positive depth cuts back, negative protrudes. */
@@ -197,7 +224,7 @@ export type ConnGeom = {
   /** Score lines (flap folds). */
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
-  flaps3d: { panelId: string; poly: P2[]; z0: number; z1: number }[];
+  flaps3d: Flap3d[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
   cuts?: { panelId: string; poly: P2[] }[];
 };
@@ -228,6 +255,36 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
+  /** Automatic dividers on a base (see src/model/dividers.ts). */
+  dividerSets?: Record<string, DividerSet>;
+  /**
+   * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
+   * wall-to-base joints (grown panels and edge-on-face seams) and for corners
+   * (wall-to-wall closing seams), used for new joints where allowed; and the
+   * glue flap width (mm) replacing the automatic one. Absent: the material's.
+   */
+  joints?: DesignJoints;
+};
+
+export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
+
+/**
+ * Dividers made and spaced automatically in a rectangular clear inside:
+ * `across` dividers parallel to the base's left edge (spaced along its width),
+ * `along` dividers parallel to its front edge (spaced along its depth). Even
+ * spacing, or compartments of `size` mm (the last takes the rest). Members are
+ * `<id>/a<n>` and `<id>/l<n>`; a divider dragged by hand leaves the set and is
+ * listed in `loose` until *Space evenly again*.
+ */
+export type DividerSet = {
+  id: string;
+  baseId: string;
+  across: number;
+  along: number;
+  height: number;
+  mode: 'even' | 'size';
+  size?: number;
+  loose?: string[];
 };
 
 /** A base extruded into walls on every straight edge, at one shared height. */
@@ -244,4 +301,4 @@ export type Tray = {
   tabLen?: 'flush' | 'through';
 };
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;

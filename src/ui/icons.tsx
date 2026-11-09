@@ -82,6 +82,9 @@ const P: Record<string, ReactElement> = {
   teacher: <path d="M3 9 12 5l9 4-9 4zM7 11v5c3 2 7 2 10 0v-5M21 9v5" />,
   grow: <path d="M12 19V7M7 11l5-5 5 5M5 21h14" />,
   play: <path d="M8 5.5v13l10-6.5z" />,
+  magnet: <path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4zM6 8h4M14 8h4" />,
+  grid: <path d="M4 4h16v16H4zM9.33 4v16M14.67 4v16M4 9.33h16M4 14.67h16" />,
+  curve: <path d="M4 18c3-9 13-9 16 0" />,
   ruler: <path d="M3.5 15.5 15.5 3.5l5 5-12 12zM7 12l2 2M10 9l2 2M13 6l2 2" />,
   material: (
     <>

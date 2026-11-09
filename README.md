@@ -30,8 +30,11 @@ npm test             # Vitest: geometry, joints, export writers, history, projec
 npm run e2e          # Playwright: full vertical slice + offline check (starts the dev server)
 npx playwright test -c pw-app.config.ts --grep-invert classroom   # app specs only, no Worker
 SHOTS=1 npx playwright test -c pw-app.config.ts shots             # review screenshots into docs/polygon-shots/
+SHOTS=1 npx playwright test -c pw-app.config.ts refine-shots      # milestones 15–20 screenshots into docs/refine-shots/
+UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an intended change in exported files
 ```
 
+- `tests/autoseam.test.ts` builds 500 seeded random designs and checks that every pair of touching panels is joined or named by the export check (about 25 s).
 - Export tests also run an **independent reader check** with Python (`ezdxf` for DXF, `svgpathtools` for SVG) when available: `pip install ezdxf svgpathtools`. Without them that one test is skipped.
 - The Playwright run also starts the real Worker (`wrangler dev`, local D1/R2 in `.wrangler/e2e`) for the class-submission tests.
 - Playwright uses software WebGL (SwiftShader). If your Playwright browsers are installed somewhere non-standard, set `PW_CHROMIUM_PATH` to a Chromium binary.
@@ -61,7 +64,19 @@ SHOTS=1 npx playwright test -c pw-app.config.ts shots             # review scree
 
 13. **Corrugated locks and fold-over:** in *Joints (advanced)*, tab-and-slot joints can have tabs that go *Through, fold under* (and the tray card has the same switch for its corners). On a card or corrugated wall, *Fold-over (double wall)* folds the top over into a liner on the inside: down to the base or a partial hem, glued or locked with tabs through slots in the base. Holes in the wall continue through the liner. The fold slider unfolds liners too.
 
-**View settings** (sliders icon, bottom corner): outlines on/off, dimensions on/off, quality (*Auto*, *Simple*, *Rich*), and for folded card/corrugated designs a fold/unfold slider that shows the flat net (also in the part's card).
+14. **Move and rotate gizmo:** select a shape, or a floor panel, to get a gizmo: drag the square to move it, an arrow to move along one direction, the ring to turn it (15° steps; hold `Shift` for 1°, `Alt` for no snapping). While dragging, type a number and press Enter for an exact angle or distance. A floor panel turns with everything built on it, and snaps to other floor panels' corners and edges when moved. In the cut plan and face-on view, selected shapes have a turning ring. *Rotation* is also in the card.
+
+15. **Dividers:** on a base with walls, open *Add a divider*. *Automatic dividers*: set how many go *Across* and *Along*, their height, and *Even* spacing or *By compartment size*; they re-space when you change the box. Select a divider and drag its amber arrow to move it: it snaps to equal compartments, and the compartment sizes show above the dividers (click the ones next to it to type a size). A divider you drag leaves its automatic set; *Space evenly again* brings it back. **Divider between two faces:** hold `Shift` and click a wall's inner face, then the face opposite, and press *Divider between* (it is greyed, with the reason, when those faces cannot take one). `Esc` cancels.
+
+16. **Growing adapts:** while growing, the height arrow snaps to other panels (a lid lands on the opposite wall, a wall matches its neighbour), and the angle dial snaps to where the panel would rest on another one. Drag the small squares at the ghost's ends (or type *Starts at* / *Ends at*) to grow on part of an edge; the rest of the edge can be grown from later. With *Adapt to neighbours* on, the ghost is trimmed where it would run into other panels (a wall under a sloped roof becomes a gable) and is joined to them. *Edit outline* on the grow card lets you shape the ghost before growing.
+
+17. **Through-cuts from any side:** select a through-cut and its corners show on every panel it cuts; drag one to resize it from there, and use the gizmo shown on those panels to move or turn it. Its edges snap to the panels it passes through. While you draw a through-cut with the polygon tool, the *Cuts N panels* badge counts as you go.
+
+**Fold slider:** for card and corrugated designs with a fold, a fold/unfold slider sits at the bottom of the stage; it shows the flat net (and the fold-over liners) without changing the design.
+
+**Export check:** besides cutting problems, it says when two panels touch but are not joined (and why), or run into each other; clicking the message selects both.
+
+**View settings** (sliders icon, bottom corner): outlines on/off, dimensions on/off, quality (*Auto*, *Simple*, *Rich*).
 
 Keyboard: `V` select, `P` panel, `R` rectangle, `U` rounded rectangle, `C` circle, `G` polygon, `T` text, `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), `Delete`, `Ctrl+D` duplicate, `Esc` (cancel a drag / leave a tool / clear selection / leave solo view), arrow keys nudge the selected shapes 1 mm (`Shift` = 10 mm), `O` toggles perspective/orthographic.
 

@@ -6,39 +6,45 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Design, Frame, P2, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
+import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
+import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
+import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
 import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
-import { detailBBox, detailContour, detailContours } from '../model/geometry';
-import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
+import { detailBBox, detailContour, detailContours, detailCorners } from '../model/geometry';
+import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, partColors } from './palette';
-import { foldDisplay, type Bend } from './foldView';
-import { AngleArc, DimLabel, DimLine, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
+import { flapMatrix, foldDisplay, type Bend } from './foldView';
+import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
-import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/edges';
+import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
+import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
+import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
+import { effectiveGrow } from './ghost';
+import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
-import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
+import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
+import { newTrayKinds } from '../model/jointDefaults';
 import { isOutlineShape } from '../model/outline';
 import { allFoldOvers } from '../model/foldover';
 import { FoldOverObject } from './foldOver3d';
 import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../model/through';
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
+import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 
-const GRID = 1; // mm grid used when no smart-snap target is near
-const snap = (x: number) => Math.round(x / GRID) * GRID;
+// mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
+const snap = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 
 type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
@@ -94,6 +100,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
+  const facePick = useStore((s) => s.facePick);
   const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
@@ -122,7 +129,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       if (g.kind === 'panel-draw') {
         const p = ray(ev.clientX, ev.clientY, GROUND);
         if (!p) return;
-        g.cur = [snap(p[0]), 0, snap(p[2])];
+        g.cur = [snap(p[0], ev), 0, snap(p[2], ev)];
         setDrawRect({ a: g.start, b: g.cur });
         setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'shape-draw') {
@@ -130,9 +137,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!panel || !p) return;
         const l = toLocal(panel.frame, p);
-        const ctx = ev.altKey ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
+        const ctx = noSmartSnap(ev) ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
         const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
-        const x = sn?.dx ? l.x + sn.dx : snap(l.x), y = sn?.dy ? l.y + sn.dy : snap(l.y);
+        const x = sn?.dx ? l.x + sn.dx : snap(l.x, ev), y = sn?.dy ? l.y + sn.dy : snap(l.y, ev);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
         const shape = st.tool === 'select' || st.tool === 'panel' ? 'rect' : st.tool;
         let w = Math.abs(x - g.start.x), h = Math.abs(y - g.start.y);
@@ -154,10 +161,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const l = toLocal(panel.frame, p);
         let dx = l.x - g.start.x, dy = l.y - g.start.y;
         const base = st.txnBase ?? st.design;
-        const ctx = ev.altKey ? null : snapContext(base, g.panelId, new Set(g.ids));
+        const ctx = noSmartSnap(ev) ? null : snapContext(base, g.panelId, new Set(g.ids));
         const sn = ctx ? snapBox(ctx, { minX: g.box.minX + dx, maxX: g.box.maxX + dx, minY: g.box.minY + dy, maxY: g.box.maxY + dy }, tolAt(p)) : null;
-        dx = sn?.dx ? dx + sn.dx : snap(dx);
-        dy = sn?.dy ? dy + sn.dy : snap(dy);
+        dx = sn?.dx ? dx + sn.dx : snap(dx, ev);
+        dy = sn?.dy ? dy + sn.dy : snap(dy, ev);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
         // the same movement in space, measured on each shape's own panel
         const wd = v3add(v3mul(panel.frame.u, dx), v3mul(panel.frame.v, dy));
@@ -173,7 +180,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       } else if (g.kind === 'panel-move') {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!p) return;
-        const dx = snap(p[0] - g.start[0]), dz = snap(p[2] - g.start[2]);
+        // snap to other floor panels' corners and edges (Alt: off), otherwise to the grid
+        const raw = [p[0] - g.start[0], p[2] - g.start[2]];
+        const sn = noSmartSnap(ev) ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
+        const dx = sn ? sn.dx : snap(raw[0], ev), dz = sn ? sn.dz : snap(raw[1], ev);
         st.preview((d) => movePanel(d, g.id, dx, dz));
       }
     };
@@ -206,6 +216,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       }
     };
     const key = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && useStore.getState().facePick.length) useStore.getState().set({ facePick: [] });
       if (ev.key === 'Escape' && drag.current) {
         drag.current = null;
         setDrawRect(null);
@@ -250,14 +261,27 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     }
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
-      const ctx = e.nativeEvent.altKey ? null : snapContext(design, p.id, new Set());
+      const ctx = noSmartSnap(e.nativeEvent) ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
-      const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
+      const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x, e.nativeEvent), y: sn?.dy ? l.y + sn.dy : snap(l.y, e.nativeEvent) };
       const nid = newId('x');
       setDrawingId(nid);
       begin(e, { kind: 'shape-draw', panelId: p.id, id: nid, start, plane: planeOf(p, e.point) });
     } else if (tool === 'select') {
       e.stopPropagation();
+      const stx = useStore.getState();
+      if (e.nativeEvent.shiftKey) {
+        // Shift-click a face: pick it for "Divider between" (two faces). Which face: from the hit's depth in the material.
+        const z = v3dot(v3add([e.point.x, e.point.y, e.point.z], v3mul(p.frame.o, -1)), matDir(p.frame));
+        const th = design.material.thickness;
+        const side = Math.abs(z) < 0.25 * th ? -1 : Math.abs(z - th) < 0.25 * th ? 1 : 0;
+        if (side) {
+          const pickd: FacePick = { panelId: p.id, side, point: [e.point.x, e.point.y, e.point.z] };
+          stx.set({ facePick: [...stx.facePick, pickd].slice(-2) });
+          return;
+        }
+      }
+      if (stx.facePick.length) stx.set({ facePick: [] });
       useStore.getState().select({ kind: 'panel', id: p.id });
       if (!parentConnection(design, p.id) && e.button === 0) {
         setControls(false);
@@ -288,11 +312,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'polygon') return polyRef.current?.start(e, null);
     if (tool !== 'panel') return;
-    const p: V3 = [snap(e.point.x), 0, snap(e.point.z)];
+    const p: V3 = [snap(e.point.x, e.nativeEvent), 0, snap(e.point.z, e.nativeEvent)];
     begin(e, { kind: 'panel-draw', start: p, cur: p });
   };
 
-  const { camera, gl } = useThree();
+  const { camera, gl, invalidate, scene } = useThree();
   useEffect(() => {
     // Test hook: screen position of a point on a panel (local mm coordinates).
     const w = window as unknown as { __cutforge?: Record<string, unknown> };
@@ -311,7 +335,31 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
     w.__cutforge.camera = () => ({ position: camera.position.toArray().map((x) => Math.round(x * 1000) / 1000), ortho: camera instanceof THREE.OrthographicCamera });
-  }, [camera, gl]);
+    // Test hook: world bounding boxes of the panels and glue flaps as drawn (after the fold view's transforms).
+    w.__cutforge.stageBoxes = () => {
+      scene.updateMatrixWorld(true);
+      const out: { panels: Record<string, number[]>; flaps: { owner: string; on: string; box: number[] }[] } = { panels: {}, flaps: [] };
+      scene.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const box = () => new THREE.Box3().setFromObject(mesh).min.toArray().concat(new THREE.Box3().setFromObject(mesh).max.toArray());
+        if (mesh.userData.panelId) out.panels[mesh.userData.panelId] = box();
+        else if (mesh.userData.flapOwner) out.flaps.push({ owner: mesh.userData.flapOwner, on: mesh.userData.flapOn, box: box() });
+      });
+      return out;
+    };
+    // Test hook: put the camera at `pos`, looking at `target`.
+    w.__cutforge.setCamera = (pos: V3, target: V3) => {
+      const ctl = controls as unknown as { target: THREE.Vector3; update(): void } | null;
+      camera.position.set(...pos);
+      if (ctl) {
+        ctl.target.set(...target);
+        ctl.update();
+      } else camera.lookAt(...target);
+      camera.updateMatrixWorld();
+      invalidate();
+    };
+  }, [camera, gl, controls, scene]);
 
   const sel = selection;
   // the through-cut being drawn or selected: the panels it reaches are highlighted, with a count
@@ -325,6 +373,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const foldOvers = useMemo(() => allFoldOvers(design), [design]);
   const selEdge = sel?.kind === 'edge' ? sel : null;
   const selPanel = sel?.kind === 'panel' ? sel.id : null;
+  const selAlso = sel?.kind === 'panel' ? (sel.also ?? []) : [];
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
   const focus = selPanel;
   const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
@@ -367,14 +416,14 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         userData={{ noAO: true }}
       />
       {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && (useStore.getState().set({ facePick: [] }), useStore.getState().select(null))} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
       {design.order.map((id, index) => {
         const p = design.panels[id];
         if (!p) return null;
-        const selected = selPanel === id || selDetailPanels.has(id) || selEdge?.panelId === id;
+        const selected = selPanel === id || selAlso.includes(id) || selDetailPanels.has(id) || selEdge?.panelId === id;
         return (
           <PanelObject
             key={id}
@@ -382,7 +431,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             p={p}
             index={index}
             m={display.xf.get(id) ?? IDM}
-            selected={selPanel === id}
+            selected={selPanel === id || selAlso.includes(id)}
             emphasis={selected ? 1 : sel ? -1 : hoverPart === id ? 0.5 : 0}
             hover={hoverPart === id}
             outlines={prefs.outlines}
@@ -400,7 +449,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           />
         );
       })}
-      <Flaps d={design} xf={display.xf} />
+      <Flaps d={design} xf={display.xf} foldT={foldT} />
       {foldOvers.map((fo) => (
         <FoldOverObject key={fo.f.id} d={design} p={design.panels[fo.panelId]} g={fo.g} m={display.xf.get(fo.panelId) ?? IDM} foldT={foldT} index={design.order.indexOf(fo.panelId)} />
       ))}
@@ -419,12 +468,23 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           </span>
         </StageHtml>
       )}
+      {tool === 'select' && !folded && facePick.length > 0 && <BetweenPill d={design} picks={facePick} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
       {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && (
+        <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+      )}
+      {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
+        <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+      )}
+      {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && (
+        <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
+      )}
+      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
       {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
@@ -534,7 +594,7 @@ function PanelObject(props: {
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
   }, [d.material.kind, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
-  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !edgeConnection(d, p.id, e.key));
+  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
@@ -584,23 +644,50 @@ function PanelObject(props: {
   );
 }
 
-/** A free edge: an invisible, screen-sized hit target, a dashed hint when the panel is in focus, and a "+ Grow" pill on hover. */
+const MAX_HIT_PIECES = 4;
+
+/**
+ * A free edge: invisible, screen-sized hit targets, a dashed hint when the
+ * panel is in focus, and a "+ Grow" pill on hover. The targets leave a gap
+ * around the edge's midpoint (and any push-pull anchor on it), so the width
+ * and height arrows always win there; the pill follows the pointer along the
+ * edge, kept out of those gaps.
+ */
 function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSeg; t: number; z0: number; z1: number; show: boolean; active: boolean }) {
   const tt = useT();
   const [hover, setHover] = useState(false);
-  const hit = useRef<THREE.Mesh>(null);
+  const [pillS, setPillS] = useState<number | null>(null);
+  const hits = useRef<(THREE.Mesh | null)[]>([]);
+  const live = useRef<boolean[]>([]);
+  const gapMm = useRef(0);
+  const rangesRef = useRef<[number, number][]>([]);
   const { camera, size } = useThree();
   const edge = seg.key;
   const L = segLength(seg);
   const mid = (z0 + z1) / 2;
-  const pos: V3 = [(seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, mid];
+  const dir = { x: (seg.b.x - seg.a.x) / (L || 1), y: (seg.b.y - seg.a.y) / (L || 1) };
+  const gaps = useMemo(() => edgeGaps(p, seg), [p.w, p.h, seg.a.x, seg.a.y, seg.b.x, seg.b.y]);
+  const at = (s: number): V3 => [seg.a.x + dir.x * s, seg.a.y + dir.y * s, mid];
+  const pos = at(L / 2);
   const rot: [number, number, number] = [0, 0, Math.atan2(seg.b.y - seg.a.y, seg.b.x - seg.a.x)];
   useFrame(() => {
-    const m = hit.current;
-    if (!m) return;
-    const wp = m.getWorldPosition(new THREE.Vector3());
-    const k = Math.max(2, 14 * mmPerPx(camera, size.height, wp));
-    m.scale.set(L, k, t + k);
+    const m0 = hits.current[0];
+    if (!m0?.parent) return;
+    const wp = m0.parent.localToWorld(new THREE.Vector3(...pos));
+    const px = mmPerPx(camera, size.height, wp);
+    const k = Math.max(2, 14 * px);
+    gapMm.current = EDGE_GAP_PX * px;
+    const ranges = edgeHitRanges(L, gaps, gapMm.current, EDGE_MIN_HIT_PX * px);
+    rangesRef.current = ranges;
+    for (let i = 0; i < MAX_HIT_PIECES; i++) {
+      const m = hits.current[i];
+      if (!m) continue;
+      const r = ranges[i];
+      live.current[i] = !!r;
+      if (!r) continue;
+      m.position.set(...at((r[0] + r[1]) / 2));
+      m.scale.set(r[1] - r[0], k, t + k);
+    }
   });
   const line = useMemo(() => {
     const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(seg.a.x, seg.a.y, z1 + 0.2), new THREE.Vector3(seg.b.x, seg.b.y, z1 + 0.2)]);
@@ -611,25 +698,48 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
     return l;
   }, [seg.a.x, seg.a.y, seg.b.x, seg.b.y, z1]);
   useEffect(() => () => (line.geometry.dispose(), (line.material as THREE.Material).dispose()), [line]);
+  const raycasters = useMemo(
+    () =>
+      Array.from({ length: MAX_HIT_PIECES }, (_, i) =>
+        function (this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+          if (live.current[i]) THREE.Mesh.prototype.raycast.call(this, rc, out);
+        },
+      ),
+    [],
+  );
+  const follow = (ev: ThreeEvent<PointerEvent>) => {
+    const parent = hits.current[0]?.parent;
+    if (!parent) return;
+    const l = parent.worldToLocal(ev.point.clone());
+    const s = (l.x - seg.a.x) * dir.x + (l.y - seg.a.y) * dir.y;
+    setPillS(clampToRanges(s, rangesRef.current));
+  };
   const lit = hover || active;
+  const pill = at(pillS ?? clampToRanges(L * 0.3, rangesRef.current) ?? L * 0.3);
   return (
     <>
-      <mesh
-        ref={hit}
-        position={pos}
-        rotation={rot}
-        visible={false}
-        onPointerOver={(ev) => (ev.stopPropagation(), setHover(true))}
-        onPointerOut={() => setHover(false)}
-        onPointerDown={(ev) => {
-          if (ev.button !== 0) return;
-          ev.stopPropagation();
-          useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
-        }}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial />
-      </mesh>
+      {raycasters.map((rc, i) => (
+        <mesh
+          key={i}
+          ref={(m) => void (hits.current[i] = m)}
+          position={pos}
+          rotation={rot}
+          visible={false}
+          raycast={rc}
+          onPointerOver={(ev) => (ev.stopPropagation(), setHover(true), follow(ev))}
+          onPointerMove={follow}
+          onPointerOut={() => setHover(false)}
+          onPointerDown={(ev) => {
+            if (ev.button !== 0) return;
+            ev.stopPropagation();
+            useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
+          }}
+          userData={{ edgeHit: edge }}
+        >
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial />
+        </mesh>
+      ))}
       {(show || lit) && <primitive object={line} raycast={() => null} />}
       {lit && (
         <mesh position={pos} rotation={rot} renderOrder={7} raycast={() => null} userData={{ noAO: true }}>
@@ -638,8 +748,8 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
         </mesh>
       )}
       {hover && !active && (
-        <StageHtml position={[pos[0], pos[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
-          <span className="w-grow">
+        <StageHtml position={[pill[0], pill[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
+          <span className="w-grow" data-testid="grow-pill" data-s={Math.round((pillS ?? 0) * 10) / 10} data-gap={Math.round(gapMm.current * 10) / 10} data-len={Math.round(L * 10) / 10}>
             <Icon name="plus" /> {tt('edge.growHere')}
           </span>
         </StageHtml>
@@ -700,23 +810,25 @@ function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
   );
 }
 
-function Flaps({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> }) {
+function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number }) {
   const items = useMemo(() => {
-    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number }[] = [];
+    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number; owner: string; on: string }[] = [];
     for (const c of Object.values(d.connections)) {
       c.geom?.flaps3d.forEach((f, i) => {
         const p = d.panels[f.panelId];
-        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: (xf.get(p.id) ?? IDM).clone().multiply(frameMatrix(p.frame)), index: d.order.indexOf(p.id) });
+        // coloured as the panel it is cut from, moving with it in the fold view
+        const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
       });
     }
     return out;
-  }, [d.connections, d.panels, xf]);
+  }, [d.connections, d.panels, xf, foldT]);
   useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
   return (
     <>
       {items.map((x) => (
         <group key={x.key} matrixAutoUpdate={false} matrix={x.matrix}>
-          <mesh geometry={x.geom} raycast={() => null}>
+          <mesh geometry={x.geom} raycast={() => null} userData={{ flapOwner: x.owner, flapOn: x.on }}>
             <meshStandardMaterial color={partColors(d.material.kind, x.index, -0.06).face} roughness={0.9} />
           </mesh>
         </group>
@@ -802,74 +914,227 @@ function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: n
 const knobAt = (w: number) => Math.min(w * 0.2, 40);
 
 /** Hinge point (at the knob's place along the edge) and its 0° / 90° directions (into the parent, out of its material face), in display space. */
-function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4) {
+function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4, s0 = 0, w?: number) {
   const [a, b] = edgeLocal(parent, edge);
   const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-  const k = knobAt(len) / len;
+  const k = (s0 + knobAt(w ?? len)) / len;
   const o = W(m, parent.frame, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, d.material.thickness / 2);
   return { o, x: Wdir(m, inwardWorld(parent, edge)), y: Wdir(m, matDir(parent.frame)) };
 }
 
-/** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow, height label. */
+/** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow (snapping to other panels), span ends, height label, and outline handles when editing. */
 function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: string; m: THREE.Matrix4 }) {
   const t = useT();
   const grow = useStore((s) => s.grow);
   const setGrow = useStore((s) => s.setGrow);
+  const { camera, size } = useThree();
   const parent = d.panels[panelId];
-  const free = parent && !edgeConnection(d, panelId, edge);
-  const kind = growKind(d, grow);
+  const free = parent && edgeHasRoom(d, panelId, edge);
+  const eg = useMemo(() => (parent ? effectiveGrow(d, panelId, edge, grow) : null), [d, panelId, edge, grow]);
+  const kind = eg?.kind ?? growKind(d, grow);
   const check = parent ? checkHinge(d, panelId, edge, grow.angle, grow.height) : null;
   const blocked = !!check?.blocking;
   const th = d.material.thickness;
+  const span = eg?.span ?? null;
   const frameAt = (h: number) => {
     const { angle, dir } = fromHinge(h);
-    return growFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind));
+    return spanFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind), span);
   };
-  const w = parent ? edgeLength(parent, edge) : 0;
+  const [snapped, setSnapped] = useState<number | null>(null);
   const ghost = useMemo(() => {
-    if (!parent || !free) return null;
-    const frame = frameAt(grow.angle);
-    const p: Panel = { id: 'ghost', name: '', w, h: grow.height, sketch: { kind: 'wall' }, frame, details: [] };
-    return { p, frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
-  }, [d, parent, free, edge, grow.angle, grow.height, kind, m]);
+    if (!parent || !free || !eg?.ghost) return null;
+    const p = eg.ghost;
+    return { p, frame: p.frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(p.frame)) };
+  }, [d, parent, free, eg, m]);
   useEffect(() => () => ghost?.geom.dispose(), [ghost]);
+  const w = ghost?.p.w ?? 0;
   const arcR = Math.max(10, Math.min(grow.height * 0.4, 45));
-  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w]);
+  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w, span?.[0], span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
-  if (!ghost || !check) return null;
+  const angTargets = useMemo(() => (parent ? angleTargets(d, panelId, edge, grow.height, defaultOffset(d, kind), span) : []), [d, panelId, edge, grow.height, kind, span?.[0], span?.[1]]);
+  const hTargets = useMemo(() => (eg?.plain ? heightTargets(d, eg.plain, new Set([panelId])) : []), [d, eg?.plain, panelId]);
+  if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
+  // the height arrow sits on the ghost's (trimmed) outline, at half its width
+  const ghostTop = pushPullAnchors(ghost.p).height;
   const color = blocked ? STAGE.blocked : STAGE.ghost;
+  const tolAt = (p: V3) => SNAP_PX * mmPerPx(camera, size.height, new THREE.Vector3(...p));
+  // span ends along the parent edge
+  const pe = findEdge(parent, edge)!;
+  const L = segLength(pe);
+  const sp = span ?? [0, L];
+  const inl = segInward(pe), dir = segDir(pe);
+  const edgeW = (s: number) => W(m, parent.frame, pe.a.x + dir.x * s + inl.x * eg.offset, pe.a.y + dir.y * s + inl.y * eg.offset, th);
+  const freeAround = edgeFreeSpans(d, panelId, edge).find(([lo, hi]) => sp[0] + 1e-6 >= lo && hi >= sp[1] - 1e-6) ?? [0, L];
+  const targets = spanTargets(d, panelId, edge);
+  const setEnd = (i: 0 | 1, s: number, ev: PointerEvent) => {
+    let v = Math.max(freeAround[0], Math.min(freeAround[1], s));
+    const sn = noSmartSnap(ev) ? null : snapTo(v, targets, tolAt(edgeW(v)));
+    v = sn ?? Math.round(v);
+    const next: [number, number] = i === 0 ? [Math.min(v, sp[1] - MIN_PANEL), sp[1]] : [sp[0], Math.max(v, sp[0] + MIN_PANEL)];
+    useStore.getState().setGrow({ span: next[0] <= 1e-6 && next[1] >= L - 1e-6 ? null : next, sketch: null });
+  };
   return (
     <>
       <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
         <mesh geometry={ghost.geom} raycast={() => null}>
-          <meshStandardMaterial color={color} transparent opacity={blocked ? 0.28 : 0.38} depthWrite={false} />
-          <Edges threshold={25} lineWidth={1.8} color={blocked ? '#c27c0e' : '#15706b'} />
+          <meshStandardMaterial color={color} transparent opacity={blocked ? 0.34 : STAGE.ghostOpacity} depthWrite={false} />
+          <Edges threshold={25} lineWidth={2} color={blocked ? '#a8690a' : STAGE.ghostEdge} />
         </mesh>
       </group>
+      {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
       <AngleArc
         pointAt={pointAt}
-        hinge={hingeBasis(d, parent, edge, m)}
+        hinge={hingeBasis(d, parent, edge, m, sp[0], w)}
         zoneAt={zoneAt}
         value={grow.angle}
-        onChange={(a) => setGrow({ angle: a })}
+        onChange={(a) => setGrow({ angle: a, sketch: grow.editGhost ? grow.sketch : null })}
         label={`${grow.angle}°`}
         message={hingeText(t, check)}
         testId="ghost-hinge"
+        targets={angTargets}
       />
       <PushPull
-        at={W(m, f, w / 2, grow.height, th / 2)}
+        at={W(m, f, ghostTop.x, ghostTop.y, th / 2)}
         axis={Wdir(m, f.v)}
         value={grow.height}
+        offset={ghostTop.y - grow.height}
         min={5}
         max={2000}
-        onPreview={(v) => setGrow({ height: v })}
-        onCommit={() => undefined}
-        onCancel={() => undefined}
+        onPreview={(v) => {
+          // the free edge snaps to other panels' edges, faces and heights
+          const sn = snapTo(v, hTargets, tolAt(W(m, f, w / 2, v, th / 2)));
+          setSnapped(sn);
+          setGrow({ height: sn ?? v, sketch: grow.editGhost ? grow.sketch : null });
+        }}
+        onCommit={() => setSnapped(null)}
+        onCancel={() => setSnapped(null)}
         testId="ghost-height"
       />
-      <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v })} testId="ghost-dim-h" />
+      {eg.offset === 0 &&
+        ([0, 1] as const).map((i) => <SpanEnd key={i} at={edgeW(sp[i])} base={edgeW(0)} dir={Wdir(m, [parent.frame.u[0] * dir.x + parent.frame.v[0] * dir.y, parent.frame.u[1] * dir.x + parent.frame.v[1] * dir.y, parent.frame.u[2] * dir.x + parent.frame.v[2] * dir.y])} onMove={(s, ev) => setEnd(i, s, ev)} testId={`ghost-span-${i}`} />)}
+      <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v, sketch: null })} testId="ghost-dim-h" />
+      {grow.editGhost && <GhostOutlineHandles ghost={ghost.p} m={m} th={th} />}
     </>
+  );
+}
+
+/** A span end of the grow ghost: a small handle on the parent edge that slides along it. */
+function SpanEnd({ at, base, dir, onMove, testId }: { at: V3; base: V3; dir: V3; onMove: (s: number, ev: PointerEvent) => void; testId: string }) {
+  const ray = useRayFromScreen();
+  const [hover, setHover] = useState(false);
+  const B = useMemo(() => new THREE.Vector3(...base), [base[0], base[1], base[2]]);
+  const D = useMemo(() => new THREE.Vector3(...dir).normalize(), [dir[0], dir[1], dir[2]]);
+  const grab = useRef(0);
+  const down = useHandleDrag({
+    move: (ev) => onMove(closestOnLine(ray(ev.clientX, ev.clientY), B, D) - grab.current, ev),
+    end: () => undefined,
+  });
+  return (
+    <ScreenSized position={at}>
+      <mesh
+        renderOrder={21}
+        raycast={priorityRaycast}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        onPointerDown={(e) => {
+          grab.current = closestOnLine(e.ray, B, D) - new THREE.Vector3(...at).sub(B).dot(D);
+          down(e);
+        }}
+        userData={{ testId, noAO: true }}
+      >
+        <boxGeometry args={[hover ? 13 : 11, hover ? 13 : 11, hover ? 13 : 11]} />
+        <meshBasicMaterial color={hover ? '#0f5d59' : '#1fb8ac'} depthTest={false} depthWrite={false} transparent />
+      </mesh>
+    </ScreenSized>
+  );
+}
+
+/** Outline handles on the grow ghost: drag its top corners, add and drag points on its free edges (whole millimetres). */
+function GhostOutlineHandles({ ghost, m, th }: { ghost: Panel; m: THREE.Matrix4; th: number }) {
+  const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
+  const rc = useMemo(() => new THREE.Raycaster(), []);
+  const mat = useMemo(() => m.clone().multiply(frameMatrix(ghost.frame)), [m, ghost.frame]);
+  const s = ghost.sketch as WallSketch;
+  const c = wallCorners(ghost.w, ghost.h, s);
+  const ring = sketchRing(ghost);
+  const k = mmPerPx(camera, gl.domElement.clientHeight || 600, new THREE.Vector3(...toWorld(ghost.frame, ghost.w / 2, ghost.h / 2))) * 7;
+  const z = th + 0.3;
+  const edit = (fn: (sk: WallSketch) => void) => {
+    const g = useStore.getState().grow;
+    const sk: WallSketch = JSON.parse(JSON.stringify(g.sketch ?? { kind: 'wall' }));
+    fn(sk);
+    useStore.getState().setGrow({ sketch: sk });
+  };
+  const drag = (at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    if (controls) controls.enabled = false;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(ghost.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
+    const frame = ghost.frame;
+    const move = (ev: PointerEvent) => {
+      const r = gl.domElement.getBoundingClientRect();
+      rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
+      if (hit) at(toLocal(frame, [hit.x, hit.y, hit.z]));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (controls) controls.enabled = true;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const corner = (name: 'tl' | 'tr', base: P2) => drag((l) => edit((sk) => void ((sk.corners ??= {})[name] = { dx: Math.round(l.x - base.x), dy: Math.round(l.y - base.y) })));
+  const baseEdge = (edge: 'e1' | 'e2' | 'e3') => ({ a: c[Number(edge[1])], b: c[(Number(edge[1]) + 1) % 4] });
+  const toInsert = (edge: 'e1' | 'e2' | 'e3', l: P2) => {
+    const { a, b } = baseEdge(edge);
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const dx = (b.x - a.x) / L, dy = (b.y - a.y) / L;
+    return { t: Math.max(0.01, Math.min(0.99, ((l.x - a.x) * dx + (l.y - a.y) * dy) / L)), off: Math.round((l.x - a.x) * dy - (l.y - a.y) * dx) };
+  };
+  const ball = (id: string, q: P2, on: ((e: ThreeEvent<PointerEvent>) => void) | null, color: string) => (
+    <mesh key={id} position={[q.x, q.y, z]} renderOrder={9} raycast={on ? priorityRaycast : () => null} onPointerDown={on ?? undefined} userData={{ vertex: id, testId: `ghost-${id}` }}>
+      <sphereGeometry args={[k, 12, 10]} />
+      <meshBasicMaterial color={color} depthTest={false} transparent opacity={on ? 1 : 0.45} />
+    </mesh>
+  );
+  return (
+    <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      {ball('tr', c[2], corner('tr', { x: ghost.w, y: ghost.h }), STAGE.selected)}
+      {ball('tl', c[3], corner('tl', { x: 0, y: ghost.h }), STAGE.selected)}
+      {(s.inserts ?? []).map((ins) => {
+        const seg = ring.find((e) => e.key === ins.id);
+        return seg ? ball(ins.id, seg.a, drag((l) => edit((sk) => Object.assign(sk.inserts!.find((x) => x.id === ins.id)!, toInsert(ins.edge, l)))), STAGE.selected) : null;
+      })}
+      {ring
+        .filter((e) => e.key !== 'e0')
+        .map((e) => {
+          const ins = (s.inserts ?? []).find((x) => x.id === e.key);
+          const edge = (ins ? ins.edge : e.key) as 'e1' | 'e2' | 'e3';
+          if (!['e1', 'e2', 'e3'].includes(edge)) return null;
+          const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+          return (
+            <mesh
+              key={`m-${e.key}`}
+              position={[mid.x, mid.y, z]}
+              renderOrder={9}
+              raycast={priorityRaycast}
+              onPointerDown={(ev) => {
+                if (ev.button !== 0) return;
+                ev.stopPropagation();
+                const at = toInsert(edge, mid);
+                edit((sk) => void (sk.inserts = [...(sk.inserts ?? []), { id: newId('i'), edge, t: at.t, off: at.off }]));
+              }}
+              userData={{ testId: `ghost-add-${e.key}` }}
+            >
+              <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
+              <meshBasicMaterial color="#ffffff" depthTest={false} transparent opacity={0.9} />
+            </mesh>
+          );
+        })}
+    </group>
   );
 }
 
@@ -878,12 +1143,12 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
   const t = useT();
   const base = d.panels[baseId];
   const th = d.material.thickness;
-  const kind = trayKinds(d.material).wallKind;
+  const kind = newTrayKinds(d).wallKind;
   const ghosts = useMemo(() => {
     if (!base) return [];
     const h = Math.max(MIN_PANEL, wallHeight(d, kind, height));
     return panelEdges(base)
-      .filter((e) => segLength(e) >= MIN_EDGE)
+      .filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key))
       .map((e) => {
         const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind));
         const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [] };
@@ -902,8 +1167,8 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       {ghosts.map((g) => (
         <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true }}>
           <mesh geometry={g.geom} raycast={() => null}>
-            <meshStandardMaterial color={STAGE.ghost} transparent opacity={0.38} depthWrite={false} />
-            <Edges threshold={25} lineWidth={1.8} color="#15706b" />
+            <meshStandardMaterial color={STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
+            <Edges threshold={25} lineWidth={2} color={STAGE.ghostEdge} />
           </mesh>
         </group>
       ))}
@@ -943,16 +1208,16 @@ function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }
     const r = Math.max(10, Math.min(child.h * 0.4, 45));
     return (a: number) => {
       const { angle, dir } = fromHinge(a);
-      return W(m, growFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset), knobAt(child.w), r, th / 2);
+      return W(m, spanFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset, c.trayId ? null : c.span), knobAt(child.w), r, th / 2);
     };
-  }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th]);
+  }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th, c.span?.[0], c.span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => (child ? checkHinge(d, c.a.panelId, c.a.edge, a, child.h).zone : 'ok'), [d, c.a.panelId, c.a.edge, child?.h]);
   if (!parent || !child) return null;
   const check = checkHinge(d, c.a.panelId, c.a.edge, h, child.h);
   return (
     <AngleArc
       pointAt={pointAt}
-      hinge={hingeBasis(d, parent, c.a.edge, m)}
+      hinge={hingeBasis(d, parent, c.a.edge, m, c.span && !c.trayId ? Math.min(...c.span) : 0, child.w)}
       zoneAt={zoneAt}
       value={h}
       onChange={(a) => {
@@ -975,6 +1240,348 @@ function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }
   );
 }
 
+/** The selected shapes' gizmo (all on one panel): move in the panel's plane with smart snapping, turn about their centre. */
+function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const found = ids.map((id) => findDetail(d, id)).filter((f): f is NonNullable<typeof f> => !!f);
+  const panel = found[0]?.panel;
+  if (!panel || found.some((f) => f.panel.id !== panel.id)) return null;
+  const box = shapesBox(found.map((f) => f.detail));
+  const c = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+  const th = d.material.thickness;
+  const at = W(m, panel.frame, c.x, c.y, th / 2);
+  const st = useStore.getState;
+  // every start value (positions, box for snapping, pivot) comes from the design as it was at pointer-down
+  const start = () => {
+    const base = st().txnBase ?? st().design;
+    const fs = ids.map((id) => findDetail(base, id)).filter((f): f is NonNullable<typeof f> => !!f);
+    const b = shapesBox(fs.map((f) => f.detail));
+    const pivot = fs.length === 1 ? { x: fs[0].detail.cx, y: fs[0].detail.cy } : { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    return { base, fs, box: b, pivot };
+  };
+  return (
+    <Gizmo
+      at={at}
+      ax={Wdir(m, panel.frame.u)}
+      ay={Wdir(m, panel.frame.v)}
+      n={Wdir(m, frameNormal(panel.frame))}
+      onMove={(du, dv, ev) => {
+        const { base, fs, box: b0 } = start();
+        const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, panel.id, new Set(ids));
+        const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
+        const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du, ev), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv, ev);
+        st().preview((dd) => {
+          for (const f of fs) updateDetail(dd, f.detail.id, { cx: f.detail.cx + x, cy: f.detail.cy + y });
+        });
+        return { du: x, dv: y };
+      }}
+      onRotate={(deg) => {
+        const { pivot } = start();
+        st().preview((dd) => rotateDetails(dd, ids, deg, pivot));
+      }}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="gizmo"
+    />
+  );
+}
+
+function shapesBox(ds: Detail[]) {
+  const boxes = ds.map((x) => detailBBox(x));
+  return { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
+}
+
+/**
+ * A selected through-cut, edited from any panel it reaches: on each of them
+ * (and on its own panel) its corners are shown where it cuts and can be
+ * dragged to resize it, and on each panel it reaches a gizmo moves and turns
+ * it. Every edit changes the one source shape; snapping includes the panels in
+ * its path.
+ */
+function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) => number }) {
+  const f = findDetail(d, id);
+  const reached = useMemo(() => (f && f.detail.op === 'cut' && f.detail.through ? panelsCutBy(d, id) : []), [d, id, f?.detail]);
+  if (!f || f.detail.op !== 'cut' || !f.detail.through || f.detail.shape === 'text') return null;
+  const S = f.panel, dt = f.detail;
+  const n = frameNormal(S.frame);
+  const th = d.material.thickness;
+  const st = useStore.getState;
+  // a source-local point, carried along the cut direction onto P's mid-plane
+  const onto = (P: Panel, q: P2): V3 => {
+    const w = toWorld(S.frame, q.x, q.y, 0);
+    const mP = matDir(P.frame);
+    const k = v3dot(n, mP);
+    if (Math.abs(k) < 1e-6) return w;
+    const lam = (th / 2 - v3dot([w[0] - P.frame.o[0], w[1] - P.frame.o[1], w[2] - P.frame.o[2]], mP)) / k;
+    return v3add(w, v3mul(n, lam));
+  };
+  const panels = [S, ...reached.map((pid) => d.panels[pid]).filter((P) => P && Math.abs(v3dot(n, frameNormal(P.frame))) > 1e-6)];
+  const cs = detailCorners(dt);
+  const ids = [id];
+  return (
+    <>
+      {panels.map((P, pi) => (
+        <group key={P.id}>
+          {cs.map((c, k) => (
+            <ThroughCorner key={k} at={onto(P, c)} plane={{ p: onto(P, { x: dt.cx, y: dt.cy }), n: matDir(P.frame) }} S={S} fixed={cs[(k + 2) % 4]} rot={dt.shape === 'circle' ? 0 : (dt.rot ?? 0)} circle={dt.shape === 'circle'} id={id} tolAt={tolAt} testId={`tcorner-${pi}-${k}`} />
+          ))}
+          {pi > 0 && (
+            <Gizmo
+              at={onto(P, { x: dt.cx, y: dt.cy })}
+              ax={S.frame.u}
+              ay={S.frame.v}
+              n={n}
+              onMove={(du, dv, ev) => {
+                const base = st().txnBase ?? st().design;
+                const b0 = detailBBox(findDetail(base, id)!.detail);
+                const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, S.id, new Set(ids));
+                const at = onto(P, { x: dt.cx, y: dt.cy });
+                const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
+                const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du, ev), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv, ev);
+                const o = findDetail(base, id)!.detail;
+                st().preview((dd) => updateDetail(dd, id, { cx: o.cx + x, cy: o.cy + y }));
+                return { du: x, dv: y };
+              }}
+              onRotate={(deg) => st().preview((dd) => rotateDetails(dd, ids, deg))}
+              onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+              testId={`tgizmo-${pi}`}
+            />
+          )}
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** One corner of a through-cut, shown where it cuts a panel: dragging it resizes the source shape about the opposite corner, along its own sides. */
+function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed: P2; rot: number; circle: boolean; id: string; tolAt: (p: V3) => number; testId: string }) {
+  const ray = useRayFromScreen();
+  const [hover, setHover] = useState(false);
+  const st = useStore.getState;
+  const down = useHandleDrag({
+    move: (ev) => {
+      const hit = ray(ev.clientX, ev.clientY).intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...props.plane.n), new THREE.Vector3(...props.plane.p)), new THREE.Vector3());
+      if (!hit) return;
+      let l = toLocal(props.S.frame, [hit.x, hit.y, hit.z]);
+      const base = st().txnBase ?? st().design;
+      const ctx = noSmartSnap(ev) ? null : snapContext(base, props.S.id, new Set([props.id]));
+      const sn = ctx ? snapPoint(ctx, l, props.tolAt([hit.x, hit.y, hit.z])) : null;
+      l = { x: sn?.dx ? l.x + sn.dx : snap(l.x, ev), y: sn?.dy ? l.y + sn.dy : snap(l.y, ev) };
+      const a = (props.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
+      const rx = l.x - props.fixed.x, ry = l.y - props.fixed.y;
+      const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
+      let w = Math.max(0.5, Math.abs(lx)), h = Math.max(0.5, Math.abs(ly));
+      if (props.circle) w = h = Math.max(w, h);
+      const hx = ((Math.sign(lx) || 1) * w) / 2, hy = ((Math.sign(ly) || 1) * h) / 2;
+      st().preview((dd) => updateDetail(dd, props.id, { cx: props.fixed.x + hx * c - hy * s2, cy: props.fixed.y + hx * s2 + hy * c, w, h }));
+    },
+    end: (cancel) => (cancel ? st().cancel() : st().commit()),
+  });
+  return (
+    <ScreenSized position={props.at}>
+      <mesh
+        renderOrder={22}
+        raycast={priorityRaycast}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        onPointerDown={down}
+        userData={{ testId: props.testId, noAO: true }}
+      >
+        <boxGeometry args={[hover ? 12 : 9, hover ? 12 : 9, hover ? 12 : 9]} />
+        <meshBasicMaterial color={hover ? '#0f5d59' : '#d97706'} depthTest={false} depthWrite={false} transparent />
+      </mesh>
+    </ScreenSized>
+  );
+}
+
+/** A selected floor panel's gizmo: move on the floor (snapping to other floor panels), turn about the vertical with everything grown on it. */
+function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const th = d.material.thickness;
+  const st = useStore.getState;
+  const at = W(m, p.frame, p.w / 2, p.h / 2, th);
+  const u = p.frame.u, v = p.frame.v;
+  return (
+    <Gizmo
+      at={at}
+      ax={Wdir(m, u)}
+      ay={Wdir(m, v)}
+      n={Wdir(m, frameNormal(p.frame))}
+      onMove={(du, dv, ev) => {
+        const base = st().txnBase ?? st().design;
+        let dx = u[0] * du + v[0] * dv, dz = u[2] * du + v[2] * dv;
+        const sn = ev && !noSmartSnap(ev) ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
+        if (sn) [dx, dz] = [sn.dx, sn.dz];
+        else if (ev) [dx, dz] = [snap(dx, ev), snap(dz, ev)];
+        st().preview((dd) => movePanel(dd, p.id, dx, dz));
+        return { du: dx * u[0] + dz * u[2], dv: dx * v[0] + dz * v[2] };
+      }}
+      onRotate={(deg) => {
+        const b = (st().txnBase ?? st().design).panels[p.id] ?? p;
+        const c0 = toWorld(b.frame, b.w / 2, b.h / 2);
+        st().preview((dd) => rotatePanel(dd, p.id, deg, [c0[0], c0[2]]));
+      }}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="floor-gizmo"
+    />
+  );
+}
+
+/** A divider: a panel standing at 90° on a floor panel, some way in from the edge it was grown from. */
+function isDivider(d: Design, id: string): Connection | null {
+  const c = parentConnection(d, id);
+  if (!c || c.offset <= 0.5 || Math.abs(c.angle - 90) > 1e-6 || c.dir !== 'up' || parentConnection(d, c.a.panelId)) return null;
+  return c;
+}
+
+/** Slabs standing on the same base parallel to a divider (other dividers from the same edge), and the clear limits, along the divider's axis. */
+function dividerRow(d: Design, c: Connection): { lo: number; hi: number; others: number[] } | null {
+  const box = clearBox(d, c.a.panelId);
+  if (!box || (c.a.edge !== 'e0' && c.a.edge !== 'e3')) return null;
+  const [lo, hi] = c.a.edge === 'e3' ? [box.x0, box.x1] : [box.y0, box.y1];
+  const others = Object.values(d.connections)
+    .filter((x) => x.grown && x.a.panelId === c.a.panelId && x.a.edge === c.a.edge && x.id !== c.id && isDivider(d, x.b.panelId))
+    .map((x) => x.offset);
+  return { lo, hi, others };
+}
+
+/**
+ * A selected divider: a slide arrow on its face (along its normal) that moves
+ * it, snapping to even spacing, and the compartment sizes along its row (the
+ * two next to it can be typed). Dragging a divider of an automatic set takes
+ * it out of the set.
+ */
+function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const tt = useT();
+  const c = isDivider(d, id);
+  const p = d.panels[id];
+  const st = useStore.getState;
+  const drag = useRef<{ from: string; to: string } | null>(null);
+  if (!c || !p) return null;
+  const base = d.panels[c.a.panelId];
+  const th = d.material.thickness;
+  const row = dividerRow(d, c);
+  const axis = Wdir(m, inwardWorld(base, c.a.edge));
+  // on the face, low and in the middle: clear of the height arrow (top), the hinge knob and the compartment labels (above the top)
+  const at = W(m, p.frame, p.w / 2, p.h * 0.3, th / 2);
+  const move = (v: number, snapIt: boolean) => {
+    const cur = drag.current ?? { from: id, to: memberOf(st().txnBase ?? st().design, id) ? newId('p') : id };
+    drag.current = cur;
+    const off = row && snapIt ? (snapDividerOffset(row, v, th, tolAt(at)) ?? v) : v;
+    st().preview((x) => {
+      const nid = cur.to !== cur.from ? releaseDivider(x, cur.from, cur.to) : cur.from;
+      setDividerOffset(x, nid, off);
+    });
+    if (st().selection?.kind !== 'panel' || (st().selection as { id: string }).id !== cur.to) st().select({ kind: 'panel', id: cur.to });
+  };
+  // compartments along the row, labelled at the dividers' top
+  const labels: { mid: number; size: number; side: 'left' | 'right' | null }[] = [];
+  if (row) {
+    const slabs = [...row.others, c.offset].sort((a, b) => a - b);
+    let cur = row.lo;
+    for (const o of [...slabs, null]) {
+      const end = o === null ? row.hi : o;
+      if (end - cur > 0.5) labels.push({ mid: (cur + end) / 2, size: end - cur, side: o === c.offset ? 'left' : cur === c.offset + th ? 'right' : null });
+      if (o !== null) cur = o + th;
+    }
+  }
+  const labelAt = (mid: number): V3 => {
+    const e = findEdge(base, c.a.edge)!;
+    const inw = segInward(e), dir = segDir(e);
+    // towards the far end of the row, clear of the hinge knob (20%) and the height arrow (middle)
+    const along = segLength(e) * 0.82;
+    const x = e.a.x + dir.x * along + inw.x * mid, y = e.a.y + dir.y * along + inw.y * mid;
+    return W(m, base.frame, x, y, th + p.h + 6);
+  };
+  return (
+    <>
+      <PushPull
+        at={at}
+        axis={axis}
+        value={c.offset}
+        min={1}
+        onPreview={(v) => move(v, true)}
+        onCommit={() => {
+          drag.current = null;
+          st().commit();
+        }}
+        onCancel={() => {
+          drag.current = null;
+          st().cancel();
+          st().select({ kind: 'panel', id });
+        }}
+        color="#e0a21b"
+        testId="div-slide"
+      />
+      {labels.map((l, i) => (
+        <DimLabel
+          key={i}
+          at={labelAt(l.mid)}
+          k={tt('div.compartment')}
+          value={Math.round(l.size * 10) / 10}
+          unit={tt('unit.mm')}
+          min={1}
+          onCommit={
+            l.side
+              ? (v) => {
+                  const off = l.side === 'left' ? l.mid - l.size / 2 + v : l.mid + l.size / 2 - v - th;
+                  move(off, false);
+                  drag.current = null;
+                  st().commit();
+                }
+              : undefined
+          }
+          testId={`div-comp-${i}`}
+        />
+      ))}
+    </>
+  );
+}
+
+/** Faces picked for "Divider between": a marker on each, and at the second one the pill (greyed with the reason when no divider fits). */
+function BetweenPill({ d, picks }: { d: Design; picks: FacePick[] }) {
+  const t = useT();
+  useEffect(() => {
+    const k = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') useStore.getState().set({ facePick: [] });
+    };
+    window.addEventListener('keydown', k, true);
+    return () => window.removeEventListener('keydown', k, true);
+  }, []);
+  const plan = picks.length === 2 ? planDividerBetween(d, picks[0], picks[1]) : null;
+  return (
+    <>
+      {picks.map((pk, i) => (
+        <mesh key={i} position={pk.point} renderOrder={25} raycast={() => null} userData={{ noAO: true }}>
+          <sphereGeometry args={[2.2, 12, 8]} />
+          <meshBasicMaterial color="#e0a21b" depthTest={false} transparent />
+        </mesh>
+      ))}
+      {plan && (
+        <StageHtml position={picks[1].point}>
+          <button
+            className={`w-pill between-pill ${plan.ok ? '' : 'off'}`}
+            disabled={!plan.ok}
+            title={plan.ok ? undefined : t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+            onClick={() => {
+              const st = useStore.getState();
+              let id: string | null = null;
+              st.apply((x) => void (id = addDividerBetween(x, picks[0], picks[1])));
+              st.set({ facePick: [] });
+              if (id) st.select({ kind: 'panel', id });
+            }}
+            data-testid="div-between"
+          >
+            <Icon name="plus" /> {t('div.between')}
+            {!plan.ok && (
+              <span className="why" data-testid="div-between-why">
+                {t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+              </span>
+            )}
+          </button>
+        </StageHtml>
+      )}
+    </>
+  );
+}
+
 /** Selected panel: width/height push-pull arrows and in-place dimensions. */
 function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4; dims: boolean }) {
   const t = useT();
@@ -986,11 +1593,14 @@ function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4
   const Wv = (x: number, y: number) => W(m, p.frame, x, y, th);
   const u = Wdir(m, p.frame.u), v = Wdir(m, p.frame.v);
   const tickV = v3mul(v, 3), tickU = v3mul(u, 3);
+  const pp = pushPullAnchors(p);
+  // seen nearly edge-on the labels pile up on the panel (and on its gizmo): hidden until the view turns
+  const grazing = useGrazing(Wdir(m, frameNormal(p.frame)), Wv(p.w / 2, p.h / 2));
   return (
     <>
-      <PushPull at={W(m, p.frame, p.w, p.h / 2, th / 2)} axis={u} value={p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
-      <PushPull at={W(m, p.frame, p.w / 2, p.h, th / 2)} axis={v} value={p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
-      {dims && (
+      <PushPull at={W(m, p.frame, pp.width.x, pp.width.y, th / 2)} axis={u} value={p.w} offset={pp.width.x - p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
+      <PushPull at={W(m, p.frame, pp.height.x, pp.height.y, th / 2)} axis={v} value={p.h} offset={pp.height.y - p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
+      {dims && !grazing && (
         <>
           <DimLine a={Wv(0, -off)} b={Wv(p.w, -off)} tick={tickV} />
           <DimLine a={Wv(-off, 0)} b={Wv(-off, p.h)} tick={tickU} />
@@ -1226,7 +1836,6 @@ function ViewSettings({ onClose }: { onClose: () => void }) {
   const t = useT();
   const prefs = useStore((s) => s.viewPrefs);
   const setPrefs = useStore((s) => s.setPrefs);
-  const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: PointerEvent) => !ref.current?.parentElement?.contains(e.target as Node) && onClose();
@@ -1252,7 +1861,17 @@ function ViewSettings({ onClose }: { onClose: () => void }) {
         onChange={(q) => setPrefs({ quality: q as Quality })}
       />
       <p className="note">{t('viewset.qualityNote')}</p>
-      {hasFolds && <FoldSlider />}
+    </div>
+  );
+}
+
+/** The fold/unfold slider, on the stage whenever the design has a fold (card and corrugated nets). */
+function FoldBar() {
+  const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
+  if (!hasFolds) return null;
+  return (
+    <div className="fold-bar card" dir="auto">
+      <FoldSlider />
     </div>
   );
 }
@@ -1288,9 +1907,12 @@ export function View3D() {
   }, []);
   const editing = useStore((s) => !!s.editOutline);
   const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
+  const picking = useStore((s) => s.facePick.length === 1);
   const hint =
     foldT < 0.999
       ? 'fold.hint'
+      : picking && tool === 'select'
+        ? 'div.pickHint'
       : editing && tool === 'select'
         ? 'outline.help'
         : trayCut && tool === 'select'
@@ -1350,6 +1972,7 @@ export function View3D() {
       </div>
       <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
       <PolygonToolCard />
+      <FoldBar />
       <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );

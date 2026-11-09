@@ -327,10 +327,224 @@ Remaining limitations (polygons, cuts and corrugated)
 - The cut plan has no hover link marker for derived through-cuts, and the polygon tool's count badge appears once the polygon is closed.
 - Digital checks are not physical proof: fold-over and lock fits need a test cut on the classroom's board.
 
+## Milestone 15 — Grow pill and fold slider ✅
+
+Implemented
+- **Edge hit targets leave room for the push-pull arrows** (`src/views/edgeGaps.ts`, `EdgeHandle` in `View3D.tsx`). An edge's invisible grow target is split into up to four pieces, re-measured every rendered frame, with a gap of 22 px each side of the edge's midpoint (the arrow's 14 px grab sphere plus a margin) and of any push-pull anchor lying on the edge (a gable's apex). Pieces shorter than 12 px on screen are dropped: on a short edge the arrow wins, and *Grow from* on the card still works.
+- **The *+ Grow* pill follows the pointer** along the edge, kept on the parts of the edge that can be grown from (never in a gap); it keeps `pointer-events: none`.
+- **Push-pull arrows always win:** their meshes report their hits as nearest (`priorityRaycast`), so even where a target overlaps them on screen the arrow takes the drag.
+- **Arrows on the real outline:** the width arrow sits on the outline's right side at half height and the height arrow on its top at half width — a gable's apex instead of a point inside the wall. On rectangles nothing moves.
+- **Fold slider on the stage:** one bar at the bottom centre (above the hint, clear of the bottom-right dock and the view cube), shown while the design has a net of two or more panels; removed from View settings and from the panel card. On stages narrower than 900 px it moves to the left and above the card dock. `fold-slider` / `fold-play` / `fold-range` testids are kept.
+
+Verified
+- `tests/handles.test.ts`: on a plain wall, a gable wall (at two zooms) and every wall of a plywood hexagon tray, no hit piece comes within the gap of either push-pull anchor or the edge midpoint, and the pill position is always outside every gap; a short edge seen from far away has no hit target.
+- `tests/e2e/refine.spec.ts`: hovering a wall's right and top edges at seven points each, the pill never shows inside the midpoint gap (and does show away from it); dragging `pp-width` and `pp-height` from those midpoints resizes the wall with the panel still selected and nothing grown. Reproduced first: with the old `EdgeHandle` the same drag selected the edge. The fold slider shows on the stage for a card tray and a corrugated tray (and folds/unfolds), not for plywood, and never in View settings or the panel card.
+- Screenshots: `docs/refine-shots/{en,he}-15-grow-pill-and-fold-bar.png`.
+
+## Milestone 16 — Reliable auto-connection ✅
+
+Reproduced first: `tests/autoseam.test.ts` builds 500 seeded random designs in six families (boxes, trays, dividers, leaning panels, notched walls, dragged floor panels; plywood, card and both corrugated boards), runs `solve` + `autoConnect` after every edit as the editor does, and checks with an independent sampler (`slabContacts` in `tests/solid.ts`: both faces and every side face of each nominal slab against every other slab) that **every pair whose slabs touch or overlap has a connection or an export-check message naming both**. Against the milestone-15 code 58 seeds failed; they are kept as fixed cases (`FIXED`).
+
+Real causes the fuzz test found
+- **Contacts no joint can use were silent** (54 seeds, all dragged floor panels): two bases side by side in one plane (touching or overlapping), walls of two boxes face to face (or overlapping), and grazes where only two panel ends meet over a t × t patch. There is no joint for these; they now get a message with the reason.
+- **Dividers placed into each other were silent** (3 corrugated seeds): two parallel dividers overlapping or face to face. Now *panels collide* / *face to face*.
+- **A crash** (1 seed, card tray with an opened side): `polygon-clipping` threw while merging a net, so the export check itself failed. `src/geom/clip.ts` retries such unions/differences on a coarser grid (and finally one polygon at a time); the first attempt is the plain call, so every result that worked before is unchanged.
+
+The brief's four causes, each confirmed with a test that fails on the old seam code and passes now (`milestone 16: causes of missed joints`)
+1. **Only touching counted** → an edge lying anywhere inside the other panel's slab (an overlap of up to t) is joined at the contact: `faceFit(…, inside)` seats the joint at the edge's actual depth (gaps cut back to the receiver's near face, tabs to its far face). Test: a front wall typed 0.5–3 mm into a lid is joined, with no overlap (volumetric check).
+2. **One seam per pair** → `seamsBetween` returns every distinct place two panels meet; a seam is identified by both edge keys (`seamKey`), and two candidates are the same seam only if they use the same two edges or touch in the same place (contact segments within 2t). `findOpenSeams` drops only seams an existing connection already covers; pairs joined by a grown connection are still joined by it alone; `noAutoSeams` stays keyed by pair. Test: a lid on a wall with a notched top meets it along two edges and gets two joints.
+3. **Angled faces skipped** → closing seams look for edge-on-face contacts at any angle from 30° to 150° (`faceFit(…, angled)`), and their geometry is laid out with the angled fit. Test: a panel leaning back at 45° with its top edge on the back wall gets a tab joint there.
+4. **Non-convex receivers** → `clipToOutline` returns every run of the owner edge on the receiver's outline, and the joint is laid out on each (`FaceFit.runs`). Test: a divider end meeting a wall with a slot cut in from its end has tabs below and above the slot.
+
+Messages (`src/model/contact.ts`, `contactIssues` in `validate.ts`)
+- Pairs that touch or overlap with no joint are found by sampling each panel's side faces (every 1.5 mm, three depths) and both faces (2.5 mm grid) against the other slab; contacts under 1.5 mm long (a corner grazing a face) are left out. Only unjoined pairs are sampled (about 1 ms for a 15-panel organiser), and results are cached by geometry.
+- *Panels X and Y run into each other* (`val.collide`) when one is inside the other and no joint fits; *X and Y touch but are not joined* with a reason: side by side in one plane, face to face, unjoined by hand, meeting at under 30°, meeting over only ~N mm, or no joint fits.
+- Joint messages carry both panels (`Issue.pair`); clicking one selects both (`Selection.also`), shown selected in 3D and on the cut plan.
+
+Verified
+- `npm test`: 244 tests, including the 500-seed fuzz test (~25 s), the 58 fixed seeds and the four cause tests. **Every golden SVG/DXF export is byte-identical** (no intended changes), and every pre-existing seam test passes unchanged.
+- Playwright: `refine.spec.ts` — two dividers placed into each other: the export check shows *run into each other*, clicking it selects both, and the Hebrew message shows. Full app suite passes.
+- Fixed a pre-existing flaky check in `through.spec.ts` (it also failed under load on the starting commit): the linked-selection click is re-projected and retried until it lands.
+
+## Milestone 17 — Move and rotate gizmo (schema v7) ✅
+
+Implemented
+- **Schema v7.** `Detail.rot` (degrees, counter-clockwise about the shape's centre; missing = 0) and floor-panel yaw, kept in the floor panel's own frame (`u` and `v` turned about world Y), so there is one authority and everything grown on it follows through `solve`. The v6 → v7 migration has nothing to convert: v6 has no turned shapes and every v6 floor panel's frame is unturned.
+- **Turned geometry** (layer 2): `shapeContours` turns a shape's contours about its centre as a rigid transform, so a rounded rectangle keeps true arcs (SVG `A`, DXF bulges); circles are left untouched (their export does not change at all). Array copies turn as a group about the array's centre. `detailBBox` and the snap targets use the turned corners (edge midpoints, centre); align and distribute use the turned bounds; the export check measures turned shapes as polygons.
+- **Operations:** `rotateDetails` (about the shapes' centre, or each shape's own when one), `rotatePanel` / `setPanelYaw` / `panelYaw` for floor panels (about the panel's centre).
+- **Gizmo** (`Gizmo` in `src/views/widgets.tsx`), screen-sized and drawn on top: a centre pad (free move in the plane), two axis arrows, and a ring. Rotation snaps to 15°, Shift gives 1°, Alt turns snapping off. While dragging, the angle or offset shows next to it, and digits typed then Enter apply an exact value. Escape cancels; each drag is one undo step.
+  - **Shapes:** shown for selected shapes on one panel, in that panel's plane; moves use the existing smart snap. Dragging an unselected shape still moves it as before.
+  - **Floor panels:** shown for a selected floor panel, on its top face; it moves on the floor and turns about the vertical with everything grown on it (trays and template boxes turn as one assembly). Grown panels keep the hinge dial and never show it.
+- **Floor-panel moves snap** to other floor panels' corners (corner to corner) and edges (up to two edge lines combined), both for the gizmo and for dragging the panel itself; Alt turns it off, and the 1 mm grid is used otherwise (`snapFloor` in `src/model/snap.ts`).
+- **Cut plan and face-on view:** a rotation ring around the selected shapes (15° / Shift 1° / Alt free). A turned shape's resize handles sit on its turned corners and resize along its own sides.
+- **Card fields:** *Rotation* for shapes (not circles) and floor panels (`detail-rot`, `panel-yaw`).
+- **Templates:** a turned template box keeps its turn when its settings change (regeneration copies the floor panel's whole frame).
+
+Verified
+- `tests/golden.test.ts`: five **v6 project fixtures** (polygon tray with a through-cut, corrugated fold-over with through tabs, card gable with a roof, the hand-built plywood box, the organiser with a lid), saved by the v6 code with the exports it made, load into v7 and export **byte-identical SVG and DXF**; every older golden is unchanged.
+- `tests/rotate.test.ts`: a rectangle cut turned 30° has the turned corners (and snapping finds them); **read back with ezdxf and svgpathtools, the hole's DXF and SVG vertices are the turned corners**; a turned rounded rectangle keeps four arcs (DXF bulges tan 22.5°, SVG arcs r = 5) with its sides at 25°; an array turns as a group; a circle's export is unchanged by rotation; rotation survives save/reload with the same SVG; **a plywood box turned 45° exports the same pieces (to 1e-6 mm), keeps every joint (none broken), has no overlapping material and a clean export check**; yaw set and set back restores the frame; a turned template base keeps its yaw through regeneration; floor-panel snapping (edge, corner, nothing near).
+- `tests/e2e/refine.spec.ts`: **turning a shape with the gizmo ring gives 30° from a 32° drag and +17° with Shift**; one undo step per turn; typing 45 + Enter while dragging; the card's rotation field; a floor panel turned 30° from its card with no broken joint; in the face-on view the ring turns a shape 45° and a turned shape resizes along its own sides.
+- Screenshots: `docs/refine-shots/{en,he}-17-shape-gizmo.png`, `…-17-floor-gizmo.png`.
+
+## Milestone 18 — Dividers ✅
+
+Implemented
+- **Divider sets** (`Design.dividerSets`, `src/model/dividers.ts`): *Across* and *Along* counts, a height, and *even* or *by compartment size* spacing in the base's rectangular clear inside (between the walls' inner faces). Reconciled in `solve` like tray walls: members have stable ids `<set>/a<n>` / `<set>/l<n>`, and only their offsets and heights are written, so changing a count, the box size or the walls re-spaces them; their joints are the ordinary ones (plywood tabs into base and wall slots, card/corrugated slide fits with no wall slots, half-laps where they cross). By size: compartments of that size while the last keeps at least 5 mm (it takes the rest). Counts of 0 and 0 remove the set and its dividers.
+- **The divider card** (*Add a divider*) now starts with *Automatic dividers* (`div-across`, `div-along`, `div-set-height`, `div-mode-even` / `div-mode-size`, `div-size`, `div-set-count`, `div-respace`); the single-divider controls stay below it under *One divider* with their testids. On a base whose inside is not a rectangle the card says to drag or use *Divider between*.
+- **Drag:** a selected divider (a panel standing at 90° some way in from its parent's edge) shows an amber slide arrow on its face (`div-slide`) along its normal. It snaps to equal compartments on both sides, to even spacing of the whole row, and to a neighbouring compartment's width (Alt: 1 mm steps). The compartment sizes along its row are shown above the dividers (`div-comp-<i>`); the two next to the selected divider can be typed. Dragging a set member takes it out of the set (it is renamed and keeps its place, the members after it move down one and the set re-spaces); *Space evenly again* brings dragged dividers back.
+- **Divider between two faces:** Shift-click a wall face, then the face opposite (picked faces are kept in the store, not the design; the hint says what to do). At the second click a *Divider between* pill (`div-between`) makes a divider square to both faces from the base edge that runs that way, centred on the second click, as tall as the lower wall minus 5 mm; auto-connection joins both ends. Faces that are not parallel within 1°, do not face each other, or do not stand on the same base grey the pill with the reason (`div-between-why`). Escape or a plain click clears the pick.
+
+Verified
+- `tests/dividers.test.ts`: **a 2 × 3 set in a plywood box** — even compartments, 6 half-laps, no broken joint, a clean export check and **no overlapping material (volumetric)**, saved and reloaded; **changing the box width re-spaces it**, changing a count re-spaces it; by-size spacing; **dragging one divider out of the set** (it keeps its offset and is listed as loose) **re-spaces the rest**, and *Space evenly again* brings it back; **card, corrugated 1.6 and 4 mm**: slide fits to the walls, no wall slots from the dividers, half-laps; **between two faces** in plywood, card and corrugated: one joint at each end, the divider's mid-plane through the second click; refusals (not parallel, not facing, another base); emptying a set; the drag snapping rules.
+- `tests/e2e/refine.spec.ts` (plywood and corrugated 4 mm): set 2 across and 1 along from the card; drag a divider with its slide arrow — it leaves the set and the selection follows it; compartment sizes shown; *Space evenly again*; Shift-click two opposite inner wall faces and press *Divider between* — joined at both ends (tab-and-slot in plywood, slide in corrugated); a left wall and the front wall grey the pill with the reason; Escape clears it; no joint messages in the export check.
+- Found and fixed while testing: emptying a set left its dividers behind as ordinary dividers.
+- Screenshots: `docs/refine-shots/{en,he}-18-divider-set-card.png`, `…-18-divider-slide.png`, `…-18-between-refused.png`.
+
+## Milestone 19 — Adaptive grow ✅
+
+Implemented (`src/model/adapt.ts`, `src/views/ghost.ts`, `GrowGhost` in `View3D.tsx`, the grow card)
+- **Partial width:** `Connection.span = [s0, s1]` (mm along the parent edge from its start; absent = the whole edge, so older projects are unchanged; tray walls ignore it). The child's frame moves s0 along the edge and its width is s1 − s0; finger and tab joints come from the actual edge overlap, so they lie only over the span. Folded nets, fold strips and grown glue flaps start at s0. Several panels can stand on one edge as long as their spans do not overlap: an edge is offered for growing while a free stretch of at least 5 mm is left (`edgeFreeSpans`, `edgeHasRoom`), and the ghost takes the largest free stretch by default. On the stage the ghost has two end handles (`ghost-span-0/1`) that slide along the edge and snap to its ends and middle, to the ends of panels already grown there, and to where other panels meet the edge line; the card has *Starts at* / *Ends at* (`grow-span-start`, `grow-span-end`).
+- **Height and angle snapping:** dragging the ghost's height arrow snaps its free edge to another panel's corners lying in its plane (a neighbouring wall's top) and to faces crossing its growth direction (the opposite wall's outer face for a lid), with a guide line along the snapped edge; the hinge dial snaps (within 3°) to angles at which the free edge rests on another panel's corner. Alt turns both off.
+- **Adapting to what it meets** (*Adapt to neighbours*, `grow-adapt`, on by default): the ghost's top is brought down, column by column, to the near face of any panel it would run into (whichever of the ghost's two faces meets it first), within that panel's outline; panels it starts against (its parent and the panels beside it) are left out, and the end columns carry the trimmed line on. A panel its top edge meets at an outer corner is left to the corner joint (a lid reaching the opposite wall). The result is simplified and stored at commit as ordinary wall corners and inserts (`grow-adapted` note on the card). It is not re-derived afterwards, so it cannot cycle with the panels it was trimmed against; auto-connection then joins the trimmed edges.
+- **Edit outline on the ghost** (`grow-edit-outline`): the ghost's top corners can be dragged and points added and dragged on its free edges before committing (starting from the adaptive trim); the edits are committed as the panel's outline.
+- The ghost's height arrow sits on its trimmed outline.
+
+Verified
+- `tests/adapt.test.ts`: **a half-width plywood wall has fingers only over its span, no overlap (volumetric)**; a second wall takes the other half and a third is refused; a card wall on part of an edge folds out at its place in the net; span snap targets; **a lid ghost from the back wall has the front wall's outer face (80 mm) among its height targets, and grown at that height it is joined to the front wall at a corner**; a new wall's height snaps to its neighbour's top; **a wall grown under a sloped roof gets a gable (lower at the front) that is joined to the roof automatically, with no overlap and no joint messages**; with nothing in the way (or adapting off) the wall stays a rectangle.
+- `tests/e2e/refine.spec.ts`: dragging a lid ghost's height arrow to 79.2 mm snaps to 80 and the lid is joined to the front wall; dragging a ghost's end handle to the middle snaps the span to [0, 60], the wall is 60 wide with fingers only there, and the rest of the edge is offered next; a side wall under a roof is trimmed (*Trimmed to fit* note) into a gable joined to the roof; *Adapt to neighbours* off gives the plain rectangle; *Edit outline* on the ghost and dragging its top-left corner commits that outline.
+- Screenshots: `docs/refine-shots/{en,he}-19-adapted-gable-ghost.png`, `…-19-span-and-outline.png`.
+
+## Milestone 20 — Through-cut editing and snapping ✅
+
+What worked before: on its source panel a through-cut could be moved by dragging (3D and 2D) and resized with the cut plan's handles or the card; on the panels it reaches it could only be clicked to select the source (`ThroughLinks`). Polygon shapes have no vertex editing anywhere (only their box is resized), so that is still the case on reached panels.
+
+Implemented
+- **Editing from any panel a through-cut reaches** (`ThroughEdit` in `View3D.tsx`): with a through-cut selected, its (turned) corners are shown on its own panel and on every panel it reaches that is not edge-on, mapped along the cut direction; dragging one resizes the source about the opposite corner, along its own sides. On each reached panel a gizmo (pad, arrows, ring) moves and turns the source. Every edit changes the one live source shape.
+- **Snap targets from the real outline:** `snapContext` takes the panel's own outline (vertices and edge midpoints of `panelEdges`, e.g. a gable's apex or a polygon base's corners) and its centre; on a rectangle these are the same nine targets as before, so every existing snap test passes unchanged.
+- **Through-cut snapping:** while a through-cut is moved or resized, the outlines (vertices, edge midpoints) and shapes (corners, centres) of every panel in its path are added as targets, projected along the cut direction into its own plane (`throughTargets`).
+- **Live count while drawing a polygon through-cut:** the *Cuts N panels* badge updates as vertices are placed (it was only shown after closing).
+
+Verified
+- `tests/throughedit.test.ts`: **a shape on a gable wall snaps to its apex**; a rectangle's targets are exactly the old nine; **a through-cut's corner snaps to the top edge of a divider it passes through** (and a plain cut on the same wall does not see the divider).
+- `tests/e2e/refine.spec.ts`: **a through-cut seen on the back wall is resized there** (dragging its corner on the back wall, the opposite corner stays) **and turned there** (the back wall's gizmo ring: 32° → 30°), both changing the source on the front wall; the polygon tool shows *Cuts N panels* before the polygon is closed.
+- Screenshots: `docs/refine-shots/{en,he}-20-through-cut-edit.png`.
+
+## Final verification — interaction refinements (milestones 15–20) ✅
+
+Acceptance checks (`interaction-refinements-agent-prompt.md` §8):
+1. **Safety** — every pre-existing Vitest test and Playwright spec passes. All golden SVG/DXF exports, the v5 project fixtures and the new v6 fixtures are byte-identical; there were no intended changes to golden files.
+2. **Handles** — `tests/handles.test.ts` (plain, gable and tray walls: no grow target within the gap of a push-pull anchor); push-pull wins over grow (`refine.spec.ts`, milestone 15). Other new handles (gizmo, divider slide arrow, span ends) are placed clear of the arrows and win raycast ties like them.
+3. **Seams** — the fuzz test passes 500 seeds (and the 58 seeds that failed before); no touching pair is left without a joint or a message.
+4. **Gizmo** — shapes and floor panels move and rotate with snapping; rotation survives save/reload and the export matches (`rotate.test.ts`, `refine.spec.ts`).
+5. **Dividers** — automatic, dragged and between-faces dividers in plywood, card and corrugated, with no overlap and a clean export check (`dividers.test.ts`, `refine.spec.ts` for plywood and corrugated 4 mm).
+6. **Grow** — height and angle snapping, partial width, adaptive trims; the result is joined (`adapt.test.ts`, `refine.spec.ts`).
+7. **Through-cuts** — edited from any panel they reach, with snap targets from those panels (`throughedit.test.ts`, `refine.spec.ts`).
+8. **Interface** — every new string is in `en.ts` and `he.ts` (`i18n.test.ts`, including the hard-coded-text scan); Hebrew screenshots of each new widget in `docs/refine-shots/he-*`; new controls have testids; the fold slider is on the stage whenever there is a fold; nothing new renders continuously (the canvas still renders on demand; the new widgets only work while dragging).
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (281 tests in 28 files, with the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (34 passed, including the classroom spec against the real Worker via `wrangler dev`; 22 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+
+Fixed along the way (not in the brief): a `polygon-clipping` crash when merging some nets (found by the fuzz test); emptying a divider set left its dividers behind; a flaky linked-selection click in `through.spec.ts` that also failed on the starting commit.
+
+Remaining limitations (milestones 15–20)
+- Collisions are flagged, not resolved; panels side by side in one plane (two half-width walls on one edge, two floor panels pushed together) are reported as touching but not joined, since no joint fits there.
+- Through-cuts: corner handles and the gizmo are not shown on panels the cut meets edge-on (the strips); polygon shapes have no vertex editing (on any panel); snapping to the panels in a cut's path aligns x/y in the source plane (it does not slide along an oblique edge).
+- *Divider between* needs a base edge that runs along the faces' normal, so it cannot be used between a regular hexagon's opposite walls (greyed with that reason). Automatic dividers need a rectangular inside; lowering a count removes the last dividers with any shapes on them.
+- The adaptive trim samples the ghost's width in 96 columns, so where a partial obstacle ends the corner can be off by up to 1/96 of the width; trims are stored at commit and do not follow a neighbour that moves later (by design).
+- Floor-panel snapping compares the floor panels' outlines, not the walls standing on them. The gizmo's typed values are relative to where the drag started.
+- The fold slider moves to the left above the card on stages narrower than 900 px; that layout was checked only by CSS, not in a test.
+- Digital checks are not physical proof: through-cut bevels, slide fits and adaptive joints need a test cut on the classroom's board.
+
+## Milestone 21 — Gizmo drag stability ✅
+
+Causes (as in `GIZMO_JOINTS_FLAPS.md` §3): the shape gizmo read the shapes' start positions and box from the live design, which already held the last preview, so each pointer move added the whole offset again; a group's turn pivot was the centre of the live (already turned) box; grazing views turned a pixel into tens of millimetres; the arrow shafts were 4 px targets. The floor gizmo and the through-cut gizmo already moved from the drag's base and were not affected by the first cause.
+
+Implemented (`ShapeGizmo`, `FloorGizmo` in `src/views/View3D.tsx`; `Gizmo`, `grazingMap`, `useGrazing` in `src/views/widgets.tsx`)
+- Every start value (shape positions, the box used for snapping, the turn pivot, the floor panel's centre) is read from the drag's base design (`txnBase`), frozen at pointer-down.
+- A turn measures its screen angle about where the gizmo was at pointer-down, and the gizmo stays there until the turn ends.
+- **Grazing views:** when the plane is within 20° of edge-on (pad) or an axis within 20° of the view direction (arrow), the drag moves by screen distance: one pixel is one pixel's worth of millimetres at the gizmo. The pad moves along the plane's in-screen direction as seen, and up the screen moves it away along the plane's depth direction; an arrow moves along its own screen direction (up = away when it points straight at the viewer).
+- **Hit zones:** an invisible 16 px wide zone along each arrow, a 22 px pad, and a 13 px ball as the pad's hit zone so it can be grabbed edge-on (the pad wins where an end-on arrow overlaps it).
+- A panel's dimension labels are hidden while its plane is seen within 20° of edge-on: they pile up on the panel there and covered the gizmo's pad.
+
+Verified
+- `tests/e2e/gizmo.spec.ts`: **dragging the pad (15, 10 mm) and each arrow (20 mm) in 1, 5 and 30 pointer moves lands on the same place** (and the other coordinate does not move on an arrow); **turning two shapes by 90° keeps the pivot** ((40, 35) → (60, 15), (80, 35) → (60, 55)); **a floor panel seen 5° above edge-on moves a few millimetres away for 12 px up the screen**, in 1, 5 and 30 moves.
+- The milestone 17 and 20 gizmo specs (`refine.spec.ts`) pass unchanged.
+
+## Milestone 22 — Glue flaps fold off their panel ✅
+
+Implemented (`withFold` in `src/model/seams.ts`, `flapMatrix` in `src/views/foldView.ts`, `Flaps` in `View3D.tsx`)
+- Each 3D flap (`Flap3d`, `src/model/types.ts`) also records its `owner` (the panel it is cut from), its `hinge` (two points in the owner's local coordinates) and its `angle` (degrees, from lying flat beside the owner to folded). All three kinds record it: corner glue flaps, glue flaps on edge-on-face seams, and grown glue flaps.
+- The hinge and angle are solved from the flap as cut (the owner's added outline) and the flap as folded: the axis runs along the score line, and the pivot is the line about which the flat slab's base turns onto the folded slab's base. For a 90° fold that is half a thickness out from the fold and mid-thickness, as for folded nets.
+- The view draws a flap with its owner's fold transform, turned about the hinge by −angle × (1 − foldT). At foldT = 1 it is exactly where it was drawn before; at 0 it lies flat beside its panel as in the cut net. Flaps take their owner's colour. Older stored geometry without an owner is drawn on the receiver as before.
+- Divider renames carry the owner along.
+
+Verified
+- `tests/flaps.test.ts`: for tray corners (card), a wall glued at 60° (grown glue) and a divider glued to the walls (edge on face), **the folded pose is the old matrix exactly, and the flat pose matches the net's added outline through the owner's thickness (within 1e-6 mm)**; half folded, the hinge is carried by the owner's transform.
+- `tests/e2e/gizmo.spec.ts`: on a corrugated tray with glue corners, the drawn flaps lie flat on the floor beside their own wall (not on the wall they glue to) at foldT = 0, stand against the receiving wall at 1, and have left the floor with their wall at 0.5.
+- Exports are unchanged: the golden SVG/DXF tests pass. The new fields are in the stored joint geometry only, and that geometry is recomputed on solve.
+
+## Milestone 23 — Design-wide joint kinds ✅
+
+Implemented (`src/model/jointDefaults.ts`, `setAllJoints` / `setDefaultFlap` in `src/model/ops.ts`)
+- `Design.joints?: { base?, corner?, flap? }`, optional: designs without it load, solve and export exactly as before, and save without the field.
+- `setAllJoints(d, group, kind)` sets `kind` and `pref` on every joint of the group that may take it (including hand-set ones, which stay hand-set), sets trays' wall or corner kind where allowed, records the default and returns `{ changed, kept }`. `groupKinds` gives a group's list (kinds allowed for at least one of its joints) and `groupShown` its current value.
+- New joints use the default where allowed: `connectSeam` (corners and edge-on-face seams, so automatic joins too), growing from an edge (`growKind`, and the remembered wish), dividers (`addDivider`, *Divider between*, divider sets: `dividerKind`), side walls, new trays (`newTrayKinds`, also on the extrude card and ghost). A tray's own corner and wall joint still wins for its seams. When a joint's own wish is not allowed, it falls back to the design's kind before the material's.
+- `joints.flap` replaces the automatic glue flap width on joints without their own (`flapWidth`; the joint card shows it).
+- Template regeneration (sizes, material) re-applies the design's choices.
+
+Verified (`tests/jointdefaults.test.ts`)
+- Lists: a plywood box offers fingers, tabs and slots, butt for both groups; an empty card design offers what a new joint could take; a card wall at 60° narrows the wall-to-base list to fold and glue.
+- **A plywood box changed to tabs and slots wall to base: 4 changed, walls stand in, no overlap (volumetric), no messages**; a hand-set corner is changed too and stays hand-set; **a card wall at 70°/60° keeps its fold when tabs are chosen and is counted as kept**.
+- New corners, grown walls, dividers (but not fingers on a face) and trays take the defaults; a tray's own corner kind wins and a later design-wide change reaches it.
+- The design flap width replaces the automatic width, a joint's own width wins, *automatic* removes it; the defaults survive save and load, and a design without them saves no `joints`.
+
+## Milestone 24 — Settings card when nothing is selected ✅
+
+Implemented (`src/ui/DesignSettings.tsx`, `Inspector.tsx`; snapping in `src/store/store.ts`)
+- With nothing selected, the card (*Design settings*) shows the template's sizes when there is a template, then:
+  - **Joints**: *Wall to base* and *Corners* lists (`joints-base`, `joints-corner`); after a change a note says how many changed and how many kept theirs (`joints-<group>-result`). Card and corrugated also get the default glue flap width (`settings-flap`) with *Back to automatic*.
+  - **Material and fit**: the material's name, thickness, kerf and clearance (`settings-thickness`, `-kerf`, `-clearance`), the same edit as the drawer (`useMaterialEdit`), and *Change material…* (`open-drawer`) opening the drawer.
+  - **Snapping** (saved with the view options): smart snapping (`settings-snap`), grid step (`settings-grid`, 1 mm) and turn step (`settings-turn`, 15°). Smart snapping off is checked everywhere Alt was (`noSmartSnap`): 3D and cut-plan shape drags and drawing, the gizmo, floor panels, through-cut corners, the grow ghost and hinge rest angles. The grid step (`gridSnap`) and turn step (`snapAngle`) apply in the 3D view and the cut plan.
+- Every new string is in `en.ts` and `he.ts`.
+
+Verified (`tests/e2e/gizmo.spec.ts`)
+- **On card, *Wall to base* → tabs and slots changes the three square walls and reports 3 kept (the wall at 70° and its two edge-on-face seams); one undo step restores them and the default.** The flap width default is set and reset.
+- Clearance typed in the card is what the drawer shows; *Change material…* opens the drawer.
+- With smart snapping off, a 5 mm grid and a 10° turn step, a shape dragged with the gizmo lands on the grid (not on the wall's centre line it would otherwise snap to) and a 34° ring drag turns it 30°; the preferences are stored per viewer.
+- Screenshots: `docs/gizmo-shots/{en,he}-24-settings-card.png`, `…-22-flaps-half-folded.png`.
+
+## Final verification — gizmo, joints, flaps and settings (milestones 21–24) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (291 tests in 30 files; the ezdxf/svgpathtools reader checks are skipped here, since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (39 passed, including the classroom spec against the real Worker; 22 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical.
+
+Remaining limitations (milestones 21–24)
+- At the 20° grazing threshold the gizmo's speed per pixel changes (about 2.9× slower just inside it than a plane hit just outside it).
+- The gizmo ring in a grazing view still measures the screen angle about its centre, which is hard to use when the ring is seen edge-on.
+- A design-wide kind that the current material does not allow (fingers after switching to card) is remembered but unused until the material allows it again; the list then shows the kind most joints have.
+- The settings card is taller than a short stage and scrolls inside the card dock.
+- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4 (milestones 25–27).
+
+## Follow-up — snapping toggles, add ghosts, outline snapping and curves ✅
+
+Implemented
+- **Separate snapping toggles** (`settings-snap`, `settings-grid-snap` in the settings card): smart snapping and grid snapping turn off independently (the grid step field is greyed while the grid is off); Alt turns off both for one drag (`gridSnap(x, ev)`, `noSmartSnap(ev)`), in the 3D view, the cut plan and outline editing.
+- **Darker add ghosts:** the grow ghost and the extrude preview (`STAGE.ghost`, `ghostEdge`, `ghostOpacity` in `src/views/palette.ts`).
+- **Outline point snapping** (`outlineTargets`, `snapOutlinePoint` in `src/model/snap.ts`; `placeVertex` in `src/views/polyTool.tsx`): base vertices, wall top corners and inserted points snap to corners, then edges, of the outline itself and of panels in or standing on its plane, then into line with its own points, then to the grid. A marker shows what it snapped to.
+- **Auto-curve points** (`setPointCurve`, `curveBlocked`, `pointCurve` in `ops.ts`; `curveRing` in `edges.ts`): in outline editing, the selected point's card row (*Point: Corner / Curve*, `point-corner`, `point-curve-auto`) makes it a smooth curve; refused with a note (`point-curve-blocked`) while an edge beside it is joined. The "+" handles sit on the curve.
+
+Verified
+- `tests/curves.test.ts`: a base corner becomes a curve through it (its two edges flattened, the others unchanged, smooth through the point, the box holds the outline); curves are not growable or joined, the design validates and exports; a joined edge blocks a curve; a wall's top corner curve keeps the attached bottom straight; moving a curve point and save/load keep it; outline snapping to a neighbouring floor panel's corner, onto its edge and in line with its own point, never to itself; grid off and Alt give 0.01 mm values.
+- `tests/e2e/gizmo.spec.ts`: on the grid with both toggles on, off it with Alt, and with the grid off while smart snapping still snaps to the wall's centre; dragging a base corner next to a neighbouring panel's corner lands on it exactly, and next to its edge lands on the edge; a selected point becomes a curve and back.
+- Screenshots: `docs/gizmo-shots/{en,he}-25-snapping-toggles.png`, `…-25-curve-point.png`.
+
+Remaining (follow-up)
+- Curves are auto only: no handles to shape them yet (`curve` leaves room for `'bezier'`). Exports carry the flattened curve (segments within 0.02 mm), not true curves.
+- An auto curve can bulge well past its points (e.g. a curve at a rectangle's corner pushes the next edge outward); there is no check that a curve crosses another edge of the outline.
+- The grow ghost's outline handles (*Edit outline* on the ghost) do not snap to corners and edges yet.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
 - Packing is bounding-box based (no true-shape nesting).
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
-- A grown panel always spans the full edge it grows from; half-laps are detected for upright panels only.
+- Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.

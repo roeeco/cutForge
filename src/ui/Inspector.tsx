@@ -1,19 +1,20 @@
 // Contextual card: shows only what belongs to the current selection. Nothing
-// selected → the template's sizes (or no card at all); an edge selected → the
-// grow card on the stage takes over.
+// selected → the design's settings (template sizes, joints, material and fit,
+// snapping); an edge selected → the grow card on the stage takes over.
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, parentConnection, setPanelSize, updateDetail } from '../model/ops';
-import { netGroups, pieceKeyOf } from '../model/pieces';
+import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
+import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
-import { TemplateSection } from './TemplateUI';
+import { DesignSettings } from './DesignSettings';
+import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
-import { panelEdges, segLength } from '../model/edges';
+import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { panelsCutBy } from '../model/through';
@@ -72,6 +73,9 @@ export function Inspector() {
             </>
           )}
           {dt.shape === 'roundrect' && <NumField label={t('insp.radius')} value={dt.r ?? 0} unit={mm} min={0} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { r: v }))} />}
+          {!isCircle && (
+            <NumField label={t('insp.rotation')} value={dt.rot ?? 0} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { rot: normDeg(v) || undefined }))} testId="detail-rot" />
+          )}
           <NumField label={t('insp.x')} value={dt.cx} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cx: v }))} testId="detail-x" />
           <NumField label={t('insp.y')} value={dt.cy} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cy: v }))} testId="detail-y" />
           <p className="note">{t('insp.coordsNote')}</p>
@@ -85,7 +89,6 @@ export function Inspector() {
     if (p) {
       const pc = parentConnection(d, id);
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
-      const inNet = netGroups(d).some((g) => g.length > 1 && g.some((n) => n.panelId === id));
       body = (
         <section data-testid="inspector-panel" key={id}>
           <p className="kicker">{t('insp.part')}</p>
@@ -113,6 +116,9 @@ export function Inspector() {
           <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          {!parent && (
+            <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
+          )}
           <PanelHinge panelId={id} />
           <TrayWallNote panelId={id} />
           <FoldOverSection panelId={id} />
@@ -126,6 +132,7 @@ export function Inspector() {
               <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
+          {editOutline === id && <PointCurve panelId={id} />}
           <Stepper
             label={t('insp.quantity')}
             value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
@@ -136,7 +143,6 @@ export function Inspector() {
             testId="panel-qty"
           />
           <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
-          {inNet && <FoldSlider />}
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />
@@ -147,11 +153,11 @@ export function Inspector() {
             <h4>{t('insp.edges')}</h4>
             <div className="edge-buttons">
               {panelEdges(p)
-                .filter((e) => segLength(e) >= MIN_PANEL)
+                .filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key))
                 .map(({ key: e }) => (
                   <button
                     key={e}
-                    disabled={!!edgeConnection(d, id, e)}
+                    disabled={!edgeHasRoom(d, id, e, MIN_PANEL)}
                     onClick={() => {
                       useStore.getState().select({ kind: 'edge', panelId: id, edge: e });
                       useStore.getState().setView('3d');
@@ -166,15 +172,8 @@ export function Inspector() {
         </section>
       );
     }
-  } else if (!sel && d.template) {
-    body = (
-      <section data-testid="inspector-design">
-        <TemplateSection />
-        <button className="link" onClick={() => useStore.getState().set({ drawerOpen: true })} data-testid="open-drawer">
-          {t('drawer.link')}
-        </button>
-      </section>
-    );
+  } else if (!sel) {
+    body = <DesignSettings />;
   }
 
   if (!body) return null;
@@ -183,6 +182,30 @@ export function Inspector() {
       <aside className="card inspector" aria-label={t('insp.title')}>
         {body}
       </aside>
+    </div>
+  );
+}
+
+/** While editing an outline: the selected point as a corner or a smooth (auto) curve. */
+function PointCurve({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const sel = useStore((s) => s.selVertex);
+  if (sel === null || sel === 'bl' || sel === 'br') return <p className="note">{t('outline.pickPoint')}</p>;
+  const curved = pointCurve(d, panelId, sel);
+  const blocked = !curved && curveBlocked(d, panelId, sel);
+  return (
+    <div className="subsection" data-testid="point-curve">
+      <Segmented
+        label={t('outline.point')}
+        value={curved ? 'auto' : 'corner'}
+        options={[
+          { value: 'corner', label: t('outline.corner'), testId: 'point-corner' },
+          { value: 'auto', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve-auto' },
+        ]}
+        onChange={(v) => !(v === 'auto' && blocked) && useStore.getState().apply((x) => void setPointCurve(x, panelId, sel, v === 'auto'))}
+      />
+      {blocked === 'joined' && <p className="note" data-testid="point-curve-blocked">{t('outline.curveJoined')}</p>}
     </div>
   );
 }

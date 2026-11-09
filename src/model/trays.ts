@@ -5,7 +5,7 @@
 // except edges in `openEdges` and edges shorter than 5 mm. Deleting a tray
 // wall opens its edge; "Wall it" closes it again.
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
-import { panelEdges, segDir, segLength, findEdge } from './edges';
+import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
 
 export const MIN_EDGE = 5;
 
@@ -37,7 +37,7 @@ export function wallHeight(d: Design, kind: ConnectionKind, H: number): number {
 /** Base edges too short for a wall (left open, and named on the tray card). */
 export function shortEdges(d: Design, tray: Tray): string[] {
   const base = d.panels[tray.baseId];
-  return base ? panelEdges(base).filter((e) => segLength(e) < MIN_EDGE).map((e) => e.key) : [];
+  return base ? panelEdges(base).filter((e) => segLength(e) < MIN_EDGE && !isCurveKey(e.key)).map((e) => e.key) : [];
 }
 
 /** Is this base edge walled (by a tray wall, a wall set or any wall standing at the edge)? */
@@ -58,7 +58,7 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
       delete d.trays[tray.id];
       continue;
     }
-    const edges = panelEdges(base).filter((e) => segLength(e) >= MIN_EDGE);
+    const edges = panelEdges(base).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key));
     const keys = new Set(edges.map((e) => e.key));
     for (const e of edges) if (!tray.openEdges.includes(e.key) && !walled(d, base, e.key)) make(d, tray, e.key);
     // walls whose edge is gone

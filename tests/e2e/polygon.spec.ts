@@ -53,7 +53,7 @@ test('polygon base by clicks, n-gon, vertex editing and growing from a sloped ed
   // edit the outline: move a vertex and the wall follows the edge
   await S(page, ([id]: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), [base]);
   await page.getByTestId('edit-outline').click();
-  await expect(page.locator('.view-hint')).toContainText('Drag a corner');
+  await expect(page.locator('.view-hint')).toContainText('Drag a point');
   const pts = d.panels[base].sketch.pts as { x: number; y: number }[];
   // the apex (0,-60) is the vertex with the largest local y
   const apex = pts.reduce((a, q, i) => (q.y > pts[a].y ? i : a), 0);

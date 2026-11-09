@@ -1,14 +1,16 @@
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
+import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
-import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
+import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor } from '../model/materials';
-import { autoConnect, createDesign, solve } from '../model/ops';
+import { autoConnect, createDesign, solve, type FacePick } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
 export type Selection =
-  | { kind: 'panel'; id: string }
+  /** `also`: other panels shown selected with it (both panels a joint message is about). */
+  | { kind: 'panel'; id: string; also?: string[] }
   | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
@@ -18,6 +20,12 @@ export type Selection =
 export function selectedDetailIds(s: Selection): string[] {
   return s?.kind === 'detail' ? s.ids : [];
 }
+/** What clicking an export-check message selects: the shape, the panel, or both panels of a joint message. */
+export function issueSelection(i: { target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }): Selection {
+  if (i.target.kind === 'detail') return { kind: 'detail', id: i.target.id, ids: [i.target.id] };
+  if (i.pair) return { kind: 'panel', id: i.pair[0], also: [i.pair[1]] };
+  return { kind: 'panel', id: i.target.id };
+}
 export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
 }
@@ -26,14 +34,39 @@ export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | '
 export type View = '3d' | '2d' | 'solo';
 
 /** Grow card settings. `angle` is the hinge angle, 0–360° (see src/model/hinge.ts). */
-export type GrowOptions = { height: number; angle: number; kind?: ConnectionKind };
+export type GrowOptions = {
+  height: number;
+  angle: number;
+  kind?: ConnectionKind;
+  /** Part of the edge to grow on ([s0, s1] mm from its start); null: the largest free stretch (usually the whole edge). */
+  span?: [number, number] | null;
+  /** Trim the new panel to what it would run into (default on). */
+  adapt?: boolean;
+  /** Outline edits made on the ghost (wall corners and inserts); null: none (the adaptive trim, if on). */
+  sketch?: WallSketch | null;
+  /** The ghost's outline handles are shown. */
+  editGhost?: boolean;
+};
 
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
-export type ViewPrefs = { outlines: boolean; quality: Quality; dims: boolean; joints: boolean };
+export type ViewPrefs = {
+  outlines: boolean;
+  quality: Quality;
+  dims: boolean;
+  joints: boolean;
+  /** Smart snapping (to other shapes, edges, panels, rest angles). Alt turns it off for one drag. */
+  snap: boolean;
+  /** Grid snapping: positions round to the grid step where no smart target is near. Alt turns it off for one drag. */
+  grid: boolean;
+  /** Grid step (mm). */
+  gridStep: number;
+  /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
+  turnStep: number;
+};
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
-  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false };
+  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -83,6 +116,8 @@ type State = {
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
   extrude: { baseId: string; height: number } | null;
+  /** Faces Shift-clicked on the stage for *Divider between* (not part of the design). */
+  facePick: FacePick[];
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -103,7 +138,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -156,6 +191,7 @@ export const useStore = create<State>()((set, get) => ({
   editOutline: null,
   selVertex: null,
   extrude: null,
+  facePick: [],
 
   apply: (fn) => {
     if (get().txnBase) get().commit();
@@ -204,7 +240,7 @@ export const useStore = create<State>()((set, get) => ({
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
   replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
-  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
+  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
   setTool: (t) => set({ tool: t, editOutline: null, selVertex: null }),
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
@@ -240,9 +276,31 @@ export const useStore = create<State>()((set, get) => ({
 }));
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
+/** Smart snapping is off for this drag: Alt is held, or it is turned off in the settings. */
+export function noSmartSnap(ev?: { altKey: boolean } | null): boolean {
+  return !!ev?.altKey || !useStore.getState().viewPrefs.snap;
+}
+
+/**
+ * Round to the grid step (mm) from the settings; with grid snapping off (or
+ * Alt held during the drag) only to 0.01 mm, so values stay readable.
+ */
+export function gridSnap(x: number, ev?: { altKey: boolean } | null): number {
+  const { grid, gridStep } = useStore.getState().viewPrefs;
+  if (ev?.altKey || grid === false) return Math.round(x * 100) / 100;
+  const step = gridStep > 0 ? gridStep : 1;
+  return Math.round(Math.round(x / step) * step * 1e6) / 1e6;
+}
+
+/** The turn step (degrees) from the settings. */
+export function turnStep(): number {
+  const s = useStore.getState().viewPrefs.turnStep;
+  return s > 0 ? s : 15;
+}
+
 export function growKind(d: Design, g: GrowOptions): ConnectionKind {
   const options = connectionsFor(d.material, fromHinge(g.angle).angle);
-  return g.kind && options.includes(g.kind) ? g.kind : options[0];
+  return g.kind && options.includes(g.kind) ? g.kind : (designKind(d, 'base', options) ?? options[0]);
 }
 
 export function useT() {

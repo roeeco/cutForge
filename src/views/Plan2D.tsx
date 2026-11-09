@@ -2,14 +2,14 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
+import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetCount, type PieceCopy } from '../model/pack';
 import { panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
 import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
 import { SNAP_PX, type Vec2, type Xform2 } from '../geom/types';
-import { addDetail, findDetail, newId, updateDetail } from '../model/ops';
+import { addDetail, findDetail, newId, rotateDetails, updateDetail } from '../model/ops';
 import { scaleDetails } from '../model/edit';
 import { detailBBox, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
@@ -21,10 +21,11 @@ import { placeText } from './View3D';
 import { MATERIAL_COLORS, partTintCss } from './palette';
 import { panelLabel } from '../model/names';
 import { MATERIALS } from '../model/materials';
+import { snapAngle } from './widgets';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
-const grid = (x: number) => Math.round(x);
+const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 
 type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number };
 type VB = { x: number; y: number; w: number; h: number };
@@ -34,7 +35,8 @@ type Drag =
   | { kind: 'pan'; sx: number; sy: number; vb: VB }
   | { kind: 'marquee'; a: Vec2; b: Vec2; additive: boolean; base: string[] }
   | { kind: 'move'; ids: string[]; placed: Placed; panelId: string; start: Vec2; startSvg: Vec2; box: Box }
-  | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean }
+  | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean; rot?: number }
+  | { kind: 'rotate'; ids: string[]; placed: Placed; panelId: string; pivot: Vec2; a0: number; last: number; deg: number }
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
   | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean };
@@ -154,7 +156,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       const g = drag.current;
       if (!g) return;
       const st = useStore.getState();
-      const noSnap = ev.altKey;
+      const noSnap = noSmartSnap(ev);
       const tol = SNAP_PX * mmPerPx();
       if (g.kind === 'pan') {
         const svg = svgRef.current!;
@@ -174,6 +176,20 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         st.preview((dd) => void (dd.placements[g.key] = { sheet, x, y, rot: g.start.rot, manual: true }));
         return;
       }
+      if (g.kind === 'rotate') {
+        const l = toLocal(g.placed, g.panelId, svgPoint(ev));
+        let a = (Math.atan2(l.y - g.pivot.y, l.x - g.pivot.x) * 180) / Math.PI;
+        while (a - g.last > 180) a -= 360;
+        while (a - g.last < -180) a += 360;
+        g.last = a;
+        const deg = snapAngle(a - g.a0, ev);
+        if (deg !== g.deg) {
+          g.deg = deg;
+          st.preview((x) => rotateDetails(x, g.ids, deg, g.pivot));
+        }
+        setLabel({ text: `${fmtNum(deg)}°`, ...svgPoint(ev) });
+        return;
+      }
       if (g.kind === 'marquee') {
         g.b = svgPoint(ev);
         setMarquee({ a: g.a, b: g.b });
@@ -189,8 +205,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           dx += sn.dx;
           dy += sn.dy;
         }
-        if (!sn?.dx) dx = grid(dx);
-        if (!sn?.dy) dy = grid(dy);
+        if (!sn?.dx) dx = grid(dx, ev);
+        if (!sn?.dy) dy = grid(dy, ev);
         setGuides(sn && sn.guides.length ? { guides: sn.guides, targets: sn.targets, placed: g.placed, panelId: g.panelId } : null);
         // the primary panel's delta, as a pointer movement on screen, applied to every shape on its own panel
         const endSvg = toSvg(g.placed, g.panelId, { x: g.start.x + dx, y: g.start.y + dy });
@@ -216,8 +232,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const exclude = new Set(g.kind === 'gresize' ? g.ids : [g.id]);
         const ctx = snapContext(st.txnBase ?? st.design, g.panelId, exclude);
         const sn = ctx && !noSnap ? snapPoint(ctx, { x: px, y: py }, tol) : null;
-        px = sn?.dx ? px + sn.dx : grid(px);
-        py = sn?.dy ? py + sn.dy : grid(py);
+        px = sn?.dx ? px + sn.dx : grid(px, ev);
+        py = sn?.dy ? py + sn.dy : grid(py, ev);
         setGuides(sn && sn.guides.length ? { guides: sn.guides, targets: sn.targets, placed: g.placed, panelId: g.panelId } : null);
         if (g.kind === 'gresize') {
           const sx = Math.abs(g.corner.x - g.fixed.x) < 1e-9 ? 1 : (px - g.fixed.x) / (g.corner.x - g.fixed.x);
@@ -225,6 +241,18 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           if (sx <= 0.02 || sy <= 0.02) return;
           st.preview((x) => scaleDetails(x, g.ids, g.fixed, sx, sy));
           setLabel({ text: `${fmtNum(Math.abs(px - g.fixed.x))} × ${fmtNum(Math.abs(py - g.fixed.y))}`, ...svgPoint(ev) });
+          return;
+        }
+        if (g.kind === 'resize' && g.rot) {
+          // a turned shape: measure the pointer in the shape's own axes from the fixed corner
+          const a = (g.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
+          const rx = px - g.fixed.x, ry = py - g.fixed.y;
+          const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
+          const w = Math.max(0.5, Math.abs(lx)), h = Math.max(0.5, Math.abs(ly));
+          const hx = ((Math.sign(lx) || 1) * w) / 2, hy = ((Math.sign(ly) || 1) * h) / 2;
+          const cx = g.fixed.x + hx * c - hy * s2, cy = g.fixed.y + hx * s2 + hy * c;
+          st.preview((x) => updateDetail(x, g.id, { cx, cy, w, h }));
+          setLabel({ text: `${fmtNum(w)} × ${fmtNum(h)}`, ...svgPoint(ev) });
           return;
         }
         const circle = g.kind === 'resize' ? g.circle : st.tool === 'circle';
@@ -322,8 +350,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     const st = useStore.getState();
     let l = toLocal(pl, panelId, svgPoint(ev));
     const ctx = snapContext(st.design, panelId, new Set());
-    const sn = ctx && !ev.altKey ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
-    l = { x: sn?.dx ? l.x + sn.dx : grid(l.x), y: sn?.dy ? l.y + sn.dy : grid(l.y) };
+    const sn = ctx && !noSmartSnap(ev) ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
+    l = { x: sn?.dx ? l.x + sn.dx : grid(l.x, ev), y: sn?.dy ? l.y + sn.dy : grid(l.y, ev) };
     drag.current = { kind: 'draw', id: newId('x'), placed: pl, panelId, start: l };
   };
   const onPieceDown = (pl: Placed) => (ev: React.PointerEvent) => {
@@ -393,6 +421,19 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     return { panelId: fs[0]!.panel.id, box: { minX: Math.min(...bbs.map((b) => b.minX)), maxX: Math.max(...bbs.map((b) => b.maxX)), minY: Math.min(...bbs.map((b) => b.minY)), maxY: Math.max(...bbs.map((b) => b.maxY)) } };
   }, [d, sel]);
 
+  // the rotation ring: the selected shapes, all on one panel, turn about their centre
+  const ringInfo = useMemo(() => {
+    if (!ids.length) return null;
+    const fs = ids.map((id) => findDetail(d, id));
+    if (fs.some((f) => !f) || new Set(fs.map((f) => f!.panel.id)).size !== 1) return null;
+    if (fs.length === 1 && fs[0]!.detail.shape === 'circle' && !fs[0]!.detail.array) return null;
+    const bbs = fs.map((f) => detailBBox(f!.detail));
+    const box = { minX: Math.min(...bbs.map((b) => b.minX)), maxX: Math.max(...bbs.map((b) => b.maxX)), minY: Math.min(...bbs.map((b) => b.minY)), maxY: Math.max(...bbs.map((b) => b.maxY)) };
+    const pivot = fs.length === 1 ? { x: fs[0]!.detail.cx, y: fs[0]!.detail.cy } : { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+    const r = Math.max(...[[box.minX, box.minY], [box.maxX, box.minY], [box.maxX, box.maxY], [box.minX, box.maxY]].map(([x, y]) => Math.hypot(x - pivot.x, y - pivot.y)));
+    return { panelId: fs[0]!.panel.id, pivot, r };
+  }, [d, sel]);
+
   return (
     <div className={solo ? 'cutplan solo' : 'cutplan'} dir="ltr" data-testid={solo ? 'solo' : 'cutplan'}>
       <svg
@@ -429,7 +470,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             );
           })}
         {layout.placed.map((pl) => {
-          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId);
+          const also = sel?.kind === 'panel' ? (sel.also ?? []) : [];
+          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
           const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
           const tint = partTintCss(d.material.kind, Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
           return (
@@ -525,12 +567,27 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         })}
         {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (
           <Handles
-            box={detailBBox({ ...primary.detail, array: undefined })}
+            box={{ minX: primary.detail.cx - primary.detail.w / 2, maxX: primary.detail.cx + primary.detail.w / 2, minY: primary.detail.cy - primary.detail.h / 2, maxY: primary.detail.cy + primary.detail.h / 2 }}
+            rot={primary.detail.shape === 'circle' ? 0 : (primary.detail.rot ?? 0)}
             toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
             size={px * 9}
             onDown={(fixed) => (ev) => {
               ev.stopPropagation();
-              drag.current = { kind: 'resize', id: primary.detail.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, fixed, circle: primary.detail.shape === 'circle' };
+              drag.current = { kind: 'resize', id: primary.detail.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, fixed, circle: primary.detail.shape === 'circle', rot: primary.detail.shape === 'circle' ? 0 : primary.detail.rot };
+            }}
+          />
+        )}
+        {tool === 'select' && ringInfo && placedOf(ringInfo.panelId) && (
+          <RotRing
+            centre={toSvg(placedOf(ringInfo.panelId)!, ringInfo.panelId, ringInfo.pivot)}
+            r={ringInfo.r + px * 14}
+            px={px}
+            onDown={(ev) => {
+              ev.stopPropagation();
+              const placed = placedOf(ringInfo.panelId)!;
+              const l = toLocal(placed, ringInfo.panelId, svgPoint(ev));
+              const a0 = (Math.atan2(l.y - ringInfo.pivot.y, l.x - ringInfo.pivot.x) * 180) / Math.PI;
+              drag.current = { kind: 'rotate', ids, placed, panelId: ringInfo.panelId, pivot: ringInfo.pivot, a0, last: a0, deg: 0 };
             }}
           />
         )}
@@ -613,14 +670,19 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   );
 }
 
-function Handles(props: { box: Box; toSvg: (p: Vec2) => Vec2; size: number; group?: boolean; onDown: (fixed: Vec2, corner: Vec2) => (ev: React.PointerEvent) => void }) {
+function Handles(props: { box: Box; rot?: number; toSvg: (p: Vec2) => Vec2; size: number; group?: boolean; onDown: (fixed: Vec2, corner: Vec2) => (ev: React.PointerEvent) => void }) {
   const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = props.box;
-  const corners: [Vec2, Vec2][] = [
-    [{ x: x0, y: y0 }, { x: x1, y: y1 }],
-    [{ x: x1, y: y0 }, { x: x0, y: y1 }],
-    [{ x: x1, y: y1 }, { x: x0, y: y0 }],
-    [{ x: x0, y: y1 }, { x: x1, y: y0 }],
-  ];
+  // a turned shape: its corners turn about its centre
+  const a = ((props.rot ?? 0) * Math.PI) / 180, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const T = (p: Vec2): Vec2 => (a ? { x: cx + (p.x - cx) * Math.cos(a) - (p.y - cy) * Math.sin(a), y: cy + (p.x - cx) * Math.sin(a) + (p.y - cy) * Math.cos(a) } : p);
+  const corners: [Vec2, Vec2][] = (
+    [
+      [{ x: x0, y: y0 }, { x: x1, y: y1 }],
+      [{ x: x1, y: y0 }, { x: x0, y: y1 }],
+      [{ x: x1, y: y1 }, { x: x0, y: y0 }],
+      [{ x: x0, y: y1 }, { x: x1, y: y0 }],
+    ] as [Vec2, Vec2][]
+  ).map(([p, q]) => [T(p), T(q)]);
   const pts = corners.map(([p]) => props.toSvg(p));
   return (
     <g className="handles">
@@ -640,6 +702,18 @@ function Handles(props: { box: Box; toSvg: (p: Vec2) => Vec2; size: number; grou
           />
         );
       })}
+    </g>
+  );
+}
+
+/** Rotation ring around the selected shapes (cut plan and face-on view): drag it to turn them (15° steps, Shift 1°, Alt free). */
+function RotRing(props: { centre: Vec2; r: number; px: number; onDown: (ev: React.PointerEvent) => void }) {
+  const { centre: c, r, px } = props;
+  return (
+    <g className="rot-ring-g">
+      <circle cx={c.x} cy={c.y} r={r} className="rot-ring" strokeWidth={px * 2} />
+      <circle cx={c.x} cy={c.y} r={r} className="rot-ring-hit" strokeWidth={px * 14} onPointerDown={props.onDown} data-testid="rot-ring" />
+      <circle cx={c.x} cy={c.y - r} r={px * 6} className="rot-knob" onPointerDown={props.onDown} data-testid="rot-knob" />
     </g>
   );
 }

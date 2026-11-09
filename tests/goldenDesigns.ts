@@ -79,3 +79,49 @@ export function corrDividers(): Design {
   return d;
 }
 
+
+// ---------------------------------------------------------------------------
+// Schema v6 designs (polygons, trays, through-cuts, fold-over, wall outlines),
+// saved as project files before schema v7 (milestone 17).
+import { addFoldOver, addPolygonPanel, addTray, addWallInsert, regularPolygon, setTrayKinds, updateFoldOver } from '../src/model/ops';
+const [, CORR16] = MATERIALS;
+
+/** Plywood hexagon tray with a through-cut chamfer on one wall and a hole in the base. */
+export function v6PlyHexThrough(): Design {
+  const d = createDesign(PLY);
+  const base = addPolygonPanel(d, 0, 0, regularPolygon(6, 60))!;
+  const tray = addTray(d, base, 45)!;
+  autoConnect(d);
+  const wall = d.order.find((id) => id === `${tray}/e1`)!;
+  const w = d.panels[wall];
+  addDetail(d, wall, 'rect', 'cut', w.w / 2, w.h, 20, 16, undefined, true);
+  addDetail(d, base, 'circle', 'cut', d.panels[base].w / 2, d.panels[base].h / 2, 24, 24);
+  autoConnect(d);
+  return d;
+}
+
+/** Corrugated 1.6 tray: through tabs on the corners and a fold-over with lock tabs. */
+export function v6CorrFoldover(): Design {
+  const d = createDesign(CORR16);
+  const base = addRootPanel(d, 0, 0, 140, 90);
+  const tray = addTray(d, base, 50)!;
+  autoConnect(d);
+  setTrayKinds(d, tray, { tabLen: 'through' });
+  const front = `${tray}/e0`;
+  const fo = addFoldOver(d, front)!;
+  updateFoldOver(d, front, fo, { lock: 'tabs' });
+  autoConnect(d);
+  return d;
+}
+
+/** Card tray with a gable wall and a roof grown from its slope. */
+export function v6CardGable(): Design {
+  const d = createDesign(CARD);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  const walls = [0, 1, 2, 3].map((e) => growPanel(d, base, E(e), { height: 50, angle: 90, dir: 'up', kind: 'fold' })!.panelId);
+  autoConnect(d);
+  addWallInsert(d, walls[0], 'e2', 0.5, 30);
+  growPanel(d, walls[0], 'e2', { height: 40, angle: 90, dir: 'up', kind: 'fold' });
+  autoConnect(d);
+  return d;
+}

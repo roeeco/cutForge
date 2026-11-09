@@ -3,14 +3,19 @@
 // owned by connections, so every operation ends with a consistent design.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
-import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, DividerSet, FoldOver, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import { insideCornerExtensions, reconcileTrays, trayOf, trayWalls, wallHeight } from './trays';
+import { clearBox, memberOf, reconcileDividerSets, renamePanel } from './dividers';
+import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
-import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
-import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
-import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, type EdgeArg } from './edges';
+import { allowedKinds, designKind, dividerKind, groupConnections, jointGroup, newTrayKinds, type JointGroup } from './jointDefaults';
+import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
+import { panelEdges as panelEdgesOf } from './edges';
+const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
+import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
+import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
 const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -51,9 +56,9 @@ export function seatingOf(kind: ConnectionKind): Seating {
 }
 
 /** Use the preferred joint when it is allowed here, otherwise the default (first) one. */
-export function fitKind(c: Connection, allowed: ConnectionKind[]) {
+export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: ConnectionKind) {
   c.pref ??= c.kind;
-  c.kind = allowed.includes(c.pref) ? c.pref : allowed[0];
+  c.kind = allowed.includes(c.pref) ? c.pref : fallback && allowed.includes(fallback) ? fallback : allowed[0];
 }
 
 /**
@@ -70,12 +75,15 @@ export function solve(d: Design) {
     p.sketch ??= parentConnection(d, id) ? { kind: 'wall' } : rectSketch(p.w, p.h);
     // a polygon sketch decides the bounding size
     if (p.sketch.kind === 'poly' && !isRectSketch(p)) {
-      p.w = Math.max(...p.sketch.pts.map((q) => q.x));
-      p.h = Math.max(...p.sketch.pts.map((q) => q.y));
+      // the outline as drawn: a curve can bulge past its points
+      const pts = p.sketch.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : p.sketch.pts;
+      p.w = Math.max(...pts.map((q) => q.x));
+      p.h = Math.max(...pts.map((q) => q.y));
     }
   }
   reconcileWallSets(d);
   reconcileTrays(d, makeTrayWall);
+  reconcileDividerSets(d);
   insideCornerExtensions(
     d,
     (baseId, key) => {
@@ -100,16 +108,22 @@ export function solve(d: Design) {
       done.add(child.id);
       // the parent edge is gone (a vertex was deleted): keep the panel where it was, flagged
       if (!findEdge(parent, c.a.edge)) continue;
-      fitKind(c, connectionsFor(d.material, c.angle));
-      child.frame = growFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset);
-      child.w = edgeLength(parent, c.a.edge);
+      const ok = connectionsFor(d.material, c.angle);
+      fitKind(c, ok, designKind(d, 'base', ok));
+      // part of the edge (a partial width), except for tray walls
+      const span = c.trayId ? null : c.span;
+      child.frame = spanFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset, span);
+      const [s0, s1] = spanOf(parent, c.a.edge, span);
+      child.w = s1 - s0;
       child.h = Math.max(child.h, MIN_PANEL);
       done.add(child.id);
     }
   }
   for (const c of Object.values(d.connections)) {
     if (!c.grown) {
-      fitKind(c, seamKinds(d.material, seamTypeOf(c)));
+      const ok = seamKinds(d.material, seamTypeOf(c));
+      const g = jointGroup(c);
+      fitKind(c, ok, g ? designKind(d, g, ok) : undefined);
     }
     const g = connectionGeom(d as Design, c as Connection);
     if (g) {
@@ -167,7 +181,8 @@ export function reconcileWallSets(d: Design) {
         d.pieces[id] = { quantity: d.pieces[wall.id]?.quantity ?? 1 };
       }
       d.panels[id].broken = false;
-      if (!d.connections[cid]) d.connections[cid] = { ...plain({ ...c, geom: undefined }), id: cid, a: { panelId: parent.id, edge: `${c.a.edge}#${n}` }, b: { panelId: id, edge: 'e0' } };
+      // (a wall on part of an edge keeps its part on the first piece; the walls on the other pieces take their whole piece)
+      if (!d.connections[cid]) d.connections[cid] = { ...plain({ ...c, geom: undefined, span: undefined }), id: cid, a: { panelId: parent.id, edge: `${c.a.edge}#${n}` }, b: { panelId: id, edge: 'e0' } };
       // one set: the same height, angle and joint
       const dc = d.connections[cid];
       Object.assign(dc, { kind: c.kind, pref: c.pref, angle: c.angle, dir: c.dir, offset: c.offset, fingers: c.fingers, tabs: c.tabs, flap: c.flap, foldDir: c.foldDir, trayId: c.trayId });
@@ -228,7 +243,7 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
   const id = newId('tr');
   d.trays ??= {};
-  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + d.material.thickness, height), ...trayKinds(d.material), ...kinds, openEdges: [] };
+  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + d.material.thickness, height), ...newTrayKinds(d), ...kinds, openEdges: [] };
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
@@ -291,7 +306,18 @@ export function addRootPanel(d: Design, x: number, z: number, w: number, h: numb
 }
 
 /** `pref`: the joint wanted whenever the angle allows it (default: `kind`). */
-export type GrowOpts = { height: number; angle: number; dir: GrowDir; kind: ConnectionKind; offset?: number; pref?: ConnectionKind };
+export type GrowOpts = {
+  height: number;
+  angle: number;
+  dir: GrowDir;
+  kind: ConnectionKind;
+  offset?: number;
+  pref?: ConnectionKind;
+  /** Part of the parent edge to stand on ([s0, s1] mm from its start); absent: the whole edge. */
+  span?: [number, number] | null;
+  /** The new panel's outline (wall corners and inserts), e.g. trimmed to its neighbours. */
+  sketch?: WallSketch | null;
+};
 
 /** Default distance from the edge for a tab-and-slot wall: leaves a safe web outside its slots. */
 export function defaultOffset(d: Design, kind: ConnectionKind): number {
@@ -301,19 +327,29 @@ export function defaultOffset(d: Design, kind: ConnectionKind): number {
 export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: GrowOpts): { panelId: string; connectionId: string } | null {
   const parent = d.panels[parentId];
   const edge = ek(edgeArg);
-  if (!parent || !findEdge(parent, edge)) return null;
+  if (!parent || !findEdge(parent, edge) || isCurveKey(edge)) return null;
   const offset = opts.offset ?? defaultOffset(d, opts.kind);
-  if (offset === 0 && edgeConnection(d, parentId, edge)) return null;
+  const L = edgeLength(parent, edge);
+  const partial = opts.span && spanOf(parent, edge, opts.span)[1] - spanOf(parent, edge, opts.span)[0] < L - 1e-6 ? spanOf(parent, edge, opts.span) : null;
+  if (offset === 0) {
+    // the edge (or the part asked for) must be free
+    const want = partial ?? [0, L];
+    const free = edgeFreeSpans(d, parentId, edge);
+    if (!free.some(([a, b]) => a <= want[0] + 1e-6 && b >= want[1] - 1e-6)) return null;
+  }
   const id = newId('p');
   d.panels[id] = {
     id,
     name: `${d.order.length + 1}`,
-    w: edgeLength(parent, edge),
+    w: partial ? partial[1] - partial[0] : L,
     h: Math.max(MIN_PANEL, opts.height),
-    sketch: { kind: 'wall' },
-    frame: growFrame(parent, edge, opts.angle, opts.dir, d.material.thickness, seatingOf(opts.kind), offset),
+    sketch: { kind: 'wall', ...(opts.sketch ? plain({ corners: opts.sketch.corners, inserts: opts.sketch.inserts }) : {}) },
+    frame: spanFrame(parent, edge, opts.angle, opts.dir, d.material.thickness, seatingOf(opts.kind), offset, partial),
     details: [],
   };
+  const ws = d.panels[id].sketch as WallSketch;
+  if (!ws.corners) delete ws.corners;
+  if (!ws.inserts) delete ws.inserts;
   d.order.push(id);
   d.pieces[id] = { quantity: 1 };
   const cid = newId('c');
@@ -331,6 +367,7 @@ export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: G
     tabs: null,
     flap: null,
     foldDir: opts.dir === 'up' ? 'valley' : 'mountain',
+    ...(partial ? { span: [partial[0], partial[1]] as [number, number] } : {}),
   };
   solve(d);
   // an angled plywood panel is held by side walls: connect to any that are there
@@ -358,6 +395,8 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   const ta = trayOf(d, seam.a.panelId), tb = trayOf(d, seam.b.panelId);
   const tray = ta && tb && ta.id === tb.id && ta.baseId !== seam.a.panelId && ta.baseId !== seam.b.panelId ? ta : undefined;
   if (!kind && tray && seam.type === 'corner') kind = tray.cornerKind;
+  // otherwise the design's choice for corners or for edges on a face
+  if (!kind && seam.type !== 'cross') kind = designKind(d, seam.type === 'corner' ? 'corner' : 'base', kinds);
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
   const cid = newId('c');
   // fingers: `a` must be the earlier panel, which owns the corners
@@ -390,10 +429,11 @@ export function autoConnect(d: Design) {
   if (removed) solve(d);
   if (d.noAutoSeams?.length) d.noAutoSeams = d.noAutoSeams.filter((k) => k.split('|').every((id) => d.panels[id]));
   const skip = new Set(d.noAutoSeams ?? []);
+  const tried = new Set<string>();
   for (let i = 0; i < 500; i++) {
-    const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)));
+    const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)) && !tried.has(seamKey(x)));
     if (!s) break;
-    skip.add(pairKey(s.a.panelId, s.b.panelId));
+    tried.add(seamKey(s));
     connectSeam(d, s);
   }
 }
@@ -419,11 +459,192 @@ export function deleteConnection(d: Design, id: string) {
  * with crossing dividers.
  */
 export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: number, height: number): string | null {
-  const kind: ConnectionKind = d.material.kind === 'plywood' ? 'tabslot' : 'butt';
+  const kind = dividerKind(d);
   const r = growPanel(d, baseId, edge, { height, angle: 90, dir: 'up', kind, offset: Math.max(0.5, position) });
   if (!r) return null;
   connectSeams(d, r.panelId);
   return r.panelId;
+}
+
+/** The divider set on a base, if any. */
+export function dividerSetOf(d: Design, baseId: string): DividerSet | undefined {
+  return Object.values(d.dividerSets ?? {}).find((s) => s.baseId === baseId);
+}
+
+/** Can a base take automatic dividers? A rectangle with a clear inside. */
+export function canDividerSet(d: Design, baseId: string): boolean {
+  const b = clearBox(d, baseId);
+  return !!b && b.x1 - b.x0 > 10 && b.y1 - b.y0 > 10;
+}
+
+/**
+ * Make or change the automatic dividers on a base (counts across and along,
+ * height, even or by compartment size). Counts of 0 and 0 remove the set.
+ */
+export function setDividerSet(d: Design, baseId: string, patch: Partial<Pick<DividerSet, 'across' | 'along' | 'height' | 'mode' | 'size'>>): string | null {
+  if (!canDividerSet(d, baseId)) return null;
+  d.dividerSets ??= {};
+  let set = dividerSetOf(d, baseId);
+  if (!set) {
+    const id = `${baseId}/div`;
+    const walls = Object.values(d.connections).filter((c) => c.grown && c.a.panelId === baseId).map((c) => d.panels[c.b.panelId]?.h ?? 40);
+    const h = Math.max(10, Math.round((walls.length ? Math.min(...walls) : 40) - d.material.thickness - 5));
+    set = d.dividerSets[id] = { id, baseId, across: 0, along: 0, height: h, mode: 'even' };
+  }
+  Object.assign(set, patch);
+  set.across = Math.max(0, Math.min(20, Math.round(set.across)));
+  set.along = Math.max(0, Math.min(20, Math.round(set.along)));
+  if (set.mode === 'size') set.size = Math.max(5, set.size ?? 30);
+  const id = set.id;
+  if (!set.across && !set.along) {
+    // an empty set: its dividers go (ones placed by hand stay, as ordinary dividers)
+    for (const pid of d.order.filter((x) => memberOf(d, x)?.set.id === id)) {
+      for (const c of Object.values(d.connections)) if (c.a.panelId === pid || c.b.panelId === pid) delete d.connections[c.id];
+      delete d.panels[pid];
+      delete d.pieces[pid];
+    }
+    d.order = d.order.filter((x) => d.panels[x]);
+    delete d.dividerSets[id];
+  }
+  solve(d);
+  if (d.dividerSets[id]) for (const pid of d.order.filter((x) => memberOf(d, x)?.set.id === id)) connectSeams(d, pid);
+  return d.dividerSets[id] ? id : null;
+}
+
+/**
+ * Take a divider out of its set (it was dragged by hand), keeping where it is:
+ * it is renamed `to`, the members after it move down one, and the set has one
+ * fewer (by-size spacing becomes even spacing with the rest).
+ */
+export function releaseDivider(d: Design, panelId: string, to: string): string {
+  const m = memberOf(d, panelId);
+  if (!m) return panelId;
+  const { set, axis, n } = m;
+  const count = axis === 'a' ? set.across : set.along;
+  if (set.mode === 'size') {
+    set.mode = 'even';
+    const box = clearBox(d, set.baseId);
+    set.across = d.order.filter((x) => memberOf(d, x)?.set.id === set.id && memberOf(d, x)?.axis === 'a').length;
+    set.along = d.order.filter((x) => memberOf(d, x)?.set.id === set.id && memberOf(d, x)?.axis === 'l').length;
+    void box;
+  }
+  renamePanel(d, panelId, to);
+  for (let k = n + 1; k <= count; k++) renamePanel(d, `${set.id}/${axis}${k}`, `${set.id}/${axis}${k - 1}`);
+  if (axis === 'a') set.across = Math.max(0, set.across - 1);
+  else set.along = Math.max(0, set.along - 1);
+  set.loose = [...(set.loose ?? []), to];
+  return to;
+}
+
+/** Bring dividers dragged out of a set back into it, all spaced evenly. */
+export function respaceDividers(d: Design, setId: string) {
+  const set = d.dividerSets?.[setId];
+  if (!set) return;
+  const base = d.panels[set.baseId];
+  for (const id of set.loose ?? []) {
+    const c = parentConnection(d, id);
+    if (!c || !base || c.a.panelId !== base.id) continue;
+    const axis = c.a.edge === 'e3' ? 'a' : c.a.edge === 'e0' ? 'l' : null;
+    if (!axis) continue;
+    const n = (axis === 'a' ? set.across : set.along) + 1;
+    renamePanel(d, id, `${set.id}/${axis}${n}`);
+    const cc = parentConnection(d, `${set.id}/${axis}${n}`);
+    if (cc && cc.id !== `${set.id}/c/${axis}${n}` && !d.connections[`${set.id}/c/${axis}${n}`]) {
+      delete d.connections[cc.id];
+      cc.id = `${set.id}/c/${axis}${n}`;
+      d.connections[cc.id] = cc;
+    }
+    if (axis === 'a') set.across = n;
+    else set.along = n;
+  }
+  set.loose = [];
+  set.mode = 'even';
+  solve(d);
+}
+
+/** A face picked on the stage: the panel, which face (1: its material side, z = t; −1: its plane, z = 0), and the world point clicked. */
+export type FacePick = { panelId: string; side: 1 | -1; point: [number, number, number] };
+export type BetweenPlan =
+  | { ok: true; baseId: string; edge: string; offset: number; height: number }
+  | { ok: false; reason: 'notParallel' | 'notFacing' | 'notSameBase' | 'noEdge' | 'tooClose' };
+
+/** Gap between a divider's top and the lower of the two walls it is made between (mm). */
+export const DIVIDER_GAP = 5;
+
+/**
+ * Can a divider be made between two picked faces? They must be parallel
+ * (within 1°), face each other, and belong to panels standing on the same
+ * base; the divider stands square to both, from a base edge that runs that
+ * way, centred on the second click.
+ */
+export function planDividerBetween(d: Design, a: FacePick, b: FacePick): BetweenPlan {
+  const A = d.panels[a.panelId], B = d.panels[b.panelId];
+  if (!A || !B || A.id === B.id) return { ok: false, reason: 'notFacing' };
+  const t = d.material.thickness;
+  const out = (p: Panel, side: 1 | -1) => {
+    const m = matDirOf(p.frame);
+    return [m[0] * side, m[1] * side, m[2] * side] as [number, number, number];
+  };
+  const nA = out(A, a.side), nB = out(B, b.side);
+  const dot = nA[0] * nB[0] + nA[1] * nB[1] + nA[2] * nB[2];
+  if (Math.abs(dot) < Math.cos(Math.PI / 180)) return { ok: false, reason: 'notParallel' };
+  const ab = [b.point[0] - a.point[0], b.point[1] - a.point[1], b.point[2] - a.point[2]];
+  if (dot > 0 || ab[0] * nA[0] + ab[1] * nA[1] + ab[2] * nA[2] <= 1e-6) return { ok: false, reason: 'notFacing' };
+  const ca = parentConnection(d, A.id), cb = parentConnection(d, B.id);
+  if (!ca || !cb || ca.a.panelId !== cb.a.panelId) return { ok: false, reason: 'notSameBase' };
+  const base = d.panels[ca.a.panelId];
+  // a base edge running along the faces' normal
+  const nl = { x: nA[0] * base.frame.u[0] + nA[1] * base.frame.u[1] + nA[2] * base.frame.u[2], y: nA[0] * base.frame.v[0] + nA[1] * base.frame.v[1] + nA[2] * base.frame.v[2] };
+  const ll = Math.hypot(nl.x, nl.y);
+  if (ll < 0.99) return { ok: false, reason: 'notParallel' };
+  const q = (() => {
+    const o = base.frame.o;
+    const r = [b.point[0] - o[0], b.point[1] - o[1], b.point[2] - o[2]];
+    return { x: r[0] * base.frame.u[0] + r[1] * base.frame.u[1] + r[2] * base.frame.u[2], y: r[0] * base.frame.v[0] + r[1] * base.frame.v[1] + r[2] * base.frame.v[2] };
+  })();
+  let best: { key: string; off: number } | null = null;
+  for (const e of panelEdgesOf(base)) {
+    const dir = segDir(e);
+    if (Math.abs(dir.x * nl.x + dir.y * nl.y) / ll < Math.cos(Math.PI / 180)) continue;
+    const inw = { x: -dir.y, y: dir.x };
+    const off = (q.x - e.a.x) * inw.x + (q.y - e.a.y) * inw.y - t / 2;
+    if (off <= 0) continue;
+    if (!best || off < best.off) best = { key: e.key, off };
+  }
+  if (!best) return { ok: false, reason: 'noEdge' };
+  if (best.off < 1) return { ok: false, reason: 'tooClose' };
+  // the lower wall's top, above the base's top face
+  const top = (p: Panel) => {
+    const m = matDirOf(base.frame);
+    let hi = -Infinity;
+    for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) {
+      const w = toWorldOf(p, x, y);
+      hi = Math.max(hi, (w[0] - base.frame.o[0]) * m[0] + (w[1] - base.frame.o[1]) * m[1] + (w[2] - base.frame.o[2]) * m[2]);
+    }
+    return hi;
+  };
+  const height = Math.round(Math.min(top(A), top(B)) - t - DIVIDER_GAP);
+  if (height < MIN_PANEL) return { ok: false, reason: 'tooClose' };
+  return { ok: true, baseId: base.id, edge: best.key, offset: Math.round(best.off * 10) / 10, height };
+}
+
+/** Make the divider `planDividerBetween` describes; its ends are joined to the two walls. */
+export function addDividerBetween(d: Design, a: FacePick, b: FacePick): string | null {
+  const plan = planDividerBetween(d, a, b);
+  if (!plan.ok) return null;
+  const kind = dividerKind(d);
+  const r = growPanel(d, plan.baseId, plan.edge, { height: plan.height, angle: 90, dir: 'up', kind, offset: plan.offset });
+  if (!r) return null;
+  connectSeams(d, r.panelId);
+  return r.panelId;
+}
+
+/** Move a divider (a panel grown at an offset) to a new offset from its parent edge. */
+export function setDividerOffset(d: Design, panelId: string, offset: number) {
+  const c = parentConnection(d, panelId);
+  if (!c) return;
+  c.offset = Math.max(0.5, offset);
+  solve(d);
 }
 
 /**
@@ -436,7 +657,7 @@ export function addSideWalls(d: Design, baseId: string, edge: EdgeArg, angle: nu
   const nb = base && edgeNeighbours(base, edge);
   if (!nb) return [];
   const h = Math.ceil(t + leanHeight * Math.sin((angle * Math.PI) / 180) + 5);
-  const kind: ConnectionKind = d.material.kind === 'plywood' ? 'finger' : 'fold';
+  const kind = designKind(d, 'base', connectionsFor(d.material, 90)) ?? (d.material.kind === 'plywood' ? 'finger' : 'fold');
   const made: string[] = [];
   for (const e of [nb[1].key, nb[0].key]) {
     if (edgeConnection(d, baseId, e)) continue;
@@ -525,9 +746,11 @@ export function setEdgeLength(d: Design, panelId: string, key: string, length: n
 export function normalizeSketch(p: Panel) {
   const s = p.sketch;
   if (s.kind !== 'poly') return;
-  const minX = Math.min(...s.pts.map((q) => q.x)), minY = Math.min(...s.pts.map((q) => q.y));
+  // the outline as drawn: a curve can bulge past its points
+  const ring = s.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : s.pts;
+  const minX = Math.min(...ring.map((q) => q.x)), minY = Math.min(...ring.map((q) => q.y));
   if (Math.abs(minX) > 1e-9 || Math.abs(minY) > 1e-9) {
-    s.pts = s.pts.map((q) => ({ x: q.x - minX, y: q.y - minY }));
+    s.pts = s.pts.map((q) => ({ ...q, x: q.x - minX, y: q.y - minY }));
     const f = p.frame;
     p.frame = { ...f, o: [f.o[0] + f.u[0] * minX + f.v[0] * minY, f.o[1] + f.u[1] * minX + f.v[1] * minY, f.o[2] + f.u[2] * minX + f.v[2] * minY] };
     for (const dt of p.details) {
@@ -535,8 +758,76 @@ export function normalizeSketch(p: Panel) {
       dt.cy -= minY;
     }
   }
-  p.w = Math.max(...s.pts.map((q) => q.x));
-  p.h = Math.max(...s.pts.map((q) => q.y));
+  const after = s.pts.some((q) => q.curve) ? sketchRing(p).map((e) => e.a) : s.pts;
+  p.w = Math.max(...after.map((q) => q.x));
+  p.h = Math.max(...after.map((q) => q.y));
+}
+
+/** Normalise an angle to (−180, 180] degrees, rounded to 1e-9. */
+export const normDeg = (a: number) => {
+  let x = ((a % 360) + 360) % 360;
+  if (x > 180) x -= 360;
+  return Math.round(x * 1e9) / 1e9;
+};
+
+/**
+ * Turn shapes by `deg` (counter-clockwise, in their panels' own coordinates)
+ * about a pivot on the first shape's panel (default: the centre of the
+ * shapes' boxes): each shape's centre moves round the pivot and its `rot`
+ * changes by the same angle.
+ */
+export function rotateDetails(d: Design, ids: string[], deg: number, pivot?: P2) {
+  const found = ids.map((id) => findDetail(d, id)).filter((f): f is NonNullable<typeof f> => !!f);
+  if (!found.length || !deg) return;
+  if (!pivot) {
+    const pts = found.flatMap((f) => [{ x: f.detail.cx, y: f.detail.cy }]);
+    pivot = { x: (Math.min(...pts.map((q) => q.x)) + Math.max(...pts.map((q) => q.x))) / 2, y: (Math.min(...pts.map((q) => q.y)) + Math.max(...pts.map((q) => q.y))) / 2 };
+  }
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  for (const { detail } of found) {
+    const x = detail.cx - pivot.x, y = detail.cy - pivot.y;
+    if (found.length > 1) {
+      detail.cx = pivot.x + x * c - y * s;
+      detail.cy = pivot.y + x * s + y * c;
+    }
+    const r = normDeg((detail.rot ?? 0) + deg);
+    if (r) detail.rot = r;
+    else delete detail.rot;
+  }
+}
+
+/** A floor panel's turn about the vertical, in degrees (0 = as drawn): from its frame's u axis. */
+export function panelYaw(p: Panel): number {
+  return normDeg((Math.atan2(-p.frame.u[2], p.frame.u[0]) * 180) / Math.PI);
+}
+
+/**
+ * Turn a floor panel (and everything grown on it, which follows through
+ * `solve`) about the vertical by `deg`, counter-clockwise seen from above,
+ * around a world pivot (default: the panel's centre).
+ */
+export function rotatePanel(d: Design, panelId: string, deg: number, pivot?: [number, number]) {
+  const p = d.panels[panelId];
+  if (!p || parentConnection(d, panelId) || !deg) return;
+  const f = p.frame;
+  const centre = (): [number, number] => [f.o[0] + f.u[0] * (p.w / 2) + f.v[0] * (p.h / 2), f.o[2] + f.u[2] * (p.w / 2) + f.v[2] * (p.h / 2)];
+  const [px, pz] = pivot ?? centre();
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  // counter-clockwise from above (y up): x' = x c + z s, z' = −x s + z c
+  const turn = (x: number, z: number): [number, number] => [x * c + z * s, -x * s + z * c];
+  const clean = (x: number) => (Math.abs(x) < 1e-12 ? 0 : Math.round(x * 1e12) / 1e12);
+  const [ox, oz] = turn(f.o[0] - px, f.o[2] - pz);
+  const [ux, uz] = turn(f.u[0], f.u[2]);
+  const [vx, vz] = turn(f.v[0], f.v[2]);
+  p.frame = { ...f, o: [clean(px + ox), f.o[1], clean(pz + oz)], u: [clean(ux), f.u[1], clean(uz)], v: [clean(vx), f.v[1], clean(vz)] };
+  solve(d);
+}
+
+/** Set a floor panel's turn about the vertical to `deg` (about its centre). */
+export function setPanelYaw(d: Design, panelId: string, deg: number) {
+  const p = d.panels[panelId];
+  if (!p) return;
+  rotatePanel(d, panelId, normDeg(deg - panelYaw(p)));
 }
 
 export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
@@ -606,7 +897,7 @@ function nextEdgeId(ids: string[]): string {
 export function moveVertex(d: Design, panelId: string, i: number, to: P2): boolean {
   const p = d.panels[panelId];
   if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return false;
-  const pts = p.sketch.pts.map((q, k) => (k === i ? { x: to.x, y: to.y } : q));
+  const pts = p.sketch.pts.map((q, k) => (k === i ? { ...q, x: to.x, y: to.y } : q));
   if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
   p.sketch.pts = pts;
   normalizeSketch(p);
@@ -696,9 +987,10 @@ export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off
   const s = wallSketch(d, wallId);
   if (!s) return;
   const bottom = corner === 'bl' || corner === 'br';
-  const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100 };
+  const curve = s.corners?.[corner]?.curve;
+  const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100, ...(curve ? { curve } : {}) };
   s.corners = { ...(s.corners ?? {}), [corner]: v };
-  if (!v.dx && !v.dy) delete s.corners[corner];
+  if (!v.dx && !v.dy && !curve) delete s.corners[corner];
   if (!Object.keys(s.corners).length) delete s.corners;
   solve(d);
 }
@@ -728,6 +1020,76 @@ export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
   s.inserts = s.inserts.filter((x) => x.id !== insertId);
   if (!s.inserts.length) delete s.inserts;
   solve(d);
+}
+
+/** An outline point that can be curved: a base polygon's vertex (index), a wall's top corner or inserted point (id). */
+export type OutlinePoint = number | 'tl' | 'tr' | string;
+
+/** The edge keys either side of an outline point (from the straight sketch), or null when it has none. */
+function pointEdges(p: Panel, pt: OutlinePoint): string[] | null {
+  const ring = straightRing(p);
+  const s = p.sketch;
+  let at: P2 | undefined;
+  if (s.kind === 'poly') at = typeof pt === 'number' ? s.pts[pt] : undefined;
+  else if (pt === 'tl' || pt === 'tr') at = ring.find((e) => e.key === (pt === 'tr' ? 'e2' : 'e3'))?.a;
+  else at = ring.find((e) => e.key === pt)?.a;
+  if (!at) return null;
+  const same = (q: P2) => Math.hypot(q.x - at!.x, q.y - at!.y) < 1e-6;
+  return ring.filter((e) => same(e.a) || same(e.b)).map((e) => e.key);
+}
+
+/**
+ * Why an outline point cannot become a curve, or null: an edge either side of
+ * it carries a joint, a grown panel or a fold-over (a curved edge holds none).
+ */
+export function curveBlocked(d: Design, panelId: string, pt: OutlinePoint): 'joined' | 'none' | null {
+  const p = d.panels[panelId];
+  const keys = p && pointEdges(p, pt);
+  if (!p || !keys) return 'none';
+  const set = new Set(keys);
+  const on = (r: { panelId: string; edge: string }) => r.panelId === panelId && set.has(baseKey(r.edge));
+  if (Object.values(d.connections).some((c) => on(c.a) || on(c.b))) return 'joined';
+  if ((p.foldOvers ?? []).some((f) => set.has(f.edge))) return 'joined';
+  return null;
+}
+
+/** Is this outline point an auto curve? */
+export function pointCurve(d: Design, panelId: string, pt: OutlinePoint): boolean {
+  const s = d.panels[panelId]?.sketch;
+  if (!s) return false;
+  if (s.kind === 'poly') return typeof pt === 'number' && !!s.pts[pt]?.curve;
+  if (pt === 'tl' || pt === 'tr') return !!s.corners?.[pt]?.curve;
+  return !!s.inserts?.find((x) => x.id === pt)?.curve;
+}
+
+/** Make an outline point a smooth (auto) curve or a corner again. Refused while an edge beside it is joined. */
+export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: boolean): boolean {
+  const p = d.panels[panelId];
+  if (!p) return false;
+  if (on && curveBlocked(d, panelId, pt)) return false;
+  const s = p.sketch;
+  if (s.kind === 'poly') {
+    if (typeof pt !== 'number' || !s.pts[pt] || parentConnection(d, panelId)) return false;
+    const q = { ...s.pts[pt] };
+    if (on) q.curve = 'auto';
+    else delete q.curve;
+    s.pts = s.pts.map((x, k) => (k === pt ? q : x));
+    normalizeSketch(p);
+  } else if (pt === 'tl' || pt === 'tr') {
+    const c = { dx: 0, dy: 0, ...s.corners?.[pt] };
+    if (on) c.curve = 'auto';
+    else delete c.curve;
+    s.corners = { ...(s.corners ?? {}), [pt]: c };
+    if (!c.dx && !c.dy && !c.curve) delete s.corners[pt];
+    if (!Object.keys(s.corners).length) delete s.corners;
+  } else {
+    const ins = s.inserts?.find((x) => x.id === pt);
+    if (!ins) return false;
+    if (on) ins.curve = 'auto';
+    else delete ins.curve;
+  }
+  solve(d);
+  return true;
 }
 
 /** Can this wall edge take a fold-over: card or corrugated, a grown wall, a free edge? */
@@ -852,7 +1214,7 @@ export function findDetail(d: Design, detailId: string): { panel: Panel; detail:
   return null;
 }
 
-export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op' | 'through'>>) {
+export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op' | 'through' | 'rot'>>) {
   const f = findDetail(d, detailId);
   if (!f) return;
   const dt = f.detail;
@@ -892,11 +1254,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.kind) {
     const allowed = c.grown ? connectionsFor(d.material, c.angle) : seamKinds(d.material, seamTypeOf(c));
     if (allowed.includes(patch.kind)) {
-      c.kind = patch.kind;
-      c.pref = patch.kind;
+      applyKind(d, c, patch.kind, patch.offset !== undefined);
       c.auto = false;
-      if (c.grown && c.kind !== 'tabslot' && patch.offset === undefined && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
-      if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot');
     }
   }
   if (patch.fingers !== undefined) c.fingers = patch.fingers === null ? null : Math.max(3, Math.round(patch.fingers) | 1);
@@ -913,6 +1272,51 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.offset !== undefined && c.grown) c.offset = Math.max(0, patch.offset);
   solve(d);
   if (c.grown && c.kind === 'lean') connectSeams(d, c.b.panelId);
+}
+
+/** Set a joint's kind (and wish), moving a grown panel to or from the tab-and-slot stand-in. */
+function applyKind(d: Design, c: Connection, kind: ConnectionKind, keepOffset = false) {
+  c.kind = kind;
+  c.pref = kind;
+  if (c.grown && c.kind !== 'tabslot' && !keepOffset && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
+  if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot');
+}
+
+/**
+ * Design-wide joint kind for a group (*Wall to base* or *Corners*): every
+ * joint of the group that may take `kind` takes it, including joints set by
+ * hand (they stay hand-set or automatic as they were); trays take it for their
+ * walls or corners where a tray allows it; and it becomes the default for new
+ * joints of the group. Returns how many joints changed and how many kept
+ * their kind because `kind` is not allowed for them (angle, seam type).
+ */
+export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind): { changed: number; kept: number } {
+  let changed = 0, kept = 0;
+  for (const c of groupConnections(d, group)) {
+    if (!allowedKinds(d, c).includes(kind)) {
+      if (c.kind !== kind) kept++;
+      continue;
+    }
+    if (c.kind !== kind) changed++;
+    applyKind(d, c, kind);
+  }
+  for (const tray of Object.values(d.trays ?? {})) {
+    if (group === 'base' && connectionsFor(d.material, 90).includes(kind)) tray.wallKind = kind;
+    if (group === 'corner' && seamKinds(d.material, 'corner').includes(kind)) tray.cornerKind = kind;
+  }
+  d.joints = { ...d.joints, [group]: kind };
+  solve(d);
+  return { changed, kept };
+}
+
+/** The design's glue flap width (mm), replacing the automatic width on joints without their own; null: automatic. */
+export function setDefaultFlap(d: Design, width: number | null) {
+  const j = { ...d.joints };
+  if (width === null) delete j.flap;
+  else j.flap = Math.max(3, Math.min(100, width));
+  d.joints = j;
+  if (!Object.keys(j).length) delete d.joints;
+  solve(d);
 }
 
 /** A grown connection standing well inside its parent (a divider), not at the edge. */

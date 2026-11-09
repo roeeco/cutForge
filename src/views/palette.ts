@@ -11,7 +11,7 @@ export const MATERIAL_COLORS: Record<MaterialKind, { face: string; edge: string;
   card: { face: '#ede6d8', edge: '#c7bca6', sheet: '#f5f1e9' },
 };
 
-export const STAGE = { bg: '#eef1f5', gridMinor: '#dfe4eb', gridMajor: '#c9d1dc', outline: '#3a3530', selected: '#1fb8ac', hover: '#5fd3c9', ghost: '#1fb8ac', blocked: '#f0a020' };
+export const STAGE = { bg: '#eef1f5', gridMinor: '#dfe4eb', gridMajor: '#c9d1dc', outline: '#3a3530', selected: '#1fb8ac', hover: '#5fd3c9', ghost: '#13897f', ghostEdge: '#0b4f4a', ghostOpacity: 0.5, blocked: '#f0a020' };
 
 function jitter(index: number): { dl: number; dh: number } {
   // golden-ratio sequence: consecutive parts land far apart

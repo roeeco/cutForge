@@ -1,6 +1,7 @@
 // Pieces: one connected flat outline to cut. Panels joined by folds form one
 // flat net (unfolded about their fold lines); everything else is separate.
-import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
+import { type MultiPolygon, type Polygon } from 'polygon-clipping';
+import { safeDifference, safeUnion } from '../geom/clip';
 import type { Design, P2, Panel } from './types';
 import type { EdgeArg } from './edges';
 import type { TaggedContour, Xform2 } from '../geom/types';
@@ -22,10 +23,12 @@ export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[]
 export const pieceRoot = (key: string) => key.split('~')[0];
 
 /** Rigid unfolding of a folded child into its parent's coordinates. */
-export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number): Xform2 {
-  const [A, B] = edgeLocal(parent, edge);
-  const l = Math.hypot(B.x - A.x, B.y - A.y);
-  const U = { x: (B.x - A.x) / l, y: (B.y - A.y) / l };
+export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number, s0 = 0): Xform2 {
+  const [A0, B] = edgeLocal(parent, edge);
+  const l = Math.hypot(B.x - A0.x, B.y - A0.y);
+  const U = { x: (B.x - A0.x) / l, y: (B.y - A0.y) / l };
+  // a child on part of the edge starts s0 along it
+  const A = s0 ? { x: A0.x + U.x * s0, y: A0.y + U.y * s0 } : A0;
   const i = edgeInwardLocal(parent, edge);
   const O = { x: -i.x, y: -i.y };
   const det = U.x * O.y - U.y * O.x;
@@ -49,7 +52,7 @@ export function netGroups(d: Design): NetPanel[][] {
       const { panelId, xf } = group[i];
       for (const c of folds) {
         if (c.a.panelId !== panelId || inNet.has(c.b.panelId)) continue;
-        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, d.material.foldAllowance)) });
+        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, d.material.foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0)) });
         inNet.add(c.b.panelId);
       }
     }
@@ -95,7 +98,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
         // turned by an angle that is not square: join the panel and its own additions (flaps, fold-over rim and liner)
         // in its exact local coordinates first, so rounding after the turn cannot leave hairline gaps between them
         const local: Polygon[] = [...own.rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
-        for (const poly of polygonClipping.union(local[0], ...local.slice(1))) polys.push(poly.map((r) => toRing(r.slice(0, -1).map(([x, y]) => tf({ x, y })))) as Polygon);
+        for (const poly of safeUnion(local)) polys.push(poly.map((r) => toRing(r.slice(0, -1).map(([x, y]) => tf({ x, y })))) as Polygon);
       }
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
@@ -118,7 +121,13 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
       const parent = d.panels[c.a.panelId];
       const xf = group.find((g) => g.panelId === parent.id)!.xf;
-      const [A, B] = edgeLocal(parent, c.a.edge);
+      let [A, B] = edgeLocal(parent, c.a.edge);
+      if (c.span && !c.trayId) {
+        // the fold strip runs along the part of the edge the child stands on
+        const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
+        const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
+        [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
+      }
       const i = edgeInwardLocal(parent, c.a.edge);
       const al = d.material.foldAllowance;
       const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });
@@ -128,7 +137,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
       contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: c.b.panelId, foldId: c.id } });
     }
-    let merged: MultiPolygon = polys.length === 1 ? [polys[0]] : polygonClipping.union(polys[0], ...polys.slice(1));
+    let merged: MultiPolygon = safeUnion(polys);
     // material joints remove past a corner (layer 7)
     const cutPolys: Polygon[] = [];
     for (const { panelId, xf } of group) {
@@ -136,7 +145,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       // through-cuts from other panels (layer 5)
       for (const k of throughRegions(d, panelId)) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
     }
-    if (cutPolys.length) merged = polygonClipping.difference(merged, ...cutPolys);
+    if (cutPolys.length) merged = safeDifference(merged, cutPolys);
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {

@@ -10,6 +10,7 @@ import type { V3 } from '../model/types';
 import { evalNumber } from '../ui/NumField';
 import { fmtNum } from '../i18n';
 import { snapHinge } from '../model/hinge';
+import { noSmartSnap, turnStep } from '../store/store';
 
 export const HTML_Z: [number, number] = [5, 0];
 
@@ -98,11 +99,23 @@ export function ScreenSized({ position, children, quaternion }: { position: V3; 
 
 const onTop = { depthTest: false, depthWrite: false, transparent: true } as const;
 
+/**
+ * Raycast for handles drawn on top: their hits count as nearest, so a handle
+ * always wins over the model (and an edge's hit target) behind it.
+ */
+export function priorityRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+  const n = out.length;
+  THREE.Mesh.prototype.raycast.call(this, rc, out);
+  for (let i = n; i < out.length; i++) out[i].distance = 1e-3 * (i - n + 1);
+}
+
 /** Arrow handle at `at`, pointing along `axis`; dragging changes `value` (the distance from at − axis·value). */
 export function PushPull(props: {
   at: V3;
   axis: V3;
   value: number;
+  /** The arrow sits this far past the value along the axis (a gable's apex above the wall height). */
+  offset?: number;
   min?: number;
   max?: number;
   color?: string;
@@ -136,22 +149,22 @@ export function PushPull(props: {
         onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
         onPointerOut={() => setHover(false)}
         onPointerDown={(e) => {
-          const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value);
+          const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value - (props.offset ?? 0));
           const grab = closestOnLine(e.ray, base, axis) - props.value;
           start.current = { base, grab };
           down(e);
         }}
         userData={{ noAO: true, testId: props.testId }}
       >
-        <mesh position={[0, 8, 0]} renderOrder={20}>
+        <mesh position={[0, 8, 0]} renderOrder={20} raycast={priorityRaycast}>
           <coneGeometry args={[7, 14, 18]} />
           <meshBasicMaterial color={color} {...onTop} />
         </mesh>
-        <mesh position={[0, -1, 0]} renderOrder={20}>
+        <mesh position={[0, -1, 0]} renderOrder={20} raycast={priorityRaycast}>
           <cylinderGeometry args={[2.2, 2.2, 6, 10]} />
           <meshBasicMaterial color={color} {...onTop} />
         </mesh>
-        <mesh renderOrder={19}>
+        <mesh renderOrder={19} raycast={priorityRaycast}>
           <sphereGeometry args={[14, 12, 10]} />
           <meshBasicMaterial color="white" opacity={hover ? 0.55 : 0} {...onTop} />
         </mesh>
@@ -198,6 +211,8 @@ export function AngleArc(props: {
   label: string;
   message?: string;
   testId?: string;
+  /** Angles the knob snaps to within 3° (where the panel would rest on another one); Alt turns them off. */
+  targets?: number[];
 }) {
   const [hover, setHover] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -243,7 +258,10 @@ export function AngleArc(props: {
         raw = st.raw + (dRad * 180) / Math.PI;
       }
       drag.current = { raw, x: ev.clientX, y: ev.clientY };
-      const a = snapHinge(raw, ev.altKey);
+      const norm = ((raw % 360) + 360) % 360;
+      // rest angles on other panels are smart targets; the 5° steps (and the pull to 45° multiples) stay unless Alt is held
+      const near = noSmartSnap(ev) ? undefined : props.targets?.find((x) => Math.abs(((x - norm + 540) % 360) - 180) < 3);
+      const a = near !== undefined ? near : snapHinge(raw, ev.altKey);
       if (a !== props.value) props.onChange(a);
     },
     end: (cancel) => {
@@ -346,4 +364,331 @@ export function DimLine({ a, b, tick }: { a: V3; b: V3; tick: V3 }) {
   }, [a.join(), b.join(), tick.join()]);
   useEffect(() => () => (obj.geometry.dispose(), (obj.material as THREE.Material).dispose()), [obj]);
   return <primitive object={obj} raycast={() => null} />;
+}
+
+// ---------------------------------------------------------------------------
+// Move and rotate gizmo (milestone 17), for shapes (in their panel's plane)
+// and floor panels (on the floor). A centre pad moves freely in the plane, two
+// arrows move along one axis, the ring turns. Rotation snaps to 15° steps,
+// Shift gives 1°, Alt turns snapping off. While dragging, the angle or offset
+// shows next to the gizmo and can be typed (digits, then Enter).
+
+export type GizmoMode = 'pad' | 'x' | 'y' | 'ring';
+
+/** The pad wins over the arrows' hit zones where they overlap (an axis seen end-on). */
+function padRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+  const n = out.length;
+  THREE.Mesh.prototype.raycast.call(this, rc, out);
+  for (let i = n; i < out.length; i++) out[i].distance = 1e-4 * (i - n + 1);
+}
+
+/** Within this angle of edge-on (a plane) or of the view direction (an axis), the gizmo moves by screen distance. */
+export const GRAZING_DEG = 20;
+
+/** Whether a plane (normal n, through p) is seen within GRAZING_DEG of edge-on; updated as the camera moves. */
+export function useGrazing(n: V3, p: V3): boolean {
+  const { camera } = useThree();
+  const [g, setG] = useState(false);
+  const N = useMemo(() => new THREE.Vector3(...n).normalize(), [n[0], n[1], n[2]]);
+  const P = useMemo(() => new THREE.Vector3(...p), [p[0], p[1], p[2]]);
+  const sinG = Math.sin((GRAZING_DEG * Math.PI) / 180);
+  useFrame(() => {
+    const view = camera instanceof THREE.OrthographicCamera ? camera.getWorldDirection(new THREE.Vector3()) : P.clone().sub(camera.position).normalize();
+    const now = Math.abs(N.dot(view)) < sinG;
+    if (now !== g) setG(now);
+  });
+  return g;
+}
+
+/** A drag mapped from pointer pixels to a display-space move. */
+export interface ScreenMap {
+  move: (dxPx: number, dyPx: number) => THREE.Vector3;
+}
+
+/**
+ * For a grazing view, how pointer travel maps to movement (null when the plane
+ * or axis is seen well enough to intersect the pointer ray with it). One pixel
+ * is one pixel's worth of millimetres at the gizmo, whatever the angle:
+ * - pad: along the plane's in-screen direction (N × view) as seen, and the
+ *   other way along the plane's depth direction (up the screen = away);
+ * - arrow: along the axis's direction on screen (or up the screen = away,
+ *   when it points straight at the viewer).
+ */
+export function grazingMap(
+  mode: GizmoMode,
+  _p: THREE.Vector3,
+  ax: { AX: THREE.Vector3; AY: THREE.Vector3; N: THREE.Vector3 },
+  view: THREE.Vector3,
+  screenDir: (d: THREE.Vector3) => { x: number; y: number; k: number },
+  mmpp: number,
+): ScreenMap | null {
+  const sinG = Math.sin((GRAZING_DEG * Math.PI) / 180);
+  if (mode === 'ring') return null;
+  if (mode === 'pad') {
+    if (Math.abs(ax.N.dot(view)) >= sinG) return null;
+    const e1 = ax.N.clone().cross(view);
+    if (e1.lengthSq() < 1e-12) return null;
+    e1.normalize();
+    const e2 = ax.N.clone().cross(e1).normalize();
+    if (e2.dot(view) < 0) e2.negate();
+    const s1 = screenDir(e1);
+    // the screen direction perpendicular to e1's, on the side e2 is drawn (up when unclear)
+    let s2 = { x: s1.y, y: -s1.x };
+    const p2 = screenDir(e2);
+    const along = s2.x * p2.x + s2.y * p2.y;
+    const flip = p2.k >= 0.02 ? along <= 0 : s2.y >= 0;
+    if (flip) s2 = { x: -s2.x, y: -s2.y };
+    return { move: (dx, dy) => e1.clone().multiplyScalar((dx * s1.x + dy * s1.y) * mmpp).addScaledVector(e2, (dx * s2.x + dy * s2.y) * mmpp) };
+  }
+  const A = mode === 'x' ? ax.AX : ax.AY;
+  if (Math.abs(A.dot(view)) <= Math.cos((GRAZING_DEG * Math.PI) / 180)) return null;
+  const sd = screenDir(A);
+  // straight at the viewer: up the screen moves it away
+  const s = sd.k > 0.02 ? sd : A.dot(view) > 0 ? { x: 0, y: -1 } : { x: 0, y: 1 };
+  return { move: (dx, dy) => A.clone().multiplyScalar((dx * s.x + dy * s.y) * mmpp) };
+}
+
+/** Snap a raw angle (degrees): the turn step from the settings (15° by default), Shift 1°, Alt free (0.1°). */
+export function snapAngle(raw: number, ev: { shiftKey: boolean; altKey: boolean }): number {
+  const step = ev.altKey ? 0.1 : ev.shiftKey ? 1 : turnStep();
+  return Math.round(Math.round(raw / step) * step * 10) / 10;
+}
+
+export function Gizmo(props: {
+  at: V3;
+  /** In-plane unit axes (display space) and the plane normal. */
+  ax: V3;
+  ay: V3;
+  n: V3;
+  /** Which handles to show (default: all). */
+  modes?: GizmoMode[];
+  /** Live move: offsets along ax and ay (mm, unsnapped); return the offsets actually used (after snapping). */
+  onMove?: (du: number, dv: number, ev: PointerEvent | null) => { du: number; dv: number } | void;
+  /** Live turn by `deg` (snapped) from where the drag started. */
+  onRotate?: (deg: number) => void;
+  onEnd: (cancel: boolean) => void;
+  testId?: string;
+}) {
+  const { camera, gl } = useThree();
+  const [hover, setHover] = useState<GizmoMode | null>(null);
+  const [active, setActive] = useState<GizmoMode | null>(null);
+  const [readout, setReadout] = useState<string>('');
+  const [typed, setTyped] = useState<string | null>(null);
+  const modes = props.modes ?? ['pad', 'x', 'y', 'ring'];
+  const center = useMemo(() => new THREE.Vector3(...props.at), [props.at[0], props.at[1], props.at[2]]);
+  const AX = useMemo(() => new THREE.Vector3(...props.ax).normalize(), [props.ax[0], props.ax[1], props.ax[2]]);
+  const AY = useMemo(() => new THREE.Vector3(...props.ay).normalize(), [props.ay[0], props.ay[1], props.ay[2]]);
+  const N = useMemo(() => new THREE.Vector3(...props.n).normalize(), [props.n[0], props.n[1], props.n[2]]);
+  const quat = useMemo(() => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(AX, AY, N)), [AX, AY, N]);
+  const ray = useRayFromScreen();
+  const [frozenAt, setFrozenAt] = useState<V3 | null>(null);
+  const st = useRef<{
+    mode: GizmoMode;
+    base: THREE.Vector3;
+    grab: number;
+    a0: number;
+    last: number;
+    du: number;
+    dv: number;
+    deg: number;
+    /** The gizmo centre and pointer when the drag started. */
+    c0: THREE.Vector3;
+    p0: { x: number; y: number };
+    facing: number;
+    /** Grazing view: pointer pixels map to millimetres along these display directions (null: plane / axis hits). */
+    screen: ScreenMap | null;
+  } | null>(null);
+  const toScreen = (p: THREE.Vector3) => {
+    const r = gl.domElement.getBoundingClientRect();
+    const v = p.clone().project(camera);
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  };
+  // turning sense on screen: the ring seen from its normal's side turns counter-clockwise for positive angles;
+  // measured from where the gizmo was when the turn started, so a pivot that moves on screen does not change it
+  const screenAngle = (ev: { clientX: number; clientY: number }, from: THREE.Vector3, facing: number) => {
+    const c = toScreen(from);
+    return (facing * Math.atan2(-(ev.clientY - c.y), ev.clientX - c.x) * 180) / Math.PI;
+  };
+  const viewDir = (p: THREE.Vector3) => (camera instanceof THREE.OrthographicCamera ? camera.getWorldDirection(new THREE.Vector3()) : p.clone().sub(camera.position).normalize());
+  /** Screen direction (unit, px) of a display direction at p, and its foreshortening (1 = seen side-on). */
+  const screenDir = (p: THREE.Vector3, dir: THREE.Vector3) => {
+    const L = mmPerPx(camera, gl.domElement.clientHeight || 1, p) * 50;
+    const a = toScreen(p), b = toScreen(p.clone().addScaledVector(dir, L));
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    return { x: len ? dx / len : 0, y: len ? dy / len : 0, k: len / 50 };
+  };
+  const screenMap = (mode: GizmoMode, p: THREE.Vector3): ScreenMap | null =>
+    grazingMap(mode, p, { AX, AY, N }, viewDir(p), (d) => screenDir(p, d), mmPerPx(camera, gl.domElement.clientHeight || 1, p));
+  const planeHit = (ev: { clientX: number; clientY: number }) => ray(ev.clientX, ev.clientY).intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(N, center), new THREE.Vector3());
+  const fmt = (x: number) => fmtNum(Math.round(x * 10) / 10);
+  const show = (s: NonNullable<typeof st.current>) => setReadout(s.mode === 'ring' ? `${fmt(s.deg)}°` : s.mode === 'pad' ? `${fmt(s.du)}, ${fmt(s.dv)}` : fmt(s.mode === 'x' ? s.du : s.dv));
+  const drag = useHandleDrag({
+    move: (ev) => {
+      const s = st.current;
+      if (!s) return;
+      if (s.mode === 'ring') {
+        let a = screenAngle(ev, s.c0, s.facing);
+        // unwrap so a drag past ±180° keeps turning
+        while (a - s.last > 180) a -= 360;
+        while (a - s.last < -180) a += 360;
+        s.last = a;
+        const deg = snapAngle(a - s.a0, ev);
+        if (deg !== s.deg) {
+          s.deg = deg;
+          props.onRotate?.(deg);
+        }
+      } else {
+        let du = 0, dv = 0;
+        if (s.screen) {
+          const m = s.screen.move(ev.clientX - s.p0.x, ev.clientY - s.p0.y);
+          du = m.dot(AX);
+          dv = m.dot(AY);
+          if (s.mode === 'x') dv = 0;
+          if (s.mode === 'y') du = 0;
+        } else if (s.mode === 'pad') {
+          const hit = planeHit(ev);
+          if (!hit) return;
+          const dvec = hit.sub(s.base);
+          du = dvec.dot(AX);
+          dv = dvec.dot(AY);
+        } else {
+          const axis = s.mode === 'x' ? AX : AY;
+          const t = closestOnLine(ray(ev.clientX, ev.clientY), s.base, axis) - s.grab;
+          if (s.mode === 'x') du = t;
+          else dv = t;
+        }
+        const used = props.onMove?.(du, dv, ev) || { du, dv };
+        s.du = used.du;
+        s.dv = used.dv;
+      }
+      show(s);
+    },
+    end: (cancel) => {
+      st.current = null;
+      setActive(null);
+      setFrozenAt(null);
+      setTypedBoth(null);
+      props.onEnd(cancel);
+    },
+  });
+  // typed values while dragging: digits (and . , - space), Enter applies and ends the drag
+  const typedRef = useRef<string | null>(null);
+  const setTypedBoth = (x: string | null) => {
+    typedRef.current = x;
+    setTyped(x);
+  };
+  useEffect(() => {
+    if (!active) return;
+    const key = (ev: KeyboardEvent) => {
+      const s = st.current;
+      if (!s) return;
+      if (/^[0-9.,\- ]$/.test(ev.key)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setTypedBoth((typedRef.current ?? '') + ev.key);
+      } else if (ev.key === 'Backspace') {
+        ev.preventDefault();
+        setTypedBoth(typedRef.current ? typedRef.current.slice(0, -1) : typedRef.current);
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const nums = (typedRef.current ?? '').split(/[ ,]+/).filter(Boolean).map(Number);
+        if (nums.length && nums.every(Number.isFinite)) {
+          if (s.mode === 'ring') props.onRotate?.(nums[0]);
+          else if (s.mode === 'pad') props.onMove?.(nums[0], nums[1] ?? 0, null);
+          else if (s.mode === 'x') props.onMove?.(nums[0], 0, null);
+          else props.onMove?.(0, nums[0], null);
+        }
+        setTypedBoth(null);
+        // finish as if the pointer was released
+        window.dispatchEvent(new PointerEvent('pointerup'));
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [active]);
+  const begin = (mode: GizmoMode) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    const base = center.clone();
+    const ne = e.nativeEvent;
+    let grab = 0;
+    if (mode === 'pad') {
+      const hit = planeHit(ne);
+      if (hit) base.copy(hit);
+    } else if (mode === 'x' || mode === 'y') grab = closestOnLine(e.ray, base, mode === 'x' ? AX : AY);
+    const facing = N.dot(camera.position.clone().sub(center)) >= 0 ? 1 : -1;
+    const a0 = screenAngle(ne, center, facing);
+    st.current = { mode, base, grab, a0, last: a0, du: 0, dv: 0, deg: 0, c0: center.clone(), p0: { x: ne.clientX, y: ne.clientY }, facing, screen: screenMap(mode, center) };
+    setActive(mode);
+    // a turn keeps the gizmo where it started (several shapes' centre moves as they turn)
+    if (mode === 'ring') setFrozenAt([center.x, center.y, center.z]);
+    show(st.current);
+    drag(e);
+  };
+  const lit = (m: GizmoMode) => active === m || (!active && hover === m);
+  const col = (m: GizmoMode, c: string) => (lit(m) ? '#0f5d59' : c);
+  const handlers = (m: GizmoMode) => ({
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => (e.stopPropagation(), setHover(m)),
+    onPointerOut: () => setHover((h) => (h === m ? null : h)),
+    onPointerDown: begin(m),
+  });
+  const R = 64;
+  const shownAt = frozenAt ?? props.at;
+  return (
+    <group userData={{ noAO: true }}>
+      <ScreenSized position={shownAt} quaternion={quat}>
+        {modes.includes('ring') && (
+          <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined }}>
+            <mesh renderOrder={22} raycast={() => null}>
+              <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
+              <meshBasicMaterial color={col('ring', '#e0a21b')} {...onTop} />
+            </mesh>
+            <mesh renderOrder={21} raycast={priorityRaycast}>
+              <torusGeometry args={[R, 9, 6, 48]} />
+              <meshBasicMaterial color="white" opacity={0} {...onTop} />
+            </mesh>
+          </group>
+        )}
+        {(['x', 'y'] as const)
+          .filter((m) => modes.includes(m))
+          .map((m) => (
+            <group key={m} rotation={[0, 0, m === 'x' ? -Math.PI / 2 : 0]} {...handlers(m)} userData={{ testId: props.testId ? `${props.testId}-${m}` : undefined }}>
+              <mesh position={[0, 30, 0]} renderOrder={23} raycast={() => null}>
+                <cylinderGeometry args={[2, 2, 26, 8]} />
+                <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
+              </mesh>
+              <mesh position={[0, 47, 0]} renderOrder={23} raycast={priorityRaycast}>
+                <coneGeometry args={[6, 12, 14]} />
+                <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
+              </mesh>
+              {/* invisible hit zone about 16 px wide along the whole arrow */}
+              <mesh position={[0, 34, 0]} renderOrder={20} raycast={priorityRaycast}>
+                <cylinderGeometry args={[8, 8, 40, 8]} />
+                <meshBasicMaterial color="white" opacity={0} {...onTop} />
+              </mesh>
+            </group>
+          ))}
+        {modes.includes('pad') && (
+          <group {...handlers('pad')} userData={{ testId: props.testId ? `${props.testId}-pad` : undefined }}>
+            <mesh renderOrder={24} raycast={() => null}>
+              <boxGeometry args={[22, 22, 2]} />
+              <meshBasicMaterial color={col('pad', '#1fb8ac')} opacity={0.9} {...onTop} />
+            </mesh>
+            {/* hit zone: a ball, so the pad can be grabbed even when its plane is seen edge-on */}
+            <mesh renderOrder={20} raycast={padRaycast}>
+              <sphereGeometry args={[13, 12, 8]} />
+              <meshBasicMaterial color="white" opacity={0} {...onTop} />
+            </mesh>
+          </group>
+        )}
+      </ScreenSized>
+      {active && (
+        <StageHtml position={shownAt} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
+          <span className="w-dim ghost gizmo-readout" style={{ transform: 'translate(78px, -50%)' }} data-testid={props.testId ? `${props.testId}-readout` : undefined}>
+            {typed !== null ? <b>{typed}▏</b> : readout}
+          </span>
+        </StageHtml>
+      )}
+    </group>
+  );
 }
