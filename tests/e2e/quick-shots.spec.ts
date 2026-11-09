@@ -128,3 +128,49 @@ for (const lang of ['en', 'he']) {
     await page.locator('.ready-wrap').screenshot({ path: `${OUT}/${lang}-39-ready-and-meter.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`missions shots ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await page.goto('/');
+    if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
+    await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('mission-game-organiser').click();
+    await page.waitForTimeout(300);
+    await shot(page, lang, '40-start-missions');
+    await page.getByTestId('start-go').click();
+    await S(page, () => {
+      const cf = (window as any).__cutforge;
+      const s = cf.store.getState();
+      // one more object, too big for its compartment
+      s.apply((d: any) => void d.contents.push({ id: 'o_phone', object: 'phone', baseId: 't:base', x: 150, y: 70, count: 1 }));
+      s.select({ kind: 'panel', id: 't:base' });
+    });
+    await S(page, () => (window as any).__cutforge.setCamera([60, 300, 230], [0, 0, 0]));
+    await page.waitForTimeout(500);
+    await shot(page, lang, '40-mission-objects');
+    await S(page, () => (window as any).__cutforge.store.getState().set({ assemble: 0.6 }));
+    await page.waitForTimeout(300);
+    await shot(page, lang, '40-assembly');
+    await S(page, () => (window as any).__cutforge.store.getState().set({ assemble: null }));
+  });
+}
+
+for (const lang of ['en', 'he']) {
+  test(`quick and workshop side by side ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await page.goto('/');
+    if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
+    await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('tpl-organiser').click();
+    await page.getByTestId('start-go').click();
+    await S(page, () => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: 't:divX1' }));
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(500);
+    await shot(page, lang, '41-quick');
+    await page.getByTestId('mode-workshop').click();
+    await page.getByTestId('hints-dismiss').click().catch(() => {});
+    await page.waitForTimeout(400);
+    await shot(page, lang, '41-workshop');
+  });
+}

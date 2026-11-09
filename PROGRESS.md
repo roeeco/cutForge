@@ -787,6 +787,21 @@ Verified
 - `tests/e2e/classroom.spec.ts`: a class offering only *Pencil box* (in Quick build): the student from its link sees only that mission, submits, and the teacher sees *Pencil box · 3 of 5 goals*.
 - Screenshots: the start screen with missions, a mission with objects in compartments (green and amber), the assembly animation (`docs/quick-shots/`).
 
+## Milestone 41 — Final verification: Quick build (milestones 37–40) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (408 tests in 41 files, including the 500 Quick build guardrail sequences and the 500-design autoseam test; the ezdxf/svgpathtools reader checks are skipped here since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (66 passed, including the classroom spec against the real Worker with a locked Quick build class and a class offering one mission; 48 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` set to the pre-installed Chromium. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical: designs without a mission or objects are unchanged, and nothing Quick build adds reaches pieces, packing or export.
+
+- **Classroom run-through** (`tests/e2e/quick.spec.ts`, in English and in Hebrew): a new browser starts in Quick build, picks *Pencil box*, sizes the compartments until the pencils fit, engraves a name, and reaches *Mission complete* with three stars and *Ready to cut ✓* — in about ten seconds of scripted work (the test checks it stays well under twenty minutes; a student's own pace is the real measure).
+- Screenshots, English and Hebrew, in `docs/quick-shots/` (`SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots`): Quick build and Workshop side by side on the same organiser, an empty Quick build stage, each action's ghost (Box, Divider, Lid, Hole, Sticker) and the result, a clamped drag with its tooltip, the badge with a fix and the meter, the start screen with missions, a mission with objects in compartments (green and amber), and the assembly animation.
+- README has a *Quick build* section and the teacher's new class settings; DECISIONS has a *Quick build* section (a mode is a viewer preference, the feature table, recipes over existing ops, guardrails prevent instead of report, fixes are narrow, missions as a registry, compartments).
+
+Remaining limitations (milestones 37–40)
+- Compartments assume each divider runs the whole way across; a box that is not a rectangle has one compartment (the largest centred rectangle of its inside). Objects lie flat, either way round.
+- The guardrails keep cut-outs a web apart but do not stop two new shapes made in one edit (a paste of several, an exploded array) from touching each other; the badge then offers the fix. Text is guarded by its box.
+- The Box action's *Regular* footprint is inscribed in the dragged square; *Freeform* is Workshop's polygon tool.
+- In the e2e test the pencils' compartment is sized by typing on the dividers' compartment labels on the stage rather than by dragging the slide arrow.
+- Goals met are counted by the student's app; the Worker only checks the numbers are consistent.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
