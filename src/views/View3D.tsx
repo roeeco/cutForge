@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Frame, P2, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel } from '../model/ops';
+import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
@@ -27,7 +27,8 @@ import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
-import { FACE, findEdge, panelEdges, segLength, type EdgeSeg } from '../model/edges';
+import { FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
+import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
 import { isOutlineShape } from '../model/outline';
@@ -95,6 +96,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
+  const facePick = useStore((s) => s.facePick);
   const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
@@ -210,6 +212,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       }
     };
     const key = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && useStore.getState().facePick.length) useStore.getState().set({ facePick: [] });
       if (ev.key === 'Escape' && drag.current) {
         drag.current = null;
         setDrawRect(null);
@@ -262,6 +265,19 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       begin(e, { kind: 'shape-draw', panelId: p.id, id: nid, start, plane: planeOf(p, e.point) });
     } else if (tool === 'select') {
       e.stopPropagation();
+      const stx = useStore.getState();
+      if (e.nativeEvent.shiftKey) {
+        // Shift-click a face: pick it for "Divider between" (two faces). Which face: from the hit's depth in the material.
+        const z = v3dot(v3add([e.point.x, e.point.y, e.point.z], v3mul(p.frame.o, -1)), matDir(p.frame));
+        const th = design.material.thickness;
+        const side = Math.abs(z) < 0.25 * th ? -1 : Math.abs(z - th) < 0.25 * th ? 1 : 0;
+        if (side) {
+          const pickd: FacePick = { panelId: p.id, side, point: [e.point.x, e.point.y, e.point.z] };
+          stx.set({ facePick: [...stx.facePick, pickd].slice(-2) });
+          return;
+        }
+      }
+      if (stx.facePick.length) stx.set({ facePick: [] });
       useStore.getState().select({ kind: 'panel', id: p.id });
       if (!parentConnection(design, p.id) && e.button === 0) {
         setControls(false);
@@ -372,7 +388,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         userData={{ noAO: true }}
       />
       {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && (useStore.getState().set({ facePick: [] }), useStore.getState().select(null))} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
@@ -424,12 +440,16 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           </span>
         </StageHtml>
       )}
+      {tool === 'select' && !folded && facePick.length > 0 && <BetweenPill d={design} picks={facePick} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
       {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && (
+        <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+      )}
       {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
         <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
@@ -1100,6 +1120,164 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
   );
 }
 
+/** A divider: a panel standing at 90° on a floor panel, some way in from the edge it was grown from. */
+function isDivider(d: Design, id: string): Connection | null {
+  const c = parentConnection(d, id);
+  if (!c || c.offset <= 0.5 || Math.abs(c.angle - 90) > 1e-6 || c.dir !== 'up' || parentConnection(d, c.a.panelId)) return null;
+  return c;
+}
+
+/** Slabs standing on the same base parallel to a divider (other dividers from the same edge), and the clear limits, along the divider's axis. */
+function dividerRow(d: Design, c: Connection): { lo: number; hi: number; others: number[] } | null {
+  const box = clearBox(d, c.a.panelId);
+  if (!box || (c.a.edge !== 'e0' && c.a.edge !== 'e3')) return null;
+  const [lo, hi] = c.a.edge === 'e3' ? [box.x0, box.x1] : [box.y0, box.y1];
+  const others = Object.values(d.connections)
+    .filter((x) => x.grown && x.a.panelId === c.a.panelId && x.a.edge === c.a.edge && x.id !== c.id && isDivider(d, x.b.panelId))
+    .map((x) => x.offset);
+  return { lo, hi, others };
+}
+
+/**
+ * A selected divider: a slide arrow on its face (along its normal) that moves
+ * it, snapping to even spacing, and the compartment sizes along its row (the
+ * two next to it can be typed). Dragging a divider of an automatic set takes
+ * it out of the set.
+ */
+function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const tt = useT();
+  const c = isDivider(d, id);
+  const p = d.panels[id];
+  const st = useStore.getState;
+  const drag = useRef<{ from: string; to: string } | null>(null);
+  if (!c || !p) return null;
+  const base = d.panels[c.a.panelId];
+  const th = d.material.thickness;
+  const row = dividerRow(d, c);
+  const axis = Wdir(m, inwardWorld(base, c.a.edge));
+  // on the face, low and in the middle: clear of the height arrow (top), the hinge knob and the compartment labels (above the top)
+  const at = W(m, p.frame, p.w / 2, p.h * 0.3, th / 2);
+  const move = (v: number, snapIt: boolean) => {
+    const cur = drag.current ?? { from: id, to: memberOf(st().txnBase ?? st().design, id) ? newId('p') : id };
+    drag.current = cur;
+    const off = row && snapIt ? (snapDividerOffset(row, v, th, tolAt(at)) ?? v) : v;
+    st().preview((x) => {
+      const nid = cur.to !== cur.from ? releaseDivider(x, cur.from, cur.to) : cur.from;
+      setDividerOffset(x, nid, off);
+    });
+    if (st().selection?.kind !== 'panel' || (st().selection as { id: string }).id !== cur.to) st().select({ kind: 'panel', id: cur.to });
+  };
+  // compartments along the row, labelled at the dividers' top
+  const labels: { mid: number; size: number; side: 'left' | 'right' | null }[] = [];
+  if (row) {
+    const slabs = [...row.others, c.offset].sort((a, b) => a - b);
+    let cur = row.lo;
+    for (const o of [...slabs, null]) {
+      const end = o === null ? row.hi : o;
+      if (end - cur > 0.5) labels.push({ mid: (cur + end) / 2, size: end - cur, side: o === c.offset ? 'left' : cur === c.offset + th ? 'right' : null });
+      if (o !== null) cur = o + th;
+    }
+  }
+  const labelAt = (mid: number): V3 => {
+    const e = findEdge(base, c.a.edge)!;
+    const inw = segInward(e), dir = segDir(e);
+    // towards the far end of the row, clear of the hinge knob (20%) and the height arrow (middle)
+    const along = segLength(e) * 0.82;
+    const x = e.a.x + dir.x * along + inw.x * mid, y = e.a.y + dir.y * along + inw.y * mid;
+    return W(m, base.frame, x, y, th + p.h + 6);
+  };
+  return (
+    <>
+      <PushPull
+        at={at}
+        axis={axis}
+        value={c.offset}
+        min={1}
+        onPreview={(v) => move(v, true)}
+        onCommit={() => {
+          drag.current = null;
+          st().commit();
+        }}
+        onCancel={() => {
+          drag.current = null;
+          st().cancel();
+          st().select({ kind: 'panel', id });
+        }}
+        color="#e0a21b"
+        testId="div-slide"
+      />
+      {labels.map((l, i) => (
+        <DimLabel
+          key={i}
+          at={labelAt(l.mid)}
+          k={tt('div.compartment')}
+          value={Math.round(l.size * 10) / 10}
+          unit={tt('unit.mm')}
+          min={1}
+          onCommit={
+            l.side
+              ? (v) => {
+                  const off = l.side === 'left' ? l.mid - l.size / 2 + v : l.mid + l.size / 2 - v - th;
+                  move(off, false);
+                  drag.current = null;
+                  st().commit();
+                }
+              : undefined
+          }
+          testId={`div-comp-${i}`}
+        />
+      ))}
+    </>
+  );
+}
+
+/** Faces picked for "Divider between": a marker on each, and at the second one the pill (greyed with the reason when no divider fits). */
+function BetweenPill({ d, picks }: { d: Design; picks: FacePick[] }) {
+  const t = useT();
+  useEffect(() => {
+    const k = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') useStore.getState().set({ facePick: [] });
+    };
+    window.addEventListener('keydown', k, true);
+    return () => window.removeEventListener('keydown', k, true);
+  }, []);
+  const plan = picks.length === 2 ? planDividerBetween(d, picks[0], picks[1]) : null;
+  return (
+    <>
+      {picks.map((pk, i) => (
+        <mesh key={i} position={pk.point} renderOrder={25} raycast={() => null} userData={{ noAO: true }}>
+          <sphereGeometry args={[2.2, 12, 8]} />
+          <meshBasicMaterial color="#e0a21b" depthTest={false} transparent />
+        </mesh>
+      ))}
+      {plan && (
+        <StageHtml position={picks[1].point}>
+          <button
+            className={`w-pill between-pill ${plan.ok ? '' : 'off'}`}
+            disabled={!plan.ok}
+            title={plan.ok ? undefined : t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+            onClick={() => {
+              const st = useStore.getState();
+              let id: string | null = null;
+              st.apply((x) => void (id = addDividerBetween(x, picks[0], picks[1])));
+              st.set({ facePick: [] });
+              if (id) st.select({ kind: 'panel', id });
+            }}
+            data-testid="div-between"
+          >
+            <Icon name="plus" /> {t('div.between')}
+            {!plan.ok && (
+              <span className="why" data-testid="div-between-why">
+                {t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+              </span>
+            )}
+          </button>
+        </StageHtml>
+      )}
+    </>
+  );
+}
+
 /** Selected panel: width/height push-pull arrows and in-place dimensions. */
 function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4; dims: boolean }) {
   const t = useT();
@@ -1423,9 +1601,12 @@ export function View3D() {
   }, []);
   const editing = useStore((s) => !!s.editOutline);
   const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
+  const picking = useStore((s) => s.facePick.length === 1);
   const hint =
     foldT < 0.999
       ? 'fold.hint'
+      : picking && tool === 'select'
+        ? 'div.pickHint'
       : editing && tool === 'select'
         ? 'outline.help'
         : trayCut && tool === 'select'

@@ -253,3 +253,120 @@ test('milestone 17: the cut plan turns a shape with its ring and resizes a turne
   expect(dt.rot).toBe(45);
   expect(dt.w).toBeGreaterThan(30);
 });
+
+for (const mat of ['ply-3', 'corr-4'] as const) {
+  test(`milestone 18: automatic dividers, drag one out of the set, a divider between two faces (${mat})`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await start(page, mat);
+    const ids = await S<any>(page, () => {
+      const cf = (window as any).__cutforge;
+      const out: any = {};
+      cf.store.getState().apply((d: any) => {
+        out.base = cf.ops.addRootPanel(d, -80, 55, 160, 110);
+        const kind = d.material.kind === 'plywood' ? 'finger' : 'fold';
+        out.walls = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, out.base, e, { height: 50, angle: 90, dir: 'up', kind }).panelId);
+      });
+      cf.store.getState().select({ kind: 'panel', id: out.base });
+      return out;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(300);
+    // automatic: 2 across, 1 along
+    await page.getByTestId('div-toggle').click();
+    await page.getByTestId('div-across-inc').click();
+    await page.getByTestId('div-across-inc').click();
+    await page.getByTestId('div-along-inc').click();
+    await expect(page.getByTestId('div-set-count')).toContainText('3');
+    let d = await design(page);
+    const set = Object.keys(d.dividerSets)[0];
+    expect(d.order.filter((id: string) => id.startsWith(set + '/'))).toHaveLength(3);
+    expect(Object.values(d.connections).filter((c: any) => c.kind === 'halflap')).toHaveLength(2);
+    // drag the first across divider with its slide arrow: it leaves the set, the other re-spaces
+    const a1 = `${set}/a1`;
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), a1);
+    await page.waitForTimeout(200);
+    const p = d.panels[a1];
+    const from = await panelPt(page, a1, p.w / 2, p.h * 0.3);
+    // the arrow points into the base from its left edge (+x): move the pointer towards the right on screen
+    const off0 = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === a1) as any;
+    const to = await S<{ x: number; y: number }>(page, ([b, o]: [string, number]) => {
+      const cf = (window as any).__cutforge;
+      const base = cf.store.getState().design.panels[b];
+      return cf.project(b, o + 12, base.h / 2);
+    }, [ids.base, off0.offset]);
+    const here = await S<{ x: number; y: number }>(page, ([b, o]: [string, number]) => {
+      const cf = (window as any).__cutforge;
+      const base = cf.store.getState().design.panels[b];
+      return cf.project(b, o, base.h / 2);
+    }, [ids.base, off0.offset]);
+    await drag(page, from, { x: from.x + (to.x - here.x), y: from.y + (to.y - here.y) });
+    const st = await state(page);
+    d = st.design;
+    expect(st.selection.kind).toBe('panel');
+    const loose = st.selection.id;
+    expect(loose.startsWith(set + '/')).toBe(false);
+    expect(d.dividerSets[set].loose).toEqual([loose]);
+    expect(d.dividerSets[set].across).toBe(1);
+    const lc = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === loose) as any;
+    expect(lc.offset).toBeGreaterThan(off0.offset + 5);
+    // compartment sizes are shown along the row
+    await expect(page.getByTestId('div-comp-0')).toBeVisible();
+    // Space evenly again
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.base);
+    await page.getByTestId('div-toggle').click();
+    await page.getByTestId('div-respace').click();
+    d = await design(page);
+    expect(d.dividerSets[set].across).toBe(2);
+    expect(d.panels[loose]).toBeUndefined();
+
+    // between two faces: Shift-click the left wall's inner face, then the right wall's (the set removed so nothing hides them)
+    await S(page, (b: string) => {
+      const cf = (window as any).__cutforge;
+      cf.store.getState().apply((x: any) => cf.ops.setDividerSet(x, b, { across: 0, along: 0 }));
+      cf.store.getState().select(null);
+    }, ids.base);
+    d = await design(page);
+    expect(d.dividerSets?.[set]).toBeUndefined();
+    const t = d.material.thickness;
+    const [, right, , left] = ids.walls;
+    const L = d.panels[left], R = d.panels[right];
+    const pa = await S<{ x: number; y: number }>(page, ([i, x, y]: [string, number, number]) => (window as any).__cutforge.project(i, x, y, true), [left, L.w * 0.35, L.h * 0.85]);
+    const pb = await S<{ x: number; y: number }>(page, ([i, x, y]: [string, number, number]) => (window as any).__cutforge.project(i, x, y, true), [right, R.w * 0.6, R.h * 0.85]);
+    await page.keyboard.down('Shift');
+    await page.mouse.click(pa.x, pa.y);
+    await expect(page.locator('.view-hint')).toContainText('Shift-click the face opposite');
+    await page.mouse.click(pb.x, pb.y);
+    await page.keyboard.up('Shift');
+    await expect(page.getByTestId('div-between')).toBeEnabled();
+    const before = (await design(page)).order.length;
+    await page.getByTestId('div-between').click();
+    d = await design(page);
+    expect(d.order.length).toBe(before + 1);
+    const nd = d.order[d.order.length - 1];
+    for (const w of [left, right]) {
+      const cs = Object.values(d.connections).filter((c: any) => !c.grown && [c.a.panelId, c.b.panelId].includes(nd) && [c.a.panelId, c.b.panelId].includes(w)) as any[];
+      expect(cs.length, `joined to ${w}`).toBe(1);
+      expect(cs[0].broken).toBe(false);
+      expect(cs[0].kind).toBe(mat === 'ply-3' ? 'tabslot' : 'slide');
+    }
+    void t;
+    // two faces that are not parallel: the pill is greyed with the reason
+    const front = ids.walls[0];
+    const F = d.panels[front];
+    const pf = await S<{ x: number; y: number }>(page, ([i, x, y]: [string, number, number]) => (window as any).__cutforge.project(i, x, y, false), [front, F.w * 0.2, F.h * 0.6]);
+    await page.keyboard.down('Shift');
+    await page.mouse.click(pa.x, pa.y);
+    await page.mouse.click(pf.x, pf.y);
+    await page.keyboard.up('Shift');
+    await expect(page.getByTestId('div-between')).toBeDisabled();
+    await expect(page.getByTestId('div-between-why')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('div-between')).toHaveCount(0);
+    // the export check is clean of joint messages
+    await page.getByTestId('open-export').click();
+    const issues = page.getByTestId('export-issues');
+    if (await issues.count()) await expect(issues).not.toContainText(/touch but are not joined|run into each other|no longer meets/);
+    expect(errors).toEqual([]);
+  });
+}

@@ -8,7 +8,7 @@ import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
-import { addDivider, addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
+import { addDivider, addSideWalls, canDividerSet, connectSeam, deleteConnection, dividerSetOf, leanSupported, respaceDividers, setConnection, setDividerSet } from '../model/ops';
 import { autoFlap, autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
@@ -249,6 +249,8 @@ export function DividerAdder({ panelId }: { panelId: string }) {
       </button>
       {open && (
       <>
+      <DividerSetControls panelId={panelId} />
+      <h4 className="sub-head">{t('div.one')}</h4>
       <div className="field">
         <label htmlFor="div-edge">{t('div.parallel')}</label>
         <select id="div-edge" value={edge} onChange={(e) => setEdge(Number(e.target.value) as 0 | 3)} data-testid="div-edge">
@@ -269,6 +271,51 @@ export function DividerAdder({ panelId }: { panelId: string }) {
         {t('div.add')}
       </button>
       </>
+      )}
+    </div>
+  );
+}
+
+/** Automatic dividers: counts across and along, height, even or by compartment size; Space evenly again. */
+function DividerSetControls({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const mm = t('unit.mm');
+  if (!canDividerSet(d, panelId)) return <p className="note" data-testid="div-auto-rect">{t('div.autoRectOnly')}</p>;
+  const set = dividerSetOf(d, panelId);
+  const change = (patch: Parameters<typeof setDividerSet>[2]) => apply((x) => void setDividerSet(x, panelId, patch));
+  const n = set ? d.order.filter((id) => id.startsWith(set.id + '/')).length : 0;
+  return (
+    <div className="div-auto" data-testid="div-auto">
+      <h4 className="sub-head">{t('div.auto')}</h4>
+      <Stepper label={t('div.across')} value={set?.across ?? 0} min={0} max={10} onCommit={(v) => change({ across: v })} testId="div-across" />
+      <Stepper label={t('div.along')} value={set?.along ?? 0} min={0} max={10} onCommit={(v) => change({ along: v })} testId="div-along" />
+      {set && (
+        <>
+          <NumField label={t('insp.height')} value={set.height} unit={mm} min={5} max={2000} onCommit={(v) => change({ height: v })} testId="div-set-height" />
+          <Segmented
+            label={t('div.spacing')}
+            value={set.mode}
+            options={[
+              { value: 'even', label: t('div.even'), testId: 'div-mode-even' },
+              { value: 'size', label: t('div.bySize'), testId: 'div-mode-size' },
+            ]}
+            onChange={(m) => change({ mode: m as 'even' | 'size', size: set.size ?? 30 })}
+          />
+          {set.mode === 'size' && <NumField label={t('div.size')} value={set.size ?? 30} unit={mm} min={5} max={2000} onCommit={(v) => change({ size: v })} testId="div-size" />}
+          <p className="note" data-testid="div-set-count">
+            {t('div.setCount', { n })}
+          </p>
+          {!!set.loose?.length && (
+            <div className="warn">
+              <p className="note">{t('div.looseNote', { n: set.loose.length })}</p>
+              <button onClick={() => apply((x) => respaceDividers(x, set.id))} data-testid="div-respace">
+                {t('div.respace')}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

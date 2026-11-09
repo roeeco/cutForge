@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
 import { connectionsFor } from '../model/materials';
-import { autoConnect, createDesign, solve } from '../model/ops';
+import { autoConnect, createDesign, solve, type FacePick } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
@@ -90,6 +90,8 @@ type State = {
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
   extrude: { baseId: string; height: number } | null;
+  /** Faces Shift-clicked on the stage for *Divider between* (not part of the design). */
+  facePick: FacePick[];
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -110,7 +112,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -163,6 +165,7 @@ export const useStore = create<State>()((set, get) => ({
   editOutline: null,
   selVertex: null,
   extrude: null,
+  facePick: [],
 
   apply: (fn) => {
     if (get().txnBase) get().commit();

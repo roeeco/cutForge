@@ -537,3 +537,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .rot-ring-hit { fill: none; stroke: transparent; cursor: grab; pointer-events: stroke; }
 .rot-knob { fill: #e0a21b; stroke: white; cursor: grab; }
 .gizmo-readout { font-weight: 600; }
+.sub-head { margin-block: 10px 4px; }
+.div-auto { display: flex; flex-direction: column; gap: 4px; }
+.between-pill { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; transform: translate(10px, -50%); }
+.between-pill.off { opacity: 0.75; background: var(--surface-sunk); color: var(--ink-muted); cursor: not-allowed; }
+.between-pill .why { font-size: 11px; font-weight: 400; white-space: normal; max-width: 220px; }
