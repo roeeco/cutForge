@@ -5,7 +5,8 @@ import type { Design, MaterialProfile } from '../model/types';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
-import { createDesign, setAllJoints, setMaterial, solve } from '../model/ops';
+import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
+import { normalizeJoints } from '../model/jointDefaults';
 
 export const TEMPLATES: TemplateDef[] = [organiser, stand];
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
@@ -97,13 +98,11 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   }
   for (const id of d.order) if (old.pieces[id]) d.pieces[id] = { ...old.pieces[id] };
   for (const [k, p] of Object.entries(old.placements)) if (p.manual && d.panels[k.split('#')[0]]) d.placements[k] = { ...p };
-  // the design-wide joint choices apply to the regenerated joints too
+  // the design-wide joint choices (every material's) are kept, and the new material's apply to the regenerated joints
   if (old.joints) {
-    d.joints = { ...old.joints };
-    for (const g of ['base', 'corner'] as const) {
-      const k = old.joints[g];
-      if (k) setAllJoints(d, g, k);
-    }
+    d.joints = JSON.parse(JSON.stringify(old.joints));
+    normalizeJoints(d);
+    applyJointChoices(d);
   }
   solve(d);
   return { design: d, lost };

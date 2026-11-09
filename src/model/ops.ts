@@ -10,7 +10,7 @@ import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
-import { allowedKinds, designKind, dividerKind, groupConnections, jointGroup, newTrayKinds, type JointGroup } from './jointDefaults';
+import { allowedKinds, designKind, dividerKind, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
@@ -68,6 +68,7 @@ export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: Con
  */
 export function solve(d: Design) {
   const t = d.material.thickness;
+  normalizeJoints(d);
   d.trays ??= {};
   for (const id of d.order) {
     const p = d.panels[id];
@@ -1238,8 +1239,19 @@ export function deleteDetail(d: Design, detailId: string) {
 }
 
 export function setMaterial(d: Design, m: MaterialProfile) {
+  const was = d.material.kind;
   d.material = { ...m };
   solve(d);
+  if (m.kind !== was) applyJointChoices(d);
+}
+
+/** Apply the current material's stored joint choices to every joint (after a change of material kind). */
+export function applyJointChoices(d: Design) {
+  const j = jointsOf(d);
+  for (const g of ['base', 'corner'] as const) {
+    const k = j?.[g];
+    if (k) setAllJoints(d, g, k);
+  }
 }
 
 export type ConnPatch = Partial<Pick<Connection, 'kind' | 'fingers' | 'tabs' | 'flap' | 'foldDir' | 'angle' | 'offset' | 'dir' | 'tabLen' | 'lockDepth'>>;
@@ -1304,18 +1316,14 @@ export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind)
     if (group === 'base' && connectionsFor(d.material, 90).includes(kind)) tray.wallKind = kind;
     if (group === 'corner' && seamKinds(d.material, 'corner').includes(kind)) tray.cornerKind = kind;
   }
-  d.joints = { ...d.joints, [group]: kind };
+  patchJoints(d, { [group]: kind });
   solve(d);
   return { changed, kept };
 }
 
 /** The design's glue flap width (mm), replacing the automatic width on joints without their own; null: automatic. */
 export function setDefaultFlap(d: Design, width: number | null) {
-  const j = { ...d.joints };
-  if (width === null) delete j.flap;
-  else j.flap = Math.max(3, Math.min(100, width));
-  d.joints = j;
-  if (!Object.keys(j).length) delete d.joints;
+  patchJoints(d, { flap: width === null ? null : Math.max(3, Math.min(100, width)) });
   solve(d);
 }
 

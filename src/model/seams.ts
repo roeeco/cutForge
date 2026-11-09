@@ -587,7 +587,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   }
 
   if (c.kind === 'glue') {
-    const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+    const fh = (c.flap ?? d.joints?.[d.material.kind]?.flap ?? autoFlap(d.material));
     const taper = Math.min(fh, len / 3);
     if (fit.d1 > 1e-9) g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
     const p = (s: number, u: number) => edgePoint(O, edge, s, fit.d1 - u);
@@ -694,7 +694,7 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   const t = d.material.thickness;
   const g = empty();
   const len = fit.s1 - fit.s0;
-  const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+  const fh = (c.flap ?? d.joints?.[d.material.kind]?.flap ?? autoFlap(d.material));
   const taper = Math.min(fh, len / 3);
   g.edges.push({ panelId: O.id, edge: eO, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
   const p = (s: number, u: number) => edgePoint(O, eO, s, fit.d1 - u);
@@ -719,7 +719,7 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const t = d.material.thickness;
   const g = empty();
   const L = C.w;
-  const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+  const fh = (c.flap ?? d.joints?.[d.material.kind]?.flap ?? autoFlap(d.material));
   const taper = Math.min(fh, L / 3);
   const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
   const flat = [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)];

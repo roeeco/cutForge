@@ -63,7 +63,10 @@ export type ViewPrefs = {
   gridStep: number;
   /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
   turnStep: number;
+  /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
+  sections?: Partial<Record<SettingsSection, boolean>>;
 };
+export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
   const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };

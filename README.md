@@ -2,7 +2,7 @@
 
 A browser tool for high-school students to design laser-cut organisers and game parts from flat panels, edited directly in a 3D workspace and a 2D cut plan, and exported as true-size SVG/DXF for LightBurn.
 
-Status: **Milestones 1–14 complete** — the original brief (`laser-fabrication-editor-agent-prompt.md`: vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates, class submission and teacher view), the visual overhaul, and polygons, cuts and corrugated joints (`polygons-and-corrugated-agent-prompt.md`: polygon bases, Add/Cut shapes, trays, wall outlines, through-cuts, corrugated locks, fold-over reinforcement). See `PROGRESS.md` for what was verified and the remaining limitations.
+Status: **Milestones 1–27 complete** — the original brief (`laser-fabrication-editor-agent-prompt.md`: vertical slice, connections and angles, editing tools, text/import/packing/validation/kerf, templates, class submission and teacher view), the visual overhaul, and polygons, cuts and corrugated joints (`polygons-and-corrugated-agent-prompt.md`: polygon bases, Add/Cut shapes, trays, wall outlines, through-cuts, corrugated locks, fold-over reinforcement), then interaction refinements, the gizmo, design-wide joints and the settings card (milestones 15–27). See `PROGRESS.md` for what was verified and the remaining limitations.
 
 ## Run locally
 
@@ -41,7 +41,7 @@ UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an 
 
 ## Using it
 
-1. *What are you making?* Choose a material, then a template (blank, *Organiser with dividers* or *Card / tile stand*), then **Start** (the interface language toggle is on the same screen). Template sizes are in the card on the right when nothing is selected. Kerf, clearance and sheet settings are in the **Material & sheet** drawer (click the material pill in the top bar). New / Open / Save project are in the menu next to the design name.
+1. *What are you making?* Choose a material, then a template (blank, *Organiser with dividers* or *Card / tile stand*), then **Start** (the interface language toggle is on the same screen). With nothing selected, the card on the right has *Template* (its sizes), *Joints*, *Material and fit* and *Snapping*, each folding open from a header that sums up what is set (and stays open or closed the next time). Kerf, clearance and sheet settings are in the **Material & sheet** drawer (click the material pill in the top bar). New / Open / Save project are in the menu next to the design name.
 2. **Panel** tool (`P`): drag on the floor grid to draw a flat panel. Set exact sizes in the card, drag the teal arrows on the panel, or click the W/H labels on the stage to type a size.
 3. Hover a panel to see its free edges, click one (or use *Grow from …* in the card), then **Grow panel**: a ghost shows the new panel and which side the material lies on. Drag the ball on the angle arc at the hinge (or use the dial in the card) for 90°, 60°, 45°, 30° or 15°, the round badge on the ghost to flip *Up/Down*, the arrow to set its height, and choose the connection: plywood offers finger joints and tabs and slots at 90°; card and corrugated offer folds, glue flaps and tabs and slots. An angled plywood panel needs side walls (*Add side walls*).
    - Where panels meet without a connection (e.g. two walls at a corner), the inspector lists them under *Meeting panels* with a **Connect** button.
@@ -64,7 +64,7 @@ UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an 
 
 13. **Corrugated locks and fold-over:** in *Joints (advanced)*, tab-and-slot joints can have tabs that go *Through, fold under* (and the tray card has the same switch for its corners). On a card or corrugated wall, *Fold-over (double wall)* folds the top over into a liner on the inside: down to the base or a partial hem, glued or locked with tabs through slots in the base. Holes in the wall continue through the liner. The fold slider unfolds liners too.
 
-14. **Move and rotate gizmo:** select a shape, or a floor panel, to get a gizmo: drag the square to move it, an arrow to move along one direction, the ring to turn it (15° steps; hold `Shift` for 1°, `Alt` for no snapping). While dragging, type a number and press Enter for an exact angle or distance. A floor panel turns with everything built on it, and snaps to other floor panels' corners and edges when moved. In the cut plan and face-on view, selected shapes have a turning ring. *Rotation* is also in the card.
+14. **Move and rotate gizmo:** select a shape, or a floor panel, to get a gizmo: drag the square to move it, an arrow to move along one direction, the ring to turn it (15° steps; hold `Shift` for 1°, `Alt` for no snapping). While dragging, type a number and press Enter for an exact angle or distance. A floor panel turns with everything built on it, and snaps to other floor panels' corners and edges when moved. Seen almost edge-on, the ring turns to face you, with the turn's axis drawn through it. Passing over the centre while turning does not flip the turn. In the cut plan and face-on view, selected shapes have a turning ring. *Rotation* is also in the card.
 
 15. **Dividers:** on a base with walls, open *Add a divider*. *Automatic dividers*: set how many go *Across* and *Along*, their height, and *Even* spacing or *By compartment size*; they re-space when you change the box. Select a divider and drag its amber arrow to move it: it snaps to equal compartments, and the compartment sizes show above the dividers (click the ones next to it to type a size). A divider you drag leaves its automatic set; *Space evenly again* brings it back. **Divider between two faces:** hold `Shift` and click a wall's inner face, then the face opposite, and press *Divider between* (it is greyed, with the reason, when those faces cannot take one). `Esc` cancels.
 
@@ -75,6 +75,8 @@ UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an 
 **Fold slider:** for card and corrugated designs with a fold, a fold/unfold slider sits at the bottom of the stage; it shows the flat net (and the fold-over liners) without changing the design.
 
 **Export check:** besides cutting problems, it says when two panels touch but are not joined (and why), or run into each other; clicking the message selects both.
+
+**Joints per material:** the *Joints* choices are kept for each material. Switch to card and back to plywood and your plywood joints come back; a note under a list says when a choice is not in use and why.
 
 **View settings** (sliders icon, bottom corner): outlines on/off, dimensions on/off, quality (*Auto*, *Simple*, *Rich*).
 

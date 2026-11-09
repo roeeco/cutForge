@@ -207,6 +207,14 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .collapse-head[aria-expanded='true'] .chev { transform: rotate(90deg); }
 [dir='rtl'] .collapse-head .chev { transform: scaleX(-1); }
 [dir='rtl'] .collapse-head[aria-expanded='true'] .chev { transform: rotate(90deg); }
+.settings-head { min-width: 0; flex-wrap: wrap; row-gap: 1px; }
+.settings-head .head-title { flex: 1; }
+.settings-head .head-sum {
+  flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: 20px;
+  font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-faint);
+}
+.settings-head[aria-expanded='true'] .head-sum { display: none; }
+.settings-head + .section-body { margin-block-start: 8px; }
 .edge-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .edge-buttons button { font-size: 12px; padding: 4px 6px; }
 .card-actions { display: flex; gap: 6px; margin-block-start: 12px; flex-wrap: wrap; }

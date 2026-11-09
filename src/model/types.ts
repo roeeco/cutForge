@@ -263,10 +263,17 @@ export type Design = {
    * (wall-to-wall closing seams), used for new joints where allowed; and the
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
-  joints?: DesignJoints;
+  joints?: JointChoices;
 };
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
+/**
+ * The design-wide joint choices, one set per material kind (milestone 26): a
+ * switch to card and back to plywood restores the plywood choices, and card
+ * keeps its own. Older files have one flat `DesignJoints`; it is read into the
+ * current material's slot (`normalizeJoints`).
+ */
+export type JointChoices = Partial<Record<MaterialKind, DesignJoints>>;
 
 /**
  * Dividers made and spaced automatically in a rectangular clear inside:

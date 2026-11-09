@@ -81,6 +81,7 @@ export function migrateDesign(raw: any): Design {
   d.pieces ??= {};
   d.placements ??= {};
   for (const id of d.order) d.pieces[id] ??= { quantity: 1 };
+  // older files keep one flat set of joint choices: it belongs to the file's material (`solve` reads it in)
   solve(d);
   return d as Design;
 }

@@ -127,6 +127,50 @@ test('milestone 21: turning two shapes keeps the pivot where the turn started', 
   expect(b.y).toBeCloseTo(55, 6);
 });
 
+test('milestone 25: seen 5° from edge-on, the ring is a screen-facing ring: 32° around it turns 30°', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const ids = await wallWithShape(page);
+  // the wall stands on the base's front edge (world z = 40), facing +z; look along it from the side, 5° in front
+  const target = await S<[number, number, number]>(page, (id: string) => {
+    const cf = (window as any).__cutforge;
+    const p = cf.store.getState().design.panels[id];
+    const f = p.frame;
+    return [0, 1, 2].map((k) => f.o[k] + f.u[k] * 60 + f.v[k] * 35) as [number, number, number];
+  }, ids.wall);
+  await S(page, (t: [number, number, number]) => (window as any).__cutforge.setCamera([t[0] + 400 * Math.cos((5 * Math.PI) / 180), t[1], t[2] + 400 * Math.sin((5 * Math.PI) / 180)], t), target);
+  await page.waitForTimeout(400);
+  if (process.env.SHOTS) await page.screenshot({ path: 'test-results/ring-edge-on.png' });
+  const c = await panelPt(page, ids.wall, 60, 35);
+  const ringAt = (deg: number) => ({ x: c.x + 64 * Math.cos((deg * Math.PI) / 180), y: c.y - 64 * Math.sin((deg * Math.PI) / 180) });
+  await page.mouse.move(ringAt(0).x, ringAt(0).y);
+  await page.mouse.down();
+  for (let k = 1; k <= 8; k++) await page.mouse.move(ringAt((32 * k) / 8).x, ringAt((32 * k) / 8).y);
+  await page.mouse.up();
+  expect(Math.abs((await shapeAt(page, ids.wall)).rot)).toBe(30);
+  expect(errors).toEqual([]);
+});
+
+test('milestone 25: a turn that passes over the centre does not flip by 180°', async ({ page }) => {
+  await start(page, 'ply-3');
+  const ids = await wallWithShape(page);
+  // the gizmo sits at mid-thickness: halfway between the two faces on screen
+  const top = await panelPt(page, ids.wall, 60, 35);
+  const bottom = await S<{ x: number; y: number }>(page, (id: string) => (window as any).__cutforge.project(id, 60, 35, false), ids.wall);
+  const c = { x: (top.x + bottom.x) / 2, y: (top.y + bottom.y) / 2 };
+  const ringAt = (deg: number, r = 64) => ({ x: c.x + r * Math.cos((deg * Math.PI) / 180), y: c.y - r * Math.sin((deg * Math.PI) / 180) });
+  // grab the ring on the right, cross straight over the centre to the left: no turn
+  await page.mouse.move(ringAt(0).x, ringAt(0).y);
+  await page.mouse.down();
+  for (let k = 1; k <= 16; k++) await page.mouse.move(c.x + 64 - (128 * k) / 16, c.y);
+  expect(Math.abs((await shapeAt(page, ids.wall)).rot % 360)).toBe(0);
+  // then 47° on around the ring from there: 45°, not 225°
+  for (let k = 1; k <= 6; k++) await page.mouse.move(ringAt(180 + (47 * k) / 6).x, ringAt(180 + (47 * k) / 6).y);
+  await page.mouse.up();
+  expect(Math.abs((await shapeAt(page, ids.wall)).rot)).toBe(45);
+});
+
 test('milestone 21: a floor panel seen almost edge-on moves by screen distance, not by tens of millimetres', async ({ page }) => {
   await start(page, 'ply-3');
   const base = await S<string>(page, () => {
@@ -233,7 +277,7 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   let d = await design(page);
   expect(Object.values(d.connections).filter((c: any) => c.grown && c.kind === 'tabslot')).toHaveLength(3);
   expect(d.connections[ids.lean].kind).toBe('fold');
-  expect(d.joints).toEqual({ base: 'tabslot' });
+  expect(d.joints).toEqual({ card: { base: 'tabslot' } });
   // one undo step
   await page.keyboard.press('ControlOrMeta+z');
   d = await design(page);
@@ -241,11 +285,12 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   expect(d.joints).toBeUndefined();
   // the glue flap width default
   await setNum(page, 'settings-flap', '14');
-  expect((await design(page)).joints.flap).toBe(14);
+  expect((await design(page)).joints.card.flap).toBe(14);
   await page.getByTestId('settings-flap-auto').click();
   expect((await design(page)).joints).toBeUndefined();
 
   // material and fit: the same values as the drawer
+  await page.getByTestId('settings-head-material').click();
   await setNum(page, 'settings-clearance', '0.15');
   expect((await design(page)).material.clearance).toBe(0.15);
   await page.getByTestId('open-drawer').click();
@@ -254,6 +299,7 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   await page.getByTestId('drawer-close').click();
 
   // snapping: smart snapping off (it would pull the shape's edge onto the wall's centre line), a 5 mm grid and a 10° turn step, saved per viewer
+  await page.getByTestId('settings-head-snapping').click();
   await page.getByTestId('settings-snap').click();
   await expect(page.getByTestId('settings-snap')).toHaveAttribute('aria-pressed', 'false');
   await setNum(page, 'settings-grid', '5');
@@ -312,6 +358,7 @@ test('snapping toggles: grid and smart snapping each turn off; Alt frees a drag 
   await page.keyboard.press('ControlOrMeta+z');
   // grid off in the settings card: off the grid too
   await S(page, () => (window as any).__cutforge.store.getState().select(null));
+  await page.getByTestId('settings-head-snapping').click();
   await page.getByTestId('settings-grid-snap').click();
   await expect(page.getByTestId('settings-grid-snap')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('settings-grid')).toBeDisabled();

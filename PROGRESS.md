@@ -521,7 +521,7 @@ Remaining limitations (milestones 21–24)
 - The gizmo ring in a grazing view still measures the screen angle about its centre, which is hard to use when the ring is seen edge-on.
 - A design-wide kind that the current material does not allow (fingers after switching to card) is remembered but unused until the material allows it again; the list then shows the kind most joints have.
 - The settings card is taller than a short stage and scrolls inside the card dock.
-- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4 (milestones 25–27).
+- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4; done in milestones 25–27 (below).
 
 ## Follow-up — snapping toggles, add ghosts, outline snapping and curves ✅
 
@@ -540,6 +540,49 @@ Remaining (follow-up)
 - Curves are auto only: no handles to shape them yet (`curve` leaves room for `'bezier'`). Exports carry the flattened curve (segments within 0.02 mm), not true curves.
 - An auto curve can bulge well past its points (e.g. a curve at a rectangle's corner pushes the next edge outward); there is no check that a curve crosses another edge of the outline.
 - The grow ghost's outline handles (*Edit outline* on the ghost) do not snap to corners and edges yet.
+
+## Milestone 25 — The gizmo ring seen edge-on ✅
+
+Implemented (`Gizmo` in `src/views/widgets.tsx`, `src/views/grazing.ts`)
+- When the ring's plane is within 20° of edge-on (`grazingRing`, the same threshold as the pad), a camera-facing ring of the same screen radius (64 px) replaces the flattened one, in a lighter amber, with the turn's axis drawn as a short line through the centre. Dragging around it measures the screen angle as before.
+- Positive stays counter-clockwise seen from the normal's side: the sign is taken from the camera's side at pointer-down (exactly edge-on: the normal's side).
+- **Dead zone:** pointer positions within 12 px of the centre (`RING_DEAD_PX`) hold the turn; when the pointer comes out, the turn carries on from there, so passing over the centre does not flip it by 180°. This applies in every view.
+- Typed angles, Shift for 1° and Alt for free turning are unchanged.
+
+Verified
+- `tests/grazing.test.ts`: `grazingRing` is true within 20° of edge-on (0°, 5°, ±19.5°) and false at 25°, 60° and 90°, whatever the vectors' lengths or the normal's sign.
+- `tests/e2e/gizmo.spec.ts`: with the camera 5° from a wall's plane, 32° around the screen-facing ring turns the shape 30°; a drag straight across the centre turns nothing, and 47° on from there gives 45°, not 225°.
+
+## Milestone 26 — Joint choices per material ✅
+
+Implemented (`src/model/jointDefaults.ts`, `setMaterial` / `applyJointChoices` in `ops.ts`, `regenerate` in `src/templates/registry.ts`, `src/ui/DesignSettings.tsx`)
+- `Design.joints` is now one set of choices per material kind: `{ plywood?: { base?, corner?, flap? }, card?: {…}, corrugated?: {…} }`. `jointsOf(d)` reads the current material's; `setAllJoints` and `setDefaultFlap` write it (`patchJoints`); empty sets and an empty `joints` are removed, so a design without choices saves exactly as before.
+- Older files with the flat form are read into the file's material slot (`normalizeJoints`, run by `solve`, so on load too). No schema bump.
+- Changing the material kind (`setMaterial`, so the drawer, the class profile and the settings card; template regeneration too) re-applies the new material's stored choices to every joint. A switch to card and back to plywood restores the plywood choices exactly; card keeps its own.
+- **The note:** when a group's list cannot show a choice, a note under it says why (`joints-<group>-inactive`):
+  - another material's choice kept for later: *Finger joint does not work on card: these joints use Fold. Your choice comes back if you switch to plywood again.*
+  - the current material's own choice fits none of its joints (angle or type): *Tabs and slots does not fit any of these joints (their angle or type): they use Fold.*
+
+Verified
+- `tests/jointdefaults.test.ts`: plywood corners set to tabs and slots, then card (plywood's choice kept, card on its own), card corners glue, back to plywood (tabs and slots again), back to card (glue again); the notes for another material's and the current material's choice; a flat-form file loads into its material's slot and applies; the organiser template keeps every material's choices through material changes. Existing tests now expect the per-material form.
+- `tests/e2e/settings.spec.ts`: fingers on plywood corners, the drawer switched to card: the note names Finger joint, card, the kind in use and plywood; back to plywood, fingers are chosen again and the note is gone.
+
+## Milestone 27 — A settings card that fits a short stage ✅
+
+Implemented (`src/ui/DesignSettings.tsx`, `TemplateSection` in `src/ui/TemplateUI.tsx`, `ViewPrefs.sections` in `src/store/store.ts`)
+- *Template*, *Joints*, *Material and fit* and *Snapping* are collapsible sections (`settings-head-<section>`), each closed header summing up what is set on a second line (`settings-sum-<section>`): *Organiser with dividers · 160 × 110 × 45 mm*, *Slide fit · Glue flap*, *Corrugated 1.6 mm · clearance 0.2*, *Smart · Grid 1 mm · 15°*.
+- Which sections are open is saved per viewer with the view options (`viewPrefs.sections`) as soon as one is opened or closed.
+- **Until then:** the template's sizes and *Joints* start open, and the others closed. *Joints* starts closed on a stage shorter than 700 px, or when the card would scroll with it open; this is checked when the stage changes size and for each new design or template, not when the content grows (it would close while being used).
+- The long joints help became the short note's tooltip (*Changes every joint, also new ones.*), and the template note in the card is shortened the same way.
+
+Verified (`tests/e2e/settings.spec.ts`, at 1366 × 768)
+- A blank design: *Joints* open, the others closed, the card does not scroll, and the closed headers show the material and snapping summaries. Opening *Snapping*, changing a toggle and reloading keeps it open; the summary follows the setting.
+- The organiser: its sizes open, *Joints* closed to make room; with the sizes closed the card does not scroll.
+- The existing settings tests open the sections they use.
+
+Remaining (milestones 25–27)
+- A long template (the organiser's eight sizes) still makes the card scroll on a Chromebook while its sizes are open; its sizes were kept open by default because they are what a template is for.
+- The flat-ring/proxy switch happens at 20°: moving the camera across it swaps the ring mid-view.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
