@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Design, Frame, P2, Panel, V3 } from '../model/types';
+import type { Connection, Design, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
@@ -21,7 +21,7 @@ import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatr
 import { fmtNum, translate } from '../i18n';
 import { STAGE, partColors } from './palette';
 import { foldDisplay, type Bend } from './foldView';
-import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
+import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
@@ -29,6 +29,9 @@ import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
+import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
+import { effectiveGrow } from './ghost';
+import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
 import { isOutlineShape } from '../model/outline';
@@ -565,7 +568,7 @@ function PanelObject(props: {
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
   }, [d.material.kind, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
-  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !edgeConnection(d, p.id, e.key));
+  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
@@ -883,43 +886,66 @@ function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: n
 const knobAt = (w: number) => Math.min(w * 0.2, 40);
 
 /** Hinge point (at the knob's place along the edge) and its 0° / 90° directions (into the parent, out of its material face), in display space. */
-function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4) {
+function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4, s0 = 0, w?: number) {
   const [a, b] = edgeLocal(parent, edge);
   const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-  const k = knobAt(len) / len;
+  const k = (s0 + knobAt(w ?? len)) / len;
   const o = W(m, parent.frame, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, d.material.thickness / 2);
   return { o, x: Wdir(m, inwardWorld(parent, edge)), y: Wdir(m, matDir(parent.frame)) };
 }
 
-/** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow, height label. */
+/** Ghost of the panel that "Grow" would add, with its stage widgets: hinge ring, height arrow (snapping to other panels), span ends, height label, and outline handles when editing. */
 function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: string; m: THREE.Matrix4 }) {
   const t = useT();
   const grow = useStore((s) => s.grow);
   const setGrow = useStore((s) => s.setGrow);
+  const { camera, size } = useThree();
   const parent = d.panels[panelId];
-  const free = parent && !edgeConnection(d, panelId, edge);
-  const kind = growKind(d, grow);
+  const free = parent && edgeHasRoom(d, panelId, edge);
+  const eg = useMemo(() => (parent ? effectiveGrow(d, panelId, edge, grow) : null), [d, panelId, edge, grow]);
+  const kind = eg?.kind ?? growKind(d, grow);
   const check = parent ? checkHinge(d, panelId, edge, grow.angle, grow.height) : null;
   const blocked = !!check?.blocking;
   const th = d.material.thickness;
+  const span = eg?.span ?? null;
   const frameAt = (h: number) => {
     const { angle, dir } = fromHinge(h);
-    return growFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind));
+    return spanFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind), span);
   };
-  const w = parent ? edgeLength(parent, edge) : 0;
+  const [snapped, setSnapped] = useState<number | null>(null);
   const ghost = useMemo(() => {
-    if (!parent || !free) return null;
-    const frame = frameAt(grow.angle);
-    const p: Panel = { id: 'ghost', name: '', w, h: grow.height, sketch: { kind: 'wall' }, frame, details: [] };
-    return { p, frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
-  }, [d, parent, free, edge, grow.angle, grow.height, kind, m]);
+    if (!parent || !free || !eg?.ghost) return null;
+    const p = eg.ghost;
+    return { p, frame: p.frame, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(p.frame)) };
+  }, [d, parent, free, eg, m]);
   useEffect(() => () => ghost?.geom.dispose(), [ghost]);
+  const w = ghost?.p.w ?? 0;
   const arcR = Math.max(10, Math.min(grow.height * 0.4, 45));
-  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w]);
+  const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w, span?.[0], span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
-  if (!ghost || !check) return null;
+  const angTargets = useMemo(() => (parent ? angleTargets(d, panelId, edge, grow.height, defaultOffset(d, kind), span) : []), [d, panelId, edge, grow.height, kind, span?.[0], span?.[1]]);
+  const hTargets = useMemo(() => (eg?.plain ? heightTargets(d, eg.plain, new Set([panelId])) : []), [d, eg?.plain, panelId]);
+  if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
+  // the height arrow sits on the ghost's (trimmed) outline, at half its width
+  const ghostTop = pushPullAnchors(ghost.p).height;
   const color = blocked ? STAGE.blocked : STAGE.ghost;
+  const tolAt = (p: V3) => SNAP_PX * mmPerPx(camera, size.height, new THREE.Vector3(...p));
+  // span ends along the parent edge
+  const pe = findEdge(parent, edge)!;
+  const L = segLength(pe);
+  const sp = span ?? [0, L];
+  const inl = segInward(pe), dir = segDir(pe);
+  const edgeW = (s: number) => W(m, parent.frame, pe.a.x + dir.x * s + inl.x * eg.offset, pe.a.y + dir.y * s + inl.y * eg.offset, th);
+  const freeAround = edgeFreeSpans(d, panelId, edge).find(([lo, hi]) => sp[0] + 1e-6 >= lo && hi >= sp[1] - 1e-6) ?? [0, L];
+  const targets = spanTargets(d, panelId, edge);
+  const setEnd = (i: 0 | 1, s: number, ev: PointerEvent) => {
+    let v = Math.max(freeAround[0], Math.min(freeAround[1], s));
+    const sn = ev.altKey ? null : snapTo(v, targets, tolAt(edgeW(v)));
+    v = sn ?? Math.round(v);
+    const next: [number, number] = i === 0 ? [Math.min(v, sp[1] - MIN_PANEL), sp[1]] : [sp[0], Math.max(v, sp[0] + MIN_PANEL)];
+    useStore.getState().setGrow({ span: next[0] <= 1e-6 && next[1] >= L - 1e-6 ? null : next, sketch: null });
+  };
   return (
     <>
       <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
@@ -928,29 +954,159 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
           <Edges threshold={25} lineWidth={1.8} color={blocked ? '#c27c0e' : '#15706b'} />
         </mesh>
       </group>
+      {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
       <AngleArc
         pointAt={pointAt}
-        hinge={hingeBasis(d, parent, edge, m)}
+        hinge={hingeBasis(d, parent, edge, m, sp[0], w)}
         zoneAt={zoneAt}
         value={grow.angle}
-        onChange={(a) => setGrow({ angle: a })}
+        onChange={(a) => setGrow({ angle: a, sketch: grow.editGhost ? grow.sketch : null })}
         label={`${grow.angle}°`}
         message={hingeText(t, check)}
         testId="ghost-hinge"
+        targets={angTargets}
       />
       <PushPull
-        at={W(m, f, w / 2, grow.height, th / 2)}
+        at={W(m, f, ghostTop.x, ghostTop.y, th / 2)}
         axis={Wdir(m, f.v)}
         value={grow.height}
+        offset={ghostTop.y - grow.height}
         min={5}
         max={2000}
-        onPreview={(v) => setGrow({ height: v })}
-        onCommit={() => undefined}
-        onCancel={() => undefined}
+        onPreview={(v) => {
+          // the free edge snaps to other panels' edges, faces and heights
+          const sn = snapTo(v, hTargets, tolAt(W(m, f, w / 2, v, th / 2)));
+          setSnapped(sn);
+          setGrow({ height: sn ?? v, sketch: grow.editGhost ? grow.sketch : null });
+        }}
+        onCommit={() => setSnapped(null)}
+        onCancel={() => setSnapped(null)}
         testId="ghost-height"
       />
-      <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v })} testId="ghost-dim-h" />
+      {eg.offset === 0 &&
+        ([0, 1] as const).map((i) => <SpanEnd key={i} at={edgeW(sp[i])} base={edgeW(0)} dir={Wdir(m, [parent.frame.u[0] * dir.x + parent.frame.v[0] * dir.y, parent.frame.u[1] * dir.x + parent.frame.v[1] * dir.y, parent.frame.u[2] * dir.x + parent.frame.v[2] * dir.y])} onMove={(s, ev) => setEnd(i, s, ev)} testId={`ghost-span-${i}`} />)}
+      <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v, sketch: null })} testId="ghost-dim-h" />
+      {grow.editGhost && <GhostOutlineHandles ghost={ghost.p} m={m} th={th} />}
     </>
+  );
+}
+
+/** A span end of the grow ghost: a small handle on the parent edge that slides along it. */
+function SpanEnd({ at, base, dir, onMove, testId }: { at: V3; base: V3; dir: V3; onMove: (s: number, ev: PointerEvent) => void; testId: string }) {
+  const ray = useRayFromScreen();
+  const [hover, setHover] = useState(false);
+  const B = useMemo(() => new THREE.Vector3(...base), [base[0], base[1], base[2]]);
+  const D = useMemo(() => new THREE.Vector3(...dir).normalize(), [dir[0], dir[1], dir[2]]);
+  const grab = useRef(0);
+  const down = useHandleDrag({
+    move: (ev) => onMove(closestOnLine(ray(ev.clientX, ev.clientY), B, D) - grab.current, ev),
+    end: () => undefined,
+  });
+  return (
+    <ScreenSized position={at}>
+      <mesh
+        renderOrder={21}
+        raycast={priorityRaycast}
+        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+        onPointerOut={() => setHover(false)}
+        onPointerDown={(e) => {
+          grab.current = closestOnLine(e.ray, B, D) - new THREE.Vector3(...at).sub(B).dot(D);
+          down(e);
+        }}
+        userData={{ testId, noAO: true }}
+      >
+        <boxGeometry args={[hover ? 13 : 11, hover ? 13 : 11, hover ? 13 : 11]} />
+        <meshBasicMaterial color={hover ? '#0f5d59' : '#1fb8ac'} depthTest={false} depthWrite={false} transparent />
+      </mesh>
+    </ScreenSized>
+  );
+}
+
+/** Outline handles on the grow ghost: drag its top corners, add and drag points on its free edges (whole millimetres). */
+function GhostOutlineHandles({ ghost, m, th }: { ghost: Panel; m: THREE.Matrix4; th: number }) {
+  const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
+  const rc = useMemo(() => new THREE.Raycaster(), []);
+  const mat = useMemo(() => m.clone().multiply(frameMatrix(ghost.frame)), [m, ghost.frame]);
+  const s = ghost.sketch as WallSketch;
+  const c = wallCorners(ghost.w, ghost.h, s);
+  const ring = sketchRing(ghost);
+  const k = mmPerPx(camera, gl.domElement.clientHeight || 600, new THREE.Vector3(...toWorld(ghost.frame, ghost.w / 2, ghost.h / 2))) * 7;
+  const z = th + 0.3;
+  const edit = (fn: (sk: WallSketch) => void) => {
+    const g = useStore.getState().grow;
+    const sk: WallSketch = JSON.parse(JSON.stringify(g.sketch ?? { kind: 'wall' }));
+    fn(sk);
+    useStore.getState().setGrow({ sketch: sk });
+  };
+  const drag = (at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    if (controls) controls.enabled = false;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(ghost.frame)), new THREE.Vector3(e.point.x, e.point.y, e.point.z));
+    const frame = ghost.frame;
+    const move = (ev: PointerEvent) => {
+      const r = gl.domElement.getBoundingClientRect();
+      rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
+      if (hit) at(toLocal(frame, [hit.x, hit.y, hit.z]));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (controls) controls.enabled = true;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const corner = (name: 'tl' | 'tr', base: P2) => drag((l) => edit((sk) => void ((sk.corners ??= {})[name] = { dx: Math.round(l.x - base.x), dy: Math.round(l.y - base.y) })));
+  const baseEdge = (edge: 'e1' | 'e2' | 'e3') => ({ a: c[Number(edge[1])], b: c[(Number(edge[1]) + 1) % 4] });
+  const toInsert = (edge: 'e1' | 'e2' | 'e3', l: P2) => {
+    const { a, b } = baseEdge(edge);
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const dx = (b.x - a.x) / L, dy = (b.y - a.y) / L;
+    return { t: Math.max(0.01, Math.min(0.99, ((l.x - a.x) * dx + (l.y - a.y) * dy) / L)), off: Math.round((l.x - a.x) * dy - (l.y - a.y) * dx) };
+  };
+  const ball = (id: string, q: P2, on: ((e: ThreeEvent<PointerEvent>) => void) | null, color: string) => (
+    <mesh key={id} position={[q.x, q.y, z]} renderOrder={9} raycast={on ? priorityRaycast : () => null} onPointerDown={on ?? undefined} userData={{ vertex: id, testId: `ghost-${id}` }}>
+      <sphereGeometry args={[k, 12, 10]} />
+      <meshBasicMaterial color={color} depthTest={false} transparent opacity={on ? 1 : 0.45} />
+    </mesh>
+  );
+  return (
+    <group matrixAutoUpdate={false} matrix={mat} userData={{ noAO: true }}>
+      {ball('tr', c[2], corner('tr', { x: ghost.w, y: ghost.h }), STAGE.selected)}
+      {ball('tl', c[3], corner('tl', { x: 0, y: ghost.h }), STAGE.selected)}
+      {(s.inserts ?? []).map((ins) => {
+        const seg = ring.find((e) => e.key === ins.id);
+        return seg ? ball(ins.id, seg.a, drag((l) => edit((sk) => Object.assign(sk.inserts!.find((x) => x.id === ins.id)!, toInsert(ins.edge, l)))), STAGE.selected) : null;
+      })}
+      {ring
+        .filter((e) => e.key !== 'e0')
+        .map((e) => {
+          const ins = (s.inserts ?? []).find((x) => x.id === e.key);
+          const edge = (ins ? ins.edge : e.key) as 'e1' | 'e2' | 'e3';
+          if (!['e1', 'e2', 'e3'].includes(edge)) return null;
+          const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+          return (
+            <mesh
+              key={`m-${e.key}`}
+              position={[mid.x, mid.y, z]}
+              renderOrder={9}
+              raycast={priorityRaycast}
+              onPointerDown={(ev) => {
+                if (ev.button !== 0) return;
+                ev.stopPropagation();
+                const at = toInsert(edge, mid);
+                edit((sk) => void (sk.inserts = [...(sk.inserts ?? []), { id: newId('i'), edge, t: at.t, off: at.off }]));
+              }}
+              userData={{ testId: `ghost-add-${e.key}` }}
+            >
+              <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
+              <meshBasicMaterial color="#ffffff" depthTest={false} transparent opacity={0.9} />
+            </mesh>
+          );
+        })}
+    </group>
   );
 }
 
@@ -1024,16 +1180,16 @@ function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }
     const r = Math.max(10, Math.min(child.h * 0.4, 45));
     return (a: number) => {
       const { angle, dir } = fromHinge(a);
-      return W(m, growFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset), knobAt(child.w), r, th / 2);
+      return W(m, spanFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset, c.trayId ? null : c.span), knobAt(child.w), r, th / 2);
     };
-  }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th]);
+  }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th, c.span?.[0], c.span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => (child ? checkHinge(d, c.a.panelId, c.a.edge, a, child.h).zone : 'ok'), [d, c.a.panelId, c.a.edge, child?.h]);
   if (!parent || !child) return null;
   const check = checkHinge(d, c.a.panelId, c.a.edge, h, child.h);
   return (
     <AngleArc
       pointAt={pointAt}
-      hinge={hingeBasis(d, parent, c.a.edge, m)}
+      hinge={hingeBasis(d, parent, c.a.edge, m, c.span && !c.trayId ? Math.min(...c.span) : 0, child.w)}
       zoneAt={zoneAt}
       value={h}
       onChange={(a) => {

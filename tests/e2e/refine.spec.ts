@@ -370,3 +370,129 @@ for (const mat of ['ply-3', 'corr-4'] as const) {
     expect(errors).toEqual([]);
   });
 }
+
+const worldPt = (page: Page, x: number, y: number, z: number) => S<{ x: number; y: number }>(page, ([a, b, c]: number[]) => (window as any).__cutforge.projectWorld(a, b, c), [x, y, z]);
+
+test('milestone 19: adaptive grow — height snap, partial width, gable under a roof, adapt off, outline on the ghost', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  // a box 120 × 80 (x −60..60, z 40..−40), walls 50 high
+  const ids = await S<any>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      out.walls = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, out.base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+    });
+    return out;
+  });
+  const [front, , back] = ids.walls;
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(300);
+
+  // 1. a lid from the back wall's top edge: dragging its height arrow near 80 snaps exactly to the front wall's outer face
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e2' }), back);
+  await S(page, () => (window as any).__cutforge.store.getState().setGrow({ angle: 90, height: 60 }));
+  await page.waitForTimeout(200);
+  const at = await worldPt(page, 0, 50, -40 + 60);
+  const to = await worldPt(page, 0, 50, -40 + 79.2);
+  await drag(page, at, to);
+  expect((await state(page)).grow.height).toBe(80);
+  await page.getByTestId('grow-go').click();
+  let d = await design(page);
+  const lid = d.order[d.order.length - 1];
+  expect(d.panels[lid].h).toBe(80);
+  const lidFront = Object.values(d.connections).filter((c: any) => !c.grown && [c.a.panelId, c.b.panelId].includes(lid) && [c.a.panelId, c.b.panelId].includes(front)) as any[];
+  expect(lidFront.map((c) => c.broken)).toEqual([false]);
+  await page.keyboard.press('ControlOrMeta+z');
+
+  // 2. partial width: a second floor panel; its front edge's ghost is shortened by dragging its end handle to the middle (snaps to 60)
+  const b2 = await S<string>(page, () => {
+    const cf = (window as any).__cutforge;
+    let id = '';
+    cf.store.getState().apply((x: any) => void (id = cf.ops.addRootPanel(x, 100, 40, 120, 80)));
+    return id;
+  });
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e0' }), b2);
+  await S(page, () => (window as any).__cutforge.store.getState().setGrow({ angle: 90, height: 40 }));
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(300);
+  const endAt = await worldPt(page, 220, 3, 40);
+  const endTo = await worldPt(page, 161.5, 3, 40);
+  await drag(page, endAt, endTo);
+  expect((await state(page)).grow.span).toEqual([0, 60]);
+  await expect(page.getByTestId('grow-span-end')).toHaveValue('60');
+  await page.getByTestId('grow-go').click();
+  d = await design(page);
+  const half = d.order[d.order.length - 1];
+  expect(d.panels[half].w).toBe(60);
+  const hc = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === half) as any;
+  expect(hc.span).toEqual([0, 60]);
+  expect(Math.max(...hc.geom.edges.find((e: any) => e.panelId === b2).notches.map((n: any) => n.s1))).toBeLessThanOrEqual(60);
+  // the rest of the edge can still be grown from, typed as a span
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e0' }), b2);
+  await expect(page.getByTestId('grow-span-start')).toHaveValue('60');
+
+  // 3. a roof sloping from the back wall (80) to the front wall (40) of a third box; a side wall grown under it gets a gable and joins it
+  const r = await S<any>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((x: any) => {
+      out.base = cf.ops.addRootPanel(x, -60, 200, 120, 80);
+      out.front = cf.ops.growPanel(x, out.base, 'e0', { height: 40, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+      out.back = cf.ops.growPanel(x, out.base, 'e2', { height: 80, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+    });
+    cf.store.getState().apply((x: any) => {
+      const a = 90 - (Math.atan2(40, 80) * 180) / Math.PI;
+      out.roof = cf.ops.growPanel(x, out.back, 'e2', { height: Math.hypot(80, 40), angle: a, dir: 'up', kind: 'lean' }).panelId;
+    });
+    cf.store.getState().select({ kind: 'edge', panelId: out.base, edge: 'e1' });
+    cf.store.getState().setGrow({ angle: 90, height: 110 });
+    return out;
+  });
+  await expect(page.getByTestId('grow-adapted')).toBeVisible();
+  await page.getByTestId('grow-go').click();
+  d = await design(page);
+  const gable = d.order[d.order.length - 1];
+  expect(d.panels[gable].sketch.corners?.tl?.dy).toBeLessThan(-30);
+  const gr = Object.values(d.connections).filter((c: any) => !c.grown && [c.a.panelId, c.b.panelId].includes(gable) && [c.a.panelId, c.b.panelId].includes(r.roof)) as any[];
+  expect(gr.length).toBeGreaterThanOrEqual(1);
+  expect(gr.every((c) => !c.broken)).toBe(true);
+
+  // 4. adapting off: the plain rectangle
+  await page.keyboard.press('ControlOrMeta+z');
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e1' }), r.base);
+  await page.getByTestId('grow-adapt').uncheck();
+  await expect(page.getByTestId('grow-adapted')).toHaveCount(0);
+  await page.getByTestId('grow-go').click();
+  d = await design(page);
+  const plainW = d.order[d.order.length - 1];
+  expect(d.panels[plainW].sketch.corners).toBeUndefined();
+  await page.keyboard.press('ControlOrMeta+z');
+
+  // 5. outline on the ghost: drag its top-left corner down before growing (the first box's free right edge... use a fresh floor panel)
+  const b4 = await S<string>(page, () => {
+    const cf = (window as any).__cutforge;
+    let id = '';
+    cf.store.getState().apply((x: any) => void (id = cf.ops.addRootPanel(x, -300, 40, 100, 80)));
+    cf.store.getState().select({ kind: 'edge', panelId: id, edge: 'e1' });
+    cf.store.getState().setGrow({ angle: 90, height: 60, adapt: true });
+    return id;
+  });
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(300);
+  await page.getByTestId('grow-edit-outline').click();
+  await page.waitForTimeout(200);
+  // e1 of that panel runs from (−200, 0, 40) to (−200, 0, −40): the ghost's top-left corner is at its front end
+  const tl = await worldPt(page, -200, 60, 40);
+  const tlTo = await worldPt(page, -200, 42, 40);
+  await drag(page, tl, tlTo);
+  expect((await state(page)).grow.sketch.corners.tl.dy).toBeLessThan(-10);
+  await page.getByTestId('grow-go').click();
+  d = await design(page);
+  const edited = d.order[d.order.length - 1];
+  expect(d.panels[edited].sketch.corners.tl.dy).toBeLessThan(-10);
+  void b4;
+  expect(errors).toEqual([]);
+});

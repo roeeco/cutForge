@@ -149,6 +149,11 @@ export type Connection = {
   dir: 'up' | 'down';
   /** Grown only: distance the child stands in from the parent edge (mm), e.g. dividers and tab-and-slot walls. */
   offset: number;
+  /**
+   * Grown only: the part of the parent edge the child stands on, [s0, s1] in mm
+   * from the edge (piece)'s start. Absent: the whole edge. Tray walls ignore it.
+   */
+  span?: [number, number];
   /** Requested finger count (odd, >=3). null = automatic from target width. */
   fingers: number | null;
   /** Requested tab count. null = automatic. */

@@ -722,8 +722,9 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
   g.adds.push({ panelId: C.id, poly: [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)] });
   g.scores.push({ panelId: C.id, a: p(0, 0), b: p(L, 0) });
-  // on the parent: along the parent edge, from the child's position inwards
-  const q = (s: number, u: number) => edgePoint(P, c.a.edge, s, c.offset + u);
+  // on the parent: along the parent edge (from where the child stands on it), from the child's position inwards
+  const s0 = c.span && !c.trayId ? Math.min(c.span[0], c.span[1]) : 0;
+  const q = (s: number, u: number) => edgePoint(P, c.a.edge, s0 + s, c.offset + u);
   const [z0, z1] = c.dir === 'up' ? [t, 2 * t] : [-t, 0];
   g.flaps3d.push({ panelId: P.id, poly: [q(0, 0), q(taper, fh), q(L - taper, fh), q(L, 0)], z0, z1 });
   return g;

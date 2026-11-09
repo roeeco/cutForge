@@ -3,7 +3,10 @@
 // handle at the hinge; height also has a push-pull arrow there.
 import { growKind, useStore, useT } from '../store/store';
 import { NumField } from './NumField';
-import { addSideWalls, edgeConnection, growPanel } from '../model/ops';
+import { addSideWalls, growPanel } from '../model/ops';
+import { edgeHasRoom } from '../model/adapt';
+import { effectiveGrow } from '../views/ghost';
+import { edgeLength } from '../model/frame';
 import { connectionsFor } from '../model/materials';
 import { checkHinge, fromHinge } from '../model/hinge';
 import type { ConnectionKind } from '../model/types';
@@ -21,14 +24,17 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const check = checkHinge(design, panelId, edge, grow.angle, grow.height);
   const options = check.kinds;
   const effKind = growKind(design, grow);
-  const used = !!edgeConnection(design, panelId, edge);
+  const used = !edgeHasRoom(design, panelId, edge);
+  const eg = effectiveGrow(design, panelId, edge, grow);
+  const L = edgeLength(panel, edge);
+  const span = eg.span ?? [0, L];
   const { angle, dir } = fromHinge(grow.angle);
   const doGrow = () => {
     let res: ReturnType<typeof growPanel> = null;
     useStore.getState().apply((d) => {
       // a joint the student did not pick follows the material's default (fingers / fold) whenever the angle allows
       const pref = grow.kind && grow.kind === effKind ? effKind : connectionsFor(d.material, 90)[0];
-      res = growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref });
+      res = growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref, span: eg.span, sketch: eg.sketch });
     });
     const r = res as ReturnType<typeof growPanel>;
     if (r) useStore.getState().select({ kind: 'panel', id: r.panelId });
@@ -74,6 +80,25 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
                 </select>
               </div>
             )}
+            {eg.offset === 0 && (
+              <div className="span-row">
+                <NumField label={t('grow.spanStart')} value={Math.round(span[0] * 10) / 10} unit={t('unit.mm')} min={0} max={L} onCommit={(v) => setGrow({ span: [Math.min(v, span[1] - 5), span[1]], sketch: null })} testId="grow-span-start" />
+                <NumField label={t('grow.spanEnd')} value={Math.round(span[1] * 10) / 10} unit={t('unit.mm')} min={0} max={L} onCommit={(v) => setGrow({ span: [span[0], Math.max(v, span[0] + 5)], sketch: null })} testId="grow-span-end" />
+              </div>
+            )}
+            <label className="check" title={t('grow.adaptHelp')}>
+              <input type="checkbox" checked={grow.adapt !== false} onChange={(e) => setGrow({ adapt: e.target.checked, sketch: null })} data-testid="grow-adapt" />
+              {t('grow.adapt')}
+            </label>
+            {eg.adaptive && !grow.sketch && <p className="note" data-testid="grow-adapted">{t('grow.adapted')}</p>}
+            <button
+              className={grow.editGhost ? 'on' : ''}
+              aria-pressed={!!grow.editGhost}
+              onClick={() => setGrow({ editGhost: !grow.editGhost, sketch: grow.editGhost ? grow.sketch : (grow.sketch ?? eg.adaptive ?? { kind: 'wall' }) })}
+              data-testid="grow-edit-outline"
+            >
+              <Icon name="polygon" size={16} /> {t(grow.editGhost ? 'outline.done' : 'outline.edit')}
+            </button>
             {check.sideWalls && effKind === 'lean' && (
               <div className="warn" data-testid="lean-needs-walls">
                 <strong>{hingeText(t, check)}</strong>

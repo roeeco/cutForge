@@ -210,6 +210,8 @@ export function AngleArc(props: {
   label: string;
   message?: string;
   testId?: string;
+  /** Angles the knob snaps to within 3° (where the panel would rest on another one); Alt turns them off. */
+  targets?: number[];
 }) {
   const [hover, setHover] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -255,7 +257,9 @@ export function AngleArc(props: {
         raw = st.raw + (dRad * 180) / Math.PI;
       }
       drag.current = { raw, x: ev.clientX, y: ev.clientY };
-      const a = snapHinge(raw, ev.altKey);
+      const norm = ((raw % 360) + 360) % 360;
+      const near = ev.altKey ? undefined : props.targets?.find((x) => Math.abs(((x - norm + 540) % 360) - 180) < 3);
+      const a = near !== undefined ? near : snapHinge(raw, ev.altKey);
       if (a !== props.value) props.onChange(a);
     },
     end: (cancel) => {

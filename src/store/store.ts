@@ -1,7 +1,7 @@
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
-import type { ConnectionKind, Design, DetailOp, DetailShape } from '../model/types';
+import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor } from '../model/materials';
 import { autoConnect, createDesign, solve, type FacePick } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
@@ -33,7 +33,19 @@ export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | '
 export type View = '3d' | '2d' | 'solo';
 
 /** Grow card settings. `angle` is the hinge angle, 0–360° (see src/model/hinge.ts). */
-export type GrowOptions = { height: number; angle: number; kind?: ConnectionKind };
+export type GrowOptions = {
+  height: number;
+  angle: number;
+  kind?: ConnectionKind;
+  /** Part of the edge to grow on ([s0, s1] mm from its start); null: the largest free stretch (usually the whole edge). */
+  span?: [number, number] | null;
+  /** Trim the new panel to what it would run into (default on). */
+  adapt?: boolean;
+  /** Outline edits made on the ghost (wall corners and inserts); null: none (the adaptive trim, if on). */
+  sketch?: WallSketch | null;
+  /** The ghost's outline handles are shown. */
+  editGhost?: boolean;
+};
 
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
@@ -214,7 +226,7 @@ export const useStore = create<State>()((set, get) => ({
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
   replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
-  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
+  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
   setTool: (t) => set({ tool: t, editOutline: null, selVertex: null }),
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),

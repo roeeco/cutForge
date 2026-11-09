@@ -23,10 +23,12 @@ export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[]
 export const pieceRoot = (key: string) => key.split('~')[0];
 
 /** Rigid unfolding of a folded child into its parent's coordinates. */
-export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number): Xform2 {
-  const [A, B] = edgeLocal(parent, edge);
-  const l = Math.hypot(B.x - A.x, B.y - A.y);
-  const U = { x: (B.x - A.x) / l, y: (B.y - A.y) / l };
+export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number, s0 = 0): Xform2 {
+  const [A0, B] = edgeLocal(parent, edge);
+  const l = Math.hypot(B.x - A0.x, B.y - A0.y);
+  const U = { x: (B.x - A0.x) / l, y: (B.y - A0.y) / l };
+  // a child on part of the edge starts s0 along it
+  const A = s0 ? { x: A0.x + U.x * s0, y: A0.y + U.y * s0 } : A0;
   const i = edgeInwardLocal(parent, edge);
   const O = { x: -i.x, y: -i.y };
   const det = U.x * O.y - U.y * O.x;
@@ -50,7 +52,7 @@ export function netGroups(d: Design): NetPanel[][] {
       const { panelId, xf } = group[i];
       for (const c of folds) {
         if (c.a.panelId !== panelId || inNet.has(c.b.panelId)) continue;
-        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, d.material.foldAllowance)) });
+        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, d.material.foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0)) });
         inNet.add(c.b.panelId);
       }
     }
@@ -119,7 +121,13 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
       const parent = d.panels[c.a.panelId];
       const xf = group.find((g) => g.panelId === parent.id)!.xf;
-      const [A, B] = edgeLocal(parent, c.a.edge);
+      let [A, B] = edgeLocal(parent, c.a.edge);
+      if (c.span && !c.trayId) {
+        // the fold strip runs along the part of the edge the child stands on
+        const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
+        const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
+        [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
+      }
       const i = edgeInwardLocal(parent, c.a.edge);
       const al = d.material.foldAllowance;
       const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });

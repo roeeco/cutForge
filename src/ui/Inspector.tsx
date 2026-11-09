@@ -8,6 +8,7 @@ import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normD
 import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { TemplateSection } from './TemplateUI';
+import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
 import type { DetailOp } from '../model/types';
@@ -155,7 +156,7 @@ export function Inspector() {
                 .map(({ key: e }) => (
                   <button
                     key={e}
-                    disabled={!!edgeConnection(d, id, e)}
+                    disabled={!edgeHasRoom(d, id, e, MIN_PANEL)}
                     onClick={() => {
                       useStore.getState().select({ kind: 'edge', panelId: id, edge: e });
                       useStore.getState().setView('3d');

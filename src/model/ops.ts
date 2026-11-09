@@ -6,6 +6,7 @@ import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, DividerSet, FoldOver, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { clearBox, memberOf, reconcileDividerSets, renamePanel } from './dividers';
+import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
@@ -105,8 +106,11 @@ export function solve(d: Design) {
       // the parent edge is gone (a vertex was deleted): keep the panel where it was, flagged
       if (!findEdge(parent, c.a.edge)) continue;
       fitKind(c, connectionsFor(d.material, c.angle));
-      child.frame = growFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset);
-      child.w = edgeLength(parent, c.a.edge);
+      // part of the edge (a partial width), except for tray walls
+      const span = c.trayId ? null : c.span;
+      child.frame = spanFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset, span);
+      const [s0, s1] = spanOf(parent, c.a.edge, span);
+      child.w = s1 - s0;
       child.h = Math.max(child.h, MIN_PANEL);
       done.add(child.id);
     }
@@ -171,7 +175,8 @@ export function reconcileWallSets(d: Design) {
         d.pieces[id] = { quantity: d.pieces[wall.id]?.quantity ?? 1 };
       }
       d.panels[id].broken = false;
-      if (!d.connections[cid]) d.connections[cid] = { ...plain({ ...c, geom: undefined }), id: cid, a: { panelId: parent.id, edge: `${c.a.edge}#${n}` }, b: { panelId: id, edge: 'e0' } };
+      // (a wall on part of an edge keeps its part on the first piece; the walls on the other pieces take their whole piece)
+      if (!d.connections[cid]) d.connections[cid] = { ...plain({ ...c, geom: undefined, span: undefined }), id: cid, a: { panelId: parent.id, edge: `${c.a.edge}#${n}` }, b: { panelId: id, edge: 'e0' } };
       // one set: the same height, angle and joint
       const dc = d.connections[cid];
       Object.assign(dc, { kind: c.kind, pref: c.pref, angle: c.angle, dir: c.dir, offset: c.offset, fingers: c.fingers, tabs: c.tabs, flap: c.flap, foldDir: c.foldDir, trayId: c.trayId });
@@ -295,7 +300,18 @@ export function addRootPanel(d: Design, x: number, z: number, w: number, h: numb
 }
 
 /** `pref`: the joint wanted whenever the angle allows it (default: `kind`). */
-export type GrowOpts = { height: number; angle: number; dir: GrowDir; kind: ConnectionKind; offset?: number; pref?: ConnectionKind };
+export type GrowOpts = {
+  height: number;
+  angle: number;
+  dir: GrowDir;
+  kind: ConnectionKind;
+  offset?: number;
+  pref?: ConnectionKind;
+  /** Part of the parent edge to stand on ([s0, s1] mm from its start); absent: the whole edge. */
+  span?: [number, number] | null;
+  /** The new panel's outline (wall corners and inserts), e.g. trimmed to its neighbours. */
+  sketch?: WallSketch | null;
+};
 
 /** Default distance from the edge for a tab-and-slot wall: leaves a safe web outside its slots. */
 export function defaultOffset(d: Design, kind: ConnectionKind): number {
@@ -307,17 +323,27 @@ export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: G
   const edge = ek(edgeArg);
   if (!parent || !findEdge(parent, edge)) return null;
   const offset = opts.offset ?? defaultOffset(d, opts.kind);
-  if (offset === 0 && edgeConnection(d, parentId, edge)) return null;
+  const L = edgeLength(parent, edge);
+  const partial = opts.span && spanOf(parent, edge, opts.span)[1] - spanOf(parent, edge, opts.span)[0] < L - 1e-6 ? spanOf(parent, edge, opts.span) : null;
+  if (offset === 0) {
+    // the edge (or the part asked for) must be free
+    const want = partial ?? [0, L];
+    const free = edgeFreeSpans(d, parentId, edge);
+    if (!free.some(([a, b]) => a <= want[0] + 1e-6 && b >= want[1] - 1e-6)) return null;
+  }
   const id = newId('p');
   d.panels[id] = {
     id,
     name: `${d.order.length + 1}`,
-    w: edgeLength(parent, edge),
+    w: partial ? partial[1] - partial[0] : L,
     h: Math.max(MIN_PANEL, opts.height),
-    sketch: { kind: 'wall' },
-    frame: growFrame(parent, edge, opts.angle, opts.dir, d.material.thickness, seatingOf(opts.kind), offset),
+    sketch: { kind: 'wall', ...(opts.sketch ? plain({ corners: opts.sketch.corners, inserts: opts.sketch.inserts }) : {}) },
+    frame: spanFrame(parent, edge, opts.angle, opts.dir, d.material.thickness, seatingOf(opts.kind), offset, partial),
     details: [],
   };
+  const ws = d.panels[id].sketch as WallSketch;
+  if (!ws.corners) delete ws.corners;
+  if (!ws.inserts) delete ws.inserts;
   d.order.push(id);
   d.pieces[id] = { quantity: 1 };
   const cid = newId('c');
@@ -335,6 +361,7 @@ export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: G
     tabs: null,
     flap: null,
     foldDir: opts.dir === 'up' ? 'valley' : 'mountain',
+    ...(partial ? { span: [partial[0], partial[1]] as [number, number] } : {}),
   };
   solve(d);
   // an angled plywood panel is held by side walls: connect to any that are there

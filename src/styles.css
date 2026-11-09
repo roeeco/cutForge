@@ -542,3 +542,6 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .between-pill { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; transform: translate(10px, -50%); }
 .between-pill.off { opacity: 0.75; background: var(--surface-sunk); color: var(--ink-muted); cursor: not-allowed; }
 .between-pill .why { font-size: 11px; font-weight: 400; white-space: normal; max-width: 220px; }
+.span-row { display: flex; flex-direction: column; gap: 2px; }
+[data-testid=grow-edit-outline] { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin-block-start: 4px; }
+[data-testid=grow-edit-outline].on { background: var(--accent-soft, #d8efec); border-color: var(--accent, #15706b); }

@@ -104,3 +104,32 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-18-between-refused.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`refine shots m19 ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    await S(page, () => {
+      const cf = (window as any).__cutforge;
+      const out: any = {};
+      cf.store.getState().apply((x: any) => {
+        out.base = cf.ops.addRootPanel(x, -60, 40, 120, 80);
+        out.front = cf.ops.growPanel(x, out.base, 'e0', { height: 40, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+        out.back = cf.ops.growPanel(x, out.base, 'e2', { height: 80, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+      });
+      cf.store.getState().apply((x: any) => {
+        const a = 90 - (Math.atan2(40, 80) * 180) / Math.PI;
+        cf.ops.growPanel(x, out.back, 'e2', { height: Math.hypot(80, 40), angle: a, dir: 'up', kind: 'lean' });
+      });
+      cf.store.getState().select({ kind: 'edge', panelId: out.base, edge: 'e1' });
+      cf.store.getState().setGrow({ angle: 90, height: 110 });
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-19-adapted-gable-ghost.png` });
+    await S(page, () => (window as any).__cutforge.store.getState().setGrow({ span: [10, 60] }));
+    await page.getByTestId('grow-edit-outline').click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-19-span-and-outline.png` });
+  });
+}
