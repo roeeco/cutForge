@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
+import { trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
@@ -26,7 +26,7 @@ import { flapMatrix, foldDisplay, type Bend } from './foldView';
 import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
-import { netGroups } from '../model/pieces';
+import { netGroups, netOverlaps } from '../model/pieces';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
@@ -456,6 +456,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         );
       })}
       <Flaps d={design} xf={display.xf} foldT={foldT} />
+      {folded && <NetOverlapMarks d={design} xf={display.xf} />}
       {foldOvers.map((fo) => (
         <FoldOverObject key={fo.f.id} d={design} p={design.panels[fo.panelId]} g={fo.g} m={display.xf.get(fo.panelId) ?? IDM} foldT={foldT} index={design.order.indexOf(fo.panelId)} />
       ))}
@@ -816,6 +817,36 @@ function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
   );
 }
 
+/** While a net is unfolded: where it would overlap when flat (milestone 35), in red on its root panel's plane. */
+function NetOverlapMarks({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> }) {
+  const list = useMemo(() => netOverlaps(d), [d]);
+  const items = useMemo(
+    () =>
+      list.flatMap((o, k) => {
+        const root = d.panels[o.net];
+        if (!root) return [];
+        const z = tOf(d, root.id) + 0.3;
+        return o.region.map((r, j) => {
+          const shape = new THREE.Shape(r.map((q) => new THREE.Vector2(q.x, q.y)));
+          const g = new THREE.ShapeGeometry(shape);
+          const m = (xf.get(root.id) ?? IDM).clone().multiply(frameMatrix(root.frame)).multiply(new THREE.Matrix4().makeTranslation(0, 0, z * root.frame.side));
+          return { key: `${k}.${j}`, g, m };
+        });
+      }),
+    [list, xf, d],
+  );
+  useEffect(() => () => items.forEach((x) => x.g.dispose()), [items]);
+  return (
+    <>
+      {items.map((x) => (
+        <mesh key={x.key} geometry={x.g} matrixAutoUpdate={false} matrix={x.m} raycast={() => null} renderOrder={12} userData={{ netOverlap: true }}>
+          <meshBasicMaterial color="#dc2626" transparent opacity={0.6} side={THREE.DoubleSide} depthTest={false} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
 function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number }) {
   const items = useMemo(() => {
     const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number; owner: string; on: string }[] = [];
@@ -1162,19 +1193,26 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       });
   }, [d, base, height, kind, m, th]);
   useEffect(() => () => ghosts.forEach((g) => g.geom.dispose()), [ghosts]);
+  // nets that lie flat (milestone 35): the tallest height that keeps the net one piece, and the walls changed past it
+  const info = useMemo(() => trayFlatInfo(d, baseId, height), [d, baseId, height]);
+  const fh = info && Number.isFinite(info.flatHeight) && info.flatHeight < 1000 ? info.flatHeight : null;
+  const changed = new Set(Object.entries(info?.fixes ?? {}).filter(([, f]) => f !== 'trim').map(([k]) => k));
   if (!ghosts.length) return null;
   const first = ghosts[0].p;
   const setH = (v: number) => {
     const ex = useStore.getState().extrude;
-    if (ex) useStore.getState().set({ extrude: { ...ex, height: Math.round(v) } });
+    // the arrow snaps to the flat height
+    const snapped = fh !== null && Math.abs(v - fh) <= 2 ? fh : Math.round(v);
+    if (ex) useStore.getState().set({ extrude: { ...ex, height: snapped } });
   };
+  const hf = fh !== null ? wallHeight(d, kind, fh, baseId) : null;
   return (
     <>
       {ghosts.map((g) => (
-        <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true }}>
+        <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true, trayGhost: g.key, changed: changed.has(g.key) }}>
           <mesh geometry={g.geom} raycast={() => null}>
-            <meshStandardMaterial color={STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
-            <Edges threshold={25} lineWidth={2} color={STAGE.ghostEdge} />
+            <meshStandardMaterial color={changed.has(g.key) ? STAGE.blocked : STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
+            <Edges threshold={25} lineWidth={2} color={changed.has(g.key) ? '#9a6400' : STAGE.ghostEdge} />
           </mesh>
         </group>
       ))}
@@ -1190,6 +1228,16 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
         testId="tray-ghost-height"
       />
       <DimLabel at={W(m, first.frame, first.w, first.h / 2, th / 2)} k="H" value={height} unit={t('unit.mm')} ghost onCommit={setH} testId="tray-ghost-dim" />
+      {hf !== null && hf > 0 && (
+        <>
+          <DimLine a={W(m, first.frame, -4, hf, th)} b={W(m, first.frame, first.w + 4, hf, th)} tick={v3mul(Wdir(m, first.frame.v), 2)} />
+          <StageHtml position={W(m, first.frame, -6, hf, th)}>
+            <div className="flat-tick" data-testid="flat-tick" data-h={fh}>
+              {t('flat.tick', { h: fmtNum(fh!, 1) })}
+            </div>
+          </StageHtml>
+        </>
+      )}
     </>
   );
 }

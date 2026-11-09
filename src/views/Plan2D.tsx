@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
-import { panelPiece, pieceRoot } from '../model/pieces';
+import { netOverlaps, panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
 import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
@@ -84,6 +84,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       });
     return { placed, slots, placements, mixed: groups.length > 1 };
   }, [d, solo]);
+  // nets that would not lie flat (milestone 35): the overlap regions, in red on the piece
+  const netBad = useMemo(() => (solo ? [] : netOverlaps(d)), [d, solo]);
   // pieces flagged by validation (overlapping or off the sheet) are drawn in red
   const badPieces = useMemo(() => {
     if (solo) return new Set<string>();
@@ -591,6 +593,15 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                 })}
             </g>
           );
+        })}
+        {netBad.map((o, k) => {
+          const pl = layout.placed.find((x) => x.copy.copy === 0 && x.copy.pieceKey === o.net);
+          if (!pl) return null;
+          const at = (q: Vec2) => {
+            const r = applyX(pl.xf, { x: q.x - pl.copy.origin.x, y: q.y - pl.copy.origin.y });
+            return `${r.x + pl.ox},${pl.H - r.y}`;
+          };
+          return o.region.map((r, j) => <polygon key={`${k}.${j}`} points={r.map(at).join(' ')} className="net-overlap" fill="rgba(220, 38, 38, 0.55)" stroke="#b91c1c" strokeWidth={px} pointerEvents="none" data-testid="net-overlap" />);
         })}
         {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (
           <Handles

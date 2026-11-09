@@ -109,13 +109,17 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
       if (turn > -1e-6) continue;
       const wa = isWallOn(base.id, prev.key), wb = isWallOn(base.id, cur.key);
       if (!wa || !wb) continue;
-      const W = d.panels[wb];
+      // the wall that closes the corner: the outgoing one, or the incoming one where it gives way so the net lies flat (milestone 35)
+      const tray = Object.values(d.trays ?? {}).find((t) => t.baseId === base.id);
+      const flip = tray?.fixPlan?.extOn?.[cur.key] === 'prev';
+      const [closer, other] = flip ? [wa, wb] : [wb, wa];
+      const W = d.panels[closer];
       if (!W) continue;
       const sin = Math.min(1, Math.abs(turn));
       // to the other wall's inner face: its thickness; a web past tab slots in it
-      let ext = tOf(d, wa) / Math.max(sin, 0.2);
-      if (seamKind(wa, wb) === 'tabslot') ext += Math.max(2, minWeb(matOf(d, wa))) + matOf(d, wa).clearance / 2;
-      W.ext = { s: ext, e: W.ext?.e ?? 0 };
+      let ext = tOf(d, other) / Math.max(sin, 0.2);
+      if (seamKind(wa, wb) === 'tabslot') ext += Math.max(2, minWeb(matOf(d, other))) + matOf(d, other).clearance / 2;
+      W.ext = flip ? { s: W.ext?.s ?? 0, e: ext } : { s: ext, e: W.ext?.e ?? 0 };
     }
   }
 }

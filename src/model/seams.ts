@@ -11,6 +11,7 @@ import { matOf, minWeb, pairFilter, tOf } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
+import { constructionSet, flatOnHost } from './place';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -482,6 +483,19 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   // an edge that no longer exists (a deleted vertex): the joint is broken
   if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return null;
 
+  if (c.kind === 'fold' && !c.grown) {
+    // a tray corner made a fold (milestone 35): the wall folded off its neighbour gives way at the corner
+    const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6);
+    if (!fit) return null;
+    const childA = c.hingeOf === A.id;
+    const cut = childA ? cornerDepths(tB, fit, tA).depth : cornerDepths(tA, fit, tB).depth;
+    if (childA) g.edges.push({ panelId: A.id, edge: c.a.edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: cut }] });
+    else {
+      const b0 = fit.mapB(fit.s0), b1 = fit.mapB(fit.s1);
+      g.edges.push({ panelId: B.id, edge: c.b.edge, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cut }] });
+    }
+    return g;
+  }
   if (c.kind === 'fold' || c.kind === 'lean' || (c.kind === 'butt' && c.grown)) return g;
 
   if (c.kind === 'finger') {
@@ -893,7 +907,9 @@ function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
  */
 export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const out: OpenSeam[] = [];
-  const ids = d.order.filter((id) => d.panels[id]);
+  // construction guides are never joined (milestone 28)
+  const guides = constructionSet(d);
+  const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
   const conns = Object.values(d.connections);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
@@ -901,6 +917,8 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
       if (only && A.id !== only && B.id !== only) continue;
       const mine = conns.filter((c) => (c.a.panelId === A.id && c.b.panelId === B.id) || (c.a.panelId === B.id && c.b.panelId === A.id));
       if (mine.some((c) => c.grown)) continue;
+      // a flat panel placed on a face is a separate part, not joined to it
+      if (flatOnHost(d, A.id, B.id)) continue;
       if (!nearEachOther(d, A, B)) continue;
       const found = seamsBetween(d, A, B);
       if (!found.length) continue;

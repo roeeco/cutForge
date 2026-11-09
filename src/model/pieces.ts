@@ -9,8 +9,10 @@ import { applyX, composeX, flattenContour, IDENTITY, pointInPolygon, polygonArea
 import { holeCuts, ownOutline } from './outline';
 import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
+import { cornerDepths, cornerFit } from './seams';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
-import { matIdOf, matOf } from './materials';
+import { matIdOf, matOf, tOf } from './materials';
+import { constructionSet } from './place';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -38,23 +40,74 @@ export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeA
   return det > 0 ? { tx, ty, rot: Math.atan2(U.y, U.x) } : { tx, ty, rot: Math.atan2(-U.y, -U.x), mirror: true };
 }
 
+/** A fold in a net: the panel that stays (`parent`) and the one folded off it (`child`). Grown folds, and tray corners made folds (milestone 35). */
+export type NetFold = { id: string; parent: string; child: string; xf: (d: Design) => Xform2 | null };
+
+/** Every fold joining two panels into one net. */
+export function netFolds(d: Design): NetFold[] {
+  const out: NetFold[] = [];
+  for (const c of Object.values(d.connections)) {
+    if (c.kind !== 'fold' || !d.panels[c.a.panelId] || !d.panels[c.b.panelId]) continue;
+    if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
+    else if (c.hingeOf) {
+      const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
+      const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
+      out.push({ id: c.id, parent, child, xf: (dd) => cornerFoldXform(dd, parent, pe, child, ce) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Unfolding a wall hinged off its neighbour's side edge (a tray corner made a
+ * fold): the child's edge lies along the parent's edge, the fold allowance out
+ * from it, the child beyond it (its edge cut back by the corner, so its
+ * material starts at the allowance).
+ */
+export function cornerFoldXform(d: Design, parentId: string, pe: string, childId: string, ce: string): Xform2 | null {
+  const P = d.panels[parentId], C = d.panels[childId];
+  const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+  if (!P || !C || !fit) return null;
+  const [aP, bP] = edgeLocal(P, pe), [aC, bC] = edgeLocal(C, ce);
+  const lp = Math.hypot(bP.x - aP.x, bP.y - aP.y), lc = Math.hypot(bC.x - aC.x, bC.y - aC.y);
+  const dP = { x: (bP.x - aP.x) / lp, y: (bP.y - aP.y) / lp }, dC = { x: (bC.x - aC.x) / lc, y: (bC.y - aC.y) / lc };
+  const iP = edgeInwardLocal(P, pe), iC = edgeInwardLocal(C, ce);
+  // s along P's edge meets s' = mapB(s) along C's: the slope is ±1
+  const k = fit.mapB(fit.s0 + 1) - fit.mapB(fit.s0) >= 0 ? 1 : -1;
+  const tgtD = { x: dP.x * k, y: dP.y * k }, tgtI = { x: -iP.x, y: -iP.y };
+  const cross = (u: P2, v: P2) => u.x * v.y - u.y * v.x;
+  const mirror = Math.sign(cross(dC, iC)) !== Math.sign(cross(tgtD, tgtI));
+  const src = mirror ? { x: -dC.x, y: dC.y } : dC;
+  const rot = Math.atan2(tgtD.y, tgtD.x) - Math.atan2(src.y, src.x);
+  const cut = cornerDepths(tOf(d, parentId), fit, tOf(d, childId)).depth;
+  const off = matOf(d, parentId).foldAllowance - cut;
+  const from = { x: aC.x + dC.x * fit.mapB(fit.s0), y: aC.y + dC.y * fit.mapB(fit.s0) };
+  const to = { x: aP.x + dP.x * fit.s0 - iP.x * off, y: aP.y + dP.y * fit.s0 - iP.y * off };
+  const r = applyX({ tx: 0, ty: 0, rot, mirror: mirror || undefined }, from);
+  return { tx: to.x - r.x, ty: to.y - r.y, rot, mirror: mirror || undefined };
+}
+
 /** Panel groups joined by folds, each listed from its root (the earliest panel). */
 export function netGroups(d: Design): NetPanel[][] {
-  const folds = Object.values(d.connections).filter((c) => c.grown && c.kind === 'fold' && d.panels[c.a.panelId] && d.panels[c.b.panelId]);
+  const folds = netFolds(d);
   const inNet = new Set<string>();
   const groups: NetPanel[][] = [];
+  // construction guides are never cut (milestone 28)
+  const guides = constructionSet(d);
   for (const id of d.order) {
-    if (!d.panels[id] || inNet.has(id)) continue;
+    if (!d.panels[id] || inNet.has(id) || guides.has(id)) continue;
     // a fold child is reached from its parent
-    if (folds.some((c) => c.b.panelId === id)) continue;
+    if (folds.some((f) => f.child === id)) continue;
     const group: NetPanel[] = [{ panelId: id, xf: IDENTITY }];
     inNet.add(id);
     for (let i = 0; i < group.length; i++) {
       const { panelId, xf } = group[i];
-      for (const c of folds) {
-        if (c.a.panelId !== panelId || inNet.has(c.b.panelId)) continue;
-        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, matOf(d, panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0)) });
-        inNet.add(c.b.panelId);
+      for (const f of folds) {
+        if (f.parent !== panelId || inNet.has(f.child)) continue;
+        const x = f.xf(d);
+        if (!x) continue;
+        group.push({ panelId: f.child, xf: composeX(xf, x) });
+        inNet.add(f.child);
       }
     }
     groups.push(group);
@@ -80,7 +133,7 @@ export function panelPiece(d: Design, panelId: string): Piece {
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => c.grown && c.kind === 'fold');
+  const folds = Object.values(d.connections).filter((c) => c.kind === 'fold' && (c.grown || c.hingeOf));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];
@@ -120,6 +173,25 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     // fold strips (fold allowance) and their score lines
     for (const c of folds) {
       if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
+      if (!c.grown) {
+        // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
+        const child = c.hingeOf, parentId = child === c.a.panelId ? c.b.panelId : c.a.panelId;
+        const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
+        const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
+        const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+        const gx = group.find((g) => g.panelId === parentId);
+        if (!fit || !gx) continue;
+        const [A0, B0] = edgeLocal(P, pe);
+        const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
+        const A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 }, B = { x: A0.x + ux * fit.s1, y: A0.y + uy * fit.s1 };
+        const i = edgeInwardLocal(P, pe);
+        const al = matOf(d, parentId).foldAllowance;
+        const off = (q: P2, k: number) => applyX(gx.xf, { x: q.x - i.x * k, y: q.y - i.y * k });
+        const ov = 1e-5;
+        if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
+        contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: child!, foldId: c.id } });
+        continue;
+      }
       const parent = d.panels[c.a.panelId];
       const xf = group.find((g) => g.panelId === parent.id)!.xf;
       let [A, B] = edgeLocal(parent, c.a.edge);
@@ -188,11 +260,12 @@ export function pieceMat(d: Design, pieceKey: string): string {
 
 /** The piece a panel is cut as part of (the root of its folded net). */
 export function pieceKeyOf(d: Design, panelId: string): string {
+  const folds = netFolds(d);
   let id = panelId;
   for (let i = 0; i < 1000; i++) {
-    const c = Object.values(d.connections).find((x) => x.grown && x.kind === 'fold' && x.b.panelId === id);
-    if (!c) return id;
-    id = c.a.panelId;
+    const f = folds.find((x) => x.child === id);
+    if (!f) return id;
+    id = f.parent;
   }
   return id;
 }
@@ -201,12 +274,14 @@ export function pieceKeyOf(d: Design, panelId: string): string {
 export type NetOverlap = { a: string; b: string; area: number; region: P2[][]; net: string };
 
 /** A panel as it lies in its flat net: its outline (joints applied) and what it adds (flaps, fold-over rim and liner), in net coordinates. */
-export function flatPanel(d: Design, panelId: string, xf: Xform2): MultiPolygon {
+export function flatPanel(d: Design, panelId: string, xf: Xform2, noCornerFlaps = false): MultiPolygon {
   const p = d.panels[panelId];
   if (!p) return [];
   const notches = panelNotches(d, p);
   const polys: Polygon[] = ownOutline(p).rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon);
-  for (const a of panelExtras(d, p).adds) polys.push([toRing(a)]);
+  // without corner glue flaps (which a trim can always clear): only what a wall itself covers
+  const skip = noCornerFlaps ? new Set(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'glue').flatMap((c) => (c.geom?.adds ?? []).map((x) => x.poly))) : null;
+  for (const a of panelExtras(d, p).adds) if (!skip?.has(a)) polys.push([toRing(a)]);
   const local = safeUnion(polys);
   return local.map((poly) => poly.map((r) => r.map(([x, y]) => {
     const q = applyX(xf, { x, y });
@@ -234,11 +309,11 @@ const mbox = (m: MultiPolygon) => {
  * panel flattened with its additions, intersected pair by pair. Overlaps of
  * at least `min` mm² are returned with their area and region (net coordinates).
  */
-export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => boolean): NetOverlap[] {
+export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => boolean, noCornerFlaps = false): NetOverlap[] {
   const out: NetOverlap[] = [];
   for (const g of netGroups(d)) {
     if (g.length < 2 || (only && !only(g))) continue;
-    const flats = g.map((n) => ({ id: n.panelId, m: flatPanel(d, n.panelId, n.xf) })).filter((f) => f.m.length);
+    const flats = g.map((n) => ({ id: n.panelId, m: flatPanel(d, n.panelId, n.xf, noCornerFlaps) })).filter((f) => f.m.length);
     const boxes = flats.map((f) => mbox(f.m));
     for (let i = 0; i < flats.length; i++)
       for (let j = i + 1; j < flats.length; j++) {

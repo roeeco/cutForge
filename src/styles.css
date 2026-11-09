@@ -566,3 +566,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .custom-mat { display: grid; gap: 6px; margin: 6px 0; }
 .mat-heading { fill: var(--ink, #2a2622); }
 .mat-row { display: grid; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line, #e3e7ee); }
+
+/* milestone 35: nets that lie flat */
+.flat-note { margin: 6px 0; }
+.flat-note .warn-text { color: #8a5a00; }
+.flat-tick { transform: translate(-100%, -50%); white-space: nowrap; font-size: 11px; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.85); color: #0b4f4a; border: 1px solid #9fd8d2; pointer-events: none; }

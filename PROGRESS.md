@@ -584,6 +584,44 @@ Remaining (milestones 25–27)
 - A long template (the organiser's eight sizes) still makes the card scroll on a Chromebook while its sizes are open; its sizes were kept open by default because they are what a template is for.
 - The flat-ring/proxy switch happens at 20°: moving the camera across it swaps the ring mid-view.
 
+## Milestone 28 — Placed and construction panels (model) ✅
+
+Implemented (`src/model/place.ts`; `addPlacedPanel`, `movePlaced`, `rotatePlaced`, `placedCentre`, `rehost`, `setConstruction` in `ops.ts`)
+- `Panel.place?: { host, face, x, y, rot, pose, side? }`: on the floor (`host: null`, the floor's coordinates as floor panels: x along world X, y along world −Z) or a face of another panel (`face` 1: its material side, −1: its plane), flat (the panel's origin and its u axis turned by `rot` in the host's plane) or standing (its bottom line from (x, y) along `rot`, rising out of the face; `side` says which side of the line its material is on). Floor panels without `place` are unchanged (schema 8 needs no conversion).
+- `solve` derives a placed panel's frame from its host's (`placeFrame`) in the same pass as grown frames (hosts first, so a panel can sit on a grown wall and panels can sit on placed panels); a cycle is refused (`placeCycle`). The fold view carries placed panels with their host.
+- Moving, turning and `normalizeSketch` work in the host's plane for placed panels (`movePanel`/`rotatePanel` carry floor moves into it; `panelYaw` is the place's turn).
+- Deleting a host drops the panels placed on it to the floor (`dropToFloor`): flat stays flat with its centre where it was seen from above, standing stays standing with its bottom line where it was; panels placed on *them* keep following them.
+- Joints: a standing placed panel is an edge on a face (`connectSeams`, the design's *Wall to base* kind: tabs and slots on plywood); a flat one is not joined to its host and is not reported as touching it (`flatOnHost`, seams and contacts).
+- `Panel.construction` on a net's root (`constructionSet`: grown panels inherit it): left out of seams and automatic joints, contacts, validation, through-cuts (neither cuts nor is cut), fold nets, pieces, packing, export and the cut plan; its own grown connections carry no joint. It stays a snap target, a host and a grow parent. `setConstruction` marks the net's root (removing its joints) or makes it real again (joining it).
+
+Verified (`tests/placed.test.ts`)
+- **A flat panel and a standing shelf on a wall keep their place on it when the base moves and turns and when the wall grows**; in the fold view they ride with it.
+- **Deleting the host drops them to the floor in place**: flat on the floor with the same centre seen from above, standing on the floor on the same line; a panel placed on the dropped one keeps following it.
+- **A standing panel on a plywood base gets tab-and-slot (slots in the base), its bottom on the face; a flat one makes no joint and the export check is clean** (three pieces).
+- **A construction box is missing from pieces and export, makes no joints, is still a snap target; switched real it gets its four corners and six pieces.** A panel placed on a construction panel is real and not joined to it. Saving keeps `place` and `construction`; designs without them save neither.
+
+## Milestone 35 (engine) — Nets that lie flat ✅
+
+Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)
+- `netOverlaps(d)`: every fold net flattened panel by panel (outline with joints, plus flaps, fold-over rim and liner) and intersected pair by pair; overlaps over 0.5 mm² with their area and region. The export check reports them (`val.netOverlap`, both panels selected when clicked); the cut plan draws the region in red on the piece, and the 3D view on the net's root plane while it is unfolded.
+- `fixFlatNets` runs at the end of `solve` for trays on card and corrugated (`Tray.flat`, `auto` by default). For each overlap, largest first, the first fix that clears it is kept and the design is solved again:
+  1. **trim**: a corner glue flap between the two walls is clipped along the other wall's side edge, 1 mm short of it, flat and folded alike; if its average width falls below the minimum flap (half the automatic width) the flap moves to the corner's other wall.
+  2. **hinge**: the giving-way wall folds off its other neighbour across a convex corner (that corner becomes a fold, `Connection.hingeOf`; the wall is cut back by the corner, unfolds in line with the neighbour in the net, `cornerFoldXform`, with a fold strip and score) and is glued to the base along its bottom. Kept only when it then overlaps nothing (or the student pinned it). The fold view turns it with its neighbour.
+  3. **own**: the wall leaves the net and joins the base with the design's wall-to-base kind for its material (glue on card, tabs and slots on corrugated when that kind is a fold).
+- Which wall gives way: against the base, the wall; between walls, the shorter, or the later in the base's edge order. At an inside corner the giving-way wall is also the one that closes the corner (`fixPlan.extOn` moves the corner extension to it), so the other stays clear of the base. `Tray.pin` (the tray card's per-wall choice: automatic, fold off its neighbour, own piece, the other wall gives way) overrides.
+- `fixes` and `fixPlan` are re-made on every solve (stable ids, so shapes stay on their wall); a tray wall's offset now follows its joint (`defaultOffset`), and the tab-and-slot offset keeps the slot web at the material's minimum after the slot grows by half the clearance (corrugated 1.6 tab-and-slot walls were 0.1 mm short of it before).
+- `flatHeight` (`trayFlatInfo`): the tallest wall height at which the net lies flat in one piece (no wall cut as its own piece; trims and hinges keep it whole), by binary search in 0.5 mm steps on a copy of the base alone (kept per base, so a new height costs one solve); Infinity when any height does. The extrude ghost marks it on the walls (`flat-tick`), its arrow snaps to it within 2 mm, and walls that would be changed are drawn amber. The extrude and tray cards say what changes (`flat-own`: *Above 50 mm, wall 5 is cut as its own piece so the net lies flat.*, `flat-hinge`, `flat-trim`); the tray card offers *Lower to …* (`flat-lower`) and *Keep in one piece* (`flat-keep`, `Tray.flat = 'off'`), and back (`flat-auto`).
+
+Verified
+- `tests/flatnet.test.ts`: **rectangle, triangle, hexagon, octagon and L bases × card, corrugated 1.6 and 4 mm × 20, 40 and 80 mm walls all lie flat after `solve`** (`netOverlaps` empty, no joint broken, no `val.netOverlap`); **the L tray hinges its closing wall at 20 mm (one piece) and cuts it as its own piece at 80 mm (two pieces)** in all three materials; **the octagon's card flaps are trimmed and keep at least the minimum width**, flat and folded alike; hinged and separate walls overlap nothing in 3D, keep their shapes and pass the export check; in the fold view a hinged wall lies flat at foldT 0 and stands at 1; pins (own piece, the other wall gives way); *Keep in one piece* leaves the overlap and the export check reports it; convex bases have no flat height limit.
+- `tests/e2e/boards.spec.ts`: extruding an L card base shows the hinge note and the flat-height tick; at 80 mm the note names the wall cut as its own piece and the height; after *Add walls*, *Lower to …* sets the tray to the flat height and the note goes.
+- Golden SVG/DXF exports and fixtures are byte-identical.
+
+Differences from the plan
+- **The flat height of the L base is its notch less the hinged wall's glue flap** (50 mm on card, 46 mm on corrugated 1.6, for a 60 mm notch), not the notch itself: the flap along the hinged wall's bottom reaches the opposite wall first.
+- **A hinged wall is glued to the base on corrugated too** (the plan had tabs and slots): tabs need the wall to stand in from the edge, which would take its side edge off the neighbour's and break the fold it hangs from.
+- The grow ghost's overlap check (amber with *Cut it as its own piece*) comes with the ghost bar (milestone 30).
+
 ## Milestone 36 — A material for each board ✅
 
 Implemented (`src/model/materials.ts`: `matOf`, `tOf`, `profileOf`, `pairFilter`, `connectionsForPair`, `materialsInUse`, `normalizeMaterials`; `setPanelMaterial`, `editMaterial` in `ops.ts`; `pairKinds`, `ownerMaterial` in `jointDefaults.ts`)

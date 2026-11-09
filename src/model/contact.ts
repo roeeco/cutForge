@@ -11,6 +11,7 @@ import { removedByCut, throughRegions } from './through';
 import { pointInPolygon, segDistPoint } from '../geom/vec';
 import { v3dot, v3len, v3sub } from '../geom/v3';
 import { tOf } from './materials';
+import { constructionSet } from './place';
 
 /** Samples within this distance of the other slab count as touching (mm). */
 export const TOUCH_EPS = 0.05;
@@ -150,8 +151,14 @@ const pair = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
  * check only needs the unjoined ones). Cached by geometry.
  */
 export function panelContacts(d: Design, all = false): Contact[] {
-  const ids = d.order.filter((id) => d.panels[id]);
+  // construction guides touch nothing; a flat placed panel lies on its host by design (milestone 28)
+  const guides = constructionSet(d);
+  const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
   const joined = all ? new Set<string>() : new Set(Object.values(d.connections).map((c) => pair(c.a.panelId, c.b.panelId)));
+  for (const id of ids) {
+    const h = d.panels[id].place;
+    if (h?.pose === 'flat' && h.host) joined.add(pair(id, h.host));
+  }
   const sig = JSON.stringify([
     [...joined].sort(),
     d.material.thickness,

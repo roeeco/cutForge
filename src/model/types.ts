@@ -109,7 +109,22 @@ export type Panel = {
    * built-in one). Absent: the working material (`Design.material`).
    */
   material?: string;
+  /** Placed on the floor or a face of another panel (milestone 28): its frame follows the host. Absent: a floor panel or a grown panel, as before. */
+  place?: PanelPlace;
+  /** A guide (milestone 28), on the root of a net: drawn and snapped to, never cut or joined. Grown panels inherit it. */
+  construction?: true;
 };
+
+/**
+ * Where a placed panel sits (milestone 28). `host` null is the floor. `x`, `y`
+ * and `rot` (degrees) are in the host's local coordinates (the floor's: x along
+ * world X, y along world −Z). Flat: the panel's origin and its u axis turned
+ * by `rot`. Standing: the start of its bottom line and the line's direction;
+ * its height is the panel's `h`, and `side` says which side of the line the
+ * material is on. `face` is the host's face it is on (1: its material side,
+ * −1: its plane).
+ */
+export type PanelPlace = { host: string | null; face: 1 | -1; x: number; y: number; rot: number; pose: 'flat' | 'standing'; side?: 1 | -1 };
 
 /**
  * Fold-over on a free edge: a rim strip and a liner folded onto the wall's
@@ -202,6 +217,12 @@ export type Connection = {
    */
   tabLen?: 'flush' | 'through';
   lockDepth?: number | null;
+  /**
+   * Derived (milestone 35): a tray corner made a fold so a wall lies flat
+   * beside its neighbour (`kind` 'fold' on a closing seam); the panel that
+   * folds off the other one.
+   */
+  hingeOf?: string;
 };
 
 export type Notch = { s0: number; s1: number; depth: number };
@@ -315,6 +336,26 @@ export type Tray = {
   openEdges: string[];
   /** Tab-and-slot corners: tabs that pass through and fold under. */
   tabLen?: 'flush' | 'through';
+  /**
+   * Nets that lie flat (milestone 35): 'auto' (default) changes the net where
+   * walls would overlap when it lies flat; 'off' keeps it in one piece (the
+   * export check then reports the overlap).
+   */
+  flat?: 'auto' | 'off';
+  /** Derived (re-made by `solve`): how each wall (by base edge key) was changed so the net lies flat. */
+  fixes?: Record<string, TrayFix>;
+  /**
+   * Derived with `fixes`: which wall a hinged wall folds off (by base edge key),
+   * the corner joints whose flap was trimmed or moved, and inside corners
+   * (by the outgoing edge's key) where the incoming wall closes the corner
+   * because it gives way.
+   */
+  fixPlan?: { hinge?: Record<string, string>; trim?: string[]; swap?: string[]; extOn?: Record<string, 'prev'> };
+  /** The student's choice for a wall the app changed: hinge it, cut it as its own piece, or let the corner's other wall give way. */
+  pin?: Record<string, 'hinge' | 'own' | 'other'>;
 };
+
+/** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
+export type TrayFix = 'trim' | 'hinge' | 'own';
 
 export const SCHEMA_VERSION = 8;

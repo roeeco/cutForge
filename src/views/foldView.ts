@@ -2,8 +2,10 @@
 // flat (foldT = 0) and the bend beads drawn along each fold. The model is
 // never changed; every panel gets a transform from its design pose.
 import * as THREE from 'three';
-import type { Design, Flap3d } from '../model/types';
-import { frameNormal, matDir, toWorld } from '../model/frame';
+import type { Connection, Design, Flap3d } from '../model/types';
+import { edgeWorld, frameNormal, matDir, toWorld } from '../model/frame';
+import { cornerFit, inwardWorld } from '../model/seams';
+import { findEdge } from '../model/edges';
 import { tOf } from '../model/materials';
 
 export type Bend = { id: string; panelId: string; pivot: THREE.Vector3; axis: THREE.Vector3; length: number; radius: number; crease: THREE.Vector3; mountain: boolean };
@@ -15,12 +17,23 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
   const bends: Bend[] = [];
   const grown = Object.values(d.connections).filter((c) => c.grown);
   const parentOf = new Map(grown.map((c) => [c.b.panelId, c]));
+  // tray corners made folds (milestone 35): the wall folds off its neighbour's side edge
+  const hinged = new Map(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'fold' && c.hingeOf).map((c) => [c.hingeOf!, c]));
   const visit = (id: string): THREE.Matrix4 => {
     const have = xf.get(id);
     if (have) return have;
+    const h = hinged.get(id);
+    const hm = h && hingeMatrix(d, h, id, foldT, visit);
+    if (hm) {
+      xf.set(id, hm);
+      return hm;
+    }
     const c = parentOf.get(id);
     const p = d.panels[id];
     let m = new THREE.Matrix4();
+    // a placed panel rides on its host (milestone 28)
+    const host = !c && p?.place?.host;
+    if (host && d.panels[host]) m = visit(host).clone();
     if (c && p && d.panels[c.a.panelId]) {
       const parentM = visit(c.a.panelId);
       m = parentM.clone();
@@ -61,6 +74,34 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
   };
   for (const id of d.order) visit(id);
   return { xf, bends };
+}
+
+/**
+ * A wall folded off its neighbour (a tray corner made a fold): the neighbour's
+ * display matrix, then a turn about their shared corner line by
+ * (180° − corner angle) × (1 − foldT), so at 0 it lies flat in line with the
+ * neighbour (as in the cut net) and at 1 where it stands.
+ */
+function hingeMatrix(d: Design, c: Connection, id: string, foldT: number, visit: (id: string) => THREE.Matrix4): THREE.Matrix4 | null {
+  const childA = c.a.panelId === id;
+  const stay = childA ? c.b : c.a, me = childA ? c.a : c.b;
+  const S = d.panels[stay.panelId], C = d.panels[id];
+  if (!S || !C || !findEdge(S, stay.edge) || !findEdge(C, me.edge)) return null;
+  const fit = cornerFit(S, stay.edge, C, me.edge, 1e-6);
+  if (!fit) return null;
+  const m = visit(stay.panelId).clone();
+  const alpha = Math.atan2(fit.sin, fit.cos);
+  const psi = (Math.PI - alpha) * (1 - foldT);
+  if (psi < 1e-6) return m;
+  const [a, b] = edgeWorld(S, stay.edge);
+  const pivot = new THREE.Vector3(...a);
+  const axis = new THREE.Vector3(...b).sub(pivot).normalize();
+  // the turn that brings the wall in line with its neighbour (its inward side to the neighbour's outward side)
+  const iC = new THREE.Vector3(...inwardWorld(C, me.edge)), target = new THREE.Vector3(...inwardWorld(S, stay.edge)).negate();
+  const full = Math.PI - alpha;
+  const sign = iC.clone().applyAxisAngle(axis, full).distanceTo(target) <= iC.clone().applyAxisAngle(axis, -full).distanceTo(target) ? 1 : -1;
+  const r = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z).multiply(new THREE.Matrix4().makeRotationAxis(axis, sign * psi)).multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+  return m.multiply(r);
 }
 
 /**

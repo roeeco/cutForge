@@ -19,10 +19,12 @@ import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
+import { netOverlaps } from './pieces';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
+import { constructionSet } from './place';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
@@ -35,9 +37,11 @@ export function minWeb(d: Design, panelId?: string): number {
 export function validate(d: Design): Issue[] {
   const issues: Issue[] = [];
   const name = (id: string) => d.panels[id]?.name ?? '?';
+  const guides = constructionSet(d);
   for (const id of d.order) {
     const p = d.panels[id];
-    if (!p) continue;
+    // construction guides are never cut: nothing to check (milestone 28)
+    if (!p || guides.has(id)) continue;
     // each board's own material: its web and its sheet
     const min = minWeb(d, id);
     const pm = matOf(d, id);
@@ -101,11 +105,14 @@ export function validate(d: Design): Issue[] {
   }
   issues.push(...foldOverIssues(d));
   for (const c of Object.values(d.connections)) {
+    if (guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
     if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });
     else if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });
     if (c.grown && c.kind === 'lean' && !leanSupported(d, c.b.panelId))
       issues.push({ key: 'val.unsupported', vars: { panel: name(c.b.panelId) }, target: { kind: 'panel', id: c.b.panelId } });
   }
+  // a fold net that would not lie flat (milestone 35): auto trays are fixed in solve, so this names nets kept whole and panels grown by hand
+  for (const o of netOverlaps(d)) issues.push({ key: 'val.netOverlap', vars: { a: name(o.a), b: name(o.b) }, target: { kind: 'panel', id: o.a }, pair: [o.a, o.b] });
   issues.push(...shapeIssues(d), ...sheetIssues(d));
   for (const ti of templateIssues(d)) issues.push({ key: ti.key, vars: ti.vars, target: { kind: 'panel', id: d.panels[ti.panel] ? ti.panel : d.order[0] } });
   for (const s of findOpenSeams(d)) {

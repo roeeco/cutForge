@@ -617,6 +617,22 @@ export const en = {
   'drawer.workingNote': "New boards are made in the working material. Boards without a material of their own follow it.",
   'export.perMaterial': "One file per material: {list}.",
   'sub.otherMats': "Boards in other materials than the class uses: {list}.",
+  'val.netOverlap': "Panels {a} and {b} overlap in the flat net: lower the walls, or cut one as its own piece.",
+  'flat.ownAbove': "Above {h} mm, wall {walls} is cut as its own piece so the net lies flat.",
+  'flat.ownAboveN': "Above {h} mm, walls {walls} are cut as their own pieces so the net lies flat.",
+  'flat.own': "Wall {walls} is cut as its own piece so the net lies flat.",
+  'flat.hinge': "Wall {walls} folds off its neighbour instead of the base, so the net lies flat.",
+  'flat.trim': "Corner flaps are trimmed so the net lies flat.",
+  'flat.lower': "Lower to {h} mm",
+  'flat.keep': "Keep in one piece",
+  'flat.kept': "Kept in one piece: the export check shows where the net overlaps when flat.",
+  'flat.auto': "Let it lie flat",
+  'flat.pin': "Wall {wall}",
+  'flat.pin.auto': "Automatic",
+  'flat.pin.hinge': "Fold off its neighbour",
+  'flat.pin.own': "Cut as its own piece",
+  'flat.pin.other': "The other wall gives way",
+  'flat.tick': "Lies flat in one piece up to {h} mm",
 } as const;
 
 export type MsgKey = keyof typeof en;

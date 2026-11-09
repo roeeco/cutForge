@@ -67,3 +67,46 @@ test('milestone 36: a board switched to another material changes colour and thic
   expect(names.some((n) => n.includes('-corr-4-'))).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('milestone 35: an L base extruded past its flat height is told so, and Lower to … keeps the net in one piece', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'card-0.5');
+  const b = await S<string>(page, () => {
+    const cf = (window as any).__cutforge;
+    let id = '';
+    cf.store.getState().apply((d: any) => {
+      id = cf.ops.addRootPanel(d, -60, 60, 100, 100);
+      const L = [ { x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 60 }, { x: 60, y: 60 }, { x: 60, y: 120 }, { x: 0, y: 120 } ];
+      d.panels[id].sketch = { kind: 'poly', pts: L, edgeIds: L.map((_: unknown, i: number) => `e${i}`) };
+      cf.ops.solve(d);
+    });
+    cf.store.getState().select({ kind: 'panel', id });
+    return id;
+  });
+  await page.getByTestId('extrude').click();
+  // at 40 mm the closing wall folds off its neighbour; the tick shows the flat height
+  await expect(page.getByTestId('flat-hinge')).toBeVisible();
+  await expect(page.getByTestId('flat-tick')).toBeVisible();
+  const fh = Number(await page.getByTestId('flat-tick').getAttribute('data-h'));
+  expect(fh).toBeGreaterThan(40);
+  expect(fh).toBeLessThan(60);
+  // past it: a wall is cut as its own piece
+  const f = page.getByTestId('extrude-height');
+  await f.click();
+  await f.press('ControlOrMeta+a');
+  await f.pressSequentially('80');
+  await f.press('Enter');
+  await expect(page.getByTestId('flat-own')).toContainText(`Above ${fh}`);
+  await page.getByTestId('extrude-go').click();
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), b);
+  await expect(page.getByTestId('tray-card')).toBeVisible();
+  await expect(page.getByTestId('flat-own')).toBeVisible();
+  await page.getByTestId('flat-lower').click();
+  await expect(page.getByTestId('flat-own')).toHaveCount(0);
+  const d = await design(page);
+  const tray: any = Object.values(d.trays)[0];
+  expect(tray.height).toBe(fh);
+  expect(Object.values(tray.fixes ?? {})).not.toContain('own');
+  expect(errors).toEqual([]);
+});

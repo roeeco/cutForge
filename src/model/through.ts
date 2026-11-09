@@ -21,6 +21,7 @@ import { panelEdges, segLength, type EdgeSeg } from './edges';
 import { pointInPolygon, polygonArea } from '../geom/vec';
 import { v3add, v3dot, v3mul, v3sub } from '../geom/v3';
 import { tOf } from './materials';
+import { constructionSet } from './place';
 
 export type ThroughHit = {
   /** Regions removed from the panel, panel-local polygons (they may overlap each other). */
@@ -43,9 +44,11 @@ const fromMulti = (mp: MultiPolygon): P2[][] => mp.flatMap((poly) => poly.slice(
 /** Through-cut shapes in a design, with their flattened polygons. */
 function sources(d: Design): Src[] {
   const out: Src[] = [];
+  const guides = constructionSet(d);
   for (const id of d.order) {
     const p = d.panels[id];
-    if (!p) continue;
+    // a construction guide neither cuts nor is cut (milestone 28)
+    if (!p || guides.has(id)) continue;
     for (const dt of p.details) if (dt.op === 'cut' && dt.through) out.push({ panel: p, id: dt.id, polys: instancePolys(dt).flatMap((x) => x.polys) });
   }
   return out;
@@ -169,6 +172,7 @@ export function throughHits(d: Design): Map<string, ThroughHit> {
     d.material.thickness,
     d.order.map((id) => d.panels[id]?.material ?? ''),
     d.materials ?? null,
+    [...constructionSet(d)],
     srcs.map((s) => [s.panel.id, s.id, s.polys, s.panel.frame]),
     d.order.map((id) => {
       const p = d.panels[id];
@@ -179,9 +183,10 @@ export function throughHits(d: Design): Map<string, ThroughHit> {
   const hit = cache.get(sig);
   if (hit) return hit;
   const res = new Map<string, ThroughHit>();
+  const guides = constructionSet(d);
   for (const id of d.order) {
     const P = d.panels[id];
-    if (!P) continue;
+    if (!P || guides.has(id)) continue;
     for (const s of srcs) {
       if (excluded(d, s, id)) continue;
       const r = regionOn(d, s, P);
