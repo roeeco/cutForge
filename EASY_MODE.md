@@ -159,59 +159,16 @@ Suggested order, after milestones 30 and 35's engine: **37, 38, 39, 40, 41.** Bu
 
 ## 5. Illustrations
 
-Four GPT Image prompts (1536 × 1024, landscape) to illustrate this brief. They describe the app's look so the four images match. Labels are kept short because long text comes out garbled.
+Concept images made with GPT Image. They show the idea, not the exact interface: labels, controls and the top bar differ from what the milestones above describe (for example, there is no *Design / Prepare / Cut* switch and no finger width field).
 
-**1. Same design, two modes**
+**Same design, two modes**
 
-```
-A wide, high-fidelity UI mockup of a browser app called "CutForge" for high-school students designing laser-cut boxes, shown as a split screen with a slim vertical divider in the middle. Both halves show the exact same 3D plywood organiser box (light tan plywood, visible finger joints at the corners, two thin dividers inside) sitting on a pale blue-grey grid floor, seen from the same three-quarter angle.
+![Quick build and Workshop side by side, showing the same plywood organiser](docs/quick-illustrations/1-two-modes.webp)
 
-Left half, labelled "Quick build" in a small pill at the top: a calm, sparse screen. A dark slate vertical tool rail with only five large icon buttons (box, wall, divider, hole, sticker), the first highlighted in teal. One small white rounded card on the right reading "Box", "160 × 110 × 45 mm", and a green badge "Ready to cut ✓".
+**Five actions, one step each** (milestone 38)
 
-Right half, labelled "Workshop": the same box, but the full interface. A longer tool rail with many tools and coloured dots, a tall white card with joint settings, an angle dial, number steppers and dropdowns, and small pill labels "Fingers" and "Tabs" on the box edges.
+![Storyboard of the five actions: Box, Lid, Divider, Hole, Stickers](docs/quick-illustrations/2-five-actions.webp)
 
-Above the split, a segmented toggle "Quick build | Workshop". Style: clean modern product UI, cream top bar (#F7F1E8), deep teal primary colour (#17695F), soft shadows, rounded corners, geometric sans-serif type, generous whitespace. No real brand logos. Crisp, flat, editorial product illustration.
-```
+**A broken file is impossible** (milestone 39)
 
-**2. Five actions, one step each**
-
-```
-A horizontal storyboard of five equal panels, left to right, each a close-up of the same 3D design app (pale blue-grey grid floor, light tan plywood panels with finger joints, teal highlights, white rounded UI chips). Each panel has a short caption above it in a clean sans-serif:
-
-1 "Box": a hand cursor drags a rectangle on the grid floor and a translucent teal ghost of an open box rises from it, with a teal push-pull arrow on top.
-2 "Lid": the cursor clicks the top edge of the box; a ghost lid swings over and lands on the opposite wall.
-3 "Divider": the cursor draws a straight dashed line across the inside of the box from wall to wall; a ghost divider stands on it, with a small floating bar holding a teal "✓" and a grey "✕".
-4 "Hole": a circle hole on the front wall, with a small two-option chip "Cut out | Engrave", "Cut out" selected.
-5 "Stickers": a small tray of simple line icons (star, rocket, heart, music note, game controller); a star is being dropped onto the box's side, appearing as a crisp engraved outline in the wood.
-
-Thin arrows connect the panels to show progression. Consistent camera angle and lighting across all five. Style: friendly, modern product illustration, cream (#F7F1E8) margins, deep teal accent (#17695F), soft shadows, no clutter, no real brand logos.
-```
-
-**3. A broken file is impossible**
-
-```
-A close-up UI mockup of a 3D design app: the front wall of a light tan plywood box seen face-on, with finger joints along both sides and slots along the bottom. A mouse cursor drags a circular cut-out toward the right edge. Along every edge and around each finger joint and slot runs a soft, translucent hatched band in pale amber, a "keep-out" zone. The circle stops exactly at the band's border, with a faint glow where it touches, and a small white tooltip next to it says "Kept 3 mm from the edge".
-
-At the top right of the screen, a green pill badge reads "Ready to cut ✓". Next to it, a compact sheet meter: a tiny thumbnail of a flat sheet with the box's pieces packed on it, and the label "1 sheet · 63% used" with a thin progress bar.
-
-At the bottom of the screen, a small grey hint chip: "Shapes stay where the laser can cut them."
-
-Style: clean, calm, reassuring product UI. Pale blue-grey stage background, cream top bar (#F7F1E8), deep teal accent (#17695F), green success colour, amber only for the keep-out band. Soft shadows, rounded corners, geometric sans-serif type. No real brand logos.
-```
-
-**4. Missions and what goes inside**
-
-```
-A wide UI mockup of a 3D design app for teenagers. In the centre, an open light tan plywood organiser box seen from above at a three-quarter angle, divided into three compartments. Inside each compartment float translucent ghost objects shown as soft white silhouettes: a row of pencils in the long compartment, two dice in the small one, a deck of playing cards in the third. The pencil and dice compartments are tinted soft green with a small "✓". The card compartment is tinted soft amber, with a small label "Cards need 2 mm more" and a teal arrow suggesting the divider be dragged.
-
-On the right, a white rounded card titled "Mission: Pencil box" with a short checklist:
-"Holds 12 pencils ✓"
-"3 compartments ✓"
-"Fits on one sheet ✓"
-"Your name engraved" (unchecked, empty circle)
-Below it, a row of three small stars, two filled in teal.
-
-On the box's front wall, faint pencil-sketch guide lines where a name could be engraved.
-
-Style: playful but clean product UI, pale blue-grey grid floor, cream top bar (#F7F1E8), deep teal accent (#17695F), soft green and amber status tints, rounded corners, soft shadows, geometric sans-serif type. Engaging, game-like, not childish. No real brand logos.
-```
+![A hole stopped at the keep-out zone, with the Ready to cut badge and the sheet meter](docs/quick-illustrations/3-ready-to-cut.webp)
