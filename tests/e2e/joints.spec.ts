@@ -19,6 +19,8 @@ async function start(page: Page, material: string, w: number, h: number) {
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });
   await page.mouse.up();
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await setNum(page, 'panel-w', String(w));
   await setNum(page, 'panel-h', String(h));
   return (await design(page)).order[0] as string;

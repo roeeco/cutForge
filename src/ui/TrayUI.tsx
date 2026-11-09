@@ -53,21 +53,7 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
       <p className="note">
         {t('tray.joints', { wall: t(`conn.${kinds.wallKind}` as 'conn.fold'), corner: t(`conn.${kinds.cornerKind}` as 'conn.fold') })}
       </p>
-      <div className="card-actions">
-        <button
-          className="primary"
-          onClick={() => {
-            useStore.getState().apply((x) => void addTray(x, panelId, ex.height));
-            set({ extrude: null });
-          }}
-          data-testid="extrude-go"
-        >
-          {t('tray.addWalls')}
-        </button>
-        <button className="ghost" onClick={() => set({ extrude: null })} data-testid="extrude-cancel">
-          {t('tray.cancel')}
-        </button>
-      </div>
+      <p className="note">{t('tray.confirmOnStage')}</p>
     </div>
   );
 }

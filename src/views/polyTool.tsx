@@ -104,16 +104,21 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     if (!d || pts.length < 3 || !isSimplePolygon(pts)) return;
     const st = useStore.getState();
     let id: string | null = null;
+    st.cancelPending();
     if (d.panelId === null) {
       st.apply((x) => void (id = addPolygonPanel(x, 0, 0, pts)));
       if (id) {
-        st.setTool('select');
+        // a ghost until ✓ (milestone 30)
         st.select({ kind: 'panel', id });
+        st.beginPending({ kind: 'panel', ids: [id], panelId: id });
       }
     } else {
       const pid = d.panelId;
       st.apply((x) => void (id = addPolygonShape(x, pid, pts, st.shapeOp, regular, undefined, st.shapeThrough)));
-      if (id) st.select(detailSel([id]));
+      if (id) {
+        st.select(detailSel([id]));
+        st.beginPending({ kind: 'shape', ids: [id], panelId: pid });
+      }
     }
   };
 

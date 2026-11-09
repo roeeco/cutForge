@@ -3,7 +3,7 @@ import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
-import { connectionsFor } from '../model/materials';
+import { connectionsFor, matOf } from '../model/materials';
 import { autoConnect, createDesign, solve, type FacePick } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
@@ -31,6 +31,24 @@ export function detailSel(ids: string[]): Selection {
 }
 
 export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'>;
+
+/**
+ * The Panel tool's ghost (milestone 29), in its host's local coordinates (the
+ * floor's for `host` null): flat, the rectangle with corners `a` and `b`;
+ * standing, the line from `a` to `b`, `height` tall, its material on `side`.
+ */
+export type PanelGhost = {
+  host: string | null;
+  face: 1 | -1;
+  pose: 'flat' | 'standing';
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+  height: number;
+  side: 1 | -1;
+  construction: boolean;
+  /** The pointer is still down (drawing). */
+  drawing: boolean;
+};
 export type View = '3d' | '2d' | 'solo';
 
 /** Grow card settings. `angle` is the hinge angle, 0–360° (see src/model/hinge.ts). */
@@ -47,6 +65,9 @@ export type GrowOptions = {
   /** The ghost's outline handles are shown. */
   editGhost?: boolean;
 };
+
+/** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
+export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
@@ -121,6 +142,21 @@ type State = {
   extrude: { baseId: string; height: number } | null;
   /** Faces Shift-clicked on the stage for *Divider between* (not part of the design). */
   facePick: FacePick[];
+  /** The Panel tool's ghost (milestone 29): drawn on the floor or a face, then made with ✓ or dropped with ✕. */
+  panelGhost: PanelGhost | null;
+  /** The Panel tool's pose for the next ghost, and the height a standing ghost starts at (the last one used). */
+  panelPose: 'flat' | 'standing';
+  standHeight: number;
+  /**
+   * Something a drawing tool just made (milestone 30), waiting for ✓: shapes
+   * (or a polygon panel), still adjustable. ✓ keeps it as one undo step and
+   * goes back to Select; ✕ (or another tool, another selection, another
+   * drawing) takes it away again.
+   */
+  pending: Pending | null;
+  beginPending: (p: Omit<Pending, 'base' | 'pastLen'>) => void;
+  confirmPending: () => void;
+  cancelPending: () => void;
 
   /** Apply a complete edit as one undo step. */
   apply: (fn: (d: Draft<Design>) => unknown) => void;
@@ -141,7 +177,7 @@ type State = {
   clickDetail: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick' | 'panelGhost' | 'panelPose' | 'standHeight'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -195,6 +231,29 @@ export const useStore = create<State>()((set, get) => ({
   selVertex: null,
   extrude: null,
   facePick: [],
+  panelGhost: null,
+  panelPose: 'flat',
+  standHeight: 40,
+  pending: null,
+  beginPending: (p) => {
+    const { past } = get();
+    // made by the last edit: the design before it is the last history entry
+    if (!past.length) return;
+    set({ pending: { ...p, base: past[past.length - 1], pastLen: past.length - 1 } });
+  },
+  confirmPending: () => {
+    const g = get().pending;
+    if (!g) return;
+    if (get().txnBase) get().commit();
+    // everything since it was made is one undo step
+    set({ pending: null, past: [...get().past.slice(0, g.pastLen), g.base].slice(-HISTORY_LIMIT), future: [] });
+    set({ tool: 'select', editOutline: null, selVertex: null, panelGhost: null });
+  },
+  cancelPending: () => {
+    const g = get().pending;
+    if (!g) return;
+    set({ pending: null, txnBase: null, design: g.base, past: get().past.slice(0, g.pastLen), future: [], selection: validSelection(g.base, get().selection) });
+  },
 
   apply: (fn) => {
     if (get().txnBase) get().commit();
@@ -230,6 +289,7 @@ export const useStore = create<State>()((set, get) => ({
     if (txnBase) set({ design: txnBase, txnBase: null });
   },
   undo: () => {
+    if (get().pending) return get().cancelPending();
     const { past, future, design, txnBase } = get();
     if (txnBase) return get().cancel();
     if (!past.length) return;
@@ -242,9 +302,17 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
-  select: (s) => set({ selection: s, openJoint: null, ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) }),
-  setTool: (t) => set({ tool: t, editOutline: null, selVertex: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  select: (s) => {
+    const g = get().pending;
+    if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
+    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
+  },
+  setTool: (t) => {
+    // another tool drops what the last one made and was not confirmed
+    if (get().pending) get().cancelPending();
+    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null });
+  },
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && get().tool === 'panel' ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
   openSolo: (panelId) => {
@@ -301,9 +369,11 @@ export function turnStep(): number {
   return s > 0 ? s : 15;
 }
 
-export function growKind(d: Design, g: GrowOptions): ConnectionKind {
-  const options = connectionsFor(d.material, fromHinge(g.angle).angle);
-  return g.kind && options.includes(g.kind) ? g.kind : (designKind(d, 'base', options) ?? options[0]);
+export function growKind(d: Design, g: GrowOptions, parentId?: string): ConnectionKind {
+  // the new panel is made in its parent's material (milestone 36)
+  const m = parentId && d.panels[parentId] ? matOf(d, parentId) : d.material;
+  const options = connectionsFor(m, fromHinge(g.angle).angle);
+  return g.kind && options.includes(g.kind) ? g.kind : (designKind(d, 'base', options, m.kind) ?? options[0]);
 }
 
 export function useT() {

@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
@@ -27,12 +27,14 @@ import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSiz
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
+import { ConfirmBar, FaceHover, PanelGhostView, PendingBar, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
+import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
-import { effectiveGrow } from './ghost';
+import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
@@ -52,16 +54,24 @@ type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
   | { kind: 'shape-draw'; panelId: string; id: string; start: { x: number; y: number }; plane: THREE.Plane }
   | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
-  | { kind: 'panel-move'; id: string; start: V3; plane: THREE.Plane };
+  | { kind: 'panel-move'; id: string; start: V3; plane: THREE.Plane }
+  /** The Panel tool drawing its ghost on a face (milestone 29). */
+  | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets }
+  /** A placed panel dragged in its host's plane. */
+  | { kind: 'placed-move'; id: string; plane: THREE.Plane; H: Frame; start: P2 };
 
 /** Text tool: place a text shape where the student clicked, select it, back to Select. */
 export function placeText(panelId: string, x: number, y: number) {
   const st = useStore.getState();
+  st.cancelPending();
   let id: string | null = null;
   const value = translate(st.lang, 'text.default');
   st.apply((d) => void (id = addText(d, panelId, Math.round(x), Math.round(y), value, 'engrave')));
-  if (id) st.select(detailSel([id]));
-  st.setTool('select');
+  if (id) {
+    // a ghost until ✓ (milestone 30); then back to Select
+    st.select(detailSel([id]));
+    st.beginPending({ kind: 'shape', ids: [id], panelId });
+  }
 }
 
 function useRay() {
@@ -103,6 +113,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
   const facePick = useStore((s) => s.facePick);
+  const panelGhost = useStore((s) => s.panelGhost);
+  const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
   const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
@@ -134,6 +146,20 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         g.cur = [snap(p[0], ev), 0, snap(p[2], ev)];
         setDrawRect({ a: g.start, b: g.cur });
         setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, x: ev.clientX, y: ev.clientY });
+      } else if (g.kind === 'ghost-draw') {
+        const p = ray(ev.clientX, ev.clientY, g.plane);
+        const cur = st.panelGhost;
+        if (!p || !cur) return;
+        const q = snapGhostPoint(g.targets, toLocal(g.H, p), tolAt(p), ev).p;
+        st.set({ panelGhost: { ...cur, b: q } });
+        const w = Math.abs(q.x - cur.a.x), h = Math.abs(q.y - cur.a.y);
+        setLabel({ text: cur.pose === 'flat' ? `${fmtNum(w)} × ${fmtNum(h)}` : fmtNum(Math.hypot(w, h)), x: ev.clientX, y: ev.clientY });
+      } else if (g.kind === 'placed-move') {
+        const p = ray(ev.clientX, ev.clientY, g.plane);
+        if (!p) return;
+        const l = toLocal(g.H, p);
+        const dx = snap(l.x - g.start.x, ev), dy = snap(l.y - g.start.y, ev);
+        st.preview((d) => movePlaced(d, g.id, dx, dy));
       } else if (g.kind === 'shape-draw') {
         const panel = st.design.panels[g.panelId];
         const p = ray(ev.clientX, ev.clientY, g.plane);
@@ -198,6 +224,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       setGuides(null);
       setControls(true);
       const st = useStore.getState();
+      if (g.kind === 'ghost-draw') {
+        const cur = st.panelGhost;
+        // a ghost too small to be a panel is dropped; otherwise it waits for ✓ or ✕
+        if (cur) st.set({ panelGhost: ghostPlace({ ...cur, drawing: false }) ? { ...cur, drawing: false } : null });
+        return;
+      }
       if (g.kind === 'panel-draw') {
         setDrawRect(null);
         const x0 = Math.min(g.start[0], g.cur[0]), x1 = Math.max(g.start[0], g.cur[0]);
@@ -212,7 +244,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       } else if (g.kind === 'shape-draw') {
         const made = !!st.txnBase;
         st.commit();
-        if (made) st.select(detailSel([g.id]));
+        if (made) {
+          // a ghost until ✓ (milestone 30)
+          st.select(detailSel([g.id]));
+          st.beginPending({ kind: 'shape', ids: [g.id], panelId: g.panelId });
+        }
       } else {
         st.commit();
       }
@@ -220,6 +256,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     const key = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape' && useStore.getState().facePick.length) useStore.getState().set({ facePick: [] });
       if (ev.key === 'Escape' && drag.current) {
+        if (drag.current.kind === 'ghost-draw') useStore.getState().set({ panelGhost: null });
         drag.current = null;
         setDrawRect(null);
         setLabel(null);
@@ -254,6 +291,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return;
     }
     if (tool === 'polygon') return polyRef.current?.start(e, p);
+    if (tool === 'panel') {
+      if (e.button !== 0) return;
+      const pt: V3 = [e.point.x, e.point.y, e.point.z];
+      return startGhost(e, p.id, faceAt(design, p, pt), pt);
+    }
     if (tool === 'text') {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -262,6 +304,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return;
     }
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
+      // another drawing drops a shape still waiting for ✓
+      useStore.getState().cancelPending();
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
       const ctx = noSmartSnap(e.nativeEvent) ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
@@ -285,7 +329,13 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       }
       if (stx.facePick.length) stx.set({ facePick: [] });
       useStore.getState().select({ kind: 'panel', id: p.id });
-      if (!parentConnection(design, p.id) && e.button === 0) {
+      // a panel placed on a face moves in that face's plane
+      const pl = p.place;
+      const hf = pl && pl.host !== null ? hostFace(design, pl.host, pl.face) : null;
+      if (hf && e.button === 0) {
+        setControls(false);
+        drag.current = { kind: 'placed-move', id: p.id, plane: hf.plane, H: hf.H, start: toLocal(hf.H, [e.point.x, e.point.y, e.point.z]) };
+      } else if (!parentConnection(design, p.id) && e.button === 0) {
         setControls(false);
         drag.current = { kind: 'panel-move', id: p.id, start: [e.point.x, e.point.y, e.point.z], plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y) };
       }
@@ -314,8 +364,18 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'polygon') return polyRef.current?.start(e, null);
     if (tool !== 'panel') return;
-    const p: V3 = [snap(e.point.x, e.nativeEvent), 0, snap(e.point.z, e.nativeEvent)];
-    begin(e, { kind: 'panel-draw', start: p, cur: p });
+    startGhost(e, null, 1, [e.point.x, 0, e.point.z]);
+  };
+
+  /** The Panel tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
+  const startGhost = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, point: V3) => {
+    const hf = hostFace(design, host, face);
+    if (!hf || e.button !== 0) return;
+    const targets = faceTargets(design, host, face);
+    const q = snapGhostPoint(targets, toLocal(hf.H, point), tolAt(point), e.nativeEvent).p;
+    const st = useStore.getState();
+    st.set({ panelGhost: { host, face, pose: st.panelPose, a: q, b: q, height: st.standHeight, side: 1, construction: false, drawing: true } });
+    begin(e, { kind: 'ghost-draw', plane: hf.plane, H: hf.H, targets });
   };
 
   const { camera, gl, invalidate, scene } = useThree();
@@ -328,6 +388,15 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       if (!p) return null;
       const z = faceZ(p, tOf(useStore.getState().design, panelId))[top ? 1 : 0];
       const v = new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame)).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    // a point on a panel's face: 1 its material side, −1 its plane (milestone 29)
+    w.__cutforge.projectFace = (panelId: string, x: number, y: number, face: 1 | -1 = 1) => {
+      const d = useStore.getState().design;
+      const p = d.panels[panelId];
+      if (!p) return null;
+      const v = new THREE.Vector3(...toWorld(p.frame, x, y, face === 1 ? tOf(d, panelId) : 0)).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
@@ -447,6 +516,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             tool={tool}
             folded={folded}
             onPanelDown={onPanelDown(p)}
+            onHoverPoint={tool === 'panel' && !folded ? (pt) => {
+              const face = faceAt(design, p, pt);
+              if (faceHover?.panelId !== p.id || faceHover.face !== face) setFaceHover({ panelId: p.id, face });
+            } : undefined}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
             inert={!!editOutline}
@@ -477,6 +550,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       )}
       {tool === 'select' && !folded && facePick.length > 0 && <BetweenPill d={design} picks={facePick} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
+      {tool === 'panel' && !folded && <PanelGhostView d={design} />}
+      {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
+      {tool === 'panel' && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
@@ -486,7 +562,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
       {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
-        <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+        design.panels[selPanel].place?.host ? (
+          <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+        ) : (
+          <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+        )
       )}
       {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && (
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
@@ -577,6 +657,8 @@ function PanelObject(props: {
   tool: string;
   folded: boolean;
   onPanelDown: (e: ThreeEvent<PointerEvent>) => void;
+  /** The Panel tool: the point under the pointer on this panel (to show which face it would draw on). */
+  onHoverPoint?: (point: V3) => void;
   onDetailDown: (id: string) => (e: ThreeEvent<PointerEvent>) => void;
   onDouble: () => void;
   /** Outline editing: parts do not catch the pointer, so the vertex handles always can. */
@@ -614,6 +696,7 @@ function PanelObject(props: {
           if (useStore.getState().hoverPart !== p.id) useStore.getState().set({ hoverPart: p.id });
         }}
         onPointerOut={() => useStore.getState().hoverPart === p.id && useStore.getState().set({ hoverPart: null })}
+        onPointerMove={props.onHoverPoint ? (e) => props.onHoverPoint!([e.point.x, e.point.y, e.point.z]) : undefined}
         onDoubleClick={(e) => {
           e.stopPropagation();
           props.onDouble();
@@ -968,7 +1051,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const parent = d.panels[panelId];
   const free = parent && edgeHasRoom(d, panelId, edge);
   const eg = useMemo(() => (parent ? effectiveGrow(d, panelId, edge, grow) : null), [d, panelId, edge, grow]);
-  const kind = eg?.kind ?? growKind(d, grow);
+  const kind = eg?.kind ?? growKind(d, grow, panelId);
   const check = parent ? checkHinge(d, panelId, edge, grow.angle, grow.height) : null;
   const blocked = !!check?.blocking;
   const th = parent ? tOf(d, parent.id) : d.material.thickness;
@@ -990,11 +1073,15 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
   const angTargets = useMemo(() => (parent ? angleTargets(d, panelId, edge, grow.height, defaultOffset(d, kind), span) : []), [d, panelId, edge, grow.height, kind, span?.[0], span?.[1]]);
   const hTargets = useMemo(() => (eg?.plain ? heightTargets(d, eg.plain, new Set([panelId])) : []), [d, eg?.plain, panelId]);
+  // a fold whose net would overlap when flat (milestone 35): amber, with a way out
+  const over = useMemo(() => (parent && free && eg?.ghost ? growOverlap(d, panelId, edge, grow) : []), [d, panelId, edge, grow, !!eg?.ghost, free]);
   if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
   // the height arrow sits on the ghost's (trimmed) outline, at half its width
   const ghostTop = pushPullAnchors(ghost.p).height;
-  const color = blocked ? STAGE.blocked : STAGE.ghost;
+  const warn = blocked || over.length > 0;
+  const color = warn ? STAGE.blocked : STAGE.ghost;
+  const barAt = W(m, f, w / 2, ghostTop.y + 12, th / 2);
   const tolAt = (p: V3) => SNAP_PX * mmPerPx(camera, size.height, new THREE.Vector3(...p));
   // span ends along the parent edge
   const pe = findEdge(parent, edge)!;
@@ -1016,9 +1103,26 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
         <mesh geometry={ghost.geom} raycast={() => null}>
           <meshStandardMaterial color={color} transparent opacity={blocked ? 0.34 : STAGE.ghostOpacity} depthWrite={false} />
-          <Edges threshold={25} lineWidth={2} color={blocked ? '#a8690a' : STAGE.ghostEdge} />
+          <Edges threshold={25} lineWidth={2} color={warn ? '#a8690a' : STAGE.ghostEdge} />
         </mesh>
       </group>
+      <ConfirmBar
+        at={barAt}
+        onOk={() => void doGrow(panelId, edge)}
+        onCancel={() => useStore.getState().select({ kind: 'panel', id: panelId })}
+        okDisabled={blocked}
+        okTestId="grow-go"
+        testId="grow-ghost-bar"
+      >
+        {over.length > 0 && (
+          <>
+            <span className="warn" data-testid="grow-overlap">{t('grow.overlap', { panels: over.map((x) => panelLabel(d, x, t)).join(', ') })}</span>
+            <button onClick={() => void doGrow(panelId, edge, ownGrowKind(d, panelId))} data-testid="grow-own">
+              {t('grow.own')}
+            </button>
+          </>
+        )}
+      </ConfirmBar>
       {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
       <AngleArc
         pointAt={pointAt}
@@ -1228,6 +1332,20 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
         testId="tray-ghost-height"
       />
       <DimLabel at={W(m, first.frame, first.w, first.h / 2, th / 2)} k="H" value={height} unit={t('unit.mm')} ghost onCommit={setH} testId="tray-ghost-dim" />
+      <ConfirmBar
+        at={W(m, first.frame, first.w / 2, first.h + 14, th / 2)}
+        onOk={() => {
+          const st = useStore.getState();
+          const ex = st.extrude;
+          if (!ex) return;
+          st.apply((x) => void addTray(x, ex.baseId, ex.height));
+          st.set({ extrude: null });
+        }}
+        onCancel={() => useStore.getState().set({ extrude: null })}
+        okTestId="extrude-go"
+        cancelTestId="extrude-cancel"
+        testId="tray-ghost-bar"
+      />
       {hf !== null && hf > 0 && (
         <>
           <DimLine a={W(m, first.frame, -4, hf, th)} b={W(m, first.frame, first.w + 4, hf, th)} tick={v3mul(Wdir(m, first.frame.v), 2)} />
@@ -1474,6 +1592,58 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
       }}
       onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
       testId="floor-gizmo"
+    />
+  );
+}
+
+/**
+ * A selected panel placed on a face (milestone 29): the gizmo moves it in its
+ * host's plane (its corners snapping to the face's targets: the host's corners
+ * and shapes, other panels on the face, walls standing on it) and turns it
+ * about the host's normal.
+ */
+function PlacedGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const st = useStore.getState;
+  const pl = p.place!;
+  const hf = hostFace(d, pl.host, pl.face);
+  const targets = useMemo(() => (hf ? faceTargets(d, pl.host, pl.face) : null), [d, pl.host, pl.face]);
+  if (!hf) return null;
+  const H = hf.H;
+  const th = tOf(d, p.id);
+  const at = W(m, p.frame, p.w / 2, pl.pose === 'flat' ? p.h / 2 : p.h / 2, th);
+  // the panel's footprint on the face (host coordinates), as it was at the start of the drag
+  const feet = (q: Panel): P2[] => {
+    const pts = pl.pose === 'flat' ? [[0, 0], [q.w, 0], [q.w, q.h], [0, q.h]] : [[0, 0], [q.w, 0]];
+    return pts.map(([x, y]) => toLocal(H, toWorld(q.frame, x, y, 0)));
+  };
+  return (
+    <Gizmo
+      at={at}
+      ax={Wdir(m, H.u)}
+      ay={Wdir(m, H.v)}
+      n={Wdir(m, frameNormal(H))}
+      onMove={(du, dv, ev) => {
+        const base = st().txnBase ?? st().design;
+        const b = base.panels[p.id] ?? p;
+        let dx = du, dy = dv;
+        // the footprint corner nearest a target snaps onto it
+        if (ev && !noSmartSnap(ev) && targets) {
+          let best: { x: number; y: number; d: number } | null = null;
+          for (const q of feet(b)) {
+            const sn = snapOnFace(targets, { x: q.x + dx, y: q.y + dy }, tolAt(at));
+            if (!sn) continue;
+            const ddx = sn.p.x - q.x - dx, ddy = sn.p.y - q.y - dy, dd = Math.hypot(ddx, ddy);
+            if (!best || dd < best.d) best = { x: ddx, y: ddy, d: dd };
+          }
+          if (best) [dx, dy] = [dx + best.x, dy + best.y];
+          else if (ev) [dx, dy] = [snap(dx, ev), snap(dy, ev)];
+        } else if (ev) [dx, dy] = [snap(dx, ev), snap(dy, ev)];
+        st().preview((dd) => movePlaced(dd, p.id, dx, dy));
+        return { du: dx, dv: dy };
+      }}
+      onRotate={(deg) => st().preview((dd) => rotatePlaced(dd, p.id, deg))}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="placed-gizmo"
     />
   );
 }

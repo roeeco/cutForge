@@ -24,23 +24,12 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   if (!panel) return null;
   const check = checkHinge(design, panelId, edge, grow.angle, grow.height);
   const options = check.kinds;
-  const effKind = growKind(design, grow);
+  const effKind = growKind(design, grow, panelId);
   const used = !edgeHasRoom(design, panelId, edge);
   const eg = effectiveGrow(design, panelId, edge, grow);
   const L = edgeLength(panel, edge);
   const span = eg.span ?? [0, L];
   const { angle, dir } = fromHinge(grow.angle);
-  const doGrow = () => {
-    let res: ReturnType<typeof growPanel> = null;
-    useStore.getState().apply((d) => {
-      // a joint the student did not pick follows the design's (or the material's) default whenever the angle allows
-      const sq = connectionsFor(d.material, 90);
-      const pref = grow.kind && grow.kind === effKind ? effKind : (designKind(d, 'base', sq) ?? sq[0]);
-      res = growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref, span: eg.span, sketch: eg.sketch });
-    });
-    const r = res as ReturnType<typeof growPanel>;
-    if (r) useStore.getState().select({ kind: 'panel', id: r.panelId });
-  };
   return (
     <div className="card-dock">
       <div className="card inspector grow-card-inner" role="toolbar" aria-label={t('edge.grow')} data-testid="edgebar">
@@ -110,9 +99,7 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
                 </button>
               </div>
             )}
-            <button className="primary full" onClick={doGrow} data-testid="grow-go" disabled={check.blocking}>
-              <Icon name="grow" size={16} /> {t('edge.grow')}
-            </button>
+            <p className="note">{t('edge.confirmOnStage')}</p>
           </>
         )}
       </div>

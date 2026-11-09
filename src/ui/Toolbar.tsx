@@ -49,8 +49,13 @@ export function Toolbar() {
     // fit into 40% of the panel, keeping proportions
     const k = (Math.min(p.w, p.h) * 0.4) / Math.max(r.w, r.h);
     let id: string | null = null;
+    s.cancelPending();
     s.apply((d) => void (id = addPathShape(d, panelId, r.polys, p.w / 2, p.h / 2, r.w * k, r.h * k, s.shapeOp)));
-    if (id) s.select(detailSel([id]));
+    if (id) {
+      // a ghost until ✓ (milestone 30)
+      s.select(detailSel([id]));
+      s.beginPending({ kind: 'shape', ids: [id], panelId });
+    }
     const notes = r.problems.filter((x) => x === 'openDropped' || x === 'simplified');
     if (notes.length) alert(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
   };

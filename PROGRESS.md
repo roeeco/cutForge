@@ -600,6 +600,32 @@ Verified (`tests/placed.test.ts`)
 - **A standing panel on a plywood base gets tab-and-slot (slots in the base), its bottom on the face; a flat one makes no joint and the export check is clean** (three pieces).
 - **A construction box is missing from pieces and export, makes no joints, is still a snap target; switched real it gets its four corners and six pieces.** A panel placed on a construction panel is real and not joined to it. Saving keeps `place` and `construction`; designs without them save neither.
 
+## Milestone 29 — The Panel tool on faces, as a ghost ✅
+
+Implemented (`src/views/panelTool.tsx`; `faceTargets`, `snapOnFace` in `snap.ts`; `PlacedGizmo` and the `ghost-draw` / `placed-move` drags in `View3D.tsx`; `src/ui/PlacedUI.tsx`; `setPlacedPose` in `ops.ts`; `panelGhost`, `panelPose`, `standHeight` in the store)
+- With the Panel tool the face under the pointer is outlined (`FaceHover`; which face from the hit's depth in the slab, `faceAt`). Dragging on it, or on the floor, draws a ghost in that face's plane: a rectangle lying flat on it, or (Standing) a line with a wall standing on it at the last height used (40 mm the first time).
+- Points snap (`faceTargets`): the host's corners, edge midpoints, centre and shapes; panels already lying on that face; and where each face of a panel standing on or through the face crosses it, so a partition drawn wall to wall ends exactly on both walls' inner faces. Alt or smart snapping off: the grid.
+- After release the ghost waits: its corners (or line ends) can be dragged, W and H typed on the stage, a standing ghost's height pushed or typed and its material side flipped (`ghost-flip`). The ghost bar (`panel-ghost-bar`): Flat | Standing, Construction, ✓ (Enter), ✕ (Esc). ✓ makes it (a floor panel when flat on the floor, else a placed panel, joined as milestone 28 describes), selects it and returns to Select; choosing another tool or selecting something drops it.
+- A selected placed panel's gizmo moves it in its host's plane (its footprint's corners snapping to the face's targets) and turns it about the host's normal; dragging the panel itself moves it in that plane. Its card says what it is on (*On panel 3, inner face*; top/underside on a floor panel), switches Flat/Standing, and every panel's card has *Construction* (its net becomes a guide).
+
+Verified (`tests/e2e/boards.spec.ts`)
+- **A flat panel drawn on a wall's inner face snaps to the wall's corner**: placed at (0, 20), 30 × 20, on face 1; it is selected, the card reads *inner face*, and the tool is back on Select.
+- **A standing line drawn across a box from just inside one side wall to just inside the other lands on both walls' inner faces (x 3 and 77), the typed height is 25, ✓ joins it to the base and both walls with tabs and slots, each with slots.**
+- Esc drops the ghost and leaves the design as it was. The older specs that draw panels press ✓ after drawing.
+
+## Milestone 30 — One floating ✓ everywhere ✅
+
+Implemented (`ConfirmBar`, `PendingBar`, `PendingBarHtml` in `panelTool.tsx`; `pending`, `beginPending`, `confirmPending`, `cancelPending` in the store; `doGrow`, `growOverlap`, `ownGrowKind` in `views/ghost.ts`)
+- One floating bar (✓ / ✕, Enter / Esc, ignored while typing in a field) next to every ghost, in the look of the grow pill.
+- **Grow**: the ghost carries the bar (`grow-ghost-bar`, its ✓ keeps the `grow-go` id); *Grow panel* left the card, which keeps angle, height, span, joint and adapt. A fold whose net would overlap when flat (milestone 35) turns the ghost amber, names the panels and offers *Cut it as its own piece* (`grow-own`: the wall-to-base kind if it is not a fold, else glue on card, tabs on corrugated).
+- **Extrude**: the tray ghost carries the bar (`extrude-go`, `extrude-cancel`); *Add walls* left the card.
+- **Shapes** (rectangle, rounded rectangle, circle, polygon after closing, text, imported SVG, and a polygon floor panel), in 3D, the face-on view and the cut plan: what the tool made waits for ✓ while its handles, sizes and Add/Cut/Engrave/Score can still change. ✓ keeps everything since it was made as **one undo step** and returns to Select; ✕, Esc, undo, another tool, selecting something else or starting another drawing take it away again (the design and history from before it). The grow joint now follows the parent board's material (`growKind`).
+
+Verified (`tests/e2e/boards.spec.ts`)
+- **A rectangle drawn, resized in its card, then ✓: one undo step more than before, Select on; undo removes it and redo brings it back. ✕, Esc and choosing another tool each leave the design as it was; a text placed and confirmed with Enter.**
+- Grow is confirmed on the stage in one undo step and the card's button is gone; a rectangle drawn in the cut plan waits for ✓.
+- The older specs (editing, flow, polygon, shapes, slice, templates, text and SVG, through-cuts, trays) press ✓ where they draw; the whole app suite passes (52 specs).
+
 ## Milestone 35 (engine) — Nets that lie flat ✅
 
 Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)

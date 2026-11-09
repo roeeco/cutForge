@@ -22,6 +22,7 @@ import { MATERIAL_COLORS, boardTintCss } from './palette';
 import { panelLabel } from '../model/names';
 import { materialName } from '../ui/materialName';
 import { snapAngle } from './widgets';
+import { PendingBarHtml } from './panelTool';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
@@ -305,7 +306,11 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       } else if (g.kind === 'draw') {
         const made = !!st.txnBase;
         st.commit();
-        if (made) st.select(detailSel([g.id]));
+        if (made) {
+          // a ghost until ✓ (milestone 30)
+          st.select(detailSel([g.id]));
+          st.beginPending({ kind: 'shape', ids: [g.id], panelId: g.panelId });
+        }
       } else if (g.kind !== 'pan') st.commit();
     };
     const key = (ev: KeyboardEvent) => {
@@ -367,6 +372,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
 
   const startDraw = (pl: Placed, panelId: string, ev: React.PointerEvent) => {
     const st = useStore.getState();
+    // another drawing drops a shape still waiting for ✓
+    st.cancelPending();
     let l = toLocal(pl, panelId, svgPoint(ev));
     const ctx = snapContext(st.design, panelId, new Set());
     const sn = ctx && !noSmartSnap(ev) ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
@@ -425,6 +432,25 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     useStore.getState().openSolo(panelAt(pl, svgPoint(ev)));
   };
 
+  // a shape waiting for ✓ (milestone 30): its bar above it, in screen space over the drawing
+  const pending = useStore((s) => s.pending);
+  const pendingAt = (() => {
+    if (!pending || pending.kind !== 'shape') return null;
+    const f = findDetail(d, pending.ids[0]);
+    const pl = f && placedOf(f.panel.id);
+    const svg = svgRef.current;
+    if (!f || !pl || !svg) return null;
+    const bb = detailBBox(f.detail);
+    const q = toSvg(pl, f.panel.id, { x: (bb.minX + bb.maxX) / 2, y: bb.maxY });
+    const ctm = svg.getScreenCTM();
+    const box = svg.getBoundingClientRect();
+    if (!ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = q.x;
+    pt.y = q.y;
+    const r = pt.matrixTransform(ctm);
+    return { x: r.x - box.left, y: r.y - box.top - 8 };
+  })();
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
@@ -670,6 +696,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           </text>
         )}
       </svg>
+      {pendingAt && <PendingBarHtml x={pendingAt.x} y={pendingAt.y} />}
       <div className="plan-dock" dir="auto">
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">

@@ -49,6 +49,8 @@ test('polygon base → extrude → push-pull → cut through a corner → warnin
     await page.mouse.click(p.x, p.y);
   }
   await page.mouse.click(p0.x, p0.y);
+  // the closed polygon is a ghost until ✓ (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   let d = await design(page);
   const base = d.order[0];
   const pts = d.panels[base].sketch.pts as { x: number; y: number }[];
@@ -98,8 +100,10 @@ test('polygon base → extrude → push-pull → cut through a corner → warnin
   d = await design(page);
   expect(d.panels[front].details[0].through).toBe(true);
 
+  // ✓ makes the cut and goes back to Select (milestone 30)
+  await page.getByTestId('ghost-ok').click();
+  await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
   // the export check names the approximated bevel on the edge-on wall
-  await page.getByTestId('tool-select').click();
   await page.getByTestId('open-export').click();
   await expect(page.getByTestId('export-issues')).toContainText('at an angle');
   await page.getByTestId('export-cancel').click();

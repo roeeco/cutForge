@@ -1566,3 +1566,15 @@ export function setTrayPin(d: Design, trayId: string, edge: string, pin: 'hinge'
   else delete t.pin;
   solve(d);
 }
+
+/** Lay a placed panel flat on its face or stand it up on its bottom line (milestone 29); it keeps its place and size. */
+export function setPlacedPose(d: Design, panelId: string, pose: 'flat' | 'standing') {
+  const p = d.panels[panelId];
+  if (!p?.place || p.place.pose === pose) return;
+  p.place = { ...p.place, pose, ...(pose === 'standing' ? { side: p.place.side ?? 1 } : {}) };
+  if (pose === 'flat') delete p.place.side;
+  // a flat panel is not joined to its host
+  if (pose === 'flat') for (const c of Object.values(d.connections)) if (!c.grown && p.place.host && ((c.a.panelId === panelId && c.b.panelId === p.place.host) || (c.b.panelId === panelId && c.a.panelId === p.place.host))) delete d.connections[c.id];
+  solve(d);
+  if (pose === 'standing') connectSeams(d, panelId);
+}

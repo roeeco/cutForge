@@ -110,3 +110,180 @@ test('milestone 35: an L base extruded past its flat height is told so, and Lowe
   expect(Object.values(tray.fixes ?? {})).not.toContain('own');
   expect(errors).toEqual([]);
 });
+
+/** Screen point of a point on a panel's material-side face. */
+const proj = (page: Page, id: string, x: number, y: number) => S<{ x: number; y: number }>(page, (a: any) => (window as any).__cutforge.projectFace(a.id, a.x, a.y, 1), { id, x, y });
+async function dragOn(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(from.x + ((to.x - from.x) * i) / 8, from.y + ((to.y - from.y) * i) / 8);
+  await page.mouse.up();
+}
+
+test.describe('milestone 29: the Panel tool on faces', () => {
+  test('a flat panel on a wall’s inner face, snapped to the wall’s corner, then ✓', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await start(page, 'ply-3');
+    const { walls } = await plyBox(page);
+    const back = walls[2];
+    // high enough to see the back wall's inner face over the front wall
+    await S(page, () => (window as any).__cutforge.setCamera([0, 200, 160], [0, 20, -30]));
+    await page.getByTestId('tool-panel').click();
+    await dragOn(page, await proj(page, back, 30, 20), await proj(page, back, 0.8, 39.2));
+    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
+    await expect(page.getByTestId('ghost-w')).toContainText('30');
+    await page.getByTestId('ghost-ok').click();
+    const d = await design(page);
+    const p: any = Object.values(d.panels).find((x: any) => x.place);
+    expect(p.place).toMatchObject({ host: back, face: 1, x: 0, y: 20, rot: 0, pose: 'flat' });
+    expect([p.w, p.h]).toEqual([30, 20]);
+    // selected, back to Select, its card says where it is
+    await expect(page.getByTestId('panel-kicker')).toContainText('inner face');
+    await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
+    expect(errors).toEqual([]);
+  });
+
+  test('a standing partition drawn wall to wall: both ends on the walls, height typed, ✓; slots in the base and walls', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await start(page, 'ply-3');
+    const { base } = await plyBox(page);
+    await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
+    await page.getByTestId('tool-panel').click();
+    // Standing; a line across the box from just inside one side wall to just inside the other (walls stand at x 0–3 and 77–80 of the base)
+    await S(page, () => (window as any).__cutforge.store.getState().set({ panelPose: 'standing' }));
+    await dragOn(page, await proj(page, base, 3.8, 30), await proj(page, base, 76.2, 30));
+    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
+    await expect(page.getByTestId('ghost-standing')).toHaveAttribute('aria-checked', 'true');
+    const g = await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost);
+    // the ends land on the walls' inner faces
+    expect(Math.min(g.a.x, g.b.x)).toBeCloseTo(3, 6);
+    expect(Math.max(g.a.x, g.b.x)).toBeCloseTo(77, 6);
+    await page.getByTestId('ghost-h').click();
+    await page.getByTestId('ghost-h-input').fill('25');
+    await page.getByTestId('ghost-h-input').press('Enter');
+    await page.getByTestId('ghost-ok').click();
+    const d = await design(page);
+    const p: any = Object.values(d.panels).find((x: any) => x.place);
+    expect(p.place.pose).toBe('standing');
+    expect(p.h).toBe(25);
+    expect(p.w).toBeCloseTo(74, 6);
+    const joins = Object.values(d.connections).filter((c: any) => c.a.panelId === p.id || c.b.panelId === p.id) as any[];
+    expect(joins.length).toBe(3);
+    expect(joins.every((c) => c.kind === 'tabslot' && !c.broken)).toBe(true);
+    // the cut plan: slots in the base and both walls
+    // its joints put slots in the base and in both side walls
+    const slotted = new Set(joins.map((c) => (c.a.panelId === p.id ? c.b.panelId : c.a.panelId)));
+    expect(slotted.size).toBe(3);
+    for (const c of joins) expect(c.geom.holes.length).toBeGreaterThan(0);
+    await page.getByTestId('view-2d').click();
+    await expect(page.getByTestId('cutplan')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('Esc drops the ghost', async ({ page }) => {
+    await start(page, 'ply-3');
+    const { base } = await plyBox(page);
+    await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
+    await page.getByTestId('tool-panel').click();
+    await dragOn(page, await proj(page, base, 20, 20), await proj(page, base, 50, 40));
+    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
+    const before = Object.keys((await design(page)).panels).length;
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('panel-ghost-bar')).toHaveCount(0);
+    expect(Object.keys((await design(page)).panels).length).toBe(before);
+  });
+});
+
+test.describe('milestone 30: one floating ✓ for every ghost', () => {
+  const past = (page: Page) => S<number>(page, () => (window as any).__cutforge.store.getState().past.length);
+  const nShapes = async (page: Page) => Object.values((await design(page)).panels).reduce((n: number, p: any) => n + p.details.length, 0);
+  async function setup(page: Page) {
+    await start(page, 'ply-3');
+    const b = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let id = '';
+      cf.store.getState().apply((d: any) => void (id = cf.ops.addRootPanel(d, -60, 50, 120, 100)));
+      cf.store.getState().select(null);
+      return id;
+    });
+    await S(page, () => (window as any).__cutforge.setCamera([0, 300, 1], [0, 0, 0]));
+    return b;
+  }
+
+  test('rectangle, circle, rounded rectangle and text: ✓ is one undo step and back to Select; ✕, Esc and another tool drop it', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const b = await setup(page);
+    // ✓
+    const p0 = await past(page);
+    await page.getByTestId('tool-rect').click();
+    await dragOn(page, await proj(page, b, 20, 20), await proj(page, b, 50, 40));
+    await expect(page.getByTestId('pending-bar')).toBeVisible();
+    expect(await nShapes(page)).toBe(1);
+    // its size can still change before ✓
+    await page.getByTestId('detail-w').fill('35');
+    await page.getByTestId('detail-w').press('Enter');
+    await page.getByTestId('ghost-ok').click();
+    await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
+    expect(await past(page)).toBe(p0 + 1);
+    await page.keyboard.press('ControlOrMeta+z');
+    expect(await nShapes(page)).toBe(0);
+    await page.keyboard.press('ControlOrMeta+Shift+z');
+    expect(await nShapes(page)).toBe(1);
+    // ✕
+    await page.getByTestId('tool-circle').click();
+    await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
+    expect(await nShapes(page)).toBe(2);
+    await page.getByTestId('ghost-cancel').click();
+    expect(await nShapes(page)).toBe(1);
+    // Esc
+    await page.getByTestId('tool-roundrect').click();
+    await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
+    expect(await nShapes(page)).toBe(2);
+    await page.keyboard.press('Escape');
+    expect(await nShapes(page)).toBe(1);
+    // another tool drops it
+    await page.getByTestId('tool-rect').click();
+    await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
+    expect(await nShapes(page)).toBe(2);
+    await page.getByTestId('tool-circle').click();
+    expect(await nShapes(page)).toBe(1);
+    // text: placed, then ✓
+    await page.getByTestId('tool-text').click();
+    const q = await proj(page, b, 60, 70);
+    await page.mouse.click(q.x, q.y);
+    await expect(page.getByTestId('pending-bar')).toBeVisible();
+    await page.keyboard.press('Enter');
+    expect(await nShapes(page)).toBe(2);
+    await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
+    expect(errors).toEqual([]);
+  });
+
+  test('grow and extrude are confirmed on the stage', async ({ page }) => {
+    const b = await setup(page);
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e0' }), b);
+    await expect(page.getByTestId('grow-ghost-bar')).toBeVisible();
+    const p0 = await past(page);
+    await page.getByTestId('grow-go').click();
+    expect(Object.keys((await design(page)).panels)).toHaveLength(2);
+    expect(await past(page)).toBe(p0 + 1);
+    // the card no longer has its own Grow button
+    await expect(page.getByTestId('edgebar')).toHaveCount(0);
+  });
+
+  test('the cut plan: a drawn shape waits for ✓', async ({ page }) => {
+    await setup(page);
+    await page.getByTestId('view-2d').click();
+    await page.getByTestId('tool-rect').click();
+    const piece = page.locator('path.piece').first();
+    const bb = (await piece.boundingBox())!;
+    await dragOn(page, { x: bb.x + bb.width * 0.3, y: bb.y + bb.height * 0.3 }, { x: bb.x + bb.width * 0.6, y: bb.y + bb.height * 0.6 });
+    await expect(page.getByTestId('pending-bar')).toBeVisible();
+    await page.getByTestId('ghost-ok').click();
+    await expect(page.getByTestId('pending-bar')).toHaveCount(0);
+    expect(await nShapes(page)).toBe(1);
+    await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
+  });
+});

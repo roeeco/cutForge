@@ -19,6 +19,7 @@ import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { BoardMaterial } from './BoardMaterial';
+import { PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 
@@ -93,7 +94,7 @@ export function Inspector() {
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
       body = (
         <section data-testid="inspector-panel" key={id}>
-          <p className="kicker">{t('insp.part')}</p>
+          <p className="kicker" data-testid="panel-kicker">{placedWhere(d, id, t) ?? t('insp.part')}</p>
           <div className="card-head">
             <h3 dir="auto">{panelLabel(d, id, t)}</h3>
             <button className="ghost icon-btn" onClick={() => useStore.getState().openSolo(id)} aria-label={t('solo.open')} title={t('solo.open')} data-testid="open-solo">
@@ -145,6 +146,7 @@ export function Inspector() {
             testId="panel-qty"
           />
           <BoardMaterial ids={[id]} />
+          <PlacedSection panelId={id} />
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />

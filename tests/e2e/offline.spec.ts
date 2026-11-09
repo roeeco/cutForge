@@ -17,6 +17,8 @@ test('works offline after load', async ({ page, context }) => {
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 50, { steps: 5 });
   await page.mouse.up();
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
 
   let dl = page.waitForEvent('download');
