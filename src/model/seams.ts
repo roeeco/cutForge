@@ -4,13 +4,13 @@
 // changes automatically.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { ConnGeom, Connection, ConnectionKind, Design, MaterialProfile, Notch, P2, Panel, V3 } from './types';
+import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgeNeighbours, edgePieces, FACE, findEdge, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
 import { minWeb } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
-import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
+import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -591,7 +591,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const taper = Math.min(fh, len / 3);
     if (fit.d1 > 1e-9) g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
     const p = (s: number, u: number) => edgePoint(O, edge, s, fit.d1 - u);
-    g.adds.push({ panelId: O.id, poly: [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)] });
+    const flat = [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)];
+    g.adds.push({ panelId: O.id, poly: flat });
     g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
     // 3D: the flap folds along the receiver's face, towards the receiver's centre
     const mO = matDir(O.frame);
@@ -611,7 +612,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     });
     const zFace = fit.zE + fit.k * fit.d1;
     const [z0, z1] = zFace < t / 2 ? [-t, 0] : [t, 2 * t];
-    g.flaps3d.push({ panelId: R.id, poly: poly3, z0, z1 });
+    g.flaps3d.push(withFold(t, O, flat, { panelId: R.id, poly: poly3, z0, z1 }, R));
     return g;
   }
   return null;
@@ -697,14 +698,15 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   const taper = Math.min(fh, len / 3);
   g.edges.push({ panelId: O.id, edge: eO, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
   const p = (s: number, u: number) => edgePoint(O, eO, s, fit.d1 - u);
-  g.adds.push({ panelId: O.id, poly: [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)] });
+  const flat = [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)];
+  g.adds.push({ panelId: O.id, poly: flat });
   g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
   const cf = cornerFit(O, eO, R, eR);
   if (cf) {
     // on the receiver's inner face, starting where the owner's inner face meets it
     const x0 = (t * (1 + cf.cos)) / cf.sin;
     const q = (s: number, u: number) => edgePoint(R, eR, cf.mapB(s), x0 + u);
-    g.flaps3d.push({ panelId: R.id, poly: [q(fit.s0, 0), q(fit.s0 + taper, fh), q(fit.s1 - taper, fh), q(fit.s1, 0)], z0: t, z1: 2 * t });
+    g.flaps3d.push(withFold(t, O, flat, { panelId: R.id, poly: [q(fit.s0, 0), q(fit.s0 + taper, fh), q(fit.s1 - taper, fh), q(fit.s1, 0)], z0: t, z1: 2 * t }, R));
   }
   return g;
 }
@@ -720,14 +722,55 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const fh = c.flap ?? autoFlap(d.material);
   const taper = Math.min(fh, L / 3);
   const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
-  g.adds.push({ panelId: C.id, poly: [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)] });
+  const flat = [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)];
+  g.adds.push({ panelId: C.id, poly: flat });
   g.scores.push({ panelId: C.id, a: p(0, 0), b: p(L, 0) });
   // on the parent: along the parent edge (from where the child stands on it), from the child's position inwards
   const s0 = c.span && !c.trayId ? Math.min(c.span[0], c.span[1]) : 0;
   const q = (s: number, u: number) => edgePoint(P, c.a.edge, s0 + s, c.offset + u);
   const [z0, z1] = c.dir === 'up' ? [t, 2 * t] : [-t, 0];
-  g.flaps3d.push({ panelId: P.id, poly: [q(0, 0), q(taper, fh), q(L - taper, fh), q(L, 0)], z0, z1 });
+  g.flaps3d.push(withFold(t, C, flat, { panelId: P.id, poly: [q(0, 0), q(taper, fh), q(L - taper, fh), q(L, 0)], z0, z1 }, P));
   return g;
+}
+
+/** Local coords of a world point (x, y on the plane, z into the material). */
+function local3(p: Panel, w: V3): V3 {
+  const d = v3sub(w, p.frame.o);
+  return [v3dot(d, p.frame.u), v3dot(d, p.frame.v), v3dot(d, matDir(p.frame))];
+}
+
+/**
+ * Records how a glue flap folds off its own panel (for the fold view). `flat`
+ * is the flap as cut (owner-local, base corners first and last, on the score
+ * line), lying in the owner's slab; `f` the flap as folded on R. The hinge is
+ * the line the flat slab turns about to land on the folded one: along the
+ * score line, through the point the two slabs' base mid-lines turn about (half
+ * a thickness out from the fold, as for folded nets).
+ */
+function withFold(t: number, O: Panel, flat: P2[], f: Flap3d, R: Panel): Flap3d {
+  const n = flat.length, m = f.poly.length;
+  if (n < 3 || m < 3) return f;
+  const mid = (a: P2, b: P2): P2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const sa = toWorld(O.frame, flat[0].x, flat[0].y), sb = toWorld(O.frame, flat[n - 1].x, flat[n - 1].y);
+  const a = v3norm(v3sub(sb, sa));
+  const perp = (v: V3) => v3norm(v3sub(v, v3mul(a, v3dot(v, a))));
+  const fb = mid(flat[0], flat[n - 1]), ft = mid(flat[1], flat[n - 2]);
+  const X = toWorld(O.frame, fb.x, fb.y, t / 2);
+  const nf = perp(v3sub(toWorld(O.frame, ft.x, ft.y, t / 2), X));
+  const zc = (f.z0 + f.z1) / 2;
+  const gb = mid(f.poly[0], f.poly[m - 1]), gt = mid(f.poly[1], f.poly[m - 2]);
+  const Y = toWorld(R.frame, gb.x, gb.y, zc);
+  const ng = perp(v3sub(toWorld(R.frame, gt.x, gt.y, zc), Y));
+  const th = Math.atan2(v3dot(v3cross(nf, ng), a), v3dot(nf, ng));
+  if (!Number.isFinite(th) || Math.abs(th) < 1e-6) return { ...f, owner: O.id, hinge: [local3(O, sa), local3(O, sb)], angle: 0 };
+  // pivot P (in the plane across the hinge, from X): rotating X about P by θ lands on Y
+  const e1 = nf, e2 = v3cross(a, nf);
+  const y1 = v3dot(v3sub(Y, X), e1), y2 = v3dot(v3sub(Y, X), e2);
+  const c = Math.cos(th), s = Math.sin(th), det = 2 - 2 * c;
+  const p1 = ((1 - c) * y1 - s * y2) / det, p2 = (s * y1 + (1 - c) * y2) / det;
+  const P = v3add(X, v3add(v3mul(e1, p1), v3mul(e2, p2)));
+  const len = v3len(v3sub(sb, sa)) || 1;
+  return { ...f, owner: O.id, hinge: [local3(O, P), local3(O, v3add(P, v3mul(a, len)))], angle: (th * 180) / Math.PI };
 }
 
 export type SeamType = 'corner' | 'face' | 'cross';

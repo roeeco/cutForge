@@ -126,6 +126,7 @@ export function renamePanel(d: Design, from: string, to: string) {
     if (c.a.panelId === from) c.a.panelId = to;
     if (c.b.panelId === from) c.b.panelId = to;
     if (c.geom) for (const list of [c.geom.edges, c.geom.holes, c.geom.adds, c.geom.scores, c.geom.flaps3d, c.geom.cuts ?? []] as { panelId: string }[][]) for (const x of list) if (x.panelId === from) x.panelId = to;
+    for (const f of c.geom?.flaps3d ?? []) if (f.owner === from) f.owner = to;
   }
   if (d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.map((k) => k.split('|').map((x) => (x === from ? to : x)).sort().join('|'));
   // a set member's own grown connection id follows (`<set>/c/<axis><n>`)

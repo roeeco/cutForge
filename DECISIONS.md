@@ -165,3 +165,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Through-cut editing** (milestone 20) shows corner handles on the source and every non-edge-on panel the cut reaches, and a gizmo on the reached panels (the source keeps its own). Corners are dragged on the reached panel's mid-plane and mapped back to the source by orthogonal projection onto its plane (the cut runs along the source's normal, so this is the same mapping).
 - **Snap targets** come from the panel's own outline (sketch, Adds and Cuts) instead of its bounding box; the box's centre is kept as a target.
 - **The live through-cut count** while drawing a polygon recomputes on a copy of the design when the polygon so far changes by a whole millimetre.
+
+## Gizmo, joints, flaps and settings (see `GIZMO_JOINTS_FLAPS.md`)
+- **Gizmo start values** (milestone 21) all come from the design at pointer-down (`txnBase`): positions, the box used for snapping, the pivot. During a turn the gizmo stays where the turn started.
+- **Grazing views:** within 20° of edge-on (pad) or of the view direction (arrow), one pointer pixel moves one pixel's worth of millimetres at the gizmo (`mmPerPx`). Up the screen moves away from the camera. The switch at 20° changes the speed (a plane hit there moves about 2.9× as far per pixel); the jump was judged less confusing than a leap of tens of millimetres.
+- **Gizmo hit zones:** 16 px wide along each arrow, a 13 px ball for the pad (wins over an arrow seen end-on). The pad is drawn 22 px wide.
+- **Dimension labels** of a panel seen within 20° of edge-on are hidden.
+- **Flap hinge** (milestone 22) is solved, not written per kind: the axis is the score line, and the pivot is where the flat slab's base mid-line turns onto the folded one. A flap is coloured as the panel it is cut from.

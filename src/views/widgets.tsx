@@ -373,6 +373,79 @@ export function DimLine({ a, b, tick }: { a: V3; b: V3; tick: V3 }) {
 
 export type GizmoMode = 'pad' | 'x' | 'y' | 'ring';
 
+/** The pad wins over the arrows' hit zones where they overlap (an axis seen end-on). */
+function padRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+  const n = out.length;
+  THREE.Mesh.prototype.raycast.call(this, rc, out);
+  for (let i = n; i < out.length; i++) out[i].distance = 1e-4 * (i - n + 1);
+}
+
+/** Within this angle of edge-on (a plane) or of the view direction (an axis), the gizmo moves by screen distance. */
+export const GRAZING_DEG = 20;
+
+/** Whether a plane (normal n, through p) is seen within GRAZING_DEG of edge-on; updated as the camera moves. */
+export function useGrazing(n: V3, p: V3): boolean {
+  const { camera } = useThree();
+  const [g, setG] = useState(false);
+  const N = useMemo(() => new THREE.Vector3(...n).normalize(), [n[0], n[1], n[2]]);
+  const P = useMemo(() => new THREE.Vector3(...p), [p[0], p[1], p[2]]);
+  const sinG = Math.sin((GRAZING_DEG * Math.PI) / 180);
+  useFrame(() => {
+    const view = camera instanceof THREE.OrthographicCamera ? camera.getWorldDirection(new THREE.Vector3()) : P.clone().sub(camera.position).normalize();
+    const now = Math.abs(N.dot(view)) < sinG;
+    if (now !== g) setG(now);
+  });
+  return g;
+}
+
+/** A drag mapped from pointer pixels to a display-space move. */
+export interface ScreenMap {
+  move: (dxPx: number, dyPx: number) => THREE.Vector3;
+}
+
+/**
+ * For a grazing view, how pointer travel maps to movement (null when the plane
+ * or axis is seen well enough to intersect the pointer ray with it). One pixel
+ * is one pixel's worth of millimetres at the gizmo, whatever the angle:
+ * - pad: along the plane's in-screen direction (N × view) as seen, and the
+ *   other way along the plane's depth direction (up the screen = away);
+ * - arrow: along the axis's direction on screen (or up the screen = away,
+ *   when it points straight at the viewer).
+ */
+export function grazingMap(
+  mode: GizmoMode,
+  _p: THREE.Vector3,
+  ax: { AX: THREE.Vector3; AY: THREE.Vector3; N: THREE.Vector3 },
+  view: THREE.Vector3,
+  screenDir: (d: THREE.Vector3) => { x: number; y: number; k: number },
+  mmpp: number,
+): ScreenMap | null {
+  const sinG = Math.sin((GRAZING_DEG * Math.PI) / 180);
+  if (mode === 'ring') return null;
+  if (mode === 'pad') {
+    if (Math.abs(ax.N.dot(view)) >= sinG) return null;
+    const e1 = ax.N.clone().cross(view);
+    if (e1.lengthSq() < 1e-12) return null;
+    e1.normalize();
+    const e2 = ax.N.clone().cross(e1).normalize();
+    if (e2.dot(view) < 0) e2.negate();
+    const s1 = screenDir(e1);
+    // the screen direction perpendicular to e1's, on the side e2 is drawn (up when unclear)
+    let s2 = { x: s1.y, y: -s1.x };
+    const p2 = screenDir(e2);
+    const along = s2.x * p2.x + s2.y * p2.y;
+    const flip = p2.k >= 0.02 ? along <= 0 : s2.y >= 0;
+    if (flip) s2 = { x: -s2.x, y: -s2.y };
+    return { move: (dx, dy) => e1.clone().multiplyScalar((dx * s1.x + dy * s1.y) * mmpp).addScaledVector(e2, (dx * s2.x + dy * s2.y) * mmpp) };
+  }
+  const A = mode === 'x' ? ax.AX : ax.AY;
+  if (Math.abs(A.dot(view)) <= Math.cos((GRAZING_DEG * Math.PI) / 180)) return null;
+  const sd = screenDir(A);
+  // straight at the viewer: up the screen moves it away
+  const s = sd.k > 0.02 ? sd : A.dot(view) > 0 ? { x: 0, y: -1 } : { x: 0, y: 1 };
+  return { move: (dx, dy) => A.clone().multiplyScalar((dx * s.x + dy * s.y) * mmpp) };
+}
+
 /** Snap a raw angle (degrees): 15° steps, Shift 1°, Alt free (0.1°). */
 export function snapAngle(raw: number, ev: { shiftKey: boolean; altKey: boolean }): number {
   const step = ev.altKey ? 0.1 : ev.shiftKey ? 1 : 15;
@@ -406,18 +479,44 @@ export function Gizmo(props: {
   const N = useMemo(() => new THREE.Vector3(...props.n).normalize(), [props.n[0], props.n[1], props.n[2]]);
   const quat = useMemo(() => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(AX, AY, N)), [AX, AY, N]);
   const ray = useRayFromScreen();
-  const st = useRef<{ mode: GizmoMode; base: THREE.Vector3; grab: number; a0: number; last: number; du: number; dv: number; deg: number } | null>(null);
+  const [frozenAt, setFrozenAt] = useState<V3 | null>(null);
+  const st = useRef<{
+    mode: GizmoMode;
+    base: THREE.Vector3;
+    grab: number;
+    a0: number;
+    last: number;
+    du: number;
+    dv: number;
+    deg: number;
+    /** The gizmo centre and pointer when the drag started. */
+    c0: THREE.Vector3;
+    p0: { x: number; y: number };
+    facing: number;
+    /** Grazing view: pointer pixels map to millimetres along these display directions (null: plane / axis hits). */
+    screen: ScreenMap | null;
+  } | null>(null);
   const toScreen = (p: THREE.Vector3) => {
     const r = gl.domElement.getBoundingClientRect();
     const v = p.clone().project(camera);
     return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
   };
-  // turning sense on screen: the ring seen from its normal's side turns counter-clockwise for positive angles
-  const screenAngle = (ev: { clientX: number; clientY: number }) => {
-    const c = toScreen(center);
-    const facing = N.dot(camera.position.clone().sub(center)) >= 0 ? 1 : -1;
+  // turning sense on screen: the ring seen from its normal's side turns counter-clockwise for positive angles;
+  // measured from where the gizmo was when the turn started, so a pivot that moves on screen does not change it
+  const screenAngle = (ev: { clientX: number; clientY: number }, from: THREE.Vector3, facing: number) => {
+    const c = toScreen(from);
     return (facing * Math.atan2(-(ev.clientY - c.y), ev.clientX - c.x) * 180) / Math.PI;
   };
+  const viewDir = (p: THREE.Vector3) => (camera instanceof THREE.OrthographicCamera ? camera.getWorldDirection(new THREE.Vector3()) : p.clone().sub(camera.position).normalize());
+  /** Screen direction (unit, px) of a display direction at p, and its foreshortening (1 = seen side-on). */
+  const screenDir = (p: THREE.Vector3, dir: THREE.Vector3) => {
+    const L = mmPerPx(camera, gl.domElement.clientHeight || 1, p) * 50;
+    const a = toScreen(p), b = toScreen(p.clone().addScaledVector(dir, L));
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    return { x: len ? dx / len : 0, y: len ? dy / len : 0, k: len / 50 };
+  };
+  const screenMap = (mode: GizmoMode, p: THREE.Vector3): ScreenMap | null =>
+    grazingMap(mode, p, { AX, AY, N }, viewDir(p), (d) => screenDir(p, d), mmPerPx(camera, gl.domElement.clientHeight || 1, p));
   const planeHit = (ev: { clientX: number; clientY: number }) => ray(ev.clientX, ev.clientY).intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(N, center), new THREE.Vector3());
   const fmt = (x: number) => fmtNum(Math.round(x * 10) / 10);
   const show = (s: NonNullable<typeof st.current>) => setReadout(s.mode === 'ring' ? `${fmt(s.deg)}°` : s.mode === 'pad' ? `${fmt(s.du)}, ${fmt(s.dv)}` : fmt(s.mode === 'x' ? s.du : s.dv));
@@ -426,7 +525,7 @@ export function Gizmo(props: {
       const s = st.current;
       if (!s) return;
       if (s.mode === 'ring') {
-        let a = screenAngle(ev);
+        let a = screenAngle(ev, s.c0, s.facing);
         // unwrap so a drag past ±180° keeps turning
         while (a - s.last > 180) a -= 360;
         while (a - s.last < -180) a += 360;
@@ -438,7 +537,13 @@ export function Gizmo(props: {
         }
       } else {
         let du = 0, dv = 0;
-        if (s.mode === 'pad') {
+        if (s.screen) {
+          const m = s.screen.move(ev.clientX - s.p0.x, ev.clientY - s.p0.y);
+          du = m.dot(AX);
+          dv = m.dot(AY);
+          if (s.mode === 'x') dv = 0;
+          if (s.mode === 'y') du = 0;
+        } else if (s.mode === 'pad') {
           const hit = planeHit(ev);
           if (!hit) return;
           const dvec = hit.sub(s.base);
@@ -459,6 +564,7 @@ export function Gizmo(props: {
     end: (cancel) => {
       st.current = null;
       setActive(null);
+      setFrozenAt(null);
       setTypedBoth(null);
       props.onEnd(cancel);
     },
@@ -508,9 +614,12 @@ export function Gizmo(props: {
       const hit = planeHit(ne);
       if (hit) base.copy(hit);
     } else if (mode === 'x' || mode === 'y') grab = closestOnLine(e.ray, base, mode === 'x' ? AX : AY);
-    const a0 = screenAngle(ne);
-    st.current = { mode, base, grab, a0, last: a0, du: 0, dv: 0, deg: 0 };
+    const facing = N.dot(camera.position.clone().sub(center)) >= 0 ? 1 : -1;
+    const a0 = screenAngle(ne, center, facing);
+    st.current = { mode, base, grab, a0, last: a0, du: 0, dv: 0, deg: 0, c0: center.clone(), p0: { x: ne.clientX, y: ne.clientY }, facing, screen: screenMap(mode, center) };
     setActive(mode);
+    // a turn keeps the gizmo where it started (several shapes' centre moves as they turn)
+    if (mode === 'ring') setFrozenAt([center.x, center.y, center.z]);
     show(st.current);
     drag(e);
   };
@@ -522,9 +631,10 @@ export function Gizmo(props: {
     onPointerDown: begin(m),
   });
   const R = 64;
+  const shownAt = frozenAt ?? props.at;
   return (
     <group userData={{ noAO: true }}>
-      <ScreenSized position={props.at} quaternion={quat}>
+      <ScreenSized position={shownAt} quaternion={quat}>
         {modes.includes('ring') && (
           <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined }}>
             <mesh renderOrder={22} raycast={() => null}>
@@ -541,7 +651,7 @@ export function Gizmo(props: {
           .filter((m) => modes.includes(m))
           .map((m) => (
             <group key={m} rotation={[0, 0, m === 'x' ? -Math.PI / 2 : 0]} {...handlers(m)} userData={{ testId: props.testId ? `${props.testId}-${m}` : undefined }}>
-              <mesh position={[0, 30, 0]} renderOrder={23} raycast={priorityRaycast}>
+              <mesh position={[0, 30, 0]} renderOrder={23} raycast={() => null}>
                 <cylinderGeometry args={[2, 2, 26, 8]} />
                 <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
               </mesh>
@@ -549,17 +659,29 @@ export function Gizmo(props: {
                 <coneGeometry args={[6, 12, 14]} />
                 <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
               </mesh>
+              {/* invisible hit zone about 16 px wide along the whole arrow */}
+              <mesh position={[0, 34, 0]} renderOrder={20} raycast={priorityRaycast}>
+                <cylinderGeometry args={[8, 8, 40, 8]} />
+                <meshBasicMaterial color="white" opacity={0} {...onTop} />
+              </mesh>
             </group>
           ))}
         {modes.includes('pad') && (
-          <mesh renderOrder={24} raycast={priorityRaycast} {...handlers('pad')} userData={{ testId: props.testId ? `${props.testId}-pad` : undefined }}>
-            <boxGeometry args={[18, 18, 2]} />
-            <meshBasicMaterial color={col('pad', '#1fb8ac')} opacity={0.9} {...onTop} />
-          </mesh>
+          <group {...handlers('pad')} userData={{ testId: props.testId ? `${props.testId}-pad` : undefined }}>
+            <mesh renderOrder={24} raycast={() => null}>
+              <boxGeometry args={[22, 22, 2]} />
+              <meshBasicMaterial color={col('pad', '#1fb8ac')} opacity={0.9} {...onTop} />
+            </mesh>
+            {/* hit zone: a ball, so the pad can be grabbed even when its plane is seen edge-on */}
+            <mesh renderOrder={20} raycast={padRaycast}>
+              <sphereGeometry args={[13, 12, 8]} />
+              <meshBasicMaterial color="white" opacity={0} {...onTop} />
+            </mesh>
+          </group>
         )}
       </ScreenSized>
       {active && (
-        <StageHtml position={props.at} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
+        <StageHtml position={shownAt} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
           <span className="w-dim ghost gizmo-readout" style={{ transform: 'translate(78px, -50%)' }} data-testid={props.testId ? `${props.testId}-readout` : undefined}>
             {typed !== null ? <b>{typed}▏</b> : readout}
           </span>

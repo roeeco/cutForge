@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Design, Frame, P2, Panel, V3, WallSketch } from '../model/types';
+import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
@@ -20,8 +20,8 @@ import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, partColors } from './palette';
-import { foldDisplay, type Bend } from './foldView';
-import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useHandleDrag, useRayFromScreen } from './widgets';
+import { flapMatrix, foldDisplay, type Bend } from './foldView';
+import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
@@ -315,7 +315,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     begin(e, { kind: 'panel-draw', start: p, cur: p });
   };
 
-  const { camera, gl } = useThree();
+  const { camera, gl, invalidate, scene } = useThree();
   useEffect(() => {
     // Test hook: screen position of a point on a panel (local mm coordinates).
     const w = window as unknown as { __cutforge?: Record<string, unknown> };
@@ -334,7 +334,31 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
     w.__cutforge.camera = () => ({ position: camera.position.toArray().map((x) => Math.round(x * 1000) / 1000), ortho: camera instanceof THREE.OrthographicCamera });
-  }, [camera, gl]);
+    // Test hook: world bounding boxes of the panels and glue flaps as drawn (after the fold view's transforms).
+    w.__cutforge.stageBoxes = () => {
+      scene.updateMatrixWorld(true);
+      const out: { panels: Record<string, number[]>; flaps: { owner: string; on: string; box: number[] }[] } = { panels: {}, flaps: [] };
+      scene.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        const box = () => new THREE.Box3().setFromObject(mesh).min.toArray().concat(new THREE.Box3().setFromObject(mesh).max.toArray());
+        if (mesh.userData.panelId) out.panels[mesh.userData.panelId] = box();
+        else if (mesh.userData.flapOwner) out.flaps.push({ owner: mesh.userData.flapOwner, on: mesh.userData.flapOn, box: box() });
+      });
+      return out;
+    };
+    // Test hook: put the camera at `pos`, looking at `target`.
+    w.__cutforge.setCamera = (pos: V3, target: V3) => {
+      const ctl = controls as unknown as { target: THREE.Vector3; update(): void } | null;
+      camera.position.set(...pos);
+      if (ctl) {
+        ctl.target.set(...target);
+        ctl.update();
+      } else camera.lookAt(...target);
+      camera.updateMatrixWorld();
+      invalidate();
+    };
+  }, [camera, gl, controls, scene]);
 
   const sel = selection;
   // the through-cut being drawn or selected: the panels it reaches are highlighted, with a count
@@ -424,7 +448,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           />
         );
       })}
-      <Flaps d={design} xf={display.xf} />
+      <Flaps d={design} xf={display.xf} foldT={foldT} />
       {foldOvers.map((fo) => (
         <FoldOverObject key={fo.f.id} d={design} p={design.panels[fo.panelId]} g={fo.g} m={display.xf.get(fo.panelId) ?? IDM} foldT={foldT} index={design.order.indexOf(fo.panelId)} />
       ))}
@@ -785,23 +809,25 @@ function SnapGuides({ p, t, g }: { p: Panel; t: number; g: GuideState }) {
   );
 }
 
-function Flaps({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> }) {
+function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number }) {
   const items = useMemo(() => {
-    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number }[] = [];
+    const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number; owner: string; on: string }[] = [];
     for (const c of Object.values(d.connections)) {
       c.geom?.flaps3d.forEach((f, i) => {
         const p = d.panels[f.panelId];
-        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: (xf.get(p.id) ?? IDM).clone().multiply(frameMatrix(p.frame)), index: d.order.indexOf(p.id) });
+        // coloured as the panel it is cut from, moving with it in the fold view
+        const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
       });
     }
     return out;
-  }, [d.connections, d.panels, xf]);
+  }, [d.connections, d.panels, xf, foldT]);
   useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
   return (
     <>
       {items.map((x) => (
         <group key={x.key} matrixAutoUpdate={false} matrix={x.matrix}>
-          <mesh geometry={x.geom} raycast={() => null}>
+          <mesh geometry={x.geom} raycast={() => null} userData={{ flapOwner: x.owner, flapOn: x.on }}>
             <meshStandardMaterial color={partColors(d.material.kind, x.index, -0.06).face} roughness={0.9} />
           </mesh>
         </group>
@@ -1218,13 +1244,19 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
   const found = ids.map((id) => findDetail(d, id)).filter((f): f is NonNullable<typeof f> => !!f);
   const panel = found[0]?.panel;
   if (!panel || found.some((f) => f.panel.id !== panel.id)) return null;
-  const boxes = found.map((f) => detailBBox(f.detail));
-  const box = { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
+  const box = shapesBox(found.map((f) => f.detail));
   const c = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
   const th = d.material.thickness;
   const at = W(m, panel.frame, c.x, c.y, th / 2);
   const st = useStore.getState;
-  const pivot = found.length === 1 ? { x: found[0].detail.cx, y: found[0].detail.cy } : c;
+  // every start value (positions, box for snapping, pivot) comes from the design as it was at pointer-down
+  const start = () => {
+    const base = st().txnBase ?? st().design;
+    const fs = ids.map((id) => findDetail(base, id)).filter((f): f is NonNullable<typeof f> => !!f);
+    const b = shapesBox(fs.map((f) => f.detail));
+    const pivot = fs.length === 1 ? { x: fs[0].detail.cx, y: fs[0].detail.cy } : { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    return { base, fs, box: b, pivot };
+  };
   return (
     <Gizmo
       at={at}
@@ -1232,20 +1264,28 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
       ay={Wdir(m, panel.frame.v)}
       n={Wdir(m, frameNormal(panel.frame))}
       onMove={(du, dv, ev) => {
-        const base = st().txnBase ?? st().design;
+        const { base, fs, box: b0 } = start();
         const ctx = !ev || ev.altKey ? null : snapContext(base, panel.id, new Set(ids));
-        const sn = ctx ? snapBox(ctx, { minX: box.minX + du, maxX: box.maxX + du, minY: box.minY + dv, maxY: box.maxY + dv }, tolAt(at)) : null;
+        const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
         const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
         st().preview((dd) => {
-          for (const f of found) updateDetail(dd, f.detail.id, { cx: f.detail.cx + x, cy: f.detail.cy + y });
+          for (const f of fs) updateDetail(dd, f.detail.id, { cx: f.detail.cx + x, cy: f.detail.cy + y });
         });
         return { du: x, dv: y };
       }}
-      onRotate={(deg) => st().preview((dd) => rotateDetails(dd, ids, deg, pivot))}
+      onRotate={(deg) => {
+        const { pivot } = start();
+        st().preview((dd) => rotateDetails(dd, ids, deg, pivot));
+      }}
       onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
       testId="gizmo"
     />
   );
+}
+
+function shapesBox(ds: Detail[]) {
+  const boxes = ds.map((x) => detailBBox(x));
+  return { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
 }
 
 /**
@@ -1355,7 +1395,6 @@ function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed
 function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
   const th = d.material.thickness;
   const st = useStore.getState;
-  const centre = toWorld(p.frame, p.w / 2, p.h / 2);
   const at = W(m, p.frame, p.w / 2, p.h / 2, th);
   const u = p.frame.u, v = p.frame.v;
   return (
@@ -1373,7 +1412,11 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
         st().preview((dd) => movePanel(dd, p.id, dx, dz));
         return { du: dx * u[0] + dz * u[2], dv: dx * v[0] + dz * v[2] };
       }}
-      onRotate={(deg) => st().preview((dd) => rotatePanel(dd, p.id, deg, [centre[0], centre[2]]))}
+      onRotate={(deg) => {
+        const b = (st().txnBase ?? st().design).panels[p.id] ?? p;
+        const c0 = toWorld(b.frame, b.w / 2, b.h / 2);
+        st().preview((dd) => rotatePanel(dd, p.id, deg, [c0[0], c0[2]]));
+      }}
       onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
       testId="floor-gizmo"
     />
@@ -1550,11 +1593,13 @@ function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4
   const u = Wdir(m, p.frame.u), v = Wdir(m, p.frame.v);
   const tickV = v3mul(v, 3), tickU = v3mul(u, 3);
   const pp = pushPullAnchors(p);
+  // seen nearly edge-on the labels pile up on the panel (and on its gizmo): hidden until the view turns
+  const grazing = useGrazing(Wdir(m, frameNormal(p.frame)), Wv(p.w / 2, p.h / 2));
   return (
     <>
       <PushPull at={W(m, p.frame, pp.width.x, pp.width.y, th / 2)} axis={u} value={p.w} offset={pp.width.x - p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
       <PushPull at={W(m, p.frame, pp.height.x, pp.height.y, th / 2)} axis={v} value={p.h} offset={pp.height.y - p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
-      {dims && (
+      {dims && !grazing && (
         <>
           <DimLine a={Wv(0, -off)} b={Wv(p.w, -off)} tick={tickV} />
           <DimLine a={Wv(-off, 0)} b={Wv(-off, p.h)} tick={tickU} />

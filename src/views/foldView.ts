@@ -2,8 +2,8 @@
 // flat (foldT = 0) and the bend beads drawn along each fold. The model is
 // never changed; every panel gets a transform from its design pose.
 import * as THREE from 'three';
-import type { Design } from '../model/types';
-import { matDir, toWorld } from '../model/frame';
+import type { Design, Flap3d } from '../model/types';
+import { frameNormal, matDir, toWorld } from '../model/frame';
 
 export type Bend = { id: string; panelId: string; pivot: THREE.Vector3; axis: THREE.Vector3; length: number; radius: number; crease: THREE.Vector3; mountain: boolean };
 
@@ -60,4 +60,31 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
   };
   for (const id of d.order) visit(id);
   return { xf, bends };
+}
+
+/**
+ * Display matrix for a glue flap's geometry (built in its receiver's local
+ * coords): it moves with the panel it is cut from and turns about its hinge by
+ * angle × foldT from lying flat beside that panel, so at foldT = 1 it is where
+ * it is glued and at 0 where the cut net has it. A flap without an owner
+ * (older stored geometry) rides on its receiver.
+ */
+export function flapMatrix(d: Design, f: Flap3d, xf: Map<string, THREE.Matrix4>, foldT: number): THREE.Matrix4 {
+  const R = d.panels[f.panelId];
+  const base = R ? frameBasis(R.frame) : new THREE.Matrix4();
+  const O = f.owner ? d.panels[f.owner] : undefined;
+  if (!O || !f.hinge || !f.angle) return (xf.get(f.panelId) ?? new THREE.Matrix4()).clone().multiply(base);
+  const h0 = new THREE.Vector3(...toWorld(O.frame, ...f.hinge[0]));
+  const h1 = new THREE.Vector3(...toWorld(O.frame, ...f.hinge[1]));
+  const axis = h1.clone().sub(h0).normalize();
+  const phi = (-(f.angle * (1 - foldT)) * Math.PI) / 180;
+  const m = (xf.get(O.id) ?? new THREE.Matrix4()).clone();
+  if (Math.abs(phi) > 1e-9) m.multiply(new THREE.Matrix4().makeTranslation(h0.x, h0.y, h0.z).multiply(new THREE.Matrix4().makeRotationAxis(axis, phi)).multiply(new THREE.Matrix4().makeTranslation(-h0.x, -h0.y, -h0.z)));
+  return m.multiply(base);
+}
+
+/** A panel frame as a matrix: local x, y along u, v and z along u × v (as `frameMatrix`). */
+function frameBasis(f: Design['panels'][string]['frame']): THREE.Matrix4 {
+  const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(...f.u), new THREE.Vector3(...f.v), new THREE.Vector3(...frameNormal(f)));
+  return m.setPosition(...f.o);
 }

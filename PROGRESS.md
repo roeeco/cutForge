@@ -454,6 +454,34 @@ Remaining limitations (milestones 15–20)
 - The fold slider moves to the left above the card on stages narrower than 900 px; that layout was checked only by CSS, not in a test.
 - Digital checks are not physical proof: through-cut bevels, slide fits and adaptive joints need a test cut on the classroom's board.
 
+## Milestone 21 — Gizmo drag stability ✅
+
+Causes (as in `GIZMO_JOINTS_FLAPS.md` §3): the shape gizmo read the shapes' start positions and box from the live design, which already held the last preview, so each pointer move added the whole offset again; a group's turn pivot was the centre of the live (already turned) box; grazing views turned a pixel into tens of millimetres; the arrow shafts were 4 px targets. The floor gizmo and the through-cut gizmo already moved from the drag's base and were not affected by the first cause.
+
+Implemented (`ShapeGizmo`, `FloorGizmo` in `src/views/View3D.tsx`; `Gizmo`, `grazingMap`, `useGrazing` in `src/views/widgets.tsx`)
+- Every start value (shape positions, the box used for snapping, the turn pivot, the floor panel's centre) is read from the drag's base design (`txnBase`), frozen at pointer-down.
+- A turn measures its screen angle about where the gizmo was at pointer-down, and the gizmo stays there until the turn ends.
+- **Grazing views:** when the plane is within 20° of edge-on (pad) or an axis within 20° of the view direction (arrow), the drag moves by screen distance: one pixel is one pixel's worth of millimetres at the gizmo. The pad moves along the plane's in-screen direction as seen, and up the screen moves it away along the plane's depth direction; an arrow moves along its own screen direction (up = away when it points straight at the viewer).
+- **Hit zones:** an invisible 16 px wide zone along each arrow, a 22 px pad, and a 13 px ball as the pad's hit zone so it can be grabbed edge-on (the pad wins where an end-on arrow overlaps it).
+- A panel's dimension labels are hidden while its plane is seen within 20° of edge-on: they pile up on the panel there and covered the gizmo's pad.
+
+Verified
+- `tests/e2e/gizmo.spec.ts`: **dragging the pad (15, 10 mm) and each arrow (20 mm) in 1, 5 and 30 pointer moves lands on the same place** (and the other coordinate does not move on an arrow); **turning two shapes by 90° keeps the pivot** ((40, 35) → (60, 15), (80, 35) → (60, 55)); **a floor panel seen 5° above edge-on moves a few millimetres away for 12 px up the screen**, in 1, 5 and 30 moves.
+- The milestone 17 and 20 gizmo specs (`refine.spec.ts`) pass unchanged.
+
+## Milestone 22 — Glue flaps fold off their panel ✅
+
+Implemented (`withFold` in `src/model/seams.ts`, `flapMatrix` in `src/views/foldView.ts`, `Flaps` in `View3D.tsx`)
+- Each 3D flap (`Flap3d`, `src/model/types.ts`) also records its `owner` (the panel it is cut from), its `hinge` (two points in the owner's local coordinates) and its `angle` (degrees, from lying flat beside the owner to folded). All three kinds record it: corner glue flaps, glue flaps on edge-on-face seams, and grown glue flaps.
+- The hinge and angle are solved from the flap as cut (the owner's added outline) and the flap as folded: the axis runs along the score line, and the pivot is the line about which the flat slab's base turns onto the folded slab's base. For a 90° fold that is half a thickness out from the fold and mid-thickness, as for folded nets.
+- The view draws a flap with its owner's fold transform, turned about the hinge by −angle × (1 − foldT). At foldT = 1 it is exactly where it was drawn before; at 0 it lies flat beside its panel as in the cut net. Flaps take their owner's colour. Older stored geometry without an owner is drawn on the receiver as before.
+- Divider renames carry the owner along.
+
+Verified
+- `tests/flaps.test.ts`: for tray corners (card), a wall glued at 60° (grown glue) and a divider glued to the walls (edge on face), **the folded pose is the old matrix exactly, and the flat pose matches the net's added outline through the owner's thickness (within 1e-6 mm)**; half folded, the hinge is carried by the owner's transform.
+- `tests/e2e/gizmo.spec.ts`: on a corrugated tray with glue corners, the drawn flaps lie flat on the floor beside their own wall (not on the wall they glue to) at foldT = 0, stand against the receiving wall at 1, and have left the floor with their wall at 0.5.
+- Exports are unchanged: the golden SVG/DXF tests pass. The new fields are in the stored joint geometry only, and that geometry is recomputed on solve.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -193,6 +193,17 @@ export type Connection = {
 export type Notch = { s0: number; s1: number; depth: number };
 export type P2 = { x: number; y: number };
 
+/**
+ * A glue flap as folded in 3D: polygon in the receiving panel's local coords,
+ * slab z range there. For the fold view it also records the panel it belongs
+ * to (`owner`, where it is cut), the line it turns about (`hinge`: two points in
+ * the owner's local coords, z into the material) and the turn (degrees, right
+ * hand about hinge[0] → hinge[1]) from lying flat beside the owner, as in the
+ * cut net, to where it is folded. Older files without them draw it on the
+ * receiver.
+ */
+export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number };
+
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
   /** Edge profile changes: positive depth cuts back, negative protrudes. */
@@ -204,7 +215,7 @@ export type ConnGeom = {
   /** Score lines (flap folds). */
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
-  flaps3d: { panelId: string; poly: P2[]; z0: number; z1: number }[];
+  flaps3d: Flap3d[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
   cuts?: { panelId: string; poly: P2[] }[];
 };
