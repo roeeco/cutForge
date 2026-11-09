@@ -383,6 +383,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const onPieceDown = (pl: Placed) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
     ev.stopPropagation();
+    if (useStore.getState().pasting) return useStore.getState().set({ pasting: false });
     const panelId = panelAt(pl, svgPoint(ev));
     if (tool === 'text') {
       const l = toLocal(pl, panelId, svgPoint(ev));
@@ -408,7 +409,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   };
   const onDetailDown = (pl: Placed, dt: Detail, panelId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
-    if (shapeTool || tool === 'text') return onPieceDown(pl)(ev);
+    if (shapeTool || tool === 'text' || useStore.getState().pasting) return onPieceDown(pl)(ev);
     ev.stopPropagation();
     const st = useStore.getState();
     const cur = selectedDetailIds(st.selection);
@@ -540,6 +541,14 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
               data-piece={pl.copy.pieceKey}
               onDoubleClick={onDouble(pl)}
               onPointerEnter={() => useStore.getState().set({ hoverPart: pl.copy.pieceKey })}
+              onPointerMove={(ev) => {
+                // where a paste lands, and a paste being placed follows the pointer (milestone 33)
+                const st = useStore.getState();
+                const panelId = panelAt(pl, svgPoint(ev));
+                const l = toLocal(pl, panelId, svgPoint(ev));
+                st.pointerHit = { panelId, x: l.x, y: l.y, tol: SNAP_PX * mmPerPx() };
+                if (st.pasting) st.movePaste(panelId, grid(l.x), grid(l.y), SNAP_PX * mmPerPx());
+              }}
               onPointerLeave={() => useStore.getState().hoverPart === pl.copy.pieceKey && useStore.getState().set({ hoverPart: null })}
             >
               {pl.copy.contours.map((c, i) => {

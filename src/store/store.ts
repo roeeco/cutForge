@@ -2,9 +2,11 @@
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
-import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf } from '../model/materials';
-import { autoConnect, createDesign, solve } from '../model/ops';
+import { autoConnect, createDesign, findDetail, newId, solve } from '../model/ops';
+import { detailBBox } from '../model/geometry';
+import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
@@ -160,6 +162,16 @@ type State = {
    * drawing) takes it away again.
    */
   pending: Pending | null;
+  /** Copied shapes (milestone 33): in the app, not the system clipboard; centred on (0, 0). */
+  clipboard: Detail[] | null;
+  /** A paste following the pointer, until a click puts it down (then it waits for ✓ like any ghost). */
+  pasting: boolean;
+  /** The panel point under the pointer (local mm), where a paste lands. Not reactive state for drawing. */
+  pointerHit: { panelId: string; x: number; y: number; tol?: number } | null;
+  copyShapes: () => boolean;
+  pasteShapes: () => boolean;
+  /** Move the paste to a panel point (the pasted group's centre), snapping by its box. */
+  movePaste: (panelId: string, x: number, y: number, tol?: number) => void;
   beginPending: (p: Omit<Pending, 'base' | 'pastLen'>) => void;
   confirmPending: () => void;
   cancelPending: () => void;
@@ -185,7 +197,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -199,6 +211,13 @@ function initialLang(): Lang {
     /* storage unavailable */
   }
   return typeof navigator !== 'undefined' && navigator.language?.startsWith('he') ? 'he' : 'en';
+}
+
+/** Put copied shapes (centred on 0, 0) on a panel around (x, y), with the given new ids. */
+function pasteInto(d: Draft<Design> | Design, panelId: string, x: number, y: number, clip: Detail[], ids: string[]) {
+  const p = d.panels[panelId];
+  if (!p) return;
+  clip.forEach((dt, i) => p.details.push({ ...JSON.parse(JSON.stringify(dt)), id: ids[i], cx: dt.cx + x, cy: dt.cy + y }));
 }
 
 /** Drop a selection that no longer points at anything. */
@@ -242,6 +261,59 @@ export const useStore = create<State>()((set, get) => ({
   panelPose: 'flat',
   standHeight: 40,
   pending: null,
+  clipboard: null,
+  pasting: false,
+  pointerHit: null,
+  copyShapes: () => {
+    const ids = selectedDetailIds(get().selection);
+    const d = get().design;
+    const dts = ids.map((id) => findDetail(d, id)?.detail).filter((x): x is Detail => !!x);
+    if (!dts.length) return false;
+    const bbs = dts.map(detailBBox);
+    const cx = (Math.min(...bbs.map((b) => b.minX)) + Math.max(...bbs.map((b) => b.maxX))) / 2;
+    const cy = (Math.min(...bbs.map((b) => b.minY)) + Math.max(...bbs.map((b) => b.maxY))) / 2;
+    set({ clipboard: dts.map((dt) => ({ ...JSON.parse(JSON.stringify(dt)), cx: dt.cx - cx, cy: dt.cy - cy })) });
+    return true;
+  },
+  pasteShapes: () => {
+    const clip = get().clipboard;
+    if (!clip?.length) return false;
+    get().cancelPending();
+    const d = get().design;
+    // under the pointer, else the centre of the last selected panel
+    const hit = get().pointerHit;
+    const sel = get().selection;
+    const lastPanel = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : sel?.kind === 'detail' ? findDetail(d, sel.id)?.panel.id : d.order[d.order.length - 1];
+    const target = hit && d.panels[hit.panelId] ? hit : lastPanel && d.panels[lastPanel] ? { panelId: lastPanel, x: d.panels[lastPanel].w / 2, y: d.panels[lastPanel].h / 2 } : null;
+    if (!target) return false;
+    const ids = clip.map(() => newId('x'));
+    get().apply((x) => pasteInto(x, target.panelId, target.x, target.y, clip, ids));
+    set({ selection: detailSel(ids) });
+    get().beginPending({ kind: 'shape', ids, panelId: target.panelId });
+    set({ pasting: !!hit });
+    // under the pointer: on the grid, snapping by the group's box
+    if (hit && target === hit) get().movePaste(hit.panelId, gridSnap(hit.x), gridSnap(hit.y), hit.tol ?? 0);
+    return true;
+  },
+  movePaste: (panelId, x, y, tol = 0) => {
+    const g = get().pending, clip = get().clipboard;
+    if (!g || !clip || !get().pasting) return;
+    // laid out again on the design from before the paste: no history while it follows the pointer
+    let q = { x, y };
+    if (tol > 0) {
+      const ctx = snapContext(g.base, panelId, new Set());
+      const bbs = clip.map(detailBBox);
+      const box = { minX: x + Math.min(...bbs.map((b) => b.minX)), maxX: x + Math.max(...bbs.map((b) => b.maxX)), minY: y + Math.min(...bbs.map((b) => b.minY)), maxY: y + Math.max(...bbs.map((b) => b.maxY)) };
+      const sn = ctx ? snapBox(ctx, box, tol) : null;
+      if (sn) q = { x: x + sn.dx, y: y + sn.dy };
+    }
+    const next = produce(g.base, (dd) => {
+      pasteInto(dd, panelId, q.x, q.y, clip, g.ids);
+      solve(dd as Design);
+      autoConnect(dd as Design);
+    });
+    set({ design: next, pending: { ...g, panelId } });
+  },
   beginPending: (p) => {
     const { past } = get();
     // made by the last edit: the design before it is the last history entry
@@ -253,13 +325,13 @@ export const useStore = create<State>()((set, get) => ({
     if (!g) return;
     if (get().txnBase) get().commit();
     // everything since it was made is one undo step
-    set({ pending: null, past: [...get().past.slice(0, g.pastLen), g.base].slice(-HISTORY_LIMIT), future: [] });
+    set({ pending: null, pasting: false, past: [...get().past.slice(0, g.pastLen), g.base].slice(-HISTORY_LIMIT), future: [] });
     set({ tool: 'select', editOutline: null, selVertex: null, panelGhost: null });
   },
   cancelPending: () => {
     const g = get().pending;
     if (!g) return;
-    set({ pending: null, txnBase: null, design: g.base, past: get().past.slice(0, g.pastLen), future: [], selection: validSelection(g.base, get().selection) });
+    set({ pending: null, pasting: false, txnBase: null, design: g.base, past: get().past.slice(0, g.pastLen), future: [], selection: validSelection(g.base, get().selection) });
   },
 
   apply: (fn) => {

@@ -338,3 +338,51 @@ test('milestone 31: Shift-click three floor panels, distribute them, undo', asyn
   await expect(page.getByTestId('inspector-multi-panel')).toContainText('2 panels selected');
   expect(errors).toEqual([]);
 });
+
+test('milestone 33: copy two shapes from the base, paste them onto a wall at its centre, undo in one step', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const { base, walls } = await plyBox(page);
+  const back = walls[2];
+  const shapes = await S<string[]>(page, (b: string) => {
+    const cf = (window as any).__cutforge;
+    let out: string[] = [];
+    cf.store.getState().apply((d: any) => void (out = [cf.ops.addDetail(d, b, 'circle', 'cut', 20, 20, 8, 8), cf.ops.addDetail(d, b, 'rect', 'cut', 40, 25, 10, 6)]));
+    cf.store.getState().select({ kind: 'detail', id: out[1], ids: out });
+    return out;
+  }, base);
+  await page.keyboard.press('ControlOrMeta+c');
+  await S(page, () => (window as any).__cutforge.setCamera([0, 200, 160], [0, 20, -30]));
+  await page.waitForTimeout(300);
+  const W = (await design(page)).panels[back];
+  // over the back wall's inner face, a hair off its centre: the paste follows and snaps there
+  const c = await proj(page, back, W.w / 2 + 0.6, W.h / 2 - 0.4);
+  await page.mouse.move(c.x - 30, c.y);
+  await page.mouse.move(c.x, c.y, { steps: 4 });
+  const p0 = await S<number>(page, () => (window as any).__cutforge.store.getState().past.length);
+  await page.keyboard.press('ControlOrMeta+v');
+  await page.mouse.move(c.x + 1, c.y, { steps: 2 });
+  await page.mouse.move(c.x, c.y, { steps: 2 });
+  await page.mouse.click(c.x, c.y);
+  await expect(page.getByTestId('pending-bar')).toBeVisible();
+  await page.getByTestId('ghost-ok').click();
+  let d = await design(page);
+  const pasted = d.panels[back].details;
+  expect(pasted).toHaveLength(2);
+  // the layout is kept: same offsets between them
+  const src = d.panels[base].details;
+  expect(pasted[1].cx - pasted[0].cx).toBeCloseTo(src[1].cx - src[0].cx, 9);
+  expect(pasted[1].cy - pasted[0].cy).toBeCloseTo(src[1].cy - src[0].cy, 9);
+  // the group's box is centred on the wall
+  const minX = Math.min(pasted[0].cx - 4, pasted[1].cx - 5), maxX = Math.max(pasted[0].cx + 4, pasted[1].cx + 5);
+  const minY = Math.min(pasted[0].cy - 4, pasted[1].cy - 3), maxY = Math.max(pasted[0].cy + 4, pasted[1].cy + 3);
+  expect((minX + maxX) / 2).toBeCloseTo(W.w / 2, 6);
+  expect((minY + maxY) / 2).toBeCloseTo(W.h / 2, 6);
+  expect(await S<number>(page, () => (window as any).__cutforge.store.getState().past.length)).toBe(p0 + 1);
+  await page.getByTestId('undo').click();
+  d = await design(page);
+  expect(d.panels[back].details).toHaveLength(0);
+  expect(d.panels[base].details.map((x: any) => x.id)).toEqual(shapes);
+  expect(errors).toEqual([]);
+});

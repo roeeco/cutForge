@@ -650,6 +650,16 @@ Verified
 - `tests/dividers.test.ts`: in plywood, card and corrugated boxes, + Divider between the left and right walls is centred along them, below the lower wall's top, joined to both, with a clean check; walls that are not parallel are refused with the reason; **a v7 file with a 2 × 1 set keeps every member and exports the same file** after migration. The face-to-face divider and drag-snapping tests are kept.
 - `tests/e2e/refine.spec.ts` (plywood and corrugated 4 mm): click a wall (the hint), Shift-click the opposite one, + Divider: centred and joined to both; dragged away and back it snaps to the equal-compartment position; a wall and a wall at right angles to it give a greyed button with the reason. `joints.spec.ts` makes its two crossing dividers with + Divider.
 
+## Milestone 33 — Copy and paste shapes ✅
+
+Implemented (`clipboard`, `copyShapes`, `pasteShapes`, `movePaste`, `pasting`, `pointerHit` in the store; Cmd/Ctrl+C and +V in `hooks.ts`)
+- Cmd/Ctrl+C copies the selected shapes (their details with op, rotation, arrays and through-cut, laid out around their common centre). The clipboard is in the app, so it survives switching views but not a reload.
+- Cmd/Ctrl+V pastes them onto the panel under the pointer (3D, the face-on view and the cut plan), centred there on the grid and snapped by the group's box to that panel's targets, as a ghost that follows the pointer (laid out again on the design from before the paste, so no history while it moves) until a click puts it down; then it waits for ✓ like any ghost (milestone 30): one undo step. With nothing under the pointer it goes on the last selected panel's centre. Shapes partly off the panel are kept, and the export check says so as usual.
+
+Verified
+- `tests/e2e/boards.spec.ts`: **two shapes copied from the base and pasted onto the back wall keep their layout and are centred on the wall** (the pointer a hair off its centre); one undo step removes the paste and leaves the originals.
+- `tests/store.test.ts`: with nothing under the pointer the paste is centred on the last selected panel, keeps its layout and a through-cut; ✓ is one undo step; ✕ leaves the design as it was.
+
 ## Milestone 35 (engine) — Nets that lie flat ✅
 
 Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)

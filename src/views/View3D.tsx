@@ -285,6 +285,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   };
 
   const onPanelDown = (p: Panel) => (e: ThreeEvent<PointerEvent>) => {
+    // a paste following the pointer: a click puts it down (it then waits for ✓)
+    if (useStore.getState().pasting && e.button === 0) {
+      e.stopPropagation();
+      useStore.getState().set({ pasting: false });
+      return;
+    }
     if (folded) {
       // while a net is unfolded the parts can be looked at and selected, not edited
       if (e.button !== 0) return;
@@ -344,7 +350,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   };
 
   const onDetailDown = (p: Panel, id: string) => (e: ThreeEvent<PointerEvent>) => {
-    if (tool !== 'select' || folded) return onPanelDown(p)(e);
+    if (tool !== 'select' || folded || useStore.getState().pasting) return onPanelDown(p)(e);
     const dt = p.details.find((x) => x.id === id);
     if (!dt) return;
     const st = useStore.getState();
@@ -519,9 +525,16 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             tool={tool}
             folded={folded}
             onPanelDown={onPanelDown(p)}
-            onHoverPoint={tool === 'panel' && !folded ? (pt) => {
-              const face = faceAt(design, p, pt);
-              if (faceHover?.panelId !== p.id || faceHover.face !== face) setFaceHover({ panelId: p.id, face });
+            onHoverPoint={!folded ? (pt) => {
+              if (tool === 'panel') {
+                const face = faceAt(design, p, pt);
+                if (faceHover?.panelId !== p.id || faceHover.face !== face) setFaceHover({ panelId: p.id, face });
+              }
+              // where a paste lands; a paste being placed follows the pointer (milestone 33)
+              const st = useStore.getState();
+              const l = toLocal(p.frame, pt);
+              st.pointerHit = { panelId: p.id, x: l.x, y: l.y, tol: tolAt(pt) };
+              if (st.pasting) st.movePaste(p.id, gridSnap(l.x), gridSnap(l.y), tolAt(pt));
             } : undefined}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}

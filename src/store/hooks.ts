@@ -69,6 +69,17 @@ export function useKeyboard() {
       if (isTyping(e)) return;
       const sel = s.selection;
       const ids = selectedDetailIds(sel);
+      // copy and paste shapes (milestone 33): the paste follows the pointer, a click puts it down, ✓ keeps it
+      if (mod && e.key.toLowerCase() === 'c' && ids.length) {
+        e.preventDefault();
+        s.copyShapes();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'v' && s.clipboard?.length) {
+        e.preventDefault();
+        s.pasteShapes();
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'd' && ids.length) {
         e.preventDefault();
         let copies: string[] = [];
