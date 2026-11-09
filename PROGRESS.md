@@ -327,6 +327,20 @@ Remaining limitations (polygons, cuts and corrugated)
 - The cut plan has no hover link marker for derived through-cuts, and the polygon tool's count badge appears once the polygon is closed.
 - Digital checks are not physical proof: fold-over and lock fits need a test cut on the classroom's board.
 
+## Milestone 15 — Grow pill and fold slider ✅
+
+Implemented
+- **Edge hit targets leave room for the push-pull arrows** (`src/views/edgeGaps.ts`, `EdgeHandle` in `View3D.tsx`). An edge's invisible grow target is split into up to four pieces, re-measured every rendered frame, with a gap of 22 px each side of the edge's midpoint (the arrow's 14 px grab sphere plus a margin) and of any push-pull anchor lying on the edge (a gable's apex). Pieces shorter than 12 px on screen are dropped: on a short edge the arrow wins, and *Grow from* on the card still works.
+- **The *+ Grow* pill follows the pointer** along the edge, kept on the parts of the edge that can be grown from (never in a gap); it keeps `pointer-events: none`.
+- **Push-pull arrows always win:** their meshes report their hits as nearest (`priorityRaycast`), so even where a target overlaps them on screen the arrow takes the drag.
+- **Arrows on the real outline:** the width arrow sits on the outline's right side at half height and the height arrow on its top at half width — a gable's apex instead of a point inside the wall. On rectangles nothing moves.
+- **Fold slider on the stage:** one bar at the bottom centre (above the hint, clear of the bottom-right dock and the view cube), shown while the design has a net of two or more panels; removed from View settings and from the panel card. On stages narrower than 900 px it moves to the left and above the card dock. `fold-slider` / `fold-play` / `fold-range` testids are kept.
+
+Verified
+- `tests/handles.test.ts`: on a plain wall, a gable wall (at two zooms) and every wall of a plywood hexagon tray, no hit piece comes within the gap of either push-pull anchor or the edge midpoint, and the pill position is always outside every gap; a short edge seen from far away has no hit target.
+- `tests/e2e/refine.spec.ts`: hovering a wall's right and top edges at seven points each, the pill never shows inside the midpoint gap (and does show away from it); dragging `pp-width` and `pp-height` from those midpoints resizes the wall with the panel still selected and nothing grown. Reproduced first: with the old `EdgeHandle` the same drag selected the edge. The fold slider shows on the stage for a card tray and a corrugated tray (and folds/unfolds), not for plywood, and never in View settings or the panel card.
+- Screenshots: `docs/refine-shots/{en,he}-15-grow-pill-and-fold-bar.png`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

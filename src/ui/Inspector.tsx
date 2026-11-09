@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, parentConnection, setPanelSize, updateDetail } from '../model/ops';
-import { netGroups, pieceKeyOf } from '../model/pieces';
+import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { TemplateSection } from './TemplateUI';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
@@ -85,7 +85,6 @@ export function Inspector() {
     if (p) {
       const pc = parentConnection(d, id);
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
-      const inNet = netGroups(d).some((g) => g.length > 1 && g.some((n) => n.panelId === id));
       body = (
         <section data-testid="inspector-panel" key={id}>
           <p className="kicker">{t('insp.part')}</p>
@@ -136,7 +135,6 @@ export function Inspector() {
             testId="panel-qty"
           />
           <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
-          {inNet && <FoldSlider />}
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />

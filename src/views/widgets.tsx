@@ -98,11 +98,23 @@ export function ScreenSized({ position, children, quaternion }: { position: V3; 
 
 const onTop = { depthTest: false, depthWrite: false, transparent: true } as const;
 
+/**
+ * Raycast for handles drawn on top: their hits count as nearest, so a handle
+ * always wins over the model (and an edge's hit target) behind it.
+ */
+export function priorityRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+  const n = out.length;
+  THREE.Mesh.prototype.raycast.call(this, rc, out);
+  for (let i = n; i < out.length; i++) out[i].distance = 1e-3 * (i - n + 1);
+}
+
 /** Arrow handle at `at`, pointing along `axis`; dragging changes `value` (the distance from at − axis·value). */
 export function PushPull(props: {
   at: V3;
   axis: V3;
   value: number;
+  /** The arrow sits this far past the value along the axis (a gable's apex above the wall height). */
+  offset?: number;
   min?: number;
   max?: number;
   color?: string;
@@ -136,22 +148,22 @@ export function PushPull(props: {
         onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
         onPointerOut={() => setHover(false)}
         onPointerDown={(e) => {
-          const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value);
+          const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value - (props.offset ?? 0));
           const grab = closestOnLine(e.ray, base, axis) - props.value;
           start.current = { base, grab };
           down(e);
         }}
         userData={{ noAO: true, testId: props.testId }}
       >
-        <mesh position={[0, 8, 0]} renderOrder={20}>
+        <mesh position={[0, 8, 0]} renderOrder={20} raycast={priorityRaycast}>
           <coneGeometry args={[7, 14, 18]} />
           <meshBasicMaterial color={color} {...onTop} />
         </mesh>
-        <mesh position={[0, -1, 0]} renderOrder={20}>
+        <mesh position={[0, -1, 0]} renderOrder={20} raycast={priorityRaycast}>
           <cylinderGeometry args={[2.2, 2.2, 6, 10]} />
           <meshBasicMaterial color={color} {...onTop} />
         </mesh>
-        <mesh renderOrder={19}>
+        <mesh renderOrder={19} raycast={priorityRaycast}>
           <sphereGeometry args={[14, 12, 10]} />
           <meshBasicMaterial color="white" opacity={hover ? 0.55 : 0} {...onTop} />
         </mesh>

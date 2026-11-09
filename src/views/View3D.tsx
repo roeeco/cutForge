@@ -36,6 +36,7 @@ import { FoldOverObject } from './foldOver3d';
 import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../model/through';
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
+import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 
 const GRID = 1; // mm grid used when no smart-snap target is near
 const snap = (x: number) => Math.round(x / GRID) * GRID;
@@ -584,23 +585,50 @@ function PanelObject(props: {
   );
 }
 
-/** A free edge: an invisible, screen-sized hit target, a dashed hint when the panel is in focus, and a "+ Grow" pill on hover. */
+const MAX_HIT_PIECES = 4;
+
+/**
+ * A free edge: invisible, screen-sized hit targets, a dashed hint when the
+ * panel is in focus, and a "+ Grow" pill on hover. The targets leave a gap
+ * around the edge's midpoint (and any push-pull anchor on it), so the width
+ * and height arrows always win there; the pill follows the pointer along the
+ * edge, kept out of those gaps.
+ */
 function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSeg; t: number; z0: number; z1: number; show: boolean; active: boolean }) {
   const tt = useT();
   const [hover, setHover] = useState(false);
-  const hit = useRef<THREE.Mesh>(null);
+  const [pillS, setPillS] = useState<number | null>(null);
+  const hits = useRef<(THREE.Mesh | null)[]>([]);
+  const live = useRef<boolean[]>([]);
+  const gapMm = useRef(0);
+  const rangesRef = useRef<[number, number][]>([]);
   const { camera, size } = useThree();
   const edge = seg.key;
   const L = segLength(seg);
   const mid = (z0 + z1) / 2;
-  const pos: V3 = [(seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, mid];
+  const dir = { x: (seg.b.x - seg.a.x) / (L || 1), y: (seg.b.y - seg.a.y) / (L || 1) };
+  const gaps = useMemo(() => edgeGaps(p, seg), [p.w, p.h, seg.a.x, seg.a.y, seg.b.x, seg.b.y]);
+  const at = (s: number): V3 => [seg.a.x + dir.x * s, seg.a.y + dir.y * s, mid];
+  const pos = at(L / 2);
   const rot: [number, number, number] = [0, 0, Math.atan2(seg.b.y - seg.a.y, seg.b.x - seg.a.x)];
   useFrame(() => {
-    const m = hit.current;
-    if (!m) return;
-    const wp = m.getWorldPosition(new THREE.Vector3());
-    const k = Math.max(2, 14 * mmPerPx(camera, size.height, wp));
-    m.scale.set(L, k, t + k);
+    const m0 = hits.current[0];
+    if (!m0?.parent) return;
+    const wp = m0.parent.localToWorld(new THREE.Vector3(...pos));
+    const px = mmPerPx(camera, size.height, wp);
+    const k = Math.max(2, 14 * px);
+    gapMm.current = EDGE_GAP_PX * px;
+    const ranges = edgeHitRanges(L, gaps, gapMm.current, EDGE_MIN_HIT_PX * px);
+    rangesRef.current = ranges;
+    for (let i = 0; i < MAX_HIT_PIECES; i++) {
+      const m = hits.current[i];
+      if (!m) continue;
+      const r = ranges[i];
+      live.current[i] = !!r;
+      if (!r) continue;
+      m.position.set(...at((r[0] + r[1]) / 2));
+      m.scale.set(r[1] - r[0], k, t + k);
+    }
   });
   const line = useMemo(() => {
     const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(seg.a.x, seg.a.y, z1 + 0.2), new THREE.Vector3(seg.b.x, seg.b.y, z1 + 0.2)]);
@@ -611,25 +639,48 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
     return l;
   }, [seg.a.x, seg.a.y, seg.b.x, seg.b.y, z1]);
   useEffect(() => () => (line.geometry.dispose(), (line.material as THREE.Material).dispose()), [line]);
+  const raycasters = useMemo(
+    () =>
+      Array.from({ length: MAX_HIT_PIECES }, (_, i) =>
+        function (this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersection[]) {
+          if (live.current[i]) THREE.Mesh.prototype.raycast.call(this, rc, out);
+        },
+      ),
+    [],
+  );
+  const follow = (ev: ThreeEvent<PointerEvent>) => {
+    const parent = hits.current[0]?.parent;
+    if (!parent) return;
+    const l = parent.worldToLocal(ev.point.clone());
+    const s = (l.x - seg.a.x) * dir.x + (l.y - seg.a.y) * dir.y;
+    setPillS(clampToRanges(s, rangesRef.current));
+  };
   const lit = hover || active;
+  const pill = at(pillS ?? clampToRanges(L * 0.3, rangesRef.current) ?? L * 0.3);
   return (
     <>
-      <mesh
-        ref={hit}
-        position={pos}
-        rotation={rot}
-        visible={false}
-        onPointerOver={(ev) => (ev.stopPropagation(), setHover(true))}
-        onPointerOut={() => setHover(false)}
-        onPointerDown={(ev) => {
-          if (ev.button !== 0) return;
-          ev.stopPropagation();
-          useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
-        }}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial />
-      </mesh>
+      {raycasters.map((rc, i) => (
+        <mesh
+          key={i}
+          ref={(m) => void (hits.current[i] = m)}
+          position={pos}
+          rotation={rot}
+          visible={false}
+          raycast={rc}
+          onPointerOver={(ev) => (ev.stopPropagation(), setHover(true), follow(ev))}
+          onPointerMove={follow}
+          onPointerOut={() => setHover(false)}
+          onPointerDown={(ev) => {
+            if (ev.button !== 0) return;
+            ev.stopPropagation();
+            useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
+          }}
+          userData={{ edgeHit: edge }}
+        >
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial />
+        </mesh>
+      ))}
       {(show || lit) && <primitive object={line} raycast={() => null} />}
       {lit && (
         <mesh position={pos} rotation={rot} renderOrder={7} raycast={() => null} userData={{ noAO: true }}>
@@ -638,8 +689,8 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
         </mesh>
       )}
       {hover && !active && (
-        <StageHtml position={[pos[0], pos[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
-          <span className="w-grow">
+        <StageHtml position={[pill[0], pill[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
+          <span className="w-grow" data-testid="grow-pill" data-s={Math.round((pillS ?? 0) * 10) / 10} data-gap={Math.round(gapMm.current * 10) / 10} data-len={Math.round(L * 10) / 10}>
             <Icon name="plus" /> {tt('edge.growHere')}
           </span>
         </StageHtml>
@@ -986,10 +1037,11 @@ function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4
   const Wv = (x: number, y: number) => W(m, p.frame, x, y, th);
   const u = Wdir(m, p.frame.u), v = Wdir(m, p.frame.v);
   const tickV = v3mul(v, 3), tickU = v3mul(u, 3);
+  const pp = pushPullAnchors(p);
   return (
     <>
-      <PushPull at={W(m, p.frame, p.w, p.h / 2, th / 2)} axis={u} value={p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
-      <PushPull at={W(m, p.frame, p.w / 2, p.h, th / 2)} axis={v} value={p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
+      <PushPull at={W(m, p.frame, pp.width.x, pp.width.y, th / 2)} axis={u} value={p.w} offset={pp.width.x - p.w} min={5} onPreview={(w) => resize(w, undefined)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-width" />
+      <PushPull at={W(m, p.frame, pp.height.x, pp.height.y, th / 2)} axis={v} value={p.h} offset={pp.height.y - p.h} min={5} onPreview={(h) => resize(undefined, h)} onCommit={() => st().commit()} onCancel={() => st().cancel()} testId="pp-height" />
       {dims && (
         <>
           <DimLine a={Wv(0, -off)} b={Wv(p.w, -off)} tick={tickV} />
@@ -1226,7 +1278,6 @@ function ViewSettings({ onClose }: { onClose: () => void }) {
   const t = useT();
   const prefs = useStore((s) => s.viewPrefs);
   const setPrefs = useStore((s) => s.setPrefs);
-  const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (e: PointerEvent) => !ref.current?.parentElement?.contains(e.target as Node) && onClose();
@@ -1252,7 +1303,17 @@ function ViewSettings({ onClose }: { onClose: () => void }) {
         onChange={(q) => setPrefs({ quality: q as Quality })}
       />
       <p className="note">{t('viewset.qualityNote')}</p>
-      {hasFolds && <FoldSlider />}
+    </div>
+  );
+}
+
+/** The fold/unfold slider, on the stage whenever the design has a fold (card and corrugated nets). */
+function FoldBar() {
+  const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
+  if (!hasFolds) return null;
+  return (
+    <div className="fold-bar card" dir="auto">
+      <FoldSlider />
     </div>
   );
 }
@@ -1350,6 +1411,7 @@ export function View3D() {
       </div>
       <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
       <PolygonToolCard />
+      <FoldBar />
       <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );

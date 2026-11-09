@@ -144,3 +144,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Fold-over is offered on the top edge** (`e2`) from the card; the model accepts any free edge, but lock tabs need the liner to reach the base (a partial hem is glued; the export check says so if tabs are chosen).
 - **Clearance advice:** foldform's "c < 0.75t" rule is kept as advice in the export check; with CutForge's default calibration values it shows on corrugated board until the classroom calibrates the clearance with a test cut.
 - **Flute direction** is checked against the packed sheet layout (the first copy): a fold score that runs less than 45° from across the flutes on 4 mm board is flagged. The packer is unchanged.
+
+## Interaction refinements (see `INTERACTION_REFINEMENTS.md`)
+- **Grow targets and push-pull arrows** (milestone 15): an edge's grow target leaves a gap of 22 screen px each side of its midpoint and of any push-pull anchor on it; pieces under 12 px are dropped. The pill follows the pointer on the remaining pieces (or sits at 30% along the edge before the pointer moves). Push-pull arrows also win any raycast tie. The arrows sit on the panel's real outline (right side at half height, top at half width), which is the same place on a rectangle.
+- **Fold slider** lives only on the stage (bottom centre) while a net of two or more panels exists; on stages under 900 px wide it sits at the left above the card dock.

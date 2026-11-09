@@ -517,3 +517,17 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .rail .op-btn.through.on { background: var(--rail-on); color: #0b2724; }
 .through-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block: 6px; }
 .through-badge { background: #b45309; color: white; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; transform: translate(12px, -30px); }
+
+/* fold/unfold slider: a stage bar at the bottom centre, above the hint, clear of the bottom-right dock and view cube */
+.fold-bar {
+  position: absolute; bottom: 58px; left: 50%; transform: translateX(-50%); z-index: 6;
+  padding: 6px 14px; border-radius: var(--r-pill); display: flex; align-items: center;
+}
+.fold-bar .field { margin: 0; display: flex; align-items: center; gap: 10px; }
+.fold-bar label { font-size: 13px; color: var(--ink-muted); white-space: nowrap; }
+.fold-bar input[type=range] { width: 180px; }
+/* narrow stages: the card dock covers the right side, so the bar sits above it (and left of centre) */
+@media (max-width: 900px) {
+  .fold-bar { left: 84px; transform: none; z-index: 9; bottom: 58px; }
+  .fold-bar input[type=range] { width: 120px; }
+}
