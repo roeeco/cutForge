@@ -71,13 +71,13 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   await connectAll(page, walls);
   expect(await issues(page)).toBe('');
 
-  await select(page, base);
-  await page.getByTestId('div-toggle').click();
-  await page.getByTestId('div-add').click();
-  await select(page, base);
-  await page.getByTestId('div-toggle').click();
-  await page.getByTestId('div-edge').selectOption('3');
-  await page.getByTestId('div-add').click();
+  // two crossing dividers with + Divider (milestone 32): the front and back walls, then the left and right
+  const plus = async (a: string, b: string) => {
+    await S(page, (x: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: x[1], ids: x }), [a, b]);
+    await page.getByTestId('add-divider').click();
+  };
+  await plus(walls[0], walls[2]);
+  await plus(walls[3], walls[1]);
   const d = await design(page);
   const kinds = Object.values<any>(d.connections).map((c) => c.kind);
   expect(kinds.filter((k) => k === 'finger')).toHaveLength(8);

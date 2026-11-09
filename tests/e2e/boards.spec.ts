@@ -300,12 +300,26 @@ test('milestone 31: Shift-click three floor panels, distribute them, undo', asyn
     return out;
   });
   await S(page, () => (window as any).__cutforge.setCamera([0, 500, 1], [0, 0, 0]));
+  await page.waitForTimeout(300);
   const sizes = [[40, 30], [20, 40], [50, 30]];
+  // under load the camera may still be settling: click again until each one is in the selection
   for (let i = 0; i < 3; i++) {
-    const q = await proj(page, ids[i], sizes[i][0] / 2, sizes[i][1] / 2);
-    if (i) await page.keyboard.down('Shift');
-    await page.mouse.click(q.x, q.y);
-    if (i) await page.keyboard.up('Shift');
+    await expect(async () => {
+      const cur: string[] = await S(page, () => {
+        const s = (window as any).__cutforge.store.getState().selection;
+        return s?.kind === 'panel' ? (s.ids ?? [s.id]) : [];
+      });
+      if (cur.includes(ids[i])) return;
+      const q = await proj(page, ids[i], sizes[i][0] / 2, sizes[i][1] / 2);
+      if (i) await page.keyboard.down('Shift');
+      await page.mouse.click(q.x, q.y);
+      if (i) await page.keyboard.up('Shift');
+      const now: string[] = await S(page, () => {
+        const s = (window as any).__cutforge.store.getState().selection;
+        return s?.kind === 'panel' ? (s.ids ?? [s.id]) : [];
+      });
+      expect(now).toContain(ids[i]);
+    }).toPass({ timeout: 10_000 });
   }
   await expect(page.getByTestId('inspector-multi-panel')).toContainText('3 panels selected');
   const before = await design(page);

@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
@@ -34,7 +34,7 @@ import { FLOOR_FRAME } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
-import { clearBox, memberOf, snapDividerOffset } from '../model/dividers';
+import { clearBox, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
 import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
@@ -114,7 +114,6 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
-  const facePick = useStore((s) => s.facePick);
   const panelGhost = useStore((s) => s.panelGhost);
   const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
   const inTxn = useStore((s) => !!s.txnBase);
@@ -258,7 +257,6 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       }
     };
     const key = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape' && useStore.getState().facePick.length) useStore.getState().set({ facePick: [] });
       if (ev.key === 'Escape' && drag.current) {
         if (drag.current.kind === 'ghost-draw') useStore.getState().set({ panelGhost: null });
         drag.current = null;
@@ -327,7 +325,6 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         stx.clickPanel(p.id, true);
         return;
       }
-      if (stx.facePick.length) stx.set({ facePick: [] });
       // a panel already among several selected keeps the group (to drag it)
       const group = selectedPanelIds(stx.selection);
       if (!(group.length > 1 && group.includes(p.id))) useStore.getState().select({ kind: 'panel', id: p.id });
@@ -497,7 +494,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         userData={{ noAO: true }}
       />
       {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && (useStore.getState().set({ facePick: [] }), useStore.getState().select(null))} visible={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
@@ -554,7 +551,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           </span>
         </StageHtml>
       )}
-      {tool === 'select' && !folded && facePick.length > 0 && <BetweenPill d={design} picks={facePick} />}
+      {tool === 'select' && !folded && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {tool === 'panel' && !folded && <PanelGhostView d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
@@ -1694,6 +1691,12 @@ function GroupGizmo({ d, ids, tolAt }: { d: Design; ids: string[]; tolAt: (p: V3
   );
 }
 
+/** A wall standing at 90° on a base (a divider counts): Shift-click another for + Divider. */
+function isWallLike(d: Design, id: string): boolean {
+  const c = parentConnection(d, id);
+  return !!c && Math.abs(c.angle - 90) < 1e-6 && !parentConnection(d, c.a.panelId);
+}
+
 /** A divider: a panel standing at 90° on a floor panel, some way in from the edge it was grown from. */
 function isDivider(d: Design, id: string): Connection | null {
   const c = parentConnection(d, id);
@@ -1732,14 +1735,9 @@ function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Mat
   // on the face, low and in the middle: clear of the height arrow (top), the hinge knob and the compartment labels (above the top)
   const at = W(m, p.frame, p.w / 2, p.h * 0.3, th / 2);
   const move = (v: number, snapIt: boolean) => {
-    const cur = drag.current ?? { from: id, to: memberOf(st().txnBase ?? st().design, id) ? newId('p') : id };
-    drag.current = cur;
+    drag.current ??= { from: id, to: id };
     const off = row && snapIt ? (snapDividerOffset(row, v, th, tolAt(at)) ?? v) : v;
-    st().preview((x) => {
-      const nid = cur.to !== cur.from ? releaseDivider(x, cur.from, cur.to) : cur.from;
-      setDividerOffset(x, nid, off);
-    });
-    if (st().selection?.kind !== 'panel' || (st().selection as { id: string }).id !== cur.to) st().select({ kind: 'panel', id: cur.to });
+    st().preview((x) => setDividerOffset(x, id, off));
   };
   // compartments along the row, labelled at the dividers' top
   const labels: { mid: number; size: number; side: 'left' | 'right' | null }[] = [];
@@ -1806,49 +1804,39 @@ function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Mat
 }
 
 /** Faces picked for "Divider between": a marker on each, and at the second one the pill (greyed with the reason when no divider fits). */
-function BetweenPill({ d, picks }: { d: Design; picks: FacePick[] }) {
+/**
+ * Two facing walls selected (milestone 32): a floating + Divider button
+ * between them puts a divider halfway along where they overlap; greyed, with
+ * the reason, when no divider fits.
+ */
+function DividerButton({ d, a, b }: { d: Design; a: string; b: string }) {
   const t = useT();
-  useEffect(() => {
-    const k = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') useStore.getState().set({ facePick: [] });
-    };
-    window.addEventListener('keydown', k, true);
-    return () => window.removeEventListener('keydown', k, true);
-  }, []);
-  const plan = picks.length === 2 ? planDividerBetween(d, picks[0], picks[1]) : null;
+  const plan = planDividerFor(d, a, b);
+  const picks = wallPicks(d, a, b);
+  if (!picks) return null;
+  const at: V3 = [(picks[0].point[0] + picks[1].point[0]) / 2, (picks[0].point[1] + picks[1].point[1]) / 2, (picks[0].point[2] + picks[1].point[2]) / 2];
   return (
-    <>
-      {picks.map((pk, i) => (
-        <mesh key={i} position={pk.point} renderOrder={25} raycast={() => null} userData={{ noAO: true }}>
-          <sphereGeometry args={[2.2, 12, 8]} />
-          <meshBasicMaterial color="#e0a21b" depthTest={false} transparent />
-        </mesh>
-      ))}
-      {plan && (
-        <StageHtml position={picks[1].point}>
-          <button
-            className={`w-pill between-pill ${plan.ok ? '' : 'off'}`}
-            disabled={!plan.ok}
-            title={plan.ok ? undefined : t(`div.why.${plan.reason}` as 'div.why.notParallel')}
-            onClick={() => {
-              const st = useStore.getState();
-              let id: string | null = null;
-              st.apply((x) => void (id = addDividerBetween(x, picks[0], picks[1])));
-              st.set({ facePick: [] });
-              if (id) st.select({ kind: 'panel', id });
-            }}
-            data-testid="div-between"
-          >
-            <Icon name="plus" /> {t('div.between')}
-            {!plan.ok && (
-              <span className="why" data-testid="div-between-why">
-                {t(`div.why.${plan.reason}` as 'div.why.notParallel')}
-              </span>
-            )}
-          </button>
-        </StageHtml>
-      )}
-    </>
+    <StageHtml position={at}>
+      <button
+        className={`w-pill between-pill ${plan.ok ? '' : 'off'}`}
+        disabled={!plan.ok}
+        title={plan.ok ? undefined : t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+        onClick={() => {
+          const st = useStore.getState();
+          let id: string | null = null;
+          st.apply((x) => void (id = addDividerFor(x, a, b)));
+          if (id) st.select({ kind: 'panel', id });
+        }}
+        data-testid="add-divider"
+      >
+        <Icon name="plus" /> {t('div.add')}
+        {!plan.ok && (
+          <span className="why" data-testid="add-divider-why">
+            {t(`div.why.${plan.reason}` as 'div.why.notParallel')}
+          </span>
+        )}
+      </button>
+    </StageHtml>
   );
 }
 
@@ -2177,7 +2165,8 @@ export function View3D() {
   }, []);
   const editing = useStore((s) => !!s.editOutline);
   const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
-  const picking = useStore((s) => s.facePick.length === 1);
+  // one wall selected: Shift-click the opposite wall for + Divider (milestone 32)
+  const picking = useStore((s) => s.selection?.kind === 'panel' && !s.selection.ids && isWallLike(s.design, s.selection.id));
   const hint =
     foldT < 0.999
       ? 'fold.hint'

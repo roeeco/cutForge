@@ -11,7 +11,7 @@ import { rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
-import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
+import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
@@ -154,7 +154,6 @@ export function Inspector() {
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
-          <DividerAdder panelId={id} />
           <JointsAdvanced panelId={id} />
           <div className="subsection">
             <h4>{t('insp.edges')}</h4>

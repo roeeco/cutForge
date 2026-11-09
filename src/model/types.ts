@@ -285,8 +285,6 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
-  /** Automatic dividers on a base (see src/model/dividers.ts). */
-  dividerSets?: Record<string, DividerSet>;
   /**
    * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
    * wall-to-base joints (grown panels and edge-on-face seams) and for corners
@@ -304,25 +302,6 @@ export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; fla
  * current material's slot (`normalizeJoints`).
  */
 export type JointChoices = Partial<Record<MaterialKind, DesignJoints>>;
-
-/**
- * Dividers made and spaced automatically in a rectangular clear inside:
- * `across` dividers parallel to the base's left edge (spaced along its width),
- * `along` dividers parallel to its front edge (spaced along its depth). Even
- * spacing, or compartments of `size` mm (the last takes the rest). Members are
- * `<id>/a<n>` and `<id>/l<n>`; a divider dragged by hand leaves the set and is
- * listed in `loose` until *Space evenly again*.
- */
-export type DividerSet = {
-  id: string;
-  baseId: string;
-  across: number;
-  along: number;
-  height: number;
-  mode: 'even' | 'size';
-  size?: number;
-  loose?: string[];
-};
 
 /** A base extruded into walls on every straight edge, at one shared height. */
 export type Tray = {

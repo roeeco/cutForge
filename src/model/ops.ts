@@ -3,9 +3,8 @@
 // owned by connections, so every operation ends with a consistent design.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, DividerSet, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayOf, trayWalls, wallHeight } from './trays';
-import { clearBox, memberOf, reconcileDividerSets, renamePanel } from './dividers';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
@@ -92,7 +91,6 @@ function solveOnce(d: Design) {
   }
   reconcileWallSets(d);
   reconcileTrays(d, makeTrayWall);
-  reconcileDividerSets(d);
   insideCornerExtensions(
     d,
     (baseId, key) => {
@@ -513,102 +511,6 @@ export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: n
   return r.panelId;
 }
 
-/** The divider set on a base, if any. */
-export function dividerSetOf(d: Design, baseId: string): DividerSet | undefined {
-  return Object.values(d.dividerSets ?? {}).find((s) => s.baseId === baseId);
-}
-
-/** Can a base take automatic dividers? A rectangle with a clear inside. */
-export function canDividerSet(d: Design, baseId: string): boolean {
-  const b = clearBox(d, baseId);
-  return !!b && b.x1 - b.x0 > 10 && b.y1 - b.y0 > 10;
-}
-
-/**
- * Make or change the automatic dividers on a base (counts across and along,
- * height, even or by compartment size). Counts of 0 and 0 remove the set.
- */
-export function setDividerSet(d: Design, baseId: string, patch: Partial<Pick<DividerSet, 'across' | 'along' | 'height' | 'mode' | 'size'>>): string | null {
-  if (!canDividerSet(d, baseId)) return null;
-  d.dividerSets ??= {};
-  let set = dividerSetOf(d, baseId);
-  if (!set) {
-    const id = `${baseId}/div`;
-    const walls = Object.values(d.connections).filter((c) => c.grown && c.a.panelId === baseId).map((c) => d.panels[c.b.panelId]?.h ?? 40);
-    const h = Math.max(10, Math.round((walls.length ? Math.min(...walls) : 40) - tOf(d, baseId) - 5));
-    set = d.dividerSets[id] = { id, baseId, across: 0, along: 0, height: h, mode: 'even' };
-  }
-  Object.assign(set, patch);
-  set.across = Math.max(0, Math.min(20, Math.round(set.across)));
-  set.along = Math.max(0, Math.min(20, Math.round(set.along)));
-  if (set.mode === 'size') set.size = Math.max(5, set.size ?? 30);
-  const id = set.id;
-  if (!set.across && !set.along) {
-    // an empty set: its dividers go (ones placed by hand stay, as ordinary dividers)
-    for (const pid of d.order.filter((x) => memberOf(d, x)?.set.id === id)) {
-      for (const c of Object.values(d.connections)) if (c.a.panelId === pid || c.b.panelId === pid) delete d.connections[c.id];
-      delete d.panels[pid];
-      delete d.pieces[pid];
-    }
-    d.order = d.order.filter((x) => d.panels[x]);
-    delete d.dividerSets[id];
-  }
-  solve(d);
-  if (d.dividerSets[id]) for (const pid of d.order.filter((x) => memberOf(d, x)?.set.id === id)) connectSeams(d, pid);
-  return d.dividerSets[id] ? id : null;
-}
-
-/**
- * Take a divider out of its set (it was dragged by hand), keeping where it is:
- * it is renamed `to`, the members after it move down one, and the set has one
- * fewer (by-size spacing becomes even spacing with the rest).
- */
-export function releaseDivider(d: Design, panelId: string, to: string): string {
-  const m = memberOf(d, panelId);
-  if (!m) return panelId;
-  const { set, axis, n } = m;
-  const count = axis === 'a' ? set.across : set.along;
-  if (set.mode === 'size') {
-    set.mode = 'even';
-    const box = clearBox(d, set.baseId);
-    set.across = d.order.filter((x) => memberOf(d, x)?.set.id === set.id && memberOf(d, x)?.axis === 'a').length;
-    set.along = d.order.filter((x) => memberOf(d, x)?.set.id === set.id && memberOf(d, x)?.axis === 'l').length;
-    void box;
-  }
-  renamePanel(d, panelId, to);
-  for (let k = n + 1; k <= count; k++) renamePanel(d, `${set.id}/${axis}${k}`, `${set.id}/${axis}${k - 1}`);
-  if (axis === 'a') set.across = Math.max(0, set.across - 1);
-  else set.along = Math.max(0, set.along - 1);
-  set.loose = [...(set.loose ?? []), to];
-  return to;
-}
-
-/** Bring dividers dragged out of a set back into it, all spaced evenly. */
-export function respaceDividers(d: Design, setId: string) {
-  const set = d.dividerSets?.[setId];
-  if (!set) return;
-  const base = d.panels[set.baseId];
-  for (const id of set.loose ?? []) {
-    const c = parentConnection(d, id);
-    if (!c || !base || c.a.panelId !== base.id) continue;
-    const axis = c.a.edge === 'e3' ? 'a' : c.a.edge === 'e0' ? 'l' : null;
-    if (!axis) continue;
-    const n = (axis === 'a' ? set.across : set.along) + 1;
-    renamePanel(d, id, `${set.id}/${axis}${n}`);
-    const cc = parentConnection(d, `${set.id}/${axis}${n}`);
-    if (cc && cc.id !== `${set.id}/c/${axis}${n}` && !d.connections[`${set.id}/c/${axis}${n}`]) {
-      delete d.connections[cc.id];
-      cc.id = `${set.id}/c/${axis}${n}`;
-      d.connections[cc.id] = cc;
-    }
-    if (axis === 'a') set.across = n;
-    else set.along = n;
-  }
-  set.loose = [];
-  set.mode = 'even';
-  solve(d);
-}
-
 /** A face picked on the stage: the panel, which face (1: its material side, z = t; −1: its plane, z = 0), and the world point clicked. */
 export type FacePick = { panelId: string; side: 1 | -1; point: [number, number, number] };
 export type BetweenPlan =
@@ -673,6 +575,57 @@ export function planDividerBetween(d: Design, a: FacePick, b: FacePick): Between
   const height = Math.round(Math.min(top(A), top(B)) - t - DIVIDER_GAP);
   if (height < MIN_PANEL) return { ok: false, reason: 'tooClose' };
   return { ok: true, baseId: base.id, edge: best.key, offset: Math.round(best.off * 10) / 10, height };
+}
+
+/**
+ * The divider between two selected walls (milestone 32): each wall's face
+ * towards the other, at the middle of the stretch where the two overlap along
+ * their length (a divider counts as a wall).
+ */
+export function wallPicks(d: Design, aId: string, bId: string): [FacePick, FacePick] | null {
+  const A = d.panels[aId], B = d.panels[bId];
+  if (!A || !B || aId === bId) return null;
+  const centre = (p: Panel) => toWorldOfFrame(p.frame, p.w / 2, p.h / 2);
+  const ca = centre(A), cb = centre(B);
+  const toward = (p: Panel, other: [number, number, number]): 1 | -1 => {
+    const m = matDirOf(p.frame), o = p.frame.o;
+    return (other[0] - o[0]) * m[0] + (other[1] - o[1]) * m[1] + (other[2] - o[2]) * m[2] >= tOf(d, p.id) / 2 ? 1 : -1;
+  };
+  // along the walls' length (A's u): where both reach
+  const u = A.frame.u;
+  const along = (p: Panel) => {
+    const xs = [toWorldOfFrame(p.frame, 0, 0), toWorldOfFrame(p.frame, p.w, 0)].map((w) => w[0] * u[0] + w[1] * u[1] + w[2] * u[2]);
+    return [Math.min(...xs), Math.max(...xs)];
+  };
+  const [a0, a1] = along(A), [b0, b1] = along(B);
+  const lo = Math.max(a0, b0), hi = Math.min(a1, b1);
+  const mid = hi > lo ? (lo + hi) / 2 : (a0 + a1 + b0 + b1) / 4;
+  const at = (p: Panel, side: 1 | -1, c: [number, number, number]): [number, number, number] => {
+    const s0 = c[0] * u[0] + c[1] * u[1] + c[2] * u[2];
+    const m = matDirOf(p.frame), z = side === 1 ? tOf(d, p.id) : 0;
+    const base = [c[0] + u[0] * (mid - s0), c[1] + u[1] * (mid - s0), c[2] + u[2] * (mid - s0)];
+    // onto the face: the material side or the plane, through the centre
+    const o = p.frame.o;
+    const depth = (base[0] - o[0]) * m[0] + (base[1] - o[1]) * m[1] + (base[2] - o[2]) * m[2];
+    return [base[0] + m[0] * (z - depth), base[1] + m[1] * (z - depth), base[2] + m[2] * (z - depth)];
+  };
+  const sa = toward(A, cb), sb = toward(B, ca);
+  return [
+    { panelId: aId, side: sa, point: at(A, sa, ca) },
+    { panelId: bId, side: sb, point: at(B, sb, cb) },
+  ];
+}
+
+/** Can a divider go between these two walls, and where (or why not)? */
+export function planDividerFor(d: Design, aId: string, bId: string): BetweenPlan {
+  const picks = wallPicks(d, aId, bId);
+  return picks ? planDividerBetween(d, picks[0], picks[1]) : { ok: false, reason: 'notFacing' };
+}
+
+/** + Divider: halfway between two facing walls on one base; its ends are joined to both. */
+export function addDividerFor(d: Design, aId: string, bId: string): string | null {
+  const picks = wallPicks(d, aId, bId);
+  return picks ? addDividerBetween(d, picks[0], picks[1]) : null;
 }
 
 /** Make the divider `planDividerBetween` describes; its ends are joined to the two walls. */

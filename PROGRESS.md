@@ -638,6 +638,18 @@ Verified
 - `tests/arrange.test.ts`: floor panels distributed with equal gaps (the outer two in place), aligned on their tops and left edges; panels placed on one face aligned and spaced in its plane, a mix refused; three dividers in equal compartments between the walls.
 - `tests/e2e/boards.spec.ts`: Shift-click three floor panels, distribute them, undo restores them; Shift-click takes one out again.
 
+## Milestone 32 — Dividers, one manual way ✅
+
+Implemented (`wallPicks`, `planDividerFor`, `addDividerFor` in `ops.ts`; `DividerButton` in `View3D.tsx`)
+- With two walls selected (a divider counts as a wall) a floating **+ Divider** button (`add-divider`) sits between them. It reuses `planDividerBetween` with each wall's face towards the other, and puts the divider halfway along the stretch where the two walls overlap (not at a click); its height is the lower wall's top less `DIVIDER_GAP`, its ends are joined to both walls, and it crosses other dividers with half-laps. When no divider fits it is greyed with the reason (`add-divider-why`, the `div.why.*` texts).
+- Selecting a wall shows *Shift-click the wall opposite to add a divider between them.* Dragging a divider (its arrow, snapping to equal compartments) and the clickable compartment sizes are as before.
+- Removed: `DividerSet`, `reconcileDividerSets`, `setDividerSet`, `releaseDivider`, `respaceDividers`, `canDividerSet`, `dividerSetOf`, `memberOf`; the card's *Add a divider* section (automatic and *One divider*); the `facePick` state, its Shift-click and the *Divider between* pill; their strings. `addDivider` stays for the organiser template.
+- Older files: the schema 8 migration drops `dividerSets`; every member stays where it is as an ordinary divider with its id and joints.
+
+Verified
+- `tests/dividers.test.ts`: in plywood, card and corrugated boxes, + Divider between the left and right walls is centred along them, below the lower wall's top, joined to both, with a clean check; walls that are not parallel are refused with the reason; **a v7 file with a 2 × 1 set keeps every member and exports the same file** after migration. The face-to-face divider and drag-snapping tests are kept.
+- `tests/e2e/refine.spec.ts` (plywood and corrugated 4 mm): click a wall (the hint), Shift-click the opposite one, + Divider: centred and joined to both; dragged away and back it snaps to the equal-compartment position; a wall and a wall at right angles to it give a greyed button with the reason. `joints.spec.ts` makes its two crossing dividers with + Divider.
+
 ## Milestone 35 (engine) — Nets that lie flat ✅
 
 Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)

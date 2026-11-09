@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf } from '../model/materials';
-import { autoConnect, createDesign, solve, type FacePick } from '../model/ops';
+import { autoConnect, createDesign, solve } from '../model/ops';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
@@ -148,8 +148,6 @@ type State = {
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
   extrude: { baseId: string; height: number } | null;
-  /** Faces Shift-clicked on the stage for *Divider between* (not part of the design). */
-  facePick: FacePick[];
   /** The Panel tool's ghost (milestone 29): drawn on the floor or a face, then made with ✓ or dropped with ✕. */
   panelGhost: PanelGhost | null;
   /** The Panel tool's pose for the next ghost, and the height a standing ghost starts at (the last one used). */
@@ -187,7 +185,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'facePick' | 'panelGhost' | 'panelPose' | 'standHeight'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -240,7 +238,6 @@ export const useStore = create<State>()((set, get) => ({
   editOutline: null,
   selVertex: null,
   extrude: null,
-  facePick: [],
   panelGhost: null,
   panelPose: 'flat',
   standHeight: 40,

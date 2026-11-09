@@ -9,7 +9,7 @@ import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
-import { addDivider, addSideWalls, canDividerSet, connectSeam, deleteConnection, dividerSetOf, leanSupported, respaceDividers, setConnection, setDividerSet } from '../model/ops';
+import { addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
 import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
@@ -219,105 +219,6 @@ export function ClearSizes({ panelId }: { panelId: string }) {
       <h4>{t('clear.title')}</h4>
       {spans.x.length > 0 && <p className="note" dir="auto">{t('clear.x', { list: list(spans.x) })}</p>}
       {spans.y.length > 0 && <p className="note" dir="auto">{t('clear.y', { list: list(spans.y) })}</p>}
-    </div>
-  );
-}
-
-export function DividerAdder({ panelId }: { panelId: string }) {
-  const t = useT();
-  const d = useStore((s) => s.design);
-  const p = d.panels[panelId];
-  const [edge, setEdge] = useState<0 | 3>(0);
-  const [pos, setPos] = useState<number | null>(null);
-  const [height, setHeight] = useState<number | null>(null);
-  const [open, setOpen] = useState(false);
-  if (!p) return null;
-  // only offered on panels that already have something standing on them
-  const hasChildren = Object.values(d.connections).some((c) => c.grown && c.a.panelId === panelId);
-  if (!hasChildren) return null;
-  const span = edge === 0 ? p.h : p.w;
-  const position = pos ?? Math.round(span / 2);
-  const childH = Math.min(...Object.values(d.connections).filter((c) => c.grown && c.a.panelId === panelId).map((c) => d.panels[c.b.panelId]?.h ?? 40));
-  const h = height ?? Math.max(10, Math.round(childH - d.material.thickness - 5));
-  const mm = t('unit.mm');
-  return (
-    <div className="subsection" data-testid="divider-adder">
-      <button className="collapse-head" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="div-toggle">
-        <span className="chev">
-          <Icon name="chevRight" size={14} />
-        </span>
-        {t('div.title')}
-      </button>
-      {open && (
-      <>
-      <DividerSetControls panelId={panelId} />
-      <h4 className="sub-head">{t('div.one')}</h4>
-      <div className="field">
-        <label htmlFor="div-edge">{t('div.parallel')}</label>
-        <select id="div-edge" value={edge} onChange={(e) => setEdge(Number(e.target.value) as 0 | 3)} data-testid="div-edge">
-          <option value={0}>{t('div.edge0')}</option>
-          <option value={3}>{t('div.edge3')}</option>
-        </select>
-      </div>
-      <NumField label={t('div.position')} value={position} unit={mm} min={1} max={span} onCommit={setPos} testId="div-pos" />
-      <NumField label={t('insp.height')} value={h} unit={mm} min={5} max={2000} onCommit={setHeight} testId="div-height" />
-      <button
-        onClick={() => {
-          let id: string | null = null;
-          useStore.getState().apply((x) => void (id = addDivider(x, panelId, edge, position, h)));
-          if (id) useStore.getState().select({ kind: 'panel', id });
-        }}
-        data-testid="div-add"
-      >
-        {t('div.add')}
-      </button>
-      </>
-      )}
-    </div>
-  );
-}
-
-/** Automatic dividers: counts across and along, height, even or by compartment size; Space evenly again. */
-function DividerSetControls({ panelId }: { panelId: string }) {
-  const t = useT();
-  const d = useStore((s) => s.design);
-  const apply = useStore((s) => s.apply);
-  const mm = t('unit.mm');
-  if (!canDividerSet(d, panelId)) return <p className="note" data-testid="div-auto-rect">{t('div.autoRectOnly')}</p>;
-  const set = dividerSetOf(d, panelId);
-  const change = (patch: Parameters<typeof setDividerSet>[2]) => apply((x) => void setDividerSet(x, panelId, patch));
-  const n = set ? d.order.filter((id) => id.startsWith(set.id + '/')).length : 0;
-  return (
-    <div className="div-auto" data-testid="div-auto">
-      <h4 className="sub-head">{t('div.auto')}</h4>
-      <Stepper label={t('div.across')} value={set?.across ?? 0} min={0} max={10} onCommit={(v) => change({ across: v })} testId="div-across" />
-      <Stepper label={t('div.along')} value={set?.along ?? 0} min={0} max={10} onCommit={(v) => change({ along: v })} testId="div-along" />
-      {set && (
-        <>
-          <NumField label={t('insp.height')} value={set.height} unit={mm} min={5} max={2000} onCommit={(v) => change({ height: v })} testId="div-set-height" />
-          <Segmented
-            label={t('div.spacing')}
-            value={set.mode}
-            options={[
-              { value: 'even', label: t('div.even'), testId: 'div-mode-even' },
-              { value: 'size', label: t('div.bySize'), testId: 'div-mode-size' },
-            ]}
-            onChange={(m) => change({ mode: m as 'even' | 'size', size: set.size ?? 30 })}
-          />
-          {set.mode === 'size' && <NumField label={t('div.size')} value={set.size ?? 30} unit={mm} min={5} max={2000} onCommit={(v) => change({ size: v })} testId="div-size" />}
-          <p className="note" data-testid="div-set-count">
-            {t('div.setCount', { n })}
-          </p>
-          {!!set.loose?.length && (
-            <div className="warn">
-              <p className="note">{t('div.looseNote', { n: set.loose.length })}</p>
-              <button onClick={() => apply((x) => respaceDividers(x, set.id))} data-testid="div-respace">
-                {t('div.respace')}
-              </button>
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }
