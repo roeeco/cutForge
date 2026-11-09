@@ -45,7 +45,9 @@ for (const lang of ['en', 'he']) {
     await page.waitForTimeout(250);
     await shot(page, lang, '29-flat-on-wall-ghost-bar');
     await page.getByTestId('ghost-ok').click();
-    // a standing partition from wall to wall
+    // a standing partition from wall to wall (seen from above, so the line is drawn on the base)
+    await S(page, () => (window as any).__cutforge.setCamera([0, 320, 110], [0, 0, 0]));
+    await page.waitForTimeout(300);
     await page.getByTestId('tool-panel').click();
     await S(page, () => (window as any).__cutforge.store.getState().set({ panelPose: 'standing' }));
     const c = await proj(page, base, 3.8, 30), e = await proj(page, base, 116.2, 30);
@@ -57,6 +59,8 @@ for (const lang of ['en', 'he']) {
     await shot(page, lang, '29-standing-partition-ghost');
     await page.getByTestId('ghost-ok').click();
     await page.waitForTimeout(250);
+    await S(page, () => (window as any).__cutforge.setCamera([0, 230, 200], [0, 15, -10]));
+    await page.waitForTimeout(300);
     await shot(page, lang, '29-standing-partition');
     // milestone 32: + Divider between two walls
     await S(page, (w: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: w[1], ids: [w[3], w[1]] }), walls);
@@ -122,6 +126,8 @@ for (const lang of ['en', 'he']) {
     await page.getByTestId('fit-view').click();
     await page.waitForTimeout(300);
     await page.getByTestId('extrude').click();
+    // from the front right, so the wall at the inside corner can be seen
+    await S(page, () => (window as any).__cutforge.setCamera([190, 170, 170], [0, 20, 0]));
     await page.waitForTimeout(400);
     await shot(page, lang, '35-flat-height-tick');
     const h = page.getByTestId('extrude-height');

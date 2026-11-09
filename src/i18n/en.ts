@@ -51,7 +51,7 @@ export const en = {
   'tool.op.engrave': 'Engraved',
   'tool.op.score': 'Score line',
   'tool.hint.select': 'Click a panel, edge or shape to select it. Drag empty space to orbit, right-drag to pan.',
-  'tool.hint.panel': 'Drag on the floor grid to draw a flat panel.',
+  'tool.hint.panel': 'Drag on the floor or on a face to draw a panel (Standing: draw a line), then ✓.',
   'tool.hint.shape': 'Drag on a panel to draw the shape on it.',
   'tool.hint.shape2d': 'Drag on a piece to draw the shape on it.',
 

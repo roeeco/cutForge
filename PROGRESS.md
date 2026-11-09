@@ -708,6 +708,20 @@ Verified
 - `tests/e2e/boards.spec.ts`: switching a wall to corrugated 4 mm in the card changes its colour and its slab depth (3 → 4 mm) in 3D, the legend appears, the cut plan shows a heading for each material, and the export downloads two files named by material.
 - Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical.
 
+## Milestone 34 — Final verification: panels anywhere, drafts, boards, dividers, flat nets and board materials (milestones 28–36) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (374 tests in 36 files; the ezdxf/svgpathtools reader checks are skipped here, since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (57 passed, including the classroom spec against the real Worker; 40 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical; the 500-design autoseam test passes.
+
+- Screenshots (`SHOTS=1 npx playwright test -c pw-app.config.ts panel-shots`), English and Hebrew, in `docs/panel-shots/`: a flat panel on a wall with the ghost bar, a standing partition (ghost and made), a construction plane with a panel on it, aligned boards, + Divider, a paste ghost, the flat-height tick, an amber wall with its note, a hinged wall folding, Ctrl-drag on an edge, a mixed-material box, the board card's material list, the legend, and the cut plan with two material headings.
+- README *Using it* steps 2, 3, 10 and 15 rewritten, steps 18–22 added; DECISIONS has a section for this round.
+- The older end-to-end specs press ✓ where they draw (milestone 30) and use + Divider (milestone 32).
+
+Remaining limitations (milestones 28–36)
+- A pasted shape follows the pointer only while the pointer is over a bare part of a panel (the pasted shapes themselves do not pass the pointer on).
+- Placed panels: a standing panel's bottom stays on its face (its outline cannot be pulled below it); multiple selection is by click, not a box.
+- Flat nets: the hinge is tried only across a convex corner next to the giving-way wall; a hinged wall is glued to the base on corrugated too. Panels grown by hand (not tray walls) are warned about, not changed.
+- Board materials: a template's sizes are worked out in the working material only; the teacher's batch groups by material but still requires the students' working materials to match.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

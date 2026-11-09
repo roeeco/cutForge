@@ -22,7 +22,8 @@ import type { ConnectionKind } from '../model/types';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
 export function canExtrude(d: ReturnType<typeof useStore.getState>['design'], id: string): boolean {
-  if (!d.panels[id] || parentConnection(d, id) || trayOf(d, id)) return false;
+  // a panel standing on a face (milestone 28) is a wall, not a base
+  if (!d.panels[id] || parentConnection(d, id) || trayOf(d, id) || d.panels[id].place?.pose === 'standing') return false;
   return !Object.values(d.connections).some((c) => c.grown && c.a.panelId === id && !(c.offset > 0));
 }
 
@@ -226,7 +227,8 @@ export function FlatNote({ baseId, height, tray }: { baseId: string; height: num
   const fixes: Record<string, TrayFix> = tray ? (tray.fixes ?? {}) : info.fixes;
   const label = (key: string) => {
     const w = tray ? trayWallOn(d, tray, key) : undefined;
-    return w ? panelLabel(d, w, t) : key.replace(/^e/, '');
+    // before the walls exist (extruding): the wall on that edge of the base
+    return w ? panelLabel(d, w, t) : edgeLabel(d, baseId, key, t);
   };
   const by = (f: TrayFix) => Object.keys(fixes).filter((k) => fixes[k] === f);
   const own = by('own'), hinge = by('hinge'), trim = by('trim');
