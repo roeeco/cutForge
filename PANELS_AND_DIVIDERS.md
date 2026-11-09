@@ -1,6 +1,6 @@
-# CutForge: panels anywhere, drafts, boards, dividers and flat nets: brief
+# CutForge: panels anywhere, drafts, boards, dividers, flat nets and board materials: brief
 
-Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up (snapping toggles, add ghosts, outline snapping, curves), on `main`. Milestones 25–27 (in `GIZMO_JOINTS_FLAPS.md`) are planned but not built, so this brief starts at 28. Milestones 25–27 have since been built (see `PROGRESS.md`). Milestone 35 (flat nets and growing on part of an edge) was added later the same day. The two plans don't depend on each other.
+Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up (snapping toggles, add ghosts, outline snapping, curves), on `main`. Milestones 25–27 (in `GIZMO_JOINTS_FLAPS.md`) are planned but not built, so this brief starts at 28. Milestones 25–27 have since been built (see `PROGRESS.md`). Milestones 35 (flat nets and growing on part of an edge) and 36 (a material for each board) were added later the same day. The two plans don't depend on each other.
 
 ## 1. What changes for a student
 
@@ -12,6 +12,7 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - **Arrange boards.** Shift/Ctrl-click several panels to select them, then align and distribute them, the same way as shapes.
 - **Nets that lie flat.** Extruded walls never overlap their neighbours in the flat net. When they would, the app changes the net and says what it did: it trims a glue flap, folds a wall off its neighbour instead of the base, or cuts it as its own piece. It also shows how tall the walls can go while the net still lies flat.
 - **Grow on part of an edge, by pointing.** Clicking an edge still grows on the whole edge. Hold Cmd (Mac) or Ctrl (Windows) and drag along the edge, or click twice on it, to set where the new panel starts and ends. Both points snap to corners, the middle, other panels and the base's shapes.
+- **A material for each board.** A new board is made in the working material (the one in the top bar). Any board can be switched to another material in its card. That changes its colour, its thickness and its joints, and the cut plan puts it on its own material's sheets.
 - **Dividers, one way.** Click a wall, then Shift-click the wall opposite it. A floating **+ Divider** button puts a divider halfway between them. Drag it afterwards: it snaps to equal compartments, and the compartment sizes stay clickable. Automatic divider sets, the *One divider* form and *Divider between* go away.
 
 ## 2. Decisions (from the interview)
@@ -28,6 +29,7 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 | Arranging boards | **Align and distribute panels** that share a plane: floor panels, or panels placed on the same face. |
 | Flat nets | **Never overlap.** Every fold net is checked flat. On tray walls the app fixes overlaps itself, in this order: trim the flap, fold the wall off its neighbour, cut the wall as its own piece. The extrude ghost marks the tallest height that needs no fix. Panels you grow yourself are warned about, not changed. |
 | Partial growth | **Whole edge by default.** Cmd-drag (Mac) or Ctrl-drag (Windows) along an edge, or two clicks, sets the start and end, with smart snapping. |
+| Board materials | **Working material by default, any board can override it.** The override sets the board's colour, thickness, kerf, clearance and joints. Each material used gets its own sheets in the cut plan and its own download files. |
 | Dividers | **One manual way:** select two facing parallel walls, then **+ Divider**. It goes halfway along and is dragged afterwards. Automatic sets, *One divider* and *Divider between* are removed. |
 
 **My calls (say if you want them different):**
@@ -37,6 +39,8 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - **Dividers can be distributed.** Several dividers on the same base, parallel to each other, can be selected and distributed. That replaces *Space evenly again*.
 - **Which wall gives way** (milestone 35): at an inside corner, the shorter wall, or the later one in the base's edge order when they're equal. The tray card lets you pick the other one.
 - **A wall cut as its own piece** joins the base with the design's *Wall to base* kind, if that kind isn't a fold. Otherwise card uses a glue flap and corrugated uses tabs and slots.
+- **Grown boards take their parent's material** (milestone 36), so a box grown from a plywood base stays plywood even after the working material changes. Boards drawn with the Panel tool take the working material, as you said.
+- **Mixed joints:** a joint between two materials uses the choices of the material carrying the joint's features, when the pair allows that kind. Folds and fold-overs need both boards in the same card or corrugated material. A fold whose boards no longer match falls back to a joint, and the board becomes its own piece.
 - **Cmd on Mac, Ctrl on Windows only.** Ctrl-click on a Mac is a right-click, so it's not used there.
 - **Not in this round:** copying and pasting whole panels, and a box drag to select several panels.
 
@@ -193,6 +197,52 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - e2e: extrude an L base past the tick, read the note, *Lower to …* removes it. Cmd-drag along an edge from a third to the middle, then ✓: the panel stands exactly on [L/3, L/2].
 - EN/HE screenshots: the tick on the height arrow, the amber wall with its note, the fold view of a hinged wall, and Cmd-drag on an edge.
 
+### Milestone 36: a material for each board
+
+**What happens now.** The design has one material (`Design.material`). About 180 places in the engine and views read its thickness, kerf, clearance, kind or sheet size from there: frames and seating, every joint in `seams.ts`, trays, folds and fold-overs, adapt, validation, packing, export and the 3D colours.
+
+**Model.**
+- `Design.materials?: Record<string, MaterialProfile>`: the other materials this design uses, by profile id (with custom values, like the drawer's `-custom` profiles).
+- `Panel.material?: string`: a board's own material. Absent: the working material (`Design.material`), so older files and designs with one material load and export exactly as before.
+- New accessors in `src/model/materials.ts`, `matOf(d, panelId)` and `tOf(d, panelId)`, replace `d.material` wherever a board is involved:
+  - a frame and its seating use the parent's thickness for where it stands and the child's for its own slab
+  - a joint uses each side's thickness: fingers as deep as the other board, slots as wide as the tab board plus the receiver's clearance, tabs as long as the receiver is thick
+  - kerf and fold allowance come from the board's own material
+- **Allowed kinds for a pair** (`connectionsFor` takes both materials):
+  - fingers need both boards in plywood
+  - folds and fold-overs need both boards in the same card or corrugated material
+  - tabs and slots, glue flaps, slide and butt work across materials when the receiver is thick enough for them (`minWeb`)
+  - a joint that no longer fits falls back as it does today (`pref` is kept, so switching back restores it)
+- **Fold nets** contain one material only, so a board switched away from its net's material is cut as its own piece.
+- Schema 8 (or 9, depending on which of 28 and 36 lands first): the fields are optional, and older files are unchanged.
+
+**Working material.**
+- The top-bar pill and the drawer set the working material. Boards without an override follow it, including their thickness and joints. Boards with an override keep theirs.
+- The drawer lists every material the design uses, with the number of boards in each, and their kerf and clearance can be edited there.
+- Templates: regenerating keeps the overrides on the template's boards (by board id). Their sizes are worked out in the working material.
+
+**The board's card.**
+- *Material: Same as working (Plywood 3 mm)* is a list of the materials the design uses, the built-in materials and *Custom…*. Choosing one sets `Panel.material`. With several boards selected (milestone 31), it sets them all.
+- After a change, a note says which joints changed kind because of it, as the design-wide joint change does.
+
+**Colour.**
+- Each board is drawn in its own material's look (`MaterialArt` / palette by kind), with a slight shade for each further thickness of the same kind, so two plywoods can be told apart.
+- With more than one material in use, a small legend (material chips with counts) sits by the view settings. Clicking a chip selects those boards.
+
+**Cut plan and files.**
+- `pack` packs each material separately onto its own sheets, using that material's sheet size, margin, spacing and grain. Placements gain `mat` (the profile id), and manual moves stay within the material's own sheets.
+- The cut plan groups sheets under a heading per material (*Plywood 3 mm, sheets 1–2*, *Corrugated 1.6 mm, sheet 1*).
+- Downloads: one file per material (`<name>-plywood-3mm.svg`), or per sheet when split, each with that material's kerf compensation. The export check runs per material.
+- Class submission: when the class has a material profile, the check compares it with the working material and lists boards in other materials. The teacher's batch export groups by material.
+
+**Tests.**
+- unit: a plywood box with one wall switched to 6 mm plywood: its fingers are 6 mm deep on the base side and 3 mm on its own, it doesn't overlap the base (volumetric), and the export check is clean.
+- unit: a card tray with one wall switched to corrugated: the fold becomes the design's *Wall to base* kind for the pair, the wall becomes its own piece, and switching it back restores the fold.
+- unit: packing puts the boards of two materials on separate sheets, each that material's size. The golden exports of designs with one material are byte-identical.
+- unit: save and load keep the overrides; a v7 file loads unchanged.
+- e2e: switch a board's material in the card. Its colour and thickness change in 3D, a second material heading appears in the cut plan, and the download names both files.
+- EN/HE screenshots: a mixed-material box, the board card's material list, the legend, the cut plan with two material headings.
+
 ### Milestone 34: final verification
 
 - `npm test`, the e2e app specs, the golden exports and 500-design autoseam test.
@@ -201,13 +251,12 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 
 ### Order and size
 
-28 comes first, because everything else builds on it.
+Suggested order: **36, 35's engine, 28, 29, 30, 31, 32, 33, 35's edge picking, 34.**
 
-- After 28, 29 and 30 can go in either order, but 30 reuses 29's ghost bar, so 29 first is easier.
-- 31 comes before 32, because the divider button needs selecting two panels.
-- 33 needs only 30.
+- 36 first: it touches the most engine code (thickness per board in frames, joints, trays, nets and packing). Done first, placed panels (28) and net checks (35) are written per board from the start instead of being changed again.
+- 35's engine part (finding and fixing overlaps, the height tick) doesn't depend on 28–33.
+- Among 28–33, 28 comes first, because the rest build on it. 29 before 30, because 30 reuses 29's ghost bar. 31 before 32, because the divider button needs two panels selected. 33 needs only 30.
+- 35's Cmd/Ctrl edge picking uses 30's ghost bar and must agree with 31's Cmd/Ctrl-click on faces, so it goes after 31.
+- 34 (final verification) runs last.
 
-- 35's engine part (finding and fixing overlaps, the height tick) doesn't depend on 28–33 and can come first. Its Cmd/Ctrl span picking uses 30's ghost bar and must agree with 31's Cmd/Ctrl-click on faces, so it goes after 31.
-- 34 (final verification) runs last, after 35.
-
-28, 29 and 32 are a few days each. 30, 31 and 33 are a day or two each. 35 is about a week: the hinge fix is the largest part.
+28, 29 and 32 are a few days each. 30, 31 and 33 are a day or two each. 35 is about a week; the hinge fix is the largest part. 36 is one to two weeks; replacing the one design thickness everywhere is the largest part.
