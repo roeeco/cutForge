@@ -56,6 +56,7 @@ export async function joinClassFromLink(search = location.search) {
     const { api } = await import('../net/api');
     const cls = await api.classInfo(code);
     applyClassMode(cls.mode ?? null, !!cls.modeLocked);
+    useStore.getState().setPrefs({ missions: cls.missions ?? undefined });
   } catch {
     /* offline or no such class: the editor works the same */
   }

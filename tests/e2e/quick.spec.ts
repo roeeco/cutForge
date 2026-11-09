@@ -276,3 +276,59 @@ test.describe('Workshop to Quick build', () => {
     await expect(page.getByTestId('ready-badge')).toHaveText('Ready to cut ✓');
   });
 });
+
+for (const lang of ['en', 'he'])
+test(`mission (${lang}): Pencil box — size the compartments until the pencils fit, engrave a name: the checklist completes and the badge is green (milestones 40–41)`, async ({ page }) => {
+  const t0 = Date.now();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
+  await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('mission-pencil-box').click();
+  await page.getByTestId('start-go').click();
+  await expect(page.getByTestId('mission-panel')).toBeVisible();
+  await expect(page.getByTestId('goal-fits-pencil')).toHaveAttribute('data-ok', 'false');
+  await expect(page.getByTestId('goal-compartments-3')).toHaveAttribute('data-ok', 'true');
+  await expect(page.getByTestId('goal-name')).toHaveAttribute('data-ok', 'false');
+  await expect(page.getByTestId('content-tag')).toHaveAttribute('data-ok', 'false');
+  await S(page, () => (window as any).__cutforge.setCamera([0, 330, 60], [0, 0, 0]));
+  await page.waitForTimeout(300);
+  const offset = (id: string) => S<number>(page, (k: string) => (Object.values((window as any).__cutforge.store.getState().design.connections) as any[]).find((c) => c.grown && c.b.panelId === k).offset, id);
+  // a divider's compartment sizes are on the stage: type the size wanted
+  async function compartment(id: string, label: number, size: number) {
+    await S(page, (k: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: k }), id);
+    await page.getByTestId(`div-comp-${label}`).click();
+    await page.getByTestId(`div-comp-${label}-input`).fill(String(size));
+    await page.getByTestId(`div-comp-${label}-input`).press('Enter');
+  }
+  // the back compartment 10 mm, then the front one 34 mm: room for 12 pencils
+  await compartment('t:divY2', 2, 10);
+  await compartment('t:divY1', 0, 34);
+  expect(await offset('t:divY1')).toBeGreaterThan(33);
+  await expect(page.getByTestId('goal-fits-pencil')).toHaveAttribute('data-ok', 'true');
+  await expect(page.getByTestId('content-tag')).toHaveAttribute('data-ok', 'true');
+  // a name engraved on the front wall
+  await S(page, () => (window as any).__cutforge.setCamera([0, 90, 300], [0, 15, 0]));
+  await page.waitForTimeout(300);
+  await page.getByTestId('quick-text').click();
+  await page.getByTestId('quick-text-text').click();
+  const fw = await S<any>(page, () => (window as any).__cutforge.store.getState().design.panels['t:wall0']);
+  const p = await onFace(page, 't:wall0', fw.w / 2, fw.h / 2);
+  await page.mouse.click(p.x, p.y);
+  await page.getByTestId('ghost-ok').click();
+  await page.getByTestId('text-value').fill(lang === 'he' ? 'מאיה' : 'Maya');
+  await page.getByTestId('text-value').blur();
+  await expect(page.getByTestId('goal-name')).toHaveAttribute('data-ok', 'true');
+  await expect(page.getByTestId('mission-panel')).toHaveAttribute('data-done', 'true');
+  await expect(page.getByTestId('mission-panel')).toHaveAttribute('data-stars', '3');
+  await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+  // the mission and the objects survive a reload
+  await expect(page.getByTestId('save-state')).toHaveAttribute('class', /\bsaved\b/);
+  await page.reload();
+  await expect(page.getByTestId('mission-panel')).toHaveAttribute('data-done', 'true');
+  await expect(page.getByTestId('content-tag')).toHaveAttribute('data-ok', 'true');
+  expect(errors).toEqual([]);
+  // a classroom run-through: well inside a lesson (milestone 41)
+  expect(Date.now() - t0).toBeLessThan(20 * 60_000);
+});

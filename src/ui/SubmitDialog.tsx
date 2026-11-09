@@ -2,6 +2,13 @@
 // network or server fails, say so plainly and offer the download instead;
 // the student's local work is never touched by a failed submission.
 import { applyClassMode } from '../easy/mode';
+import { missionState } from '../easy/missions';
+
+/** A mission's goals met, for the teacher (milestone 40). */
+function goalsOf(d: Design): { goalsMet?: number; goalsTotal?: number } {
+  const s = missionState(d);
+  return s ? { goalsMet: s.goals.filter((g) => g.ok).length, goalsTotal: s.goals.length } : {};
+}
 import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, deviceId, type ApiError, type ClassInfo } from '../net/api';
@@ -48,6 +55,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         title: title.trim() || design.name || '—',
         project: serializeProject(design),
         preview: sheetPreviewSvg(prepareExport(design).sheets[0]),
+        ...goalsOf(design),
       });
       setState({ kind: 'done' });
     } catch (e) {

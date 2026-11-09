@@ -124,6 +124,8 @@ export type ViewPrefs = {
   mode?: 'quick' | 'workshop';
   /** The class chose the mode and does not let it change (milestone 37). */
   modeLocked?: boolean;
+  /** The missions the class offers (milestone 40); absent: all. */
+  missions?: string[];
 };
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
@@ -158,6 +160,8 @@ type State = {
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
+  /** Show how it goes together (milestone 40): the animation's progress 0–1, or null. */
+  assemble: number | null;
   /** New Cut shapes cut through the whole design. */
   shapeThrough: boolean;
   view: View;
@@ -242,7 +246,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -288,6 +292,7 @@ export const useStore = create<State>()((set, get) => ({
   boxSides: 6,
   boxHeight: 45,
   sticker: 'star',
+  assemble: null,
   shapeThrough: false,
   view: '3d',
   soloPanel: null,

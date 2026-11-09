@@ -130,29 +130,42 @@ export function contentFit(d: Design, c: Content): Fit {
   if (!cell) return { ok: false, cell: null, need: { w: 0, d: 0, h: 0 } };
   const n = c.count ?? 1;
   if (capacity(d, cell, s) >= n) return { ok: true, cell, need: { w: 0, d: 0, h: 0 } };
-  // the room missing for the lot laid out as they would be: in rows along its length, then stacked
+  // the room missing for the lot laid out as they would be: along its length, stacked as high as fits, then in more rows
   const cl = matOf(d, c.baseId).clearance;
   const W = cell.x1 - cell.x0, D = cell.y1 - cell.y0;
   const turn = s.w > s.d ? W < D : W > D;
   const [ow, od] = turn ? [s.d, s.w] : [s.w, s.d];
   const across = Math.max(1, Math.floor((W - 2 * cl) / ow + 1e-9));
-  const rows = Math.max(1, Math.floor((D - 2 * cl) / od + 1e-9));
-  const layers = Math.ceil(n / (across * rows));
-  return {
-    ok: false,
-    cell,
-    need: {
-      w: Math.max(0, Math.round((ow + 2 * cl - W) * 10) / 10),
-      d: Math.max(0, Math.round((od + 2 * cl - D) * 10) / 10),
-      h: Math.max(0, Math.round((layers * s.h + cl - cell.h) * 10) / 10),
-    },
-  };
+  const layers = Math.floor((cell.h - cl) / s.h + 1e-9);
+  const rows = layers > 0 ? Math.ceil(n / (across * layers)) : 1;
+  const r = (v: number) => Math.max(0, Math.round(v * 10) / 10);
+  return { ok: false, cell, need: { w: r(ow + 2 * cl - W), d: r(rows * od + 2 * cl - D), h: layers > 0 ? 0 : r(s.h + cl - cell.h) } };
 }
 
 /** The compartment an object is placed in first: the smallest one it fits, else the largest. */
-export function bestCell(d: Design, baseId: string, o: { w: number; d: number; h: number }, count = 1): Compartment | null {
-  const cells = compartments(d, baseId);
+export function bestCell(d: Design, baseId: string, o: { w: number; d: number; h: number }, count = 1, taken: Compartment[] = []): Compartment | null {
+  const same = (a: Compartment, b: Compartment) => Math.abs(a.x0 - b.x0) < 1e-6 && Math.abs(a.y0 - b.y0) < 1e-6;
+  const all = compartments(d, baseId);
+  // a compartment no other object is in yet, when there is one
+  const free = all.filter((k) => !taken.some((x) => same(x, k)));
+  const cells = free.length ? free : all;
   const area = (k: Compartment) => (k.x1 - k.x0) * (k.y1 - k.y0);
   const fits = cells.filter((k) => capacity(d, k, o) >= count).sort((a, b) => area(a) - area(b));
   return fits[0] ?? [...cells].sort((a, b) => area(b) - area(a))[0] ?? null;
+}
+
+/** The block a placed lot fills, laid out as it would go in its compartment (base-local, mm): its footprint and height. */
+export function bundleSize(d: Design, c: Content): { w: number; d: number; h: number } {
+  const s = sizeOf(c);
+  const n = Math.max(1, c.count ?? 1);
+  const cells = compartments(d, c.baseId);
+  const cell = cells.find((k) => c.x >= k.x0 && c.x <= k.x1 && c.y >= k.y0 && c.y <= k.y1);
+  const W = cell ? cell.x1 - cell.x0 : s.w * n, D = cell ? cell.y1 - cell.y0 : s.d;
+  // long side along the compartment's long side
+  const turn = s.w > s.d ? W < D : W > D;
+  const [ow, od] = turn ? [s.d, s.w] : [s.w, s.d];
+  const across = Math.max(1, Math.min(n, Math.floor(W / ow + 1e-9) || 1));
+  const rows = Math.max(1, Math.min(Math.ceil(n / across), Math.floor(D / od + 1e-9) || 1));
+  const layers = Math.ceil(n / (across * rows));
+  return { w: across * ow, d: rows * od, h: layers * s.h };
 }

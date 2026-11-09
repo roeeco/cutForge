@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
+import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
@@ -52,6 +52,8 @@ import { featureState, shown, useFeature, useMode } from '../easy/features';
 import { boxFootprintGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
 import { keepOutZones } from '../easy/guard';
+import { bundleSize, contentFit, objectById } from '../easy/objects';
+import { assembleFold, assembleLift, playAssembly } from '../easy/assemble';
 import { workshopOnly } from '../easy/mode';
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
@@ -65,7 +67,8 @@ type Drag =
   /** The Panel tool drawing its ghost on a face (milestone 29). */
   | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets }
   /** A placed panel dragged in its host's plane. */
-  | { kind: 'placed-move'; id: string; plane: THREE.Plane; H: Frame; start: P2 };
+  | { kind: 'placed-move'; id: string; plane: THREE.Plane; H: Frame; start: P2 }
+  | { kind: 'content-move'; id: string; plane: THREE.Plane; H: Frame; start: P2; at: P2 };
 
 /** Text tool: place a text shape where the student clicked, select it, back to Select. */
 export function placeText(panelId: string, x: number, y: number) {
@@ -136,8 +139,14 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const [drawRect, setDrawRect] = useState<{ a: V3; b: V3 } | null>(null);
   const [guides, setGuides] = useState<GuideState | null>(null);
   const three = useThree();
-  const display = useMemo(() => foldDisplay(design, foldT), [design, foldT]);
-  const folded = foldT < 0.999;
+  // Show how it goes together (milestone 40): the folds close, then the pieces come in one at a time
+  const assemble = useStore((s) => s.assemble);
+  const display = useMemo(() => {
+    const r = foldDisplay(design, assemble !== null ? assembleFold(assemble) : foldT);
+    if (assemble !== null) for (const [id, m] of assembleLift(design, assemble)) r.xf.set(id, m.multiply(r.xf.get(id) ?? new THREE.Matrix4()));
+    return r;
+  }, [design, foldT, assemble]);
+  const folded = foldT < 0.999 || assemble !== null;
   /** Snap tolerance in mm at a world point: a fixed number of screen pixels at any zoom. */
   const tolAt = (p: V3) => SNAP_PX * mmPerPx(three.camera, three.gl.domElement.clientHeight || 600, new THREE.Vector3(...p));
 
@@ -164,6 +173,15 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         st.set({ panelGhost: { ...cur, b: q } });
         const w = Math.abs(q.x - cur.a.x), h = Math.abs(q.y - cur.a.y);
         setLabel({ text: cur.pose === 'flat' ? `${fmtNum(w)} × ${fmtNum(h)}` : fmtNum(Math.hypot(w, h)), x: ev.clientX, y: ev.clientY });
+      } else if (g.kind === 'content-move') {
+        const p = ray(ev.clientX, ev.clientY, g.plane);
+        if (!p) return;
+        const l = toLocal(g.H, p);
+        const x = Math.round(g.at.x + l.x - g.start.x), y = Math.round(g.at.y + l.y - g.start.y);
+        st.preview((d) => {
+          const c = d.contents?.find((k) => k.id === g.id);
+          if (c) Object.assign(c, { x, y });
+        });
       } else if (g.kind === 'placed-move') {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!p) return;
@@ -445,12 +463,6 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
-    // a world point (milestone 38: the floor, for Box)
-    w.__cutforge.projectWorld = (x: number, y: number, z: number) => {
-      const v = new THREE.Vector3(x, y, z).project(camera);
-      const r = gl.domElement.getBoundingClientRect();
-      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
-    };
     // a point on a panel's face: 1 its material side, −1 its plane (milestone 29)
     w.__cutforge.projectFace = (panelId: string, x: number, y: number, face: 1 | -1 = 1) => {
       const d = useStore.getState().design;
@@ -462,6 +474,18 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     };
     w.__cutforge.projectWorld = (x: number, y: number, z: number) => {
       const v = new THREE.Vector3(x, y, z).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    // Test hook: screen centre of a stage handle by its test id (milestone 40)
+    w.__cutforge.handleAt = (testId: string) => {
+      scene.updateMatrixWorld(true);
+      let at: THREE.Vector3 | null = null;
+      scene.traverse((o) => {
+        if (!at && o.userData?.testId === testId) at = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+      });
+      if (!at) return null;
+      const v = (at as THREE.Vector3).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
@@ -644,6 +668,16 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
       {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
+      {!folded && <ContentsView d={design} xf={display.xf} onDown={(c, e) => {
+        if (tool !== 'select' || e.button !== 0) return;
+        e.stopPropagation();
+        const base = design.panels[c.baseId];
+        const hf = hostFace(design, c.baseId, 1);
+        if (!base || !hf) return;
+        setControls(false);
+        const q = toLocal(hf.H, [e.point.x, e.point.y, e.point.z]);
+        drag.current = { kind: 'content-move', id: c.id, plane: hf.plane, H: hf.H, start: q, at: { x: c.x, y: c.y } };
+      }} />}
       {!folded && quick && <GuardOverlay d={design} panelId={inTxn ? (drawingId ? findDetail(design, drawingId)?.panel.id : sel?.kind === 'detail' ? findDetail(design, sel.id)?.panel.id : undefined) : undefined} xf={display.xf} />}
       {!folded && (fJoints || prefs.joints) && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
@@ -968,6 +1002,44 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
           </span>
         </StageHtml>
       )}
+    </>
+  );
+}
+
+/**
+ * What goes inside (milestone 40): each placed object as a translucent block
+ * resting on its box's floor, green when it fits its compartment, amber with
+ * the room it still needs when it does not. Drag one to move it.
+ */
+function ContentsView({ d, xf, onDown }: { d: Design; xf: Map<string, THREE.Matrix4>; onDown: (c: Content, e: ThreeEvent<PointerEvent>) => void }) {
+  const t = useT();
+  const items = (d.contents ?? []).filter((c) => d.panels[c.baseId]);
+  if (!items.length) return null;
+  return (
+    <>
+      {items.map((c) => {
+        const base = d.panels[c.baseId];
+        const fit = contentFit(d, c);
+        const b = bundleSize(d, c);
+        const z = tOf(d, c.baseId);
+        const m = (xf.get(c.baseId) ?? IDM).clone().multiply(frameMatrix(base.frame));
+        const need = [fit.need.w && t('inside.needW', { n: fmtNum(fit.need.w, 1) }), fit.need.d && t('inside.needD', { n: fmtNum(fit.need.d, 1) }), fit.need.h && t('inside.needH', { n: fmtNum(fit.need.h, 1) })].filter(Boolean).join(', ');
+        return (
+          <group key={c.id} matrixAutoUpdate={false} matrix={m} userData={{ noAO: true, content: c.id, fits: fit.ok }}>
+            <mesh position={[c.x, c.y, z + b.h / 2 + 0.2]} onPointerDown={(e) => onDown(c, e)} renderOrder={4}>
+              <boxGeometry args={[b.w, b.d, b.h]} />
+              <meshStandardMaterial color={fit.ok ? '#3bb273' : '#e0a030'} transparent opacity={0.45} depthWrite={false} />
+              <Edges color={fit.ok ? '#1f7a4a' : '#9a6400'} />
+            </mesh>
+            <StageHtml position={[c.x, c.y, z + b.h + 4]} style={{ pointerEvents: 'none' }}>
+              <span className={`w-dim ghost content-tag ${fit.ok ? 'ok' : 'no'}`} data-testid="content-tag" data-object={c.object} data-ok={fit.ok}>
+                {(c.count ?? 1) > 1 ? `${c.count} × ` : ''}
+                {t(objectById(c.object).key)} {fit.ok ? '✓' : fit.cell ? `· ${need}` : `· ${t('inside.noCell')}`}
+              </span>
+            </StageHtml>
+          </group>
+        );
+      })}
     </>
   );
 }
@@ -2445,6 +2517,9 @@ export function View3D() {
             data-testid="toggle-joints"
           >
             <Icon name="finger" />
+          </button>
+          <button onClick={playAssembly} title={t('assemble.go')} aria-label={t('assemble.go')} data-testid="assemble-go">
+            <Icon name="play" />
           </button>
           <button className={settings ? 'on' : ''} onClick={() => setSettings((s) => !s)} title={t('viewset.title')} aria-label={t('viewset.title')} aria-expanded={settings} data-testid="open-view-settings">
             <Icon name="settings" />

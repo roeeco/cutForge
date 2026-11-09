@@ -152,6 +152,9 @@ async function siteGate(req: Request, env: Env, url: URL): Promise<Response | nu
   return loginPage(safeNext(url.pathname + url.search), false, 401);
 }
 
+/** A mission's goals met and in all, when both are small whole numbers that make sense. */
+const goals = (met: unknown, total: unknown): { goalsMet?: number; goalsTotal?: number } =>
+  Number.isInteger(met) && Number.isInteger(total) && (total as number) > 0 && (total as number) <= 20 && (met as number) >= 0 && (met as number) <= (total as number) ? { goalsMet: met as number, goalsTotal: total as number } : {};
 const clean = (s: unknown, max: number) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, '').trim().slice(0, max) : '');
 
 export default {
@@ -185,7 +188,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const c = await db.select().from(classes).where(eq(classes.code, m[1].toUpperCase())).get();
     if (!c) return err(404, 'noClass');
     if (!c.open) return err(403, 'closed');
-    const b = await body<{ displayName: string; deviceId: string; title: string; project: string; preview: string }>(req, LIMITS.projectBytes + LIMITS.previewBytes + 4096);
+    const b = await body<{ displayName: string; deviceId: string; title: string; project: string; preview: string; goalsMet?: number; goalsTotal?: number }>(req, LIMITS.projectBytes + LIMITS.previewBytes + 4096);
     if (!b) return err(413, 'tooLarge');
     const name = clean(b.displayName, LIMITS.nameChars), device = clean(b.deviceId, 64), title = clean(b.title, LIMITS.titleChars) || '—';
     if (!name || !/^[\w-]{8,64}$/.test(device)) return err(400, 'badRequest');
@@ -219,6 +222,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       materialKind: design.material.kind,
       thickness: Math.round(design.material.thickness * 1000),
       pieceCount: pieceCopies(design).length,
+      // the mission the design was started from, and its goals met as the student's app counted them (milestone 40)
+      ...(design.mission ? { mission: clean(design.mission.id, 40), ...goals(b.goalsMet, b.goalsTotal) } : {}),
       projectKey,
       previewKey,
       createdAt: Date.now(),

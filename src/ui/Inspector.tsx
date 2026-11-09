@@ -24,6 +24,7 @@ import { PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 import { Gate } from '../easy/Gate';
+import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
 
@@ -230,6 +231,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           </Gate>
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
+          <InsideSection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
           <Gate f="joints">

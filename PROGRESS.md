@@ -770,6 +770,23 @@ Verified
 - `tests/e2e/quick.spec.ts`: a circle dragged past a base's edge stops at the zone, the tooltip shows, the badge stays green and the meter shows one sheet; a panel narrowed under its shape in Workshop shows *1 thing to fix* in Quick build, and *Fix* makes it *Ready to cut ✓*.
 - Screenshots: a clamped drag, the badge with its fix, the badge and meter (`docs/quick-shots/`).
 
+## Milestone 40 — Quick build: missions, what goes inside, and the payoff ✅
+
+Implemented (`src/easy/missions.ts`, `src/easy/objects.ts`, `src/easy/InsideUI.tsx`, `src/easy/assemble.ts`, `src/easy/sheet.ts`)
+- **Missions**, a registry like the templates': `{ id, version, title, description, materials, template | start, contents, goals }`. A goal is a check over the design as it is now, with a label, the panel it points to and a group (one star per group whose goals are all met, three at most). Goal kinds: an object fits (the placed object, or any compartment that would hold it), compartment counts, a lid, fits on one sheet (the packer), ready to cut (milestone 39), a name engraved (text other than the placeholder), a sticker, and the card stand's deck and angle (its template parameters).
+- **The first four**: *Pencil box* (holds 12 pencils, 3 compartments, one sheet, ready to cut, your name engraved), *Dice tray* (a hexagon tray made with Box: 6 dice fit, one sheet, ready to cut, a sticker), *Card stand* (the card stand template: your deck fits, one sheet, ready to cut, leans back 45° or less), *Game organiser* (4 compartments, a lid, a deck fits, one sheet, ready to cut). Each starter meets some goals and none completely.
+- **Start screen**: in Quick build, step 2 offers the missions (with their goals) after the templates and *Blank*; a class can limit which (the teacher's *Missions offered*, the `missions` column; a student following the class link gets the list). `Design.mission = { id, version }`; template regeneration keeps the mission and the objects.
+- **Mission card** on the stage: the checklist, checked live (deferred), stars, *Mission complete!*; a goal selects what it is about.
+- **What goes inside**: an object library (pencil, marker, dice, deck of cards, phone, coin, *Your own size*). `compartments()` splits a box's clear inside by its dividers (a rectangle base; another outline gets the largest centred rectangle); `capacity()` counts how many lie flat either way round and stack; `contentFit()` says whether a placed lot fits its compartment (with the material's clearance) or how much wider, deeper or taller it needs to be. The box card's *What goes inside* adds an object to a free compartment it fits (count, custom size, remove); on the stage each lot is a translucent block resting on the floor, green when it fits and amber with what it needs, and can be dragged. Objects are kept with the design (`Design.contents`), ignored by pieces, packing and export, so they survive a reload and a submission.
+- **Show how it goes together** (the view dock's play button): the folds close, then each separate piece comes down into place, one at a time (view only).
+- **Teacher**: the submissions table shows the mission and *N of M goals* (sent by the student's app; the Worker accepts small consistent numbers only, and only when the project names a mission).
+
+Verified
+- `tests/missions.test.ts`: for each mission, the starter is not complete and a reference solution (dividers moved, a name engraved, a bigger tray with a sticker, the stand's thickness and angle, a lift-off lid and a cross divider) meets every goal with the full stars; an object fits a compartment exactly when its footprint plus clearance is inside, half a millimetre less says *0.5 mm wider*, and stacking counts layers.
+- `tests/e2e/quick.spec.ts`: start *Pencil box*, the pencils do not fit; size the compartments on the stage (the dividers' compartment labels) until the pencils' compartment turns green; engrave a name: the checklist is complete with three stars, the badge is green, and it all survives a reload.
+- `tests/e2e/classroom.spec.ts`: a class offering only *Pencil box* (in Quick build): the student from its link sees only that mission, submits, and the teacher sees *Pencil box · 3 of 5 goals*.
+- Screenshots: the start screen with missions, a mission with objects in compartments (green and amber), the assembly animation (`docs/quick-shots/`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

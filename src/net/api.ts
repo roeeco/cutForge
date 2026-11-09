@@ -25,11 +25,11 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 export type ClassMode = 'quick' | 'workshop' | null;
 export type ClassInfo = { name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null };
 export type TeacherClass = { id: string; code: string; name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null; createdAt: number; submissions: number; fresh: number };
-export type Submission = { id: string; classId: string; displayName: string; title: string; materialId: string; materialKind: string; thickness: number; pieceCount: number; status: 'new' | 'cut'; superseded: boolean; createdAt: number; device: string };
+export type Submission = { id: string; classId: string; displayName: string; title: string; materialId: string; materialKind: string; thickness: number; pieceCount: number; status: 'new' | 'cut'; superseded: boolean; createdAt: number; device: string; mission?: string | null; goalsMet?: number | null; goalsTotal?: number | null };
 
 export const api = {
   classInfo: (code: string) => call<ClassInfo>(`/api/class/${encodeURIComponent(code.trim().toUpperCase())}`),
-  submit: (code: string, body: { displayName: string; deviceId: string; title: string; project: string; preview: string }) =>
+  submit: (code: string, body: { displayName: string; deviceId: string; title: string; project: string; preview: string; goalsMet?: number; goalsTotal?: number }) =>
     call<{ id: string }>(`/api/class/${encodeURIComponent(code.trim().toUpperCase())}/submit`, { method: 'POST', body: JSON.stringify(body) }),
   login: (key: string) => call<{ ok: true }>('/api/teacher/login', { method: 'POST', body: JSON.stringify({ key }) }),
   logout: () => call<{ ok: true }>('/api/teacher/logout', { method: 'POST' }),

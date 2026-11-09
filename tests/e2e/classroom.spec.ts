@@ -168,3 +168,40 @@ test('a class that locks Quick build: a student from its link starts there and c
   await expect(st2.getByTestId('mode-workshop')).toBeVisible();
   await ctx2.close();
 });
+
+test('a class offers one mission; the submission shows it and its goals met (milestone 40)', async ({ browser, page }) => {
+  await teacherLogin(page);
+  const cname = `Missions ${Date.now()}`;
+  await page.getByTestId('new-class-name').fill(cname);
+  await page.getByTestId('create-class').click();
+  const code = (await page.locator('.class-list li', { hasText: cname }).getByTestId('class-code').innerText()).trim();
+  await page.getByTestId(`class-${code}`).click();
+  await page.getByTestId('class-mode').selectOption('quick');
+  await page.getByTestId('class-missions-all').click();
+  await expect(page.getByTestId('class-mission-dice-tray')).toBeVisible();
+  for (const m of ['dice-tray', 'card-stand', 'game-organiser']) {
+    await page.getByTestId(`class-mission-${m}`).click();
+    await expect(page.getByTestId(`class-mission-${m}`)).not.toBeChecked();
+  }
+  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.missions, cname)).toEqual(['pencil-box']);
+
+  const ctx = await browser.newContext();
+  const st = await ctx.newPage();
+  await st.goto(`/?class=${code}`);
+  await st.getByTestId('mat-ply-3').click();
+  await expect(st.getByTestId('mission-pencil-box')).toBeVisible();
+  await expect(st.getByTestId('mission-dice-tray')).toHaveCount(0);
+  await st.getByTestId('mission-pencil-box').click();
+  await st.getByTestId('start-go').click();
+  await expect(st.getByTestId('mission-panel')).toBeVisible();
+  await st.getByTestId('open-submit').click();
+  await st.getByTestId('sub-code').fill(code);
+  await st.getByTestId('sub-name').fill('Noa');
+  await st.getByTestId('submit-go').click();
+  await expect(st.getByTestId('submit-done')).toBeVisible();
+  await ctx.close();
+
+  await page.getByTestId('refresh-subs').click();
+  await expect(page.getByTestId('sub-mission')).toContainText('Pencil box');
+  await expect(page.getByTestId('sub-mission')).toContainText('3 of 5 goals');
+});

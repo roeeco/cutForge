@@ -9,6 +9,7 @@ import { MaterialDrawer } from './ui/MaterialDrawer';
 import { ExportDialog } from './ui/ExportDialog';
 import { Hints } from './ui/Hints';
 import { Gate } from './easy/Gate';
+import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
@@ -51,6 +52,7 @@ export function App() {
         <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
         <Toolbar />
         <Inspector />
+        {view === '3d' && <MissionPanel />}
         {!needsMaterial && (
           <Gate f="hints">
             <Hints />

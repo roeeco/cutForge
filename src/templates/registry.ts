@@ -69,6 +69,9 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   d.sheetMargin = old.sheetMargin;
   d.sheetSpacing = old.sheetSpacing;
   d.allowRotate = old.allowRotate;
+  // the mission and what goes inside stay (milestone 40)
+  if (old.mission) d.mission = { ...old.mission };
+  if (old.contents) d.contents = old.contents.filter((c) => d.panels[c.baseId]).map((c) => ({ ...c }));
   const lost: Lost[] = [];
   // keep where root panels were moved to
   for (const id of d.order) {
