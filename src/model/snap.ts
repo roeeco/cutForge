@@ -173,6 +173,7 @@ function finish(bx: Cand | null, by: Cand | null): SnapResult {
 import { isCurveKey, panelEdges, sketchRing } from './edges';
 import { frameNormal, matDir, toLocal, toWorld } from './frame';
 import { panelsCutBy } from './through';
+import { tOf } from './materials';
 
 type F2 = { x: number; z: number };
 export type FloorSnap = { dx: number; dz: number; guides: [F2, F2][] };
@@ -255,7 +256,7 @@ export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineT
   const S = d.panels[panelId];
   const out: OutlineTargets = { corners: [], edges: [], align: [] };
   if (!S) return out;
-  const t = d.material.thickness;
+  const t = tOf(d, panelId);
   const same = (q: P2) => Math.hypot(q.x - moving.x, q.y - moving.y) < 1e-6;
   // own outline: vertices (the start of a curve, not its flattened points), and edges not touching the moving point
   const own = sketchRing(S);
@@ -277,7 +278,7 @@ export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineT
     const P = d.panels[id];
     if (!P || id === panelId) continue;
     for (const e of panelEdges(P))
-      for (const z of [0, t]) {
+      for (const z of [0, tOf(d, id)]) {
         const wa = toWorld(P.frame, e.a.x, e.a.y, z), wb = toWorld(P.frame, e.b.x, e.b.y, z);
         const na = near(wa), nb = near(wb);
         const a = toLocal(S.frame, wa), b = toLocal(S.frame, wb);

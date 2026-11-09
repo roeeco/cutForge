@@ -7,6 +7,7 @@ import { dividerKind } from './jointDefaults';
 import type { Connection, ConnectionKind, Design, DividerSet, Panel } from './types';
 import { findEdge, isRectSketch } from './edges';
 import { edgeLength } from './frame';
+import { tOf } from './materials';
 
 export const MIN_COMPARTMENT = 5;
 
@@ -14,7 +15,7 @@ export const MIN_COMPARTMENT = 5;
 export function clearBox(d: Design, baseId: string): { x0: number; x1: number; y0: number; y1: number } | null {
   const base = d.panels[baseId];
   if (!base || !isRectSketch(base)) return null;
-  const t = d.material.thickness;
+  const t = tOf(d, baseId);
   const inner = (key: string) => {
     // a wall at the edge (not a divider standing in from it)
     const c = Object.values(d.connections).find((x) => x.grown && x.a.panelId === baseId && x.a.edge === key && Math.abs(x.angle - 90) < 1e-6 && x.dir === 'up' && x.offset <= Math.max(t, 6) + 1e-6 && !memberOf(d, x.b.panelId));
@@ -50,7 +51,7 @@ const kindFor = (d: Design): ConnectionKind => dividerKind(d);
 export function setOffsets(d: Design, set: DividerSet): { a: number[]; l: number[] } | null {
   const box = clearBox(d, set.baseId);
   if (!box) return null;
-  const t = d.material.thickness;
+  const t = tOf(d, set.baseId);
   return {
     a: set.across > 0 || set.mode === 'even' ? spacedOffsets(box.x0, box.x1, set.across, t, set.across > 0 ? set.mode : 'even', set.size) : [],
     l: set.along > 0 || set.mode === 'even' ? spacedOffsets(box.y0, box.y1, set.along, t, set.along > 0 ? set.mode : 'even', set.size) : [],

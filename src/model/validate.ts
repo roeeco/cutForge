@@ -10,7 +10,7 @@ import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
 import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry';
 import { bboxOf } from '../geom/vec';
-import { minWeb as materialMinWeb } from './materials';
+import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported, pairKey } from './ops';
 import { panelContacts, TOUCH_EPS } from './contact';
@@ -28,23 +28,25 @@ export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: 
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
 export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget; pair?: [string, string] };
 
-export function minWeb(d: Design): number {
-  return materialMinWeb(d.material);
+export function minWeb(d: Design, panelId?: string): number {
+  return materialMinWeb(panelId ? matOf(d, panelId) : d.material);
 }
 
 export function validate(d: Design): Issue[] {
   const issues: Issue[] = [];
-  const min = minWeb(d);
   const name = (id: string) => d.panels[id]?.name ?? '?';
   for (const id of d.order) {
     const p = d.panels[id];
     if (!p) continue;
+    // each board's own material: its web and its sheet
+    const min = minWeb(d, id);
+    const pm = matOf(d, id);
     const notches = panelNotches(d, p);
     // inner limits: an edge cut back by joint notches loses that depth
     const inset = [0, 1, 2, 3].map((e) => Math.max(0, ...(notches[`e${e}`] ?? []).map((n) => n.depth)));
     const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
-    const fitsW = Math.min(p.w, p.h) <= Math.min(d.material.sheetW, d.material.sheetH) - 2 * d.sheetMargin;
-    const fitsL = Math.max(p.w, p.h) <= Math.max(d.material.sheetW, d.material.sheetH) - 2 * d.sheetMargin;
+    const fitsW = Math.min(p.w, p.h) <= Math.min(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
+    const fitsL = Math.max(p.w, p.h) <= Math.max(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
     if (!fitsW || !fitsL) issues.push({ key: 'val.tooBig', vars: { panel: p.name }, target: { kind: 'panel', id } });
     const thin = (bb: { minX: number; minY: number; maxX: number; maxY: number }) =>
       bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
@@ -144,7 +146,6 @@ function fragmentsAfterThrough(d: Design, id: string): number {
 /** Fold-over rules (foldform's, plus webs, collisions and flute direction). */
 function foldOverIssues(d: Design): Issue[] {
   const out: Issue[] = [];
-  const t = d.material.thickness, c = d.material.clearance;
   const fos = allFoldOvers(d);
   if (!fos.length) return out;
   const pl = pack(d);
@@ -152,6 +153,8 @@ function foldOverIssues(d: Design): Issue[] {
   for (const { panelId, f, g } of fos) {
     const p = d.panels[panelId];
     const target = { kind: 'panel' as const, id: panelId };
+    const fm = matOf(d, panelId);
+    const t = fm.thickness, c = fm.clearance;
     const dims = foldOverDims(d, p, f);
     const vars = { panel: p.name };
     if (p.h <= 2 * t) out.push({ key: 'val.foldShort', vars, target });
@@ -165,7 +168,7 @@ function foldOverIssues(d: Design): Issue[] {
       if (c < 0.75 * t) out.push({ key: 'val.foldClearance', vars: { ...vars, c, min: Math.round(0.75 * t * 100) / 100 }, target });
     }
     // flute direction on 4 mm board: a fold-over score across the flutes cracks
-    if (d.material.kind === 'corrugated' && t >= 3.5 && d.material.grain !== 'none') {
+    if (fm.kind === 'corrugated' && t >= 3.5 && fm.grain !== 'none') {
       const copy = copies.find((x) => x.copy === 0 && x.panels.some((n) => n.panelId === panelId));
       const place = copy && pl[copy.key];
       const n = copy?.panels.find((x) => x.panelId === panelId);
@@ -174,7 +177,7 @@ function foldOverIssues(d: Design): Issue[] {
         const a = applyX(n.xf, e.a), b = applyX(n.xf, e.b);
         let dx = b.x - a.x, dy = b.y - a.y;
         if (place.rot === 90) [dx, dy] = [-dy, dx];
-        const along = d.material.grain === 'x' ? Math.abs(dx) : Math.abs(dy);
+        const along = fm.grain === 'x' ? Math.abs(dx) : Math.abs(dy);
         if (along < 0.7 * Math.hypot(dx, dy)) out.push({ key: 'val.flute', vars, target });
       }
     }
@@ -191,7 +194,7 @@ function foldOverIssues(d: Design): Issue[] {
 /** World corner points of a folded liner slab. */
 function linerBox(d: Design, fo: ReturnType<typeof allFoldOvers>[number]) {
   const p = d.panels[fo.panelId];
-  const t = d.material.thickness;
+  const t = tOf(d, fo.panelId);
   const { e, x0, x1, q0, q1 } = fo.g.liner;
   const dir = segDir(e), inw = segInward(e);
   const pts: V3[] = [];
@@ -271,7 +274,6 @@ function sheetIssues(d: Design): Issue[] {
   const out: Issue[] = [];
   const copies = pieceCopies(d);
   const pl = pack(d, copies);
-  const W = d.material.sheetW, H = d.material.sheetH;
   const placed = copies
     .filter((c) => pl[c.key])
     .map((c) => {
@@ -279,11 +281,12 @@ function sheetIssues(d: Design): Issue[] {
       const outer = c.contours.find((x) => x.role === 'outer');
       const pts = outer ? flattenContour(outer.contour, 0.2).map((q) => applyX(xf, q)) : [];
       const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-      return { c, sheet: pl[c.key].sheet, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
+      const m = profileOf(d, pl[c.key].mat);
+      return { c, sheet: `${pl[c.key].mat ?? ''}#${pl[c.key].sheet}`, W: m.sheetW, H: m.sheetH, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
     });
   const name = (k: string) => d.panels[k]?.name ?? '?';
   for (const a of placed)
-    if (a.bb[0] < -1e-6 || a.bb[1] < -1e-6 || a.bb[2] > W + 1e-6 || a.bb[3] > H + 1e-6)
+    if (a.bb[0] < -1e-6 || a.bb[1] < -1e-6 || a.bb[2] > a.W + 1e-6 || a.bb[3] > a.H + 1e-6)
       out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: a.c.pieceKey } });
   for (let i = 0; i < placed.length; i++)
     for (let j = i + 1; j < placed.length; j++) {

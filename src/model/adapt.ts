@@ -9,6 +9,7 @@ import { findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, sketchR
 import { edgeLength, frameNormal, growFrame, matDir, toLocal, toWorld, type GrowDir, type Seating } from './frame';
 import { pointInPolygon } from '../geom/vec';
 import { cornerFit } from './seams';
+import { profileOf, tOf } from './materials';
 import { v3add, v3dot, v3mul, v3sub } from '../geom/v3';
 
 export type GhostSpec = { height: number; angle: number; dir: GrowDir; kind: ConnectionKind; offset: number; seating: Seating; span?: [number, number] | null; sketch?: WallSketch | null };
@@ -22,10 +23,15 @@ export function spanOf(parent: Panel, edge: EdgeArg, span?: [number, number] | n
 }
 
 /** The frame of a grown panel on part of its parent edge: the full-edge frame moved along the edge by s0. */
-export function spanFrame(parent: Panel, edge: EdgeArg, angle: number, dir: GrowDir, t: number, seating: Seating, offset: number, span?: [number, number] | null) {
-  const f = growFrame(parent, edge, angle, dir, t, seating, offset);
+export function spanFrame(parent: Panel, edge: EdgeArg, angle: number, dir: GrowDir, t: number, seating: Seating, offset: number, span?: [number, number] | null, tc = t) {
+  const f = growFrame(parent, edge, angle, dir, t, seating, offset, tc);
   const [s0] = spanOf(parent, edge, span);
   return s0 ? { ...f, o: v3add(f.o, v3mul(f.u, s0)) } : f;
+}
+
+/** A panel's thickness, also for a ghost (not in the design): its own material's. */
+export function ghostT(d: Design, p: Panel): number {
+  return d.panels[p.id] ? tOf(d, p.id) : profileOf(d, p.material).thickness;
 }
 
 /** The panel a grow would add (not part of the design). */
@@ -33,8 +39,9 @@ export function ghostPanel(d: Design, parentId: string, edge: string, g: GhostSp
   const parent = d.panels[parentId];
   if (!parent || !findEdge(parent, edge)) return null;
   const [s0, s1] = spanOf(parent, edge, g.span);
-  const frame = spanFrame(parent, edge, g.angle, g.dir, d.material.thickness, g.seating, g.offset, g.span);
-  return { id: 'ghost', name: '', w: s1 - s0, h: g.height, sketch: { kind: 'wall', ...(g.sketch ?? {}) }, frame, details: [] };
+  const frame = spanFrame(parent, edge, g.angle, g.dir, tOf(d, parentId), g.seating, g.offset, g.span);
+  // a grown board takes its parent's material
+  return { id: 'ghost', name: '', w: s1 - s0, h: g.height, sketch: { kind: 'wall', ...(g.sketch ?? {}) }, frame, details: [], ...(parent.material ? { material: parent.material } : {}) };
 }
 
 /** Stretches [s0, s1] of a parent edge not taken by panels grown on it at the edge itself. */
@@ -80,7 +87,7 @@ export function spanTargets(d: Design, parentId: string, edge: string): number[]
     out.add(a);
     out.add(b);
   }
-  const t = d.material.thickness;
+  const t = tOf(d, parentId);
   const a3 = toWorld(parent.frame, e.a.x, e.a.y), b3 = toWorld(parent.frame, e.b.x, e.b.y);
   const dir = v3mul(v3sub(b3, a3), 1 / L);
   const up = matDir(parent.frame);
@@ -88,7 +95,7 @@ export function spanTargets(d: Design, parentId: string, edge: string): number[]
     const p = d.panels[id];
     if (!p || id === parentId) continue;
     for (const q of panelEdges(p))
-      for (const z of [0, t]) {
+      for (const z of [0, tOf(d, id)]) {
         const w = toWorld(p.frame, q.a.x, q.a.y, z);
         const r = v3sub(w, a3);
         const s = v3dot(r, dir);
@@ -116,7 +123,7 @@ export function snapTo(v: number, targets: number[], tol: number): number | null
  * opposite wall's outer face for a lid).
  */
 export function heightTargets(d: Design, ghost: Panel, exclude: Set<string>): number[] {
-  const t = d.material.thickness;
+  const t = ghostT(d, ghost);
   const n = frameNormal(ghost.frame), m = matDir(ghost.frame);
   const out = new Set<number>();
   const o = ghost.frame.o;
@@ -124,8 +131,9 @@ export function heightTargets(d: Design, ghost: Panel, exclude: Set<string>): nu
     const p = d.panels[id];
     if (!p || exclude.has(id)) continue;
     // corners lying in the ghost's slab, within its width
+    const tp = tOf(d, id);
     for (const q of panelEdges(p))
-      for (const z of [0, t]) {
+      for (const z of [0, tp]) {
         const w = toWorld(p.frame, q.a.x, q.a.y, z);
         const depth = v3dot(v3sub(w, o), m);
         if (depth < -0.05 || depth > t + 0.05) continue;
@@ -136,7 +144,7 @@ export function heightTargets(d: Design, ghost: Panel, exclude: Set<string>): nu
     const mp = matDir(p.frame);
     const k = v3dot(ghost.frame.v, mp);
     if (Math.abs(k) < 0.5 || Math.abs(v3dot(frameNormal(p.frame), n)) > 0.999) continue;
-    for (const z of [0, t]) {
+    for (const z of [0, tp]) {
       const d0 = v3dot(v3sub(o, p.frame.o), mp) - z;
       const y = -d0 / k;
       if (y <= 1) continue;
@@ -158,7 +166,7 @@ export function heightTargets(d: Design, ghost: Panel, exclude: Set<string>): nu
  * inserts on the top edge), or null when nothing is in the way.
  */
 export function adaptiveSketch(d: Design, ghost: Panel, exclude: Set<string>): WallSketch | null {
-  const t = d.material.thickness;
+  const t = ghostT(d, ghost);
   const w = ghost.w, h = ghost.h;
   const N = 96;
   const xs = Array.from({ length: N + 1 }, (_, i) => (w * i) / N);
@@ -178,7 +186,7 @@ export function adaptiveSketch(d: Design, ghost: Panel, exclude: Set<string>): W
         const base = toWorld(ghost.frame, xs[i], 0, zg);
         const d0 = v3dot(v3sub(base, p.frame.o), mp), dy = v3dot(ghost.frame.v, mp);
         if (Math.abs(dy) < 1e-9) continue;
-        const ya = (0 - d0) / dy, yb = (t - d0) / dy;
+        const ya = (0 - d0) / dy, yb = (tOf(d, id) - d0) / dy;
         const lo = Math.min(ya, yb);
         if (lo <= 0.05 || lo >= top[i]) continue; // starts inside it (or is not reached below the current top)
         const hit = toLocal(p.frame, toWorld(ghost.frame, xs[i], lo + 1e-6, zg));
@@ -254,7 +262,6 @@ export function angleTargets(d: Design, parentId: string, edge: string, h: numbe
   const parent = d.panels[parentId];
   const e = parent && findEdge(parent, edge);
   if (!e) return [];
-  const t = d.material.thickness;
   const L = segLength(e);
   const [s0, s1] = spanOf(parent, edge, span);
   const inl = segInward(e);
@@ -268,7 +275,7 @@ export function angleTargets(d: Design, parentId: string, edge: string, h: numbe
     const p = d.panels[id];
     if (!p || id === parentId) continue;
     for (const q of panelEdges(p))
-      for (const z of [0, t]) {
+      for (const z of [0, tOf(d, id)]) {
         const r = v3sub(toWorld(p.frame, q.a.x, q.a.y, z), a3);
         const s = v3dot(r, U);
         if (s < s0 - 1e-6 || s > s1 + 1e-6) continue;

@@ -20,6 +20,7 @@ import { instancePolys, ownOutline } from './outline';
 import { panelEdges, segLength, type EdgeSeg } from './edges';
 import { pointInPolygon, polygonArea } from '../geom/vec';
 import { v3add, v3dot, v3mul, v3sub } from '../geom/v3';
+import { tOf } from './materials';
 
 export type ThroughHit = {
   /** Regions removed from the panel, panel-local polygons (they may overlap each other). */
@@ -58,7 +59,8 @@ function excluded(d: Design, s: Src, pid: string): boolean {
 
 /** Region one source shape removes from panel P (panel-local), or null when it misses. */
 function regionOn(d: Design, s: Src, P: Panel): { polys: P2[][]; approx: boolean } | null {
-  const t = d.material.thickness;
+  // P's own thickness: the cut passes through its whole slab
+  const t = tOf(d, P.id);
   const n = frameNormal(s.panel.frame);
   const mP = matDir(P.frame);
   const k = v3dot(n, mP);
@@ -165,6 +167,8 @@ export function throughHits(d: Design): Map<string, ThroughHit> {
   if (!srcs.length) return new Map();
   const sig = JSON.stringify([
     d.material.thickness,
+    d.order.map((id) => d.panels[id]?.material ?? ''),
+    d.materials ?? null,
     srcs.map((s) => [s.panel.id, s.id, s.polys, s.panel.frame]),
     d.order.map((id) => {
       const p = d.panels[id];

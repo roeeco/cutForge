@@ -1,6 +1,6 @@
 // Pieces: one connected flat outline to cut. Panels joined by folds form one
 // flat net (unfolded about their fold lines); everything else is separate.
-import { type MultiPolygon, type Polygon } from 'polygon-clipping';
+import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
 import type { Design, P2, Panel } from './types';
 import type { EdgeArg } from './edges';
@@ -10,6 +10,7 @@ import { holeCuts, ownOutline } from './outline';
 import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
+import { matIdOf, matOf } from './materials';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -52,7 +53,7 @@ export function netGroups(d: Design): NetPanel[][] {
       const { panelId, xf } = group[i];
       for (const c of folds) {
         if (c.a.panelId !== panelId || inNet.has(c.b.panelId)) continue;
-        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, d.material.foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0)) });
+        group.push({ panelId: c.b.panelId, xf: composeX(xf, foldXform(d.panels[panelId], c.a.edge, matOf(d, panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0)) });
         inNet.add(c.b.panelId);
       }
     }
@@ -129,7 +130,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
         [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
       }
       const i = edgeInwardLocal(parent, c.a.edge);
-      const al = d.material.foldAllowance;
+      const al = matOf(d, parent.id).foldAllowance;
       const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });
       // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
       const sloped = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9;
@@ -180,6 +181,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
   }
 }
 
+/** The material id a piece is cut from (its root board's; a fold net is one material). */
+export function pieceMat(d: Design, pieceKey: string): string {
+  return matIdOf(d, pieceRoot(pieceKey));
+}
+
 /** The piece a panel is cut as part of (the root of its folded net). */
 export function pieceKeyOf(d: Design, panelId: string): string {
   let id = panelId;
@@ -189,4 +195,64 @@ export function pieceKeyOf(d: Design, panelId: string): string {
     id = c.a.panelId;
   }
   return id;
+}
+
+/** Two panels of one fold net that overlap when the net lies flat (milestone 35). */
+export type NetOverlap = { a: string; b: string; area: number; region: P2[][]; net: string };
+
+/** A panel as it lies in its flat net: its outline (joints applied) and what it adds (flaps, fold-over rim and liner), in net coordinates. */
+export function flatPanel(d: Design, panelId: string, xf: Xform2): MultiPolygon {
+  const p = d.panels[panelId];
+  if (!p) return [];
+  const notches = panelNotches(d, p);
+  const polys: Polygon[] = ownOutline(p).rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon);
+  for (const a of panelExtras(d, p).adds) polys.push([toRing(a)]);
+  const local = safeUnion(polys);
+  return local.map((poly) => poly.map((r) => r.map(([x, y]) => {
+    const q = applyX(xf, { x, y });
+    return [q.x, q.y] as [number, number];
+  })));
+}
+
+const ringArea = (r: [number, number][]) => {
+  let s = 0;
+  for (let i = 0; i < r.length; i++) {
+    const [x0, y0] = r[i], [x1, y1] = r[(i + 1) % r.length];
+    s += x0 * y1 - x1 * y0;
+  }
+  return Math.abs(s) / 2;
+};
+const multiArea = (m: MultiPolygon) => m.reduce((s, poly) => s + poly.reduce((t, r, i) => t + (i ? -1 : 1) * ringArea(r), 0), 0);
+const mbox = (m: MultiPolygon) => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const poly of m) for (const [x, y] of poly[0] ?? []) (x0 = Math.min(x0, x)), (y0 = Math.min(y0, y)), (x1 = Math.max(x1, x)), (y1 = Math.max(y1, y));
+  return { x0, y0, x1, y1 };
+};
+
+/**
+ * Panels of a fold net that overlap when it lies flat (milestone 35): each
+ * panel flattened with its additions, intersected pair by pair. Overlaps of
+ * at least `min` mm² are returned with their area and region (net coordinates).
+ */
+export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => boolean): NetOverlap[] {
+  const out: NetOverlap[] = [];
+  for (const g of netGroups(d)) {
+    if (g.length < 2 || (only && !only(g))) continue;
+    const flats = g.map((n) => ({ id: n.panelId, m: flatPanel(d, n.panelId, n.xf) })).filter((f) => f.m.length);
+    const boxes = flats.map((f) => mbox(f.m));
+    for (let i = 0; i < flats.length; i++)
+      for (let j = i + 1; j < flats.length; j++) {
+        const A = boxes[i], B = boxes[j];
+        if (A.x0 > B.x1 || B.x0 > A.x1 || A.y0 > B.y1 || B.y0 > A.y1) continue;
+        let r: MultiPolygon = [];
+        try {
+          r = polygonClipping.intersection(flats[i].m, flats[j].m);
+        } catch {
+          continue;
+        }
+        const area = multiArea(r);
+        if (area >= min) out.push({ a: flats[i].id, b: flats[j].id, area, region: r.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y }))), net: g[0].panelId });
+      }
+  }
+  return out;
 }

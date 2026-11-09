@@ -104,6 +104,11 @@ export type Panel = {
    * its parent edge, to close an inside corner of a tray.
    */
   ext?: { s: number; e: number };
+  /**
+   * The board's own material (a profile id: one of `Design.materials`, or a
+   * built-in one). Absent: the working material (`Design.material`).
+   */
+  material?: string;
 };
 
 /**
@@ -229,7 +234,8 @@ export type ConnGeom = {
   cuts?: { panelId: string; poly: P2[] }[];
 };
 
-export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean };
+/** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
+export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean; mat?: string };
 
 export type PieceSettings = { quantity: number };
 
@@ -237,7 +243,10 @@ export type Design = {
   schemaVersion: number;
   id: string;
   name: string;
+  /** The working material: boards without their own material use it. */
   material: MaterialProfile;
+  /** Other materials boards use (`Panel.material`), by profile id; absent when every board uses the working material. */
+  materials?: Record<string, MaterialProfile>;
   panels: Record<string, Panel>;
   /** Display/creation order of panels. */
   order: string[];
@@ -308,4 +317,4 @@ export type Tray = {
   tabLen?: 'flush' | 'through';
 };
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;

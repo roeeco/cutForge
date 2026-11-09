@@ -6,6 +6,7 @@ import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
+import { matOf } from '../model/materials';
 import { rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
@@ -17,6 +18,7 @@ import { edgeLabel, isAutoName, panelLabel } from '../model/names';
 import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
+import { BoardMaterial } from './BoardMaterial';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 
@@ -142,7 +144,7 @@ export function Inspector() {
             onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
-          <p className="note">{t('insp.thickness', { t: fmtNum(d.material.thickness, 2) })}</p>
+          <BoardMaterial ids={[id]} />
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <SheetPlacementControls panelId={id} />
@@ -246,7 +248,7 @@ function SheetPlacementControls({ panelId }: { panelId: string }) {
   const key = useStore((s) => s.sheetCopy);
   const d = useStore((s) => s.design);
   if (view !== '2d' || !key || !key.startsWith(pieceKeyOf(d, panelId) + '#')) return null;
-  const blocked = d.material.grain !== 'none' && !d.allowRotate;
+  const blocked = matOf(d, panelId).grain !== 'none' && !d.allowRotate;
   return (
     <div className="subsection">
       {d.placements[key]?.manual && <p className="note">{t('pack.manual')}</p>}

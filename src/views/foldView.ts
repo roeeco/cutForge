@@ -4,11 +4,11 @@
 import * as THREE from 'three';
 import type { Design, Flap3d } from '../model/types';
 import { frameNormal, matDir, toWorld } from '../model/frame';
+import { tOf } from '../model/materials';
 
 export type Bend = { id: string; panelId: string; pivot: THREE.Vector3; axis: THREE.Vector3; length: number; radius: number; crease: THREE.Vector3; mountain: boolean };
 
 export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.Matrix4>; bends: Bend[] } {
-  const t = d.material.thickness;
   // the 3D pose has no allowance gap (that is only in the flat net), so the hinge sits at the corner
   const g = 0;
   const xf = new Map<string, THREE.Matrix4>();
@@ -25,6 +25,7 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
       const parentM = visit(c.a.panelId);
       m = parentM.clone();
       if (c.kind === 'fold') {
+        const t = tOf(d, id);
         // hinge: a line along the child's bottom edge, half a (thickness +
         // allowance) below it and half a (thickness − allowance) into the
         // material: unfolding about it lays the child flat beside its parent.

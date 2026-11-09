@@ -10,6 +10,7 @@ import { panelRings } from './outline';
 import { removedByCut, throughRegions } from './through';
 import { pointInPolygon, segDistPoint } from '../geom/vec';
 import { v3dot, v3len, v3sub } from '../geom/v3';
+import { tOf } from './materials';
 
 /** Samples within this distance of the other slab count as touching (mm). */
 export const TOUCH_EPS = 0.05;
@@ -29,10 +30,10 @@ export type Contact = {
   coplanar: boolean;
 };
 
-type Slab = { p: Panel; rings: P2[][]; cuts: P2[][]; min: V3; max: V3 };
+type Slab = { p: Panel; t: number; rings: P2[][]; cuts: P2[][]; min: V3; max: V3 };
 
 function slab(d: Design, p: Panel): Slab {
-  const t = d.material.thickness;
+  const t = tOf(d, p.id);
   const rings = panelRings(p).map((r) => r.map((e) => e.a));
   const min: V3 = [Infinity, Infinity, Infinity], max: V3 = [-Infinity, -Infinity, -Infinity];
   for (const r of rings)
@@ -44,11 +45,12 @@ function slab(d: Design, p: Panel): Slab {
           max[k] = Math.max(max[k], w[k]);
         }
       }
-  return { p, rings, cuts: throughRegions(d, p.id), min, max };
+  return { p, t, rings, cuts: throughRegions(d, p.id), min, max };
 }
 
 /** Signed distance from a world point to a slab (negative inside: the depth inside). */
-function dist(s: Slab, t: number, P: V3): number {
+function dist(s: Slab, P: V3): number {
+  const t = s.t;
   const l = toLocal(s.p.frame, P);
   const z = v3dot(v3sub(P, s.p.frame.o), matDir(s.p.frame));
   let inside = false, edge = Infinity;
@@ -63,7 +65,7 @@ function dist(s: Slab, t: number, P: V3): number {
   return Math.hypot(Math.max(0, dp), Math.max(0, dz));
 }
 
-function contactOf(t: number, A: Slab, B: Slab): Contact | null {
+function contactOf(A: Slab, B: Slab): Contact | null {
   const lo = [0, 1, 2].map((k) => Math.max(A.min[k], B.min[k]) - TOUCH_EPS - 0.01);
   const hi = [0, 1, 2].map((k) => Math.min(A.max[k], B.max[k]) + TOUCH_EPS + 0.01);
   if (lo[0] > hi[0] || lo[1] > hi[1] || lo[2] > hi[2]) return null;
@@ -80,10 +82,10 @@ function contactOf(t: number, A: Slab, B: Slab): Contact | null {
         const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 1.5));
         for (let k = 0; k <= n; k++) {
           const x = a.x + ((b.x - a.x) * k) / n, y = a.y + ((b.y - a.y) * k) / n;
-          for (const z of [0, t / 2, t]) {
+          for (const z of [0, X.t / 2, X.t]) {
             const w = toWorld(X.p.frame, x, y, z);
             if (!inBox(w)) continue;
-            const sd = dist(Y, t, w);
+            const sd = dist(Y, w);
             if (sd <= TOUCH_EPS) {
               hits.push(w);
               depth = Math.max(depth, -sd);
@@ -106,10 +108,10 @@ function contactOf(t: number, A: Slab, B: Slab): Contact | null {
         let inside = false;
         for (const r of X.rings) if (pointInPolygon({ x, y }, r)) inside = !inside;
         if (!inside) continue;
-        for (const z of [0, t]) {
+        for (const z of [0, X.t]) {
           const w = toWorld(X.p.frame, x, y, z);
           if (!inBox(w)) continue;
-          const sd = dist(Y, t, w);
+          const sd = dist(Y, w);
           if (sd <= TOUCH_EPS) {
             hits.push(w);
             depth = Math.max(depth, -sd);
@@ -126,14 +128,14 @@ function contactOf(t: number, A: Slab, B: Slab): Contact | null {
   const c = Math.min(1, Math.abs(v3dot(frameNormal(A.p.frame), frameNormal(B.p.frame))));
   const angle = (Math.acos(c) * 180) / Math.PI;
   const parallel = c > 0.9998;
-  const coplanar = parallel && isSideBySide(t, A, B);
+  const coplanar = parallel && isSideBySide(A, B);
   return { a: A.p.id, b: B.p.id, depth, extent, angle, coplanar };
 }
 
 /** Parallel slabs whose thickness ranges overlap (one plane), rather than stacked face to face. */
-function isSideBySide(t: number, A: Slab, B: Slab): boolean {
+function isSideBySide(A: Slab, B: Slab): boolean {
   const n = frameNormal(A.p.frame);
-  const za = [0, t].map((z) => v3dot(toWorld(A.p.frame, 0, 0, z), n)), zb = [0, t].map((z) => v3dot(toWorld(B.p.frame, 0, 0, z), n));
+  const za = [0, A.t].map((z) => v3dot(toWorld(A.p.frame, 0, 0, z), n)), zb = [0, B.t].map((z) => v3dot(toWorld(B.p.frame, 0, 0, z), n));
   const lo = Math.max(Math.min(...za), Math.min(...zb)), hi = Math.min(Math.max(...za), Math.max(...zb));
   return hi - lo > TOUCH_EPS;
 }
@@ -155,18 +157,17 @@ export function panelContacts(d: Design, all = false): Contact[] {
     d.material.thickness,
     ids.map((id) => {
       const p = d.panels[id];
-      return [id, p.frame, p.w, p.h, p.sketch, p.ext, p.details.filter((x) => x.op === 'add' || x.op === 'cut').map((x) => [x.id, x.op, x.shape, x.cx, x.cy, x.w, x.h, x.r, x.path, x.array, x.through])];
+      return [id, tOf(d, id), p.frame, p.w, p.h, p.sketch, p.ext, p.details.filter((x) => x.op === 'add' || x.op === 'cut').map((x) => [x.id, x.op, x.shape, x.cx, x.cy, x.w, x.h, x.r, x.path, x.array, x.through])];
     }),
   ]);
   const hit = cache.get(sig);
   if (hit) return hit;
-  const t = d.material.thickness;
   const slabs = ids.filter((id) => !removedByCut(d, id)).map((id) => slab(d, d.panels[id]));
   const out: Contact[] = [];
   for (let i = 0; i < slabs.length; i++)
     for (let j = i + 1; j < slabs.length; j++) {
       if (joined.has(pair(slabs[i].p.id, slabs[j].p.id))) continue;
-      const c = contactOf(t, slabs[i], slabs[j]);
+      const c = contactOf(slabs[i], slabs[j]);
       if (c) out.push(c);
     }
   if (cache.size > 50) cache.clear();

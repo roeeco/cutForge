@@ -6,6 +6,12 @@ import { sheetsToDxf } from '../export/dxf';
 import { validate } from '../model/validate';
 import { downloadText, safeName } from './download';
 import { fmtNum } from '../i18n';
+import type { Prepared } from '../export/prepare';
+
+/** The files an export writes: one per material, named by the material (and its kerf). */
+export function exportFiles(name: string, p: Prepared, mode: KerfMode): { base: string; mat: string; sheets: Prepared['sheets'] }[] {
+  return p.materials.map((m) => ({ base: `${safeName(name)}-${m.mat}-${mode}-kerf${fmtNum(m.profile.kerf, 2)}mm`, mat: m.mat, sheets: m.sheets }));
+}
 
 export function ExportDialog() {
   const t = useT();
@@ -17,15 +23,19 @@ export function ExportDialog() {
   const prepared = useMemo(() => prepareExport(d, mode), [d, mode]);
   const issues = useMemo(() => validate(d), [d]);
   const pieces = Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);
-  const base = `${safeName(d.name)}-${d.material.id}-${mode}-kerf${fmtNum(d.material.kerf, 2)}mm`;
   const blocked = prepared.errors.length > 0;
+  // one file per material (milestone 36), each with its own kerf; one material keeps the old names
+  const files = exportFiles(d.name, prepared, mode);
   const go = () => {
-    const sheets = prepared.sheets;
-    if (format === 'dxf') {
-      if (split && sheets.length > 1) sheets.forEach((s, i) => downloadText(`${base}-sheet${i + 1}.dxf`, sheetsToDxf([s]), 'application/dxf'));
-      else downloadText(`${base}.dxf`, sheetsToDxf(sheets), 'application/dxf');
-    } else if (split && sheets.length > 1) sheets.forEach((s, i) => downloadText(`${base}-sheet${i + 1}.svg`, sheetToSvg(s), 'image/svg+xml'));
-    else downloadText(`${base}.svg`, sheets.length === 1 ? sheetToSvg(sheets[0]) : sheetsToSvg(sheets), 'image/svg+xml');
+    for (const f of files) {
+      const sheets = f.sheets;
+      const base = f.base;
+      if (format === 'dxf') {
+        if (split && sheets.length > 1) sheets.forEach((s, i) => downloadText(`${base}-sheet${i + 1}.dxf`, sheetsToDxf([s]), 'application/dxf'));
+        else downloadText(`${base}.dxf`, sheetsToDxf(sheets), 'application/dxf');
+      } else if (split && sheets.length > 1) sheets.forEach((s, i) => downloadText(`${base}-sheet${i + 1}.svg`, sheetToSvg(s), 'image/svg+xml'));
+      else downloadText(`${base}.svg`, sheets.length === 1 ? sheetToSvg(sheets[0]) : sheetsToSvg(sheets), 'image/svg+xml');
+    }
     close();
   };
   return (
@@ -33,6 +43,11 @@ export function ExportDialog() {
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="exp-title" onClick={(e) => e.stopPropagation()} data-testid="export-dialog">
         <h2 id="exp-title">{t('export.title')}</h2>
         <p className="note">{t('export.sheets', { n: prepared.sheets.length, p: pieces })}</p>
+        {files.length > 1 && (
+          <p className="note" data-testid="export-per-material">
+            {t('export.perMaterial', { list: files.map((f) => `${f.base}.${format}`).join(', ') })}
+          </p>
+        )}
         <fieldset>
           <legend>{t('export.format')}</legend>
           <label>

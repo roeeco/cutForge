@@ -8,10 +8,11 @@ import type { Design, P2, Panel } from '../model/types';
 import type { FoldOverGeom } from '../model/foldover';
 import { segDir, segInward, segLength } from '../model/edges';
 import { flapGeometry, frameMatrix } from './three-geom';
-import { partColors } from './palette';
+import { boardColors } from './palette';
+import { tOf } from '../model/materials';
 
 export function FoldOverObject({ d, p, g, m, foldT, index }: { d: Design; p: Panel; g: FoldOverGeom; m: THREE.Matrix4; foldT: number; index: number }) {
-  const t = d.material.thickness;
+  const t = tOf(d, p.id);
   const { e, x0, x1, q0, q1 } = g.liner;
   const dir = segDir(e), inw = segInward(e);
   const at = (s: number, q: number): P2 => ({ x: e.a.x + dir.x * s + inw.x * q, y: e.a.y + dir.y * s + inw.y * q });
@@ -21,7 +22,7 @@ export function FoldOverObject({ d, p, g, m, foldT, index }: { d: Design; p: Pan
     return { liner, tabs };
   }, [p, g, t]);
   useEffect(() => () => (parts.liner.dispose(), parts.tabs.forEach((x) => x.dispose())), [parts]);
-  const color = useMemo(() => partColors(d.material.kind, index, -0.02), [d.material.kind, index]);
+  const color = useMemo(() => boardColors(d, p.id, index, -0.02), [d.material, d.materials, p.material, index]);
   const mats = useMemo(() => [new THREE.MeshStandardMaterial({ color: color.face, roughness: 0.88 }), new THREE.MeshStandardMaterial({ color: color.edge, roughness: 0.92 })], [color]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
   // frame-matrix coordinates: z along the plane normal, the material at side·z

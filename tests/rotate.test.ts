@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addDetail, addRootPanel, autoConnect, createDesign, growPanel, panelYaw, rotateDetails, rotatePanel, setPanelYaw, updateDetail } from '../src/model/ops';
+import { SCHEMA_VERSION } from '../src/model/types';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport } from '../src/export/prepare';
@@ -140,7 +141,7 @@ describe('turned shapes', () => {
     updateDetail(d, r, { rot: 15 });
     const svg = sheetsToSvg(prepareExport(d).sheets);
     const back = parseProject(serializeProject(d));
-    expect(back.schemaVersion).toBe(7);
+    expect(back.schemaVersion).toBe(SCHEMA_VERSION);
     expect(back.panels[p].details.find((x) => x.id === r)!.rot).toBe(15);
     expect(sheetsToSvg(prepareExport(back).sheets)).toBe(svg);
   });

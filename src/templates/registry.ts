@@ -85,6 +85,8 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
       if (n) {
         n.details = JSON.parse(JSON.stringify(o.details));
         n.name = o.name;
+        // a board's own material stays (its sizes are worked out in the working material)
+        if (o.material && o.material !== material.id) n.material = o.material;
       } else if (o.details.length) lost.push({ panel: o.name, shapes: o.details.length });
     } else {
       // a panel the student added: keep it (and its connections below)
@@ -96,6 +98,9 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
     const user = !c.a.panelId.startsWith(PREFIX) || !c.b.panelId.startsWith(PREFIX);
     if (user && d.panels[c.a.panelId] && d.panels[c.b.panelId]) d.connections[c.id] = JSON.parse(JSON.stringify(c));
   }
+  if (old.materials) d.materials = JSON.parse(JSON.stringify(old.materials));
+  // boards naming the old working material keep it
+  if (old.material.id !== material.id && Object.values(d.panels).some((p) => p.material === old.material.id)) d.materials = { ...(d.materials ?? {}), [old.material.id]: { ...old.material } };
   for (const id of d.order) if (old.pieces[id]) d.pieces[id] = { ...old.pieces[id] };
   for (const [k, p] of Object.entries(old.placements)) if (p.manual && d.panels[k.split('#')[0]]) d.placements[k] = { ...p };
   // the design-wide joint choices (every material's) are kept, and the new material's apply to the regenerated joints

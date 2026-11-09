@@ -3,7 +3,7 @@
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, useStore, useT } from '../store/store';
-import { pack, pieceCopies, placementXform, sheetCount, type PieceCopy } from '../model/pack';
+import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
 import { panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
@@ -15,19 +15,21 @@ import { detailBBox, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { LAYERS } from '../export/layers';
 import { fmtNum } from '../i18n';
-import type { Design, Detail, SheetPlacement } from '../model/types';
+import type { Design, Detail, MaterialProfile, SheetPlacement } from '../model/types';
 import { validate } from '../model/validate';
 import { placeText } from './View3D';
-import { MATERIAL_COLORS, partTintCss } from './palette';
+import { MATERIAL_COLORS, boardTintCss } from './palette';
 import { panelLabel } from '../model/names';
-import { MATERIALS } from '../model/materials';
+import { materialName } from '../ui/materialName';
 import { snapAngle } from './widgets';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
 const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 
-type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number };
+type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number; H: number };
+/** One sheet drawn in the cut plan: its material, its number within that material, where it sits and its size. */
+type Slot = { mat: string; profile: MaterialProfile; i: number; n: number; ox: number; W: number; H: number };
 type VB = { x: number; y: number; w: number; h: number };
 type Box = { minX: number; maxX: number; minY: number; maxY: number };
 
@@ -53,26 +55,35 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const textDir = useStore((s) => (s.lang === 'he' ? 'rtl' : 'ltr'));
   const svgRef = useRef<SVGSVGElement>(null);
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
-  const W = solo ? solo.w : d.material.sheetW;
-  const H = solo ? solo.h : d.material.sheetH;
   const modeKey = solo ? `solo:${solo.id}` : 'sheets';
 
   const layout = useMemo(() => {
     if (solo) {
       const piece = panelPiece(d, solo.id);
-      const copy: PieceCopy = { key: `${solo.id}#solo`, pieceKey: solo.id, copy: 0, contours: piece.contours, w: solo.w, h: solo.h, origin: { x: 0, y: 0 }, panels: piece.panels };
-      return { placed: [{ copy, sheet: 0, xf: IDENTITY, ox: 0 }] as Placed[], sheets: 0, placements: {} as Record<string, SheetPlacement> };
+      const copy: PieceCopy = { key: `${solo.id}#solo`, pieceKey: solo.id, copy: 0, contours: piece.contours, w: solo.w, h: solo.h, origin: { x: 0, y: 0 }, panels: piece.panels, mat: d.material.id };
+      return { placed: [{ copy, sheet: 0, xf: IDENTITY, ox: 0, H: solo.h }] as Placed[], slots: [] as Slot[], placements: {} as Record<string, SheetPlacement>, mixed: false };
     }
     const copies = pieceCopies(d);
     const placements = pack(d, copies);
+    // each material's sheets in a row, one material after another (milestone 36)
+    const groups = sheetGroups(d, placements);
+    const slots: Slot[] = [];
+    let x = 0;
+    for (const g of groups)
+      for (let i = 0; i < g.sheets; i++) {
+        slots.push({ mat: g.mat, profile: g.profile, i, n: g.sheets, ox: x, W: g.profile.sheetW, H: g.profile.sheetH });
+        x += g.profile.sheetW + GAP;
+      }
+    const slotOf = (pl: SheetPlacement) => slots.find((k) => k.mat === (pl.mat ?? d.material.id) && k.i === pl.sheet) ?? slots[0];
     const placed: Placed[] = copies
       .filter((c) => placements[c.key])
       .map((c) => {
         const pl = placements[c.key];
-        return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h), ox: pl.sheet * (W + GAP) };
+        const k = slotOf(pl);
+        return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h), ox: k.ox, H: k.H };
       });
-    return { placed, sheets: sheetCount(placements), placements };
-  }, [d, W, solo]);
+    return { placed, slots, placements, mixed: groups.length > 1 };
+  }, [d, solo]);
   // pieces flagged by validation (overlapping or off the sheet) are drawn in red
   const badPieces = useMemo(() => {
     if (solo) return new Set<string>();
@@ -84,7 +95,9 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       const m = Math.max(solo.w, solo.h) * 0.12 + 10;
       return { x: -m, y: -m, w: solo.w + 2 * m, h: solo.h + 2 * m };
     }
-    const totalW = layout.sheets * W + (layout.sheets - 1) * GAP;
+    const last = layout.slots[layout.slots.length - 1];
+    const totalW = last ? last.ox + last.W : d.material.sheetW;
+    const H = Math.max(1, ...layout.slots.map((k) => k.H));
     // frame the sheets in the area the floating rail and card leave free
     // (rail at the inline start, card at the inline end)
     const el = svgRef.current;
@@ -129,7 +142,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     return Math.max(vb.w / svg.clientWidth, vb.h / svg.clientHeight);
   };
   const toPiece = (pl: Placed, p: Vec2): Vec2 => {
-    const q = invertPoint(pl.xf, { x: p.x - pl.ox, y: H - p.y });
+    const q = invertPoint(pl.xf, { x: p.x - pl.ox, y: pl.H - p.y });
     return { x: q.x + pl.copy.origin.x, y: q.y + pl.copy.origin.y };
   };
   const netXf = (pl: Placed, panelId: string) => pl.copy.panels.find((n) => n.panelId === panelId)?.xf ?? IDENTITY;
@@ -137,7 +150,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const toSvg = (pl: Placed, panelId: string, p: Vec2): Vec2 => {
     const n = applyX(netXf(pl, panelId), p);
     const q = applyX(pl.xf, { x: n.x - pl.copy.origin.x, y: n.y - pl.copy.origin.y });
-    return { x: q.x + pl.ox, y: H - q.y };
+    return { x: q.x + pl.ox, y: pl.H - q.y };
   };
   const panelAt = (pl: Placed, p: Vec2): string => {
     const q = toPiece(pl, p);
@@ -170,10 +183,14 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const dxs = cur.x - g.startSvg.x, dys = cur.y - g.startSvg.y;
         if (!g.moved && Math.hypot(dxs, dys) < 3 * mmPerPx()) return;
         g.moved = true;
-        const sheet = Math.max(0, Math.min(layout.sheets, Math.floor((cur.x + GAP / 2) / (W + GAP))));
-        const x = Math.round((g.start.x + dxs - (sheet - g.start.sheet) * (W + GAP)) * 2) / 2;
+        // a piece stays on its own material's sheets (or one more of them)
+        const mine = layout.slots.filter((k) => k.mat === (g.start.mat ?? st.design.material.id));
+        const first = mine[0] ?? layout.slots[0];
+        const step = first.W + GAP;
+        const sheet = Math.max(0, Math.min(mine.length, Math.floor((cur.x - first.ox + GAP / 2) / step)));
+        const x = Math.round((g.start.x + dxs - (sheet - g.start.sheet) * step) * 2) / 2;
         const y = Math.round((g.start.y - dys) * 2) / 2;
-        st.preview((dd) => void (dd.placements[g.key] = { sheet, x, y, rot: g.start.rot, manual: true }));
+        st.preview((dd) => void (dd.placements[g.key] = { sheet, x, y, rot: g.start.rot, manual: true, ...(g.start.mat ? { mat: g.start.mat } : {}) }));
         return;
       }
       if (g.kind === 'rotate') {
@@ -409,8 +426,6 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
-  const builtIn = MATERIALS.find((m) => m.id === d.material.id);
-  const matName = builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness });
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -446,26 +461,38 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         className={shapeTool ? 'drawing' : ''}
       >
         <defs>
-          <pattern id="flutes" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform={d.material.grain === 'x' ? 'rotate(90)' : undefined}>
+          <pattern id="flutes" width="4" height="4" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="4" stroke="#7a5a30" strokeOpacity="0.07" strokeWidth="0.6" />
+          </pattern>
+          <pattern id="flutes-x" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(90)">
             <line x1="0" y1="0" x2="0" y2="4" stroke="#7a5a30" strokeOpacity="0.07" strokeWidth="0.6" />
           </pattern>
         </defs>
         {!solo &&
-          Array.from({ length: layout.sheets }, (_, i) => {
+          layout.slots.map((k) => {
             const fs = Math.max(8, px * 12);
-            const chip = `${t('view.sheet', { n: i + 1 })} · ${matName} · ${W} × ${H} ${t('unit.mm')}`;
+            const { W, H, profile: pm } = k;
+            const name = materialName(t, pm);
+            const chip = `${t('view.sheet', { n: k.i + 1 })} · ${name} · ${W} × ${H} ${t('unit.mm')}`;
+            // with more than one material, a heading over each material's sheets
+            const heading = layout.mixed && k.i === 0 ? (k.n > 1 ? t('plan.matHeadingN', { name, a: 1, b: k.n }) : t('plan.matHeading', { name, a: 1 })) : null;
             return (
-              <g key={i}>
-                <rect x={i * (W + GAP)} y={0} width={W} height={H} rx={2} className="sheet" fill={MATERIAL_COLORS[d.material.kind].sheet} />
-                {d.material.kind === 'corrugated' && <rect x={i * (W + GAP)} y={0} width={W} height={H} fill="url(#flutes)" pointerEvents="none" />}
-                <rect x={i * (W + GAP) + d.sheetMargin} y={d.sheetMargin} width={W - 2 * d.sheetMargin} height={H - 2 * d.sheetMargin} className="sheet-margin" strokeWidth={px} />
-                <g className="sheet-chip" transform={`translate(${i * (W + GAP)}, ${-fs * 2.1})`}>
+              <g key={`${k.mat}#${k.i}`} data-sheet={`${k.mat}#${k.i}`}>
+                <rect x={k.ox} y={0} width={W} height={H} rx={2} className="sheet" fill={MATERIAL_COLORS[pm.kind].sheet} />
+                {pm.kind === 'corrugated' && <rect x={k.ox} y={0} width={W} height={H} fill={pm.grain === 'x' ? 'url(#flutes-x)' : 'url(#flutes)'} pointerEvents="none" />}
+                <rect x={k.ox + d.sheetMargin} y={d.sheetMargin} width={W - 2 * d.sheetMargin} height={H - 2 * d.sheetMargin} className="sheet-margin" strokeWidth={px} />
+                <g className="sheet-chip" transform={`translate(${k.ox}, ${-fs * 2.1})`}>
                   <rect x={0} y={0} width={chip.length * fs * 0.52 + fs * 1.6} height={fs * 1.7} rx={fs * 0.85} strokeWidth={px} />
-                  <circle cx={fs * 0.85} cy={fs * 0.85} r={fs * 0.35} fill={MATERIAL_COLORS[d.material.kind].face} />
+                  <circle cx={fs * 0.85} cy={fs * 0.85} r={fs * 0.35} fill={MATERIAL_COLORS[pm.kind].face} />
                   <text x={fs * 1.5} y={fs * 1.18} fontSize={fs} direction={textDir} textAnchor={textDir === 'rtl' ? 'end' : 'start'} dx={textDir === 'rtl' ? chip.length * fs * 0.52 : 0}>
                     {chip}
                   </text>
                 </g>
+                {heading && (
+                  <text className="mat-heading" x={k.ox} y={-fs * 3.2} fontSize={fs * 1.3} fontWeight={600} direction={textDir} data-testid={`mat-heading-${k.mat}`}>
+                    {heading}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -473,7 +500,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           const also = sel?.kind === 'panel' ? (sel.also ?? []) : [];
           const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
           const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
-          const tint = partTintCss(d.material.kind, Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
+          const tint = boardTintCss(d, pieceRoot(pl.copy.pieceKey), Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
           return (
             <g
               key={pl.copy.key}
@@ -483,7 +510,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
               onPointerLeave={() => useStore.getState().hoverPart === pl.copy.pieceKey && useStore.getState().set({ hoverPart: null })}
             >
               {pl.copy.contours.map((c, i) => {
-                const dpath = contourPathD(xformContour(pl.xf, c.contour), H, pl.ox, 0);
+                const dpath = contourPathD(xformContour(pl.xf, c.contour), pl.H, pl.ox, 0);
                 if (c.role === 'outer')
                   return (
                     <path

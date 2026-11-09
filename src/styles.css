@@ -557,3 +557,12 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 /* settings card: smart and grid snapping toggles */
 .snap-toggles { display: flex; gap: 8px; margin: 4px 0 8px; }
 .snap-toggles button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* milestone 36: board materials */
+.mat-legend { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; justify-content: flex-end; }
+.mat-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: var(--card, #fff); border: 1px solid var(--line, #d6dbe3); }
+.mat-chip .swatch { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.18); }
+.board-material select { max-width: 100%; }
+.custom-mat { display: grid; gap: 6px; margin: 6px 0; }
+.mat-heading { fill: var(--ink, #2a2622); }
+.mat-row { display: grid; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line, #e3e7ee); }

@@ -59,6 +59,10 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // may turn about the vertical (their frame's u and v). v6 has neither, so
   // nothing is converted and every export stays the same.
   6: (d) => d,
+  // v7 -> v8: boards may have their own material (`Panel.material`, with the
+  // profiles in `Design.materials`) and sheet placements name it (`mat`). v7
+  // has neither: every board uses the working material, exactly as before.
+  7: (d) => d,
 };
 
 export function serializeProject(d: Design): string {

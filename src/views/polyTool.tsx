@@ -24,6 +24,7 @@ import { mmPerPx, StageHtml } from './widgets';
 import { panelsCutBy } from '../model/through';
 import { STAGE } from './palette';
 import { frameMatrix, faceZ } from './three-geom';
+import { tOf } from '../model/materials';
 
 const FLOOR = GROUND_FRAME(0, 0);
 
@@ -123,7 +124,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       e.stopPropagation();
       const st = useStore.getState();
       const frame = panel ? panel.frame : FLOOR;
-      const z = panel ? faceZ(panel, st.design.material.thickness)[1] : 0;
+      const z = panel ? faceZ(panel, tOf(st.design, panel.id))[1] : 0;
       const n = new THREE.Vector3(...frameNormal(frame));
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(e.point.x, e.point.y, e.point.z));
       const l = toLocal(frame, [e.point.x, e.point.y, e.point.z]);

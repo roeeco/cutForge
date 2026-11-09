@@ -10,7 +10,7 @@
 import type { ConnectionKind, Design } from './types';
 import type { GrowDir } from './frame';
 import { edgeLength, growFrame, toWorld } from './frame';
-import { connectionsFor } from './materials';
+import { connectionsFor, matOf } from './materials';
 import { defaultOffset, hasSideWalls, seatingOf } from './ops';
 import type { EdgeArg } from './edges';
 
@@ -69,7 +69,7 @@ export type HingeCheck = {
  */
 export function checkHinge(d: Design, parentId: string, edge: EdgeArg, h: number, height: number): HingeCheck {
   const x = norm360(h);
-  const m = d.material;
+  const m = matOf(d, parentId);
   const parent = d.panels[parentId];
   if (x < MIN_HINGE - EPS || x > 360 - MIN_HINGE + EPS) return { zone: 'bad', reason: 'onPanel', kinds: [], blocking: true, sideWalls: false };
   const { angle, dir } = fromHinge(x);
@@ -86,9 +86,9 @@ export function checkHinge(d: Design, parentId: string, edge: EdgeArg, h: number
 /** Would the new panel dip below the floor (world y = 0)? */
 function belowFloor(d: Design, parentId: string, edge: EdgeArg, angle: number, dir: GrowDir, height: number): boolean {
   const parent = d.panels[parentId];
-  const t = d.material.thickness;
-  const kind = connectionsFor(d.material, Math.abs(angle - 90) < EPS ? 90 : angle)[0];
-  const f = growFrame(parent, edge, angle, dir, t, seatingOf(kind), defaultOffset(d, kind));
+  const m = matOf(d, parentId), t = m.thickness;
+  const kind = connectionsFor(m, Math.abs(angle - 90) < EPS ? 90 : angle)[0];
+  const f = growFrame(parent, edge, angle, dir, t, seatingOf(kind), defaultOffset(d, kind, parentId));
   const w = edgeLength(parent, edge);
   let lo = Infinity;
   for (const [px, py] of [[0, 0], [w, 0], [w, height], [0, height]])

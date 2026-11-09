@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import type { Design } from '../model/types';
 import { frameMatrix, panelGeometry } from './three-geom';
-import { partColors } from './palette';
+import { boardColors } from './palette';
 
 let renderer: THREE.WebGLRenderer | null = null;
 
@@ -27,7 +27,7 @@ export function renderThumbnail(d: Design, w: number, h: number): string | null 
     const p = d.panels[id];
     if (!p) return;
     const g = panelGeometry(d, p);
-    const c = partColors(d.material.kind, i);
+    const c = boardColors(d, id, i);
     const mats = [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.9 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.9 })];
     const mesh = new THREE.Mesh(g, mats);
     mesh.matrixAutoUpdate = false;

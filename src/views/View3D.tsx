@@ -19,7 +19,9 @@ import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
-import { STAGE, partColors } from './palette';
+import { STAGE, boardColors, partColors } from './palette';
+import { tOf } from '../model/materials';
+import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
 import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
@@ -324,7 +326,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     w.__cutforge.project = (panelId: string, x: number, y: number, top = true) => {
       const p = useStore.getState().design.panels[panelId];
       if (!p) return null;
-      const z = faceZ(p, useStore.getState().design.material.thickness)[top ? 1 : 0];
+      const z = faceZ(p, tOf(useStore.getState().design, panelId))[top ? 1 : 0];
       const v = new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame)).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
@@ -338,12 +340,16 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     // Test hook: world bounding boxes of the panels and glue flaps as drawn (after the fold view's transforms).
     w.__cutforge.stageBoxes = () => {
       scene.updateMatrixWorld(true);
-      const out: { panels: Record<string, number[]>; flaps: { owner: string; on: string; box: number[] }[] } = { panels: {}, flaps: [] };
+      const out: { panels: Record<string, number[]>; flaps: { owner: string; on: string; box: number[] }[]; colors: Record<string, string> } = { panels: {}, flaps: [], colors: {} };
       scene.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
         const box = () => new THREE.Box3().setFromObject(mesh).min.toArray().concat(new THREE.Box3().setFromObject(mesh).max.toArray());
-        if (mesh.userData.panelId) out.panels[mesh.userData.panelId] = box();
+        if (mesh.userData.panelId) {
+          out.panels[mesh.userData.panelId] = box();
+          const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+          if (mat?.color) out.colors[mesh.userData.panelId] = '#' + mat.color.getHexString();
+        }
         else if (mesh.userData.flapOwner) out.flaps.push({ owner: mesh.userData.flapOwner, on: mesh.userData.flapOn, box: box() });
       });
       return out;
@@ -580,8 +586,8 @@ function PanelObject(props: {
   through?: ThroughHit;
 }) {
   const { d, p, selDetails, selEdge, tool } = props;
-  const t = d.material.thickness;
-  const geom = useMemo(() => panelGeometry(d, p), [d.material, d.connections, p, props.through]);
+  const t = tOf(d, p.id);
+  const geom = useMemo(() => panelGeometry(d, p), [d.material, d.materials, d.connections, p, props.through]);
   const removed = useMemo(() => !!props.through && removedByCut(d, p.id), [d, p.id, props.through]);
   const outline = useMemo(() => (props.outlines ? new THREE.EdgesGeometry(geom, 25) : null), [geom, props.outlines]);
   const matrix = useMemo(() => props.m.clone().multiply(frameMatrix(p.frame)), [p.frame, props.m]);
@@ -590,9 +596,9 @@ function PanelObject(props: {
   useEffect(() => () => outline?.dispose(), [outline]);
   const lift = props.emphasis === 1 ? 0.07 : props.emphasis === 0.5 ? 0.025 : props.emphasis === -1 ? -0.03 : 0;
   const mats = useMemo(() => {
-    const c = partColors(d.material.kind, props.index, lift);
+    const c = boardColors(d, p.id, props.index, lift);
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
-  }, [d.material.kind, props.index, lift]);
+  }, [d.material, d.materials, p.material, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
   const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
   return (
@@ -761,7 +767,7 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
 /** Rounded bend along a fold, with the crease (score line) on its outside. */
 function BendBead({ b, d, index, outlines }: { b: Bend; d: Design; index: number; outlines: boolean }) {
   const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.axis), [b.axis]);
-  const color = useMemo(() => partColors(d.material.kind, Math.max(0, index)).face, [d.material.kind, index]);
+  const color = useMemo(() => boardColors(d, b.panelId, Math.max(0, index)).face, [d.material, d.materials, b.panelId, index]);
   const crease = useMemo(() => {
     const p0 = b.pivot.clone().addScaledVector(b.crease, b.radius * 1.04).addScaledVector(b.axis, -b.length / 2);
     const p1 = p0.clone().addScaledVector(b.axis, b.length);
@@ -829,7 +835,7 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
       {items.map((x) => (
         <group key={x.key} matrixAutoUpdate={false} matrix={x.matrix}>
           <mesh geometry={x.geom} raycast={() => null} userData={{ flapOwner: x.owner, flapOn: x.on }}>
-            <meshStandardMaterial color={partColors(d.material.kind, x.index, -0.06).face} roughness={0.9} />
+            <meshStandardMaterial color={boardColors(d, x.owner, x.index, -0.06).face} roughness={0.9} />
           </mesh>
         </group>
       ))}
@@ -918,7 +924,7 @@ function hingeBasis(d: Design, parent: Panel, edge: string, m: THREE.Matrix4, s0
   const [a, b] = edgeLocal(parent, edge);
   const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
   const k = (s0 + knobAt(w ?? len)) / len;
-  const o = W(m, parent.frame, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, d.material.thickness / 2);
+  const o = W(m, parent.frame, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, tOf(d, parent.id) / 2);
   return { o, x: Wdir(m, inwardWorld(parent, edge)), y: Wdir(m, matDir(parent.frame)) };
 }
 
@@ -934,11 +940,11 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const kind = eg?.kind ?? growKind(d, grow);
   const check = parent ? checkHinge(d, panelId, edge, grow.angle, grow.height) : null;
   const blocked = !!check?.blocking;
-  const th = d.material.thickness;
+  const th = parent ? tOf(d, parent.id) : d.material.thickness;
   const span = eg?.span ?? null;
   const frameAt = (h: number) => {
     const { angle, dir } = fromHinge(h);
-    return spanFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind), span);
+    return spanFrame(parent, edge, angle, dir, th, seatingOf(kind), defaultOffset(d, kind, panelId), span);
   };
   const [snapped, setSnapped] = useState<number | null>(null);
   const ghost = useMemo(() => {
@@ -1142,16 +1148,16 @@ function GhostOutlineHandles({ ghost, m, th }: { ghost: Panel; m: THREE.Matrix4;
 function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height: number; m: THREE.Matrix4 }) {
   const t = useT();
   const base = d.panels[baseId];
-  const th = d.material.thickness;
-  const kind = newTrayKinds(d).wallKind;
+  const th = base ? tOf(d, baseId) : d.material.thickness;
+  const kind = newTrayKinds(d, baseId).wallKind;
   const ghosts = useMemo(() => {
     if (!base) return [];
-    const h = Math.max(MIN_PANEL, wallHeight(d, kind, height));
+    const h = Math.max(MIN_PANEL, wallHeight(d, kind, height, baseId));
     return panelEdges(base)
       .filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key))
       .map((e) => {
-        const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind));
-        const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [] };
+        const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind, baseId));
+        const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [], ...(base.material ? { material: base.material } : {}) };
         return { key: e.key, p, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
       });
   }, [d, base, height, kind, m, th]);
@@ -1200,7 +1206,7 @@ function cutOnTrayBase(d: Design, sel: ReturnType<typeof useStore.getState>['sel
 function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }) {
   const t = useT();
   const parent = d.panels[c.a.panelId], child = d.panels[c.b.panelId];
-  const th = d.material.thickness;
+  const th = tOf(d, c.a.panelId), tc = tOf(d, c.b.panelId);
   const h = hingeOf(c.angle, c.dir);
   const [refused, setRefused] = useState<string | undefined>();
   const pointAt = useMemo(() => {
@@ -1208,7 +1214,7 @@ function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }
     const r = Math.max(10, Math.min(child.h * 0.4, 45));
     return (a: number) => {
       const { angle, dir } = fromHinge(a);
-      return W(m, spanFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset, c.trayId ? null : c.span), knobAt(child.w), r, th / 2);
+      return W(m, spanFrame(parent, c.a.edge, angle, dir, th, seatingOf(c.kind), c.offset, c.trayId ? null : c.span, tc), knobAt(child.w), r, tc / 2);
     };
   }, [m, parent, child?.h, child?.w, c.a.edge, c.kind, c.offset, th, c.span?.[0], c.span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => (child ? checkHinge(d, c.a.panelId, c.a.edge, a, child.h).zone : 'ok'), [d, c.a.panelId, c.a.edge, child?.h]);
@@ -1247,7 +1253,7 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
   if (!panel || found.some((f) => f.panel.id !== panel.id)) return null;
   const box = shapesBox(found.map((f) => f.detail));
   const c = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
-  const th = d.material.thickness;
+  const th = tOf(d, panel.id);
   const at = W(m, panel.frame, c.x, c.y, th / 2);
   const st = useStore.getState;
   // every start value (positions, box for snapping, pivot) comes from the design as it was at pointer-down
@@ -1302,7 +1308,7 @@ function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) =
   if (!f || f.detail.op !== 'cut' || !f.detail.through || f.detail.shape === 'text') return null;
   const S = f.panel, dt = f.detail;
   const n = frameNormal(S.frame);
-  const th = d.material.thickness;
+  const thOf = (P: Panel) => tOf(d, P.id);
   const st = useStore.getState;
   // a source-local point, carried along the cut direction onto P's mid-plane
   const onto = (P: Panel, q: P2): V3 => {
@@ -1310,7 +1316,7 @@ function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) =
     const mP = matDir(P.frame);
     const k = v3dot(n, mP);
     if (Math.abs(k) < 1e-6) return w;
-    const lam = (th / 2 - v3dot([w[0] - P.frame.o[0], w[1] - P.frame.o[1], w[2] - P.frame.o[2]], mP)) / k;
+    const lam = (thOf(P) / 2 - v3dot([w[0] - P.frame.o[0], w[1] - P.frame.o[1], w[2] - P.frame.o[2]], mP)) / k;
     return v3add(w, v3mul(n, lam));
   };
   const panels = [S, ...reached.map((pid) => d.panels[pid]).filter((P) => P && Math.abs(v3dot(n, frameNormal(P.frame))) > 1e-6)];
@@ -1394,7 +1400,7 @@ function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed
 
 /** A selected floor panel's gizmo: move on the floor (snapping to other floor panels), turn about the vertical with everything grown on it. */
 function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
-  const th = d.material.thickness;
+  const th = tOf(d, p.id);
   const st = useStore.getState;
   const at = W(m, p.frame, p.w / 2, p.h / 2, th);
   const u = p.frame.u, v = p.frame.v;
@@ -1456,7 +1462,7 @@ function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Mat
   const drag = useRef<{ from: string; to: string } | null>(null);
   if (!c || !p) return null;
   const base = d.panels[c.a.panelId];
-  const th = d.material.thickness;
+  const th = tOf(d, p.id);
   const row = dividerRow(d, c);
   const axis = Wdir(m, inwardWorld(base, c.a.edge));
   // on the face, low and in the middle: clear of the height arrow (top), the hinge knob and the compartment labels (above the top)
@@ -1585,7 +1591,7 @@ function BetweenPill({ d, picks }: { d: Design; picks: FacePick[] }) {
 /** Selected panel: width/height push-pull arrows and in-place dimensions. */
 function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4; dims: boolean }) {
   const t = useT();
-  const th = d.material.thickness;
+  const th = tOf(d, p.id);
   const off = Math.max(8, 0.07 * Math.max(p.w, p.h));
   const st = useStore.getState;
   const resize = (w?: number, h?: number) => st().preview((x) => setPanelSize(x, p.id, w, h));
@@ -1617,7 +1623,7 @@ function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at 
   const end = c.b.edge !== FACE ? c.b : c.a.edge !== FACE ? c.a : null;
   if (!end) {
     const p = d.panels[c.a.panelId];
-    return p ? W(xf.get(p.id) ?? IDM, p.frame, p.w / 2, p.h, d.material.thickness / 2) : null;
+    return p ? W(xf.get(p.id) ?? IDM, p.frame, p.w / 2, p.h, tOf(d, p.id) / 2) : null;
   }
   const p = d.panels[end.panelId];
   if (!p) return null;
@@ -1625,7 +1631,7 @@ function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at 
   if (!e) return null;
   const s = at;
   const x = e.a.x + (e.b.x - e.a.x) * s, y = e.a.y + (e.b.y - e.a.y) * s;
-  return W(xf.get(p.id) ?? IDM, p.frame, x, y, d.material.thickness / 2);
+  return W(xf.get(p.id) ?? IDM, p.frame, x, y, tOf(d, p.id) / 2);
 }
 
 /** Joint pills: the focused panel's connections (and broken ones, always). Clicking one opens its settings. */
@@ -1969,6 +1975,7 @@ export function View3D() {
           </button>
         </div>
         {settings && <ViewSettings onClose={() => setSettings(false)} />}
+        <MaterialLegend />
       </div>
       <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
       <PolygonToolCard />

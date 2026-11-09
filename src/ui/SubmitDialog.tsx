@@ -12,6 +12,9 @@ import { changeMaterial } from '../templates/registry';
 import { setMaterial } from '../model/ops';
 import { fmtNum, type MsgKey } from '../i18n';
 import type { Design, MaterialProfile } from '../model/types';
+import { matIdOf, matOf, mixedMaterials } from '../model/materials';
+import { materialName } from './materialName';
+import { panelLabel } from '../model/names';
 
 const remember = (k: string, v?: string) => {
   try {
@@ -63,7 +66,8 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
       return setState({ kind: 'error', error: (e as ApiError).code ?? 'network' });
     }
     if (!cls.open) return setState({ kind: 'error', error: 'closed' });
-    if (cls.material && differs(cls.material, d.material)) return setState({ kind: 'profile', cls });
+    // the class's profile against the working material, and boards in other materials
+    if (cls.material && (differs(cls.material, d.material) || mixedMaterials(d))) return setState({ kind: 'profile', cls });
     await send(d);
   };
 
@@ -116,7 +120,17 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         )}
         {state.kind === 'profile' && m && (
           <div className="warn" data-testid="submit-profile">
-            <p>
+            {mixedMaterials(d) && (
+              <p data-testid="submit-other-mats">
+                {t('sub.otherMats', {
+                  list: d.order
+                    .filter((id) => d.panels[id] && matIdOf(d, id) !== d.material.id)
+                    .map((id) => `${panelLabel(d, id, t)} (${materialName(t, matOf(d, id))})`)
+                    .join(', '),
+                })}
+              </p>
+            )}
+            {differs(m, d.material) && <p>
               {t('sub.profileDiff', {
                 mat: t(m.nameKey as MsgKey),
                 t: fmtNum(m.thickness, 2),
@@ -126,7 +140,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
                 k2: fmtNum(d.material.kerf, 2),
                 c2: fmtNum(d.material.clearance, 2),
               })}
-            </p>
+            </p>}
             <div className="modal-actions">
               <button onClick={() => send(d)} data-testid="submit-anyway">
                 {t('sub.anyway')}

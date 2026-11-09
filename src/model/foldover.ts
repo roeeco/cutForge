@@ -14,7 +14,7 @@
 import type { ConnGeom, Design, FoldOver, P2, Panel } from './types';
 import { edgeNeighbours, findEdge, segDir, segInward, segLength, type EdgeSeg } from './edges';
 import { toLocal, toWorld } from './frame';
-import { minWeb } from './materials';
+import { matOf, minWeb, tOf } from './materials';
 import { offsetConvex } from './seams';
 import { holeCuts } from './outline';
 import { flattenContour } from '../geom/vec';
@@ -23,7 +23,8 @@ const parentConn = (d: Design, id: string) => Object.values(d.connections).find(
 
 /** Fold-over sizes for a wall edge. */
 export function foldOverDims(d: Design, p: Panel, f: FoldOver) {
-  const t = d.material.thickness, fa = d.material.foldAllowance;
+  const fm = matOf(d, p.id);
+  const t = fm.thickness, fa = fm.foldAllowance;
   const rim = 2 * t + fa;
   const full = p.h - t;
   const liner = f.depth === null ? full : Math.min(f.depth, full);
@@ -32,10 +33,11 @@ export function foldOverDims(d: Design, p: Panel, f: FoldOver) {
 }
 
 /** Lock tab width and positions (fractions of the liner length) for a liner of length L. */
-export function lockTabs(d: Design, L: number, count: number | null): { w: number; at: number[] } {
-  const t = d.material.thickness;
+export function lockTabs(d: Design, L: number, count: number | null, panelId?: string): { w: number; at: number[] } {
+  const m = panelId ? matOf(d, panelId) : d.material;
+  const t = m.thickness;
   const w = Math.max(Math.max(4, 3 * t), Math.min(Math.max(14, 6 * t), 0.16 * L));
-  const two = L >= 2 * w + 3 * Math.max(minWeb(d.material), 2 * t);
+  const two = L >= 2 * w + 3 * Math.max(minWeb(m), 2 * t);
   const n = count ?? (two ? 2 : 1);
   const at = n === 1 ? [0.5] : n === 2 ? [0.3, 0.7] : Array.from({ length: n }, (_, i) => (i + 1) / (n + 1));
   return { w, at };
@@ -43,7 +45,7 @@ export function lockTabs(d: Design, L: number, count: number | null): { w: numbe
 
 /** How much the liner gives way at each end for the walls that meet this one there. */
 function linerEnds(d: Design, p: Panel, e: EdgeSeg): [number, number] {
-  const t = d.material.thickness;
+  const t = tOf(d, p.id);
   const nb = edgeNeighbours(p, e.key);
   if (!nb) return [0, 0];
   const at = (side: EdgeSeg) => {
@@ -70,7 +72,7 @@ export function foldOverGeom(d: Design, p: Panel, f: FoldOver): FoldOverGeom | n
   const e = findEdge(p, f.edge);
   if (!e) return null;
   const { t, rim, liner, lockDepth } = foldOverDims(d, p, f);
-  const c = d.material.clearance;
+  const c = matOf(d, p.id).clearance;
   const L = segLength(e);
   const dir = segDir(e), inw = segInward(e);
   // point at distance s along the edge, `o` outward from it (the flat net beyond the edge)
@@ -98,7 +100,7 @@ export function foldOverGeom(d: Design, p: Panel, f: FoldOver): FoldOverGeom | n
   const base = pc ? d.panels[pc.a.panelId] : undefined;
   if (f.lock === 'tabs' && base && f.depth === null) {
     const Ll = L - cs - ce;
-    const { w, at: where } = lockTabs(d, Ll, f.locks);
+    const { w, at: where } = lockTabs(d, Ll, f.locks, p.id);
     const taper = 0.18 * w;
     for (const k of where) {
       const s0 = cs + k * Ll - w / 2, s1 = s0 + w;
@@ -119,7 +121,7 @@ export function foldOverGeom(d: Design, p: Panel, f: FoldOver): FoldOverGeom | n
       if (be) {
         const bi = segInward(be);
         const dist = Math.min(...slot.map((q) => (q.x - be.a.x) * bi.x + (q.y - be.a.y) * bi.y));
-        const need = minWeb(d.material) - dist;
+        const need = minWeb(matOf(d, base.id)) - dist;
         if (need > 0) slot = slot.map((q) => ({ x: q.x + bi.x * need, y: q.y + bi.y * need }));
       }
       g.holes.push({ panelId: base.id, poly: slot });
