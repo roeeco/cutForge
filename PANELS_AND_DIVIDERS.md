@@ -118,6 +118,8 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 
 ### Milestone 32: dividers, one manual way
 
+> **Before building this,** read `EASY_MODE.md` section 3: removing the automatic divider sets leaves beginners only the Shift-click gesture. Build milestone 38's *draw a line across the box* divider together with this milestone, or before it.
+
 - **+ Divider.** When the selection is two walls with facing, parallel faces standing on the same base (a divider counts as a wall), a floating **+ Divider** button appears between them.
   - It reuses `planDividerBetween`, with the divider halfway along the stretch where the two walls overlap instead of at the click.
   - Its height is the lower wall's top minus `DIVIDER_GAP`.
