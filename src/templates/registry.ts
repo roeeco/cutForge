@@ -57,7 +57,7 @@ export type Lost = { panel: string; shapes: number };
  * Regenerate a template design with new parameters or material, keeping
  * user edits by id: shapes on template panels that still exist, user-added
  * panels and their connections, panel names, quantities, hand placements,
- * and where the student moved the box. Returns what could not be kept.
+ * and where the student moved (or turned) the box. Returns what could not be kept.
  */
 export function regenerate(old: Design, params: Params, material: MaterialProfile = old.material): { design: Design; lost: Lost[] } {
   const t = old.template && templateById(old.template.id);
@@ -73,7 +73,8 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   for (const id of d.order) {
     const o = old.panels[id];
     if (o && !Object.values(old.connections).some((c) => c.grown && c.b.panelId === id) && !Object.values(d.connections).some((c) => c.grown && c.b.panelId === id))
-      d.panels[id].frame = { ...d.panels[id].frame, o: [...o.frame.o] };
+      // its position and its turn about the vertical (a turned box stays turned)
+      d.panels[id].frame = { ...d.panels[id].frame, o: [...o.frame.o], u: [...o.frame.u], v: [...o.frame.v] };
   }
   for (const id of old.order) {
     const o = old.panels[id];

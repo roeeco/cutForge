@@ -359,3 +359,208 @@ export function DimLine({ a, b, tick }: { a: V3; b: V3; tick: V3 }) {
   useEffect(() => () => (obj.geometry.dispose(), (obj.material as THREE.Material).dispose()), [obj]);
   return <primitive object={obj} raycast={() => null} />;
 }
+
+// ---------------------------------------------------------------------------
+// Move and rotate gizmo (milestone 17), for shapes (in their panel's plane)
+// and floor panels (on the floor). A centre pad moves freely in the plane, two
+// arrows move along one axis, the ring turns. Rotation snaps to 15° steps,
+// Shift gives 1°, Alt turns snapping off. While dragging, the angle or offset
+// shows next to the gizmo and can be typed (digits, then Enter).
+
+export type GizmoMode = 'pad' | 'x' | 'y' | 'ring';
+
+/** Snap a raw angle (degrees): 15° steps, Shift 1°, Alt free (0.1°). */
+export function snapAngle(raw: number, ev: { shiftKey: boolean; altKey: boolean }): number {
+  const step = ev.altKey ? 0.1 : ev.shiftKey ? 1 : 15;
+  return Math.round(Math.round(raw / step) * step * 10) / 10;
+}
+
+export function Gizmo(props: {
+  at: V3;
+  /** In-plane unit axes (display space) and the plane normal. */
+  ax: V3;
+  ay: V3;
+  n: V3;
+  /** Which handles to show (default: all). */
+  modes?: GizmoMode[];
+  /** Live move: offsets along ax and ay (mm, unsnapped); return the offsets actually used (after snapping). */
+  onMove?: (du: number, dv: number, ev: PointerEvent | null) => { du: number; dv: number } | void;
+  /** Live turn by `deg` (snapped) from where the drag started. */
+  onRotate?: (deg: number) => void;
+  onEnd: (cancel: boolean) => void;
+  testId?: string;
+}) {
+  const { camera, gl } = useThree();
+  const [hover, setHover] = useState<GizmoMode | null>(null);
+  const [active, setActive] = useState<GizmoMode | null>(null);
+  const [readout, setReadout] = useState<string>('');
+  const [typed, setTyped] = useState<string | null>(null);
+  const modes = props.modes ?? ['pad', 'x', 'y', 'ring'];
+  const center = useMemo(() => new THREE.Vector3(...props.at), [props.at[0], props.at[1], props.at[2]]);
+  const AX = useMemo(() => new THREE.Vector3(...props.ax).normalize(), [props.ax[0], props.ax[1], props.ax[2]]);
+  const AY = useMemo(() => new THREE.Vector3(...props.ay).normalize(), [props.ay[0], props.ay[1], props.ay[2]]);
+  const N = useMemo(() => new THREE.Vector3(...props.n).normalize(), [props.n[0], props.n[1], props.n[2]]);
+  const quat = useMemo(() => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(AX, AY, N)), [AX, AY, N]);
+  const ray = useRayFromScreen();
+  const st = useRef<{ mode: GizmoMode; base: THREE.Vector3; grab: number; a0: number; last: number; du: number; dv: number; deg: number } | null>(null);
+  const toScreen = (p: THREE.Vector3) => {
+    const r = gl.domElement.getBoundingClientRect();
+    const v = p.clone().project(camera);
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  };
+  // turning sense on screen: the ring seen from its normal's side turns counter-clockwise for positive angles
+  const screenAngle = (ev: { clientX: number; clientY: number }) => {
+    const c = toScreen(center);
+    const facing = N.dot(camera.position.clone().sub(center)) >= 0 ? 1 : -1;
+    return (facing * Math.atan2(-(ev.clientY - c.y), ev.clientX - c.x) * 180) / Math.PI;
+  };
+  const planeHit = (ev: { clientX: number; clientY: number }) => ray(ev.clientX, ev.clientY).intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(N, center), new THREE.Vector3());
+  const fmt = (x: number) => fmtNum(Math.round(x * 10) / 10);
+  const show = (s: NonNullable<typeof st.current>) => setReadout(s.mode === 'ring' ? `${fmt(s.deg)}°` : s.mode === 'pad' ? `${fmt(s.du)}, ${fmt(s.dv)}` : fmt(s.mode === 'x' ? s.du : s.dv));
+  const drag = useHandleDrag({
+    move: (ev) => {
+      const s = st.current;
+      if (!s) return;
+      if (s.mode === 'ring') {
+        let a = screenAngle(ev);
+        // unwrap so a drag past ±180° keeps turning
+        while (a - s.last > 180) a -= 360;
+        while (a - s.last < -180) a += 360;
+        s.last = a;
+        const deg = snapAngle(a - s.a0, ev);
+        if (deg !== s.deg) {
+          s.deg = deg;
+          props.onRotate?.(deg);
+        }
+      } else {
+        let du = 0, dv = 0;
+        if (s.mode === 'pad') {
+          const hit = planeHit(ev);
+          if (!hit) return;
+          const dvec = hit.sub(s.base);
+          du = dvec.dot(AX);
+          dv = dvec.dot(AY);
+        } else {
+          const axis = s.mode === 'x' ? AX : AY;
+          const t = closestOnLine(ray(ev.clientX, ev.clientY), s.base, axis) - s.grab;
+          if (s.mode === 'x') du = t;
+          else dv = t;
+        }
+        const used = props.onMove?.(du, dv, ev) || { du, dv };
+        s.du = used.du;
+        s.dv = used.dv;
+      }
+      show(s);
+    },
+    end: (cancel) => {
+      st.current = null;
+      setActive(null);
+      setTypedBoth(null);
+      props.onEnd(cancel);
+    },
+  });
+  // typed values while dragging: digits (and . , - space), Enter applies and ends the drag
+  const typedRef = useRef<string | null>(null);
+  const setTypedBoth = (x: string | null) => {
+    typedRef.current = x;
+    setTyped(x);
+  };
+  useEffect(() => {
+    if (!active) return;
+    const key = (ev: KeyboardEvent) => {
+      const s = st.current;
+      if (!s) return;
+      if (/^[0-9.,\- ]$/.test(ev.key)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setTypedBoth((typedRef.current ?? '') + ev.key);
+      } else if (ev.key === 'Backspace') {
+        ev.preventDefault();
+        setTypedBoth(typedRef.current ? typedRef.current.slice(0, -1) : typedRef.current);
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const nums = (typedRef.current ?? '').split(/[ ,]+/).filter(Boolean).map(Number);
+        if (nums.length && nums.every(Number.isFinite)) {
+          if (s.mode === 'ring') props.onRotate?.(nums[0]);
+          else if (s.mode === 'pad') props.onMove?.(nums[0], nums[1] ?? 0, null);
+          else if (s.mode === 'x') props.onMove?.(nums[0], 0, null);
+          else props.onMove?.(0, nums[0], null);
+        }
+        setTypedBoth(null);
+        // finish as if the pointer was released
+        window.dispatchEvent(new PointerEvent('pointerup'));
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [active]);
+  const begin = (mode: GizmoMode) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    const base = center.clone();
+    const ne = e.nativeEvent;
+    let grab = 0;
+    if (mode === 'pad') {
+      const hit = planeHit(ne);
+      if (hit) base.copy(hit);
+    } else if (mode === 'x' || mode === 'y') grab = closestOnLine(e.ray, base, mode === 'x' ? AX : AY);
+    const a0 = screenAngle(ne);
+    st.current = { mode, base, grab, a0, last: a0, du: 0, dv: 0, deg: 0 };
+    setActive(mode);
+    show(st.current);
+    drag(e);
+  };
+  const lit = (m: GizmoMode) => active === m || (!active && hover === m);
+  const col = (m: GizmoMode, c: string) => (lit(m) ? '#0f5d59' : c);
+  const handlers = (m: GizmoMode) => ({
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => (e.stopPropagation(), setHover(m)),
+    onPointerOut: () => setHover((h) => (h === m ? null : h)),
+    onPointerDown: begin(m),
+  });
+  const R = 64;
+  return (
+    <group userData={{ noAO: true }}>
+      <ScreenSized position={props.at} quaternion={quat}>
+        {modes.includes('ring') && (
+          <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined }}>
+            <mesh renderOrder={22} raycast={() => null}>
+              <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
+              <meshBasicMaterial color={col('ring', '#e0a21b')} {...onTop} />
+            </mesh>
+            <mesh renderOrder={21} raycast={priorityRaycast}>
+              <torusGeometry args={[R, 9, 6, 48]} />
+              <meshBasicMaterial color="white" opacity={0} {...onTop} />
+            </mesh>
+          </group>
+        )}
+        {(['x', 'y'] as const)
+          .filter((m) => modes.includes(m))
+          .map((m) => (
+            <group key={m} rotation={[0, 0, m === 'x' ? -Math.PI / 2 : 0]} {...handlers(m)} userData={{ testId: props.testId ? `${props.testId}-${m}` : undefined }}>
+              <mesh position={[0, 30, 0]} renderOrder={23} raycast={priorityRaycast}>
+                <cylinderGeometry args={[2, 2, 26, 8]} />
+                <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
+              </mesh>
+              <mesh position={[0, 47, 0]} renderOrder={23} raycast={priorityRaycast}>
+                <coneGeometry args={[6, 12, 14]} />
+                <meshBasicMaterial color={col(m, m === 'x' ? '#d4543c' : '#2f6feb')} {...onTop} />
+              </mesh>
+            </group>
+          ))}
+        {modes.includes('pad') && (
+          <mesh renderOrder={24} raycast={priorityRaycast} {...handlers('pad')} userData={{ testId: props.testId ? `${props.testId}-pad` : undefined }}>
+            <boxGeometry args={[18, 18, 2]} />
+            <meshBasicMaterial color={col('pad', '#1fb8ac')} opacity={0.9} {...onTop} />
+          </mesh>
+        )}
+      </ScreenSized>
+      {active && (
+        <StageHtml position={props.at} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
+          <span className="w-dim ghost gizmo-readout" style={{ transform: 'translate(78px, -50%)' }} data-testid={props.testId ? `${props.testId}-readout` : undefined}>
+            {typed !== null ? <b>{typed}▏</b> : readout}
+          </span>
+        </StageHtml>
+      )}
+    </group>
+  );
+}

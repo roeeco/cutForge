@@ -1,5 +1,6 @@
 // Interaction refinements (milestones 15–20).
 import { test, expect, type Page } from '@playwright/test';
+import { setNum } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const state = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState())));
@@ -142,4 +143,113 @@ test('milestone 16: panels run into each other: the export check names both and 
   await S(page, () => (window as any).__cutforge.store.getState().setLang('he'));
   await page.getByTestId('open-export').click();
   await expect(page.getByTestId('export-issues')).toContainText('נכנסים זה בזה');
+});
+
+test('milestone 17: turn a shape with the gizmo ring: 15° steps, Shift for 1°, a typed angle; turn a floor panel', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const ids = await S<{ base: string; wall: string; shape: string }>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      out.wall = cf.ops.growPanel(d, out.base, 'e0', { height: 70, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+      out.shape = cf.ops.addDetail(d, out.wall, 'rect', 'cut', 60, 35, 30, 16);
+    });
+    cf.store.getState().select({ kind: 'detail', id: out.shape, ids: [out.shape] });
+    return out;
+  });
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
+  const rot = async () => (await design(page)).panels[ids.wall].details[0].rot ?? 0;
+  const c = await panelPt(page, ids.wall, 60, 35);
+  const ringAt = (deg: number) => ({ x: c.x + 64 * Math.cos((deg * Math.PI) / 180), y: c.y - 64 * Math.sin((deg * Math.PI) / 180) });
+  const turn = async (to: number, shift = false) => {
+    const a = ringAt(0), b = ringAt(to);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    if (shift) await page.keyboard.down('Shift');
+    for (let k = 1; k <= 6; k++) {
+      const p = ringAt((to * k) / 6);
+      await page.mouse.move(p.x, p.y);
+    }
+    await expect(page.getByTestId('gizmo-readout')).toBeVisible();
+    await page.mouse.move(b.x, b.y);
+    await page.mouse.up();
+    if (shift) await page.keyboard.up('Shift');
+  };
+  await turn(32);
+  expect(await rot()).toBe(30);
+  await turn(17, true);
+  expect(await rot()).toBe(47);
+  // one undo step per turn
+  await page.keyboard.press('ControlOrMeta+z');
+  expect(await rot()).toBe(30);
+  // type an angle while dragging the ring
+  {
+    const a = ringAt(0), b = ringAt(10);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 3 });
+    await page.keyboard.type('45');
+    await expect(page.getByTestId('gizmo-readout')).toContainText('45');
+    await page.keyboard.press('Enter');
+    await page.mouse.up();
+  }
+  expect(await rot()).toBe(75);
+  // the card shows it and takes an exact value
+  await expect(page.getByTestId('detail-rot')).toHaveValue('75');
+  await setNum(page, 'detail-rot', '-15');
+  expect(await rot()).toBe(-15);
+
+  // a floor panel: the gizmo turns it (and its wall) about the vertical; the card takes an exact angle
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.base);
+  await setNum(page, 'panel-yaw', '30');
+  const d = await design(page);
+  expect((Math.atan2(-d.panels[ids.base].frame.u[2], d.panels[ids.base].frame.u[0]) * 180) / Math.PI).toBeCloseTo(30, 6);
+  expect(Object.values(d.connections).some((x: any) => x.broken)).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('milestone 17: the cut plan turns a shape with its ring and resizes a turned shape along its own sides', async ({ page }) => {
+  await start(page, 'ply-3');
+  const ids = await S<any>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      out.shape = cf.ops.addDetail(d, out.base, 'rect', 'cut', 60, 40, 30, 16);
+    });
+    return out;
+  });
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().openSolo(id), ids.base);
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'detail', id, ids: [id] }), ids.shape);
+  const knob = page.getByTestId('rot-knob');
+  await expect(knob).toBeVisible();
+  const kb = (await knob.boundingBox())!;
+  const ring = (await page.getByTestId('rot-ring').boundingBox())!;
+  const c = { x: ring.x + ring.width / 2, y: ring.y + ring.height / 2 };
+  const k = { x: kb.x + kb.width / 2, y: kb.y + kb.height / 2 };
+  const R = Math.hypot(k.x - c.x, k.y - c.y);
+  // from the top (90°) to 90° + 47° counter-clockwise on screen: snaps to 45°
+  await page.mouse.move(k.x, k.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) {
+    const a = ((90 + (47 * i) / 6) * Math.PI) / 180;
+    await page.mouse.move(c.x + R * Math.cos(a), c.y - R * Math.sin(a));
+  }
+  await page.mouse.up();
+  const rot = async () => (await design(page)).panels[ids.base].details[0];
+  expect((await rot()).rot).toBe(45);
+  // resize from a turned corner: the shape grows along its own sides, its rotation kept
+  const h = (await page.getByTestId('handle-2').boundingBox())!;
+  const p0 = { x: h.x + h.width / 2, y: h.y + h.height / 2 };
+  await page.mouse.move(p0.x, p0.y);
+  await page.mouse.down();
+  await page.mouse.move(p0.x + 30, p0.y - 5, { steps: 4 });
+  await page.mouse.up();
+  const dt = await rot();
+  expect(dt.rot).toBe(45);
+  expect(dt.w).toBeGreaterThan(30);
 });

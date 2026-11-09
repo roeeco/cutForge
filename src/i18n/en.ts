@@ -323,6 +323,7 @@ export const en = {
   'shape.circle': 'Circle',
 
   'unit.mm': 'mm',
+  'insp.rotation': 'Rotation',
   'unit.deg': '°',
 
   'export.title': 'Download for laser',

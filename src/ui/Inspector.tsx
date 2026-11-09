@@ -4,7 +4,7 @@
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, parentConnection, setPanelSize, updateDetail } from '../model/ops';
+import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, setPanelSize, setPanelYaw, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
 import { TemplateSection } from './TemplateUI';
@@ -72,6 +72,9 @@ export function Inspector() {
             </>
           )}
           {dt.shape === 'roundrect' && <NumField label={t('insp.radius')} value={dt.r ?? 0} unit={mm} min={0} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { r: v }))} />}
+          {!isCircle && (
+            <NumField label={t('insp.rotation')} value={dt.rot ?? 0} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { rot: normDeg(v) || undefined }))} testId="detail-rot" />
+          )}
           <NumField label={t('insp.x')} value={dt.cx} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cx: v }))} testId="detail-x" />
           <NumField label={t('insp.y')} value={dt.cy} unit={mm} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { cy: v }))} testId="detail-y" />
           <p className="note">{t('insp.coordsNote')}</p>
@@ -112,6 +115,9 @@ export function Inspector() {
           <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          {!parent && (
+            <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
+          )}
           <PanelHinge panelId={id} />
           <TrayWallNote panelId={id} />
           <FoldOverSection panelId={id} />

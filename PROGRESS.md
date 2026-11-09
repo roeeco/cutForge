@@ -366,6 +366,26 @@ Verified
 - Playwright: `refine.spec.ts` — two dividers placed into each other: the export check shows *run into each other*, clicking it selects both, and the Hebrew message shows. Full app suite passes.
 - Fixed a pre-existing flaky check in `through.spec.ts` (it also failed under load on the starting commit): the linked-selection click is re-projected and retried until it lands.
 
+## Milestone 17 — Move and rotate gizmo (schema v7) ✅
+
+Implemented
+- **Schema v7.** `Detail.rot` (degrees, counter-clockwise about the shape's centre; missing = 0) and floor-panel yaw, kept in the floor panel's own frame (`u` and `v` turned about world Y), so there is one authority and everything grown on it follows through `solve`. The v6 → v7 migration has nothing to convert: v6 has no turned shapes and every v6 floor panel's frame is unturned.
+- **Turned geometry** (layer 2): `shapeContours` turns a shape's contours about its centre as a rigid transform, so a rounded rectangle keeps true arcs (SVG `A`, DXF bulges); circles are left untouched (their export does not change at all). Array copies turn as a group about the array's centre. `detailBBox` and the snap targets use the turned corners (edge midpoints, centre); align and distribute use the turned bounds; the export check measures turned shapes as polygons.
+- **Operations:** `rotateDetails` (about the shapes' centre, or each shape's own when one), `rotatePanel` / `setPanelYaw` / `panelYaw` for floor panels (about the panel's centre).
+- **Gizmo** (`Gizmo` in `src/views/widgets.tsx`), screen-sized and drawn on top: a centre pad (free move in the plane), two axis arrows, and a ring. Rotation snaps to 15°, Shift gives 1°, Alt turns snapping off. While dragging, the angle or offset shows next to it, and digits typed then Enter apply an exact value. Escape cancels; each drag is one undo step.
+  - **Shapes:** shown for selected shapes on one panel, in that panel's plane; moves use the existing smart snap. Dragging an unselected shape still moves it as before.
+  - **Floor panels:** shown for a selected floor panel, on its top face; it moves on the floor and turns about the vertical with everything grown on it (trays and template boxes turn as one assembly). Grown panels keep the hinge dial and never show it.
+- **Floor-panel moves snap** to other floor panels' corners (corner to corner) and edges (up to two edge lines combined), both for the gizmo and for dragging the panel itself; Alt turns it off, and the 1 mm grid is used otherwise (`snapFloor` in `src/model/snap.ts`).
+- **Cut plan and face-on view:** a rotation ring around the selected shapes (15° / Shift 1° / Alt free). A turned shape's resize handles sit on its turned corners and resize along its own sides.
+- **Card fields:** *Rotation* for shapes (not circles) and floor panels (`detail-rot`, `panel-yaw`).
+- **Templates:** a turned template box keeps its turn when its settings change (regeneration copies the floor panel's whole frame).
+
+Verified
+- `tests/golden.test.ts`: five **v6 project fixtures** (polygon tray with a through-cut, corrugated fold-over with through tabs, card gable with a roof, the hand-built plywood box, the organiser with a lid), saved by the v6 code with the exports it made, load into v7 and export **byte-identical SVG and DXF**; every older golden is unchanged.
+- `tests/rotate.test.ts`: a rectangle cut turned 30° has the turned corners (and snapping finds them); **read back with ezdxf and svgpathtools, the hole's DXF and SVG vertices are the turned corners**; a turned rounded rectangle keeps four arcs (DXF bulges tan 22.5°, SVG arcs r = 5) with its sides at 25°; an array turns as a group; a circle's export is unchanged by rotation; rotation survives save/reload with the same SVG; **a plywood box turned 45° exports the same pieces (to 1e-6 mm), keeps every joint (none broken), has no overlapping material and a clean export check**; yaw set and set back restores the frame; a turned template base keeps its yaw through regeneration; floor-panel snapping (edge, corner, nothing near).
+- `tests/e2e/refine.spec.ts`: **turning a shape with the gizmo ring gives 30° from a 32° drag and +17° with Shift**; one undo step per turn; typing 45 + Enter while dragging; the card's rotation field; a floor panel turned 30° from its card with no broken joint; in the face-on view the ring turns a shape 45° and a turned shape resizes along its own sides.
+- Screenshots: `docs/refine-shots/{en,he}-17-shape-gizmo.png`, `…-17-floor-gizmo.png`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

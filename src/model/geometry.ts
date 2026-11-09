@@ -1,7 +1,7 @@
 // Derived 2D geometry: manufactured panel outlines (joints applied) and details.
 import type { Design, Detail, Notch, P2, Panel } from './types';
-import type { Contour, Vec2 } from '../geom/types';
-import { circleContour, polygonContour, rectContour, roundedRectContour } from '../geom/vec';
+import type { Contour, Vec2, Xform2 } from '../geom/types';
+import { circleContour, polygonContour, rectContour, roundedRectContour, xformContour } from '../geom/vec';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from './edges';
@@ -123,8 +123,36 @@ export function textBox(dt: Detail): { w: number; h: number; ok: boolean } {
   return { w: o.maxX - o.minX, h: o.maxY - o.minY, ok: !o.missing.length };
 }
 
+/** Turn a shape's contours by its `rot` about its centre (circles are unchanged; arcs stay arcs). */
+function rotated(dt: Detail, cs: Contour[]): Contour[] {
+  if (!dt.rot || dt.shape === 'circle') return cs;
+  const a = (dt.rot * Math.PI) / 180;
+  const c = Math.cos(a), s = Math.sin(a);
+  // rotation about (cx, cy) as a rigid transform: rotate, then translate
+  const x: Xform2 = { rot: a, tx: dt.cx - (dt.cx * c - dt.cy * s), ty: dt.cy - (dt.cx * s + dt.cy * c) };
+  return cs.map((k) => xformContour(x, k));
+}
+
+/** Corners of a shape's (rotated) w × h box, CCW from bottom-left. */
+export function detailCorners(dt: Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'rot'>): P2[] {
+  const a = ((dt.rot ?? 0) * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  return [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ].map(([i, j]) => {
+    const x = (i * dt.w) / 2, y = (j * dt.h) / 2;
+    return { x: dt.cx + x * c - y * s, y: dt.cy + x * s + y * c };
+  });
+}
+
 /** Closed contours of one shape (text and imported shapes give several). */
 export function shapeContours(dt: Detail): Contour[] {
+  return rotated(dt, shapeContoursUpright(dt));
+}
+
+function shapeContoursUpright(dt: Detail): Contour[] {
   if (dt.shape === 'text' && dt.text) {
     const o = outlineText(dt.text.value, dt.text.font as FontId, dt.text.size);
     if (!o) return [];
@@ -149,8 +177,15 @@ export function detailInstances(dt: Detail): Detail[] {
   const base = tb ? { ...dt, w: tb.w, h: tb.h } : dt;
   if (!a || (a.nx <= 1 && a.ny <= 1)) return [base];
   const out: Detail[] = [];
+  // a turned array turns as a group about its centre
+  const r = ((dt.rot ?? 0) * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+  const mx = dt.cx + ((Math.max(1, a.nx) - 1) * a.dx) / 2, my = dt.cy + ((Math.max(1, a.ny) - 1) * a.dy) / 2;
   for (let j = 0; j < Math.max(1, a.ny); j++)
-    for (let i = 0; i < Math.max(1, a.nx); i++) out.push({ ...base, array: undefined, cx: dt.cx + i * a.dx, cy: dt.cy + j * a.dy });
+    for (let i = 0; i < Math.max(1, a.nx); i++) {
+      let cx = dt.cx + i * a.dx, cy = dt.cy + j * a.dy;
+      if (r) [cx, cy] = [mx + (cx - mx) * c - (cy - my) * s, my + (cx - mx) * s + (cy - my) * c];
+      out.push({ ...base, array: undefined, cx, cy });
+    }
   return out;
 }
 export function detailContours(dt: Detail): Contour[] {
@@ -159,6 +194,10 @@ export function detailContours(dt: Detail): Contour[] {
 /** Bounding box of a detail including all array copies. */
 export function detailBBox(dt: Detail) {
   const inst = detailInstances(dt);
+  if (dt.rot && dt.shape !== 'circle') {
+    const pts = inst.flatMap(detailCorners);
+    return { minX: Math.min(...pts.map((q) => q.x)), maxX: Math.max(...pts.map((q) => q.x)), minY: Math.min(...pts.map((q) => q.y)), maxY: Math.max(...pts.map((q) => q.y)) };
+  }
   return {
     minX: Math.min(...inst.map((x) => x.cx - x.w / 2)),
     maxX: Math.max(...inst.map((x) => x.cx + x.w / 2)),

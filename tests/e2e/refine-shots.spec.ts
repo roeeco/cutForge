@@ -37,3 +37,28 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-15-grow-pill-and-fold-bar.png` });
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`refine shots m17 ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await setup(page, lang, 'ply-3');
+    const ids = await S<any>(page, () => {
+      const cf = (window as any).__cutforge;
+      const out: any = {};
+      cf.store.getState().apply((d: any) => {
+        out.base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+        out.wall = cf.ops.growPanel(d, out.base, 'e0', { height: 70, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+        out.shape = cf.ops.addDetail(d, out.wall, 'roundrect', 'cut', 60, 35, 34, 16);
+        cf.ops.updateDetail(d, out.shape, { r: 4, rot: 30 });
+      });
+      cf.store.getState().select({ kind: 'detail', id: out.shape, ids: [out.shape] });
+      return out;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${lang}-17-shape-gizmo.png` });
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.base);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${lang}-17-floor-gizmo.png` });
+  });
+}

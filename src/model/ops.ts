@@ -540,6 +540,73 @@ export function normalizeSketch(p: Panel) {
   p.h = Math.max(...s.pts.map((q) => q.y));
 }
 
+/** Normalise an angle to (−180, 180] degrees, rounded to 1e-9. */
+export const normDeg = (a: number) => {
+  let x = ((a % 360) + 360) % 360;
+  if (x > 180) x -= 360;
+  return Math.round(x * 1e9) / 1e9;
+};
+
+/**
+ * Turn shapes by `deg` (counter-clockwise, in their panels' own coordinates)
+ * about a pivot on the first shape's panel (default: the centre of the
+ * shapes' boxes): each shape's centre moves round the pivot and its `rot`
+ * changes by the same angle.
+ */
+export function rotateDetails(d: Design, ids: string[], deg: number, pivot?: P2) {
+  const found = ids.map((id) => findDetail(d, id)).filter((f): f is NonNullable<typeof f> => !!f);
+  if (!found.length || !deg) return;
+  if (!pivot) {
+    const pts = found.flatMap((f) => [{ x: f.detail.cx, y: f.detail.cy }]);
+    pivot = { x: (Math.min(...pts.map((q) => q.x)) + Math.max(...pts.map((q) => q.x))) / 2, y: (Math.min(...pts.map((q) => q.y)) + Math.max(...pts.map((q) => q.y))) / 2 };
+  }
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  for (const { detail } of found) {
+    const x = detail.cx - pivot.x, y = detail.cy - pivot.y;
+    if (found.length > 1) {
+      detail.cx = pivot.x + x * c - y * s;
+      detail.cy = pivot.y + x * s + y * c;
+    }
+    const r = normDeg((detail.rot ?? 0) + deg);
+    if (r) detail.rot = r;
+    else delete detail.rot;
+  }
+}
+
+/** A floor panel's turn about the vertical, in degrees (0 = as drawn): from its frame's u axis. */
+export function panelYaw(p: Panel): number {
+  return normDeg((Math.atan2(-p.frame.u[2], p.frame.u[0]) * 180) / Math.PI);
+}
+
+/**
+ * Turn a floor panel (and everything grown on it, which follows through
+ * `solve`) about the vertical by `deg`, counter-clockwise seen from above,
+ * around a world pivot (default: the panel's centre).
+ */
+export function rotatePanel(d: Design, panelId: string, deg: number, pivot?: [number, number]) {
+  const p = d.panels[panelId];
+  if (!p || parentConnection(d, panelId) || !deg) return;
+  const f = p.frame;
+  const centre = (): [number, number] => [f.o[0] + f.u[0] * (p.w / 2) + f.v[0] * (p.h / 2), f.o[2] + f.u[2] * (p.w / 2) + f.v[2] * (p.h / 2)];
+  const [px, pz] = pivot ?? centre();
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  // counter-clockwise from above (y up): x' = x c + z s, z' = −x s + z c
+  const turn = (x: number, z: number): [number, number] => [x * c + z * s, -x * s + z * c];
+  const clean = (x: number) => (Math.abs(x) < 1e-12 ? 0 : Math.round(x * 1e12) / 1e12);
+  const [ox, oz] = turn(f.o[0] - px, f.o[2] - pz);
+  const [ux, uz] = turn(f.u[0], f.u[2]);
+  const [vx, vz] = turn(f.v[0], f.v[2]);
+  p.frame = { ...f, o: [clean(px + ox), f.o[1], clean(pz + oz)], u: [clean(ux), f.u[1], clean(uz)], v: [clean(vx), f.v[1], clean(vz)] };
+  solve(d);
+}
+
+/** Set a floor panel's turn about the vertical to `deg` (about its centre). */
+export function setPanelYaw(d: Design, panelId: string, deg: number) {
+  const p = d.panels[panelId];
+  if (!p) return;
+  rotatePanel(d, panelId, normDeg(deg - panelYaw(p)));
+}
+
 export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
   const p = d.panels[panelId];
   if (!p || parentConnection(d, panelId)) return;
@@ -853,7 +920,7 @@ export function findDetail(d: Design, detailId: string): { panel: Panel; detail:
   return null;
 }
 
-export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op' | 'through'>>) {
+export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<Detail, 'cx' | 'cy' | 'w' | 'h' | 'r' | 'op' | 'through' | 'rot'>>) {
   const f = findDetail(d, detailId);
   if (!f) return;
   const dt = f.detail;

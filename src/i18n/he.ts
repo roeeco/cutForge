@@ -325,6 +325,7 @@ export const he: Record<MsgKey, string> = {
   'shape.circle': 'עיגול',
 
   'unit.mm': 'מ״מ',
+  'insp.rotation': 'סיבוב',
   'unit.deg': '°',
 
   'export.title': 'הורדה ללייזר',

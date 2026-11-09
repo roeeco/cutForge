@@ -55,6 +55,10 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     d.trays ??= {};
     return d;
   },
+  // v6 -> v7: shapes may turn (`rot`, degrees; missing means 0) and floor panels
+  // may turn about the vertical (their frame's u and v). v6 has neither, so
+  // nothing is converted and every export stays the same.
+  6: (d) => d,
 };
 
 export function serializeProject(d: Design): string {

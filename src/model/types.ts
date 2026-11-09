@@ -52,6 +52,8 @@ export type Detail = {
   regular?: { n: number };
   /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */
   array?: DetailArray;
+  /** Rotation in degrees (counter-clockwise) about the shape's centre; an array turns as a group about its centre. Missing = 0. */
+  rot?: number;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
@@ -244,4 +246,4 @@ export type Tray = {
   tabLen?: 'flush' | 'through';
 };
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;

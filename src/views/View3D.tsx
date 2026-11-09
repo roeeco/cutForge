@@ -8,20 +8,20 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Frame, P2, Panel, V3 } from '../model/types';
-import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection } from '../model/ops';
+import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld } from '../model/seams';
 import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
 import { detailBBox, detailContour, detailContours } from '../model/geometry';
-import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
+import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, partColors } from './palette';
 import { foldDisplay, type Bend } from './foldView';
-import { AngleArc, DimLabel, DimLine, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
+import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, StageHtml, mmPerPx } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups } from '../model/pieces';
@@ -174,7 +174,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       } else if (g.kind === 'panel-move') {
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!p) return;
-        const dx = snap(p[0] - g.start[0]), dz = snap(p[2] - g.start[2]);
+        // snap to other floor panels' corners and edges (Alt: off), otherwise to the grid
+        const raw = [p[0] - g.start[0], p[2] - g.start[2]];
+        const sn = ev.altKey ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
+        const dx = sn ? sn.dx : snap(raw[0]), dz = sn ? sn.dz : snap(raw[1]);
         st.preview((d) => movePanel(d, g.id, dx, dz));
       }
     };
@@ -427,6 +430,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
       {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && design.panels[selPanel] && (
+        <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+      )}
+      {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && (
+        <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
+      )}
       {!folded && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
@@ -1023,6 +1032,70 @@ function HingeWidget({ d, c, m }: { d: Design; c: Connection; m: THREE.Matrix4 }
       label={`${h}°`}
       message={refused ?? hingeText(t, check)}
       testId="panel-hinge"
+    />
+  );
+}
+
+/** The selected shapes' gizmo (all on one panel): move in the panel's plane with smart snapping, turn about their centre. */
+function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const found = ids.map((id) => findDetail(d, id)).filter((f): f is NonNullable<typeof f> => !!f);
+  const panel = found[0]?.panel;
+  if (!panel || found.some((f) => f.panel.id !== panel.id)) return null;
+  const boxes = found.map((f) => detailBBox(f.detail));
+  const box = { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
+  const c = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+  const th = d.material.thickness;
+  const at = W(m, panel.frame, c.x, c.y, th / 2);
+  const st = useStore.getState;
+  const pivot = found.length === 1 ? { x: found[0].detail.cx, y: found[0].detail.cy } : c;
+  return (
+    <Gizmo
+      at={at}
+      ax={Wdir(m, panel.frame.u)}
+      ay={Wdir(m, panel.frame.v)}
+      n={Wdir(m, frameNormal(panel.frame))}
+      onMove={(du, dv, ev) => {
+        const base = st().txnBase ?? st().design;
+        const ctx = !ev || ev.altKey ? null : snapContext(base, panel.id, new Set(ids));
+        const sn = ctx ? snapBox(ctx, { minX: box.minX + du, maxX: box.maxX + du, minY: box.minY + dv, maxY: box.maxY + dv }, tolAt(at)) : null;
+        const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
+        st().preview((dd) => {
+          for (const f of found) updateDetail(dd, f.detail.id, { cx: f.detail.cx + x, cy: f.detail.cy + y });
+        });
+        return { du: x, dv: y };
+      }}
+      onRotate={(deg) => st().preview((dd) => rotateDetails(dd, ids, deg, pivot))}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="gizmo"
+    />
+  );
+}
+
+/** A selected floor panel's gizmo: move on the floor (snapping to other floor panels), turn about the vertical with everything grown on it. */
+function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
+  const th = d.material.thickness;
+  const st = useStore.getState;
+  const centre = toWorld(p.frame, p.w / 2, p.h / 2);
+  const at = W(m, p.frame, p.w / 2, p.h / 2, th);
+  const u = p.frame.u, v = p.frame.v;
+  return (
+    <Gizmo
+      at={at}
+      ax={Wdir(m, u)}
+      ay={Wdir(m, v)}
+      n={Wdir(m, frameNormal(p.frame))}
+      onMove={(du, dv, ev) => {
+        const base = st().txnBase ?? st().design;
+        let dx = u[0] * du + v[0] * dv, dz = u[2] * du + v[2] * dv;
+        const sn = ev && !ev.altKey ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
+        if (sn) [dx, dz] = [sn.dx, sn.dz];
+        else if (ev) [dx, dz] = [snap(dx), snap(dz)];
+        st().preview((dd) => movePanel(dd, p.id, dx, dz));
+        return { du: dx * u[0] + dz * u[2], dv: dx * v[0] + dz * v[2] };
+      }}
+      onRotate={(deg) => st().preview((dd) => rotatePanel(dd, p.id, deg, [centre[0], centre[2]]))}
+      onEnd={(cancel) => (cancel ? st().cancel() : st().commit())}
+      testId="floor-gizmo"
     />
   );
 }

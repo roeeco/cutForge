@@ -5,7 +5,7 @@
 // tolerance comes from the view (a fixed number of screen pixels).
 // Snapping creates no relationship: it only adjusts the value being dragged.
 import type { Design, P2 } from './types';
-import { detailInstances } from './geometry';
+import { detailCorners, detailInstances } from './geometry';
 
 export type Guide = { a: P2; b: P2; kind: 'align' | 'gap' };
 export type SnapResult = { dx: number; dy: number; guides: Guide[]; targets: P2[] };
@@ -31,6 +31,14 @@ export function snapContext(d: Design, panelId: string, exclude: Set<string>): S
   for (const dt of p.details) {
     if (exclude.has(dt.id)) continue;
     for (const i of detailInstances(dt)) {
+      if (i.rot && i.shape !== 'circle') {
+        // a turned shape: its own corners, edge midpoints and centre; its box (rotated bounds) for spacing
+        const cs = detailCorners(i);
+        for (let k = 0; k < 4; k++) points.push(cs[k], { x: (cs[k].x + cs[(k + 1) % 4].x) / 2, y: (cs[k].y + cs[(k + 1) % 4].y) / 2 });
+        points.push({ x: i.cx, y: i.cy });
+        boxes.push({ minX: Math.min(...cs.map((q) => q.x)), maxX: Math.max(...cs.map((q) => q.x)), minY: Math.min(...cs.map((q) => q.y)), maxY: Math.max(...cs.map((q) => q.y)) });
+        continue;
+      }
       const b = { minX: i.cx - i.w / 2, maxX: i.cx + i.w / 2, minY: i.cy - i.h / 2, maxY: i.cy + i.h / 2 };
       boxes.push(b);
       boxPts(b);
@@ -114,4 +122,76 @@ function finish(bx: Cand | null, by: Cand | null): SnapResult {
   ];
   const targets = [bx?.target, by?.target].filter((x): x is P2 => !!x);
   return { dx, dy, guides, targets };
+}
+
+// ---------------------------------------------------------------------------
+// Floor panels (milestone 17): a floor panel being moved snaps its outline to
+// other floor panels' corners and edges (on the floor, world x/z), not just to
+// the grid. Like shape snapping, this only adjusts the move.
+
+import { panelEdges } from './edges';
+import { toWorld } from './frame';
+
+type F2 = { x: number; z: number };
+export type FloorSnap = { dx: number; dz: number; guides: [F2, F2][] };
+
+const isRoot = (d: Design, id: string) => !Object.values(d.connections).some((c) => c.grown && c.b.panelId === id);
+const floorRing = (d: Design, id: string): F2[] => {
+  const p = d.panels[id];
+  return panelEdges(p).map((e) => {
+    const w = toWorld(p.frame, e.a.x, e.a.y);
+    return { x: w[0], z: w[2] };
+  });
+};
+
+/**
+ * Snap the move (dx, dz) of floor panel `id` (measured from `base`, the design
+ * at the start of the drag). Corners onto corners win; otherwise up to two
+ * edge lines (a corner onto another panel's edge, or a corner of another
+ * panel onto one of this panel's edges) are combined. Null: nothing near.
+ */
+export function snapFloor(base: Design, id: string, dx: number, dz: number, tol: number): FloorSnap | null {
+  if (!base.panels[id]) return null;
+  const mine = floorRing(base, id).map((q) => ({ x: q.x + dx, z: q.z + dz }));
+  const others = base.order.filter((o) => o !== id && base.panels[o] && isRoot(base, o) && Math.abs(base.panels[o].frame.o[1] - base.panels[id].frame.o[1]) < 1e-6).map((o) => floorRing(base, o));
+  if (!others.length) return null;
+  // corner onto corner
+  let bestV: { d: F2; dist: number; g: [F2, F2] } | null = null;
+  for (const ring of others)
+    for (const t of ring)
+      for (const v of mine) {
+        const dist = Math.hypot(t.x - v.x, t.z - v.z);
+        if (dist <= tol && (!bestV || dist < bestV.dist)) bestV = { d: { x: t.x - v.x, z: t.z - v.z }, dist, g: [t, t] };
+      }
+  if (bestV) return { dx: dx + bestV.d.x, dz: dz + bestV.d.z, guides: [bestV.g] };
+  // a point onto a line: the move along the line's normal
+  type Line = { n: F2; off: number; g: [F2, F2] };
+  const lines: Line[] = [];
+  const onto = (pts: F2[], ring: F2[], sign: number) => {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length];
+      const L = Math.hypot(b.x - a.x, b.z - a.z);
+      if (L < 1e-9) continue;
+      const t = { x: (b.x - a.x) / L, z: (b.z - a.z) / L }, n = { x: -t.z, z: t.x };
+      for (const v of pts) {
+        const s = (v.x - a.x) * t.x + (v.z - a.z) * t.z;
+        if (s < -tol || s > L + tol) continue;
+        const off = (v.x - a.x) * n.x + (v.z - a.z) * n.z;
+        if (Math.abs(off) <= tol) lines.push({ n, off: -sign * off, g: [a, b] });
+      }
+    }
+  };
+  for (const ring of others) {
+    onto(mine, ring, 1);
+    for (let i = 0; i < mine.length; i++) onto(ring, [mine[i], mine[(i + 1) % mine.length]], -1);
+  }
+  if (!lines.length) return null;
+  lines.sort((p, q) => Math.abs(p.off) - Math.abs(q.off));
+  const l1 = lines[0];
+  const l2 = lines.find((l) => Math.abs(l.n.x * l1.n.z - l.n.z * l1.n.x) > 0.1);
+  if (!l2) return { dx: dx + l1.n.x * l1.off, dz: dz + l1.n.z * l1.off, guides: [l1.g] };
+  // both: n1·δ = off1, n2·δ = off2
+  const det = l1.n.x * l2.n.z - l1.n.z * l2.n.x;
+  const ddx = (l1.off * l2.n.z - l1.n.z * l2.off) / det, ddz = (l1.n.x * l2.off - l1.off * l2.n.x) / det;
+  return { dx: dx + ddx, dz: dz + ddz, guides: [l1.g, l2.g] };
 }

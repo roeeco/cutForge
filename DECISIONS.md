@@ -152,3 +152,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Overlap up to t** is an edge lying inside the other panel's slab: it is joined at the edge's actual depth. Anything else that overlaps with no joint is *panels collide*.
 - **Several seams per pair:** a seam is its two edge keys; a second candidate is the same seam if it uses the same two edges or its contact lies within 2t of one already kept. Parent and child (a grown connection) are joined by that connection only.
 - Clicking a joint message selects both panels (the first as the primary, the other shown selected too).
+- **Rotation** (milestone 17): shapes store `rot` in degrees (missing = 0, never written as 0). Floor-panel yaw is not a separate field: it is the floor panel's frame, turned about world Y around the panel's centre; the card shows it from the frame's `u` axis. Circles ignore rotation. A group of shapes turns about the centre of their centres (one shape about itself).
+- **Gizmo placement:** on a shape it sits at the selection's centre in the panel's plane; on a floor panel at the panel's centre on its top face. Its handles win any raycast tie (like the push-pull arrows). The 3D gizmo is offered alongside the existing drags rather than replacing them.
+- **Typed values while dragging** follow the handle: an angle for the ring, an offset for an arrow, "x y" for the pad; they apply relative to where the drag started.
+- **Floor snapping** compares outlines of floor panels only (not their walls); a corner within the snap distance of another corner wins over edge lines.

@@ -531,3 +531,9 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .fold-bar { left: 84px; transform: none; z-index: 9; bottom: 58px; }
   .fold-bar input[type=range] { width: 120px; }
 }
+
+/* rotation ring in the cut plan / face-on view (milestone 17) */
+.rot-ring { fill: none; stroke: #e0a21b; opacity: 0.9; pointer-events: none; }
+.rot-ring-hit { fill: none; stroke: transparent; cursor: grab; pointer-events: stroke; }
+.rot-knob { fill: #e0a21b; stroke: white; cursor: grab; }
+.gizmo-readout { font-weight: 600; }

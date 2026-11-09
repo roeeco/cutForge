@@ -50,7 +50,8 @@ export function validate(d: Design): Issue[] {
       bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
     const own = ownOutline(p);
     const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
-    const outlines = plainRect ? [] : own.rings.map((r) => panelOutline(p, notches, r));
+    const anyTurned = p.details.some((dt) => dt.rot && dt.shape !== 'circle');
+    const outlines = plainRect && !anyTurned ? [] : own.rings.map((r) => panelOutline(p, notches, r));
     // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
     const hit = throughHits(d).get(id);
     const frags = hit ? fragmentsAfterThrough(d, id) : own.rings.length;
@@ -73,8 +74,8 @@ export function validate(d: Design): Issue[] {
         if (alone || misses) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
         continue;
       }
-      if (!plainRect) {
-        // any outline: the shape must lie inside the panel's material, a cut with a web around it
+      if (!plainRect || (dt.rot && dt.shape !== 'circle')) {
+        // any outline (or a turned shape): the shape must lie inside the panel's material, a cut with a web around it
         const polys = instancePolys(dt).flatMap((ip) => ip.polys);
         const inRing = (q: P2) => outlines.some((o) => pointInPolygon(q, o));
         if (!polys.every((poly) => poly.every(inRing))) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
