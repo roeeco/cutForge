@@ -645,4 +645,5 @@ export const he: Record<MsgKey, string> = {
   'multi.why.notSameSurface': "הלוחות האלה לא על אותו משטח.",
   'multi.why.grown': "לוחות שצמחו מאחרים זזים איתם: בחרו לוחות על הרצפה, או לוחות שמונחים על אותה פאה.",
   'multi.why.tooFew': "בחרו לפחות שני לוחות.",
+  'grow.spanPick': "{a} מ״מ ⟷ {b} מ״מ",
 };

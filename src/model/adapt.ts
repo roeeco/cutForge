@@ -8,6 +8,7 @@ import type { ConnectionKind, Design, P2, Panel, WallSketch } from './types';
 import { findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, sketchRing, type EdgeArg } from './edges';
 import { edgeLength, frameNormal, growFrame, matDir, toLocal, toWorld, type GrowDir, type Seating } from './frame';
 import { pointInPolygon } from '../geom/vec';
+import { detailCorners, detailInstances } from './geometry';
 import { cornerFit } from './seams';
 import { profileOf, tOf } from './materials';
 import { v3add, v3dot, v3mul, v3sub } from '../geom/v3';
@@ -105,6 +106,34 @@ export function spanTargets(d: Design, parentId: string, edge: string): number[]
         const side = Math.sqrt(Math.max(0, v3dot(off, off) - hgt * hgt));
         if (s > -1e-6 && s < L + 1e-6 && side < 2 * t + 1e-6 && Math.abs(hgt) < 4 * t + 1e-6) out.add(Math.round(s * 1e6) / 1e6);
       }
+  }
+  // milestone 35: the base's own shapes (corners and centres, seen across onto the edge)
+  const inl = segInward(e);
+  const ed = segDir(e);
+  const along = (q: P2) => (q.x - e.a.x) * ed.x + (q.y - e.a.y) * ed.y;
+  for (const dt of parent.details)
+    for (const i of detailInstances(dt)) {
+      const pts = i.rot && i.shape !== 'circle' ? detailCorners(i) : [{ x: i.cx - i.w / 2, y: i.cy - i.h / 2 }, { x: i.cx + i.w / 2, y: i.cy + i.h / 2 }];
+      for (const q of [...pts, { x: i.cx, y: i.cy }]) {
+        const s0 = along(q);
+        if (s0 > -1e-6 && s0 < L + 1e-6) out.add(Math.round(s0 * 1e6) / 1e6);
+      }
+    }
+  void inl;
+  // equal thirds and quarters of each free stretch
+  for (const [a, b] of edgeFreeSpans(d, parentId, edge)) for (const k of [1 / 3, 2 / 3, 1 / 4, 3 / 4]) out.add(Math.round((a + (b - a) * k) * 1e6) / 1e6);
+  // the mirror of a span on the opposite edge (a wall grown on part of a parallel edge facing this one), so two partial walls line up
+  for (const c of Object.values(d.connections)) {
+    if (!c.grown || c.a.panelId !== parentId || c.a.edge === edge || !c.span || c.trayId) continue;
+    const oe = findEdge(parent, c.a.edge);
+    if (!oe) continue;
+    const od = segDir(oe);
+    if (Math.abs(od.x * ed.x + od.y * ed.y) < 0.999) continue;
+    for (const sv of c.span) {
+      const q = { x: oe.a.x + od.x * sv, y: oe.a.y + od.y * sv };
+      const s0 = along(q);
+      if (s0 > -1e-6 && s0 < L + 1e-6) out.add(Math.round(s0 * 1e6) / 1e6);
+    }
   }
   return [...out].sort((x, y) => x - y);
 }

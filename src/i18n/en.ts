@@ -643,6 +643,7 @@ export const en = {
   'multi.why.notSameSurface': "These panels are not on the same surface.",
   'multi.why.grown': "Panels grown from others move with them: select floor panels, or panels placed on one face.",
   'multi.why.tooFew': "Select at least two panels.",
+  'grow.spanPick': "{a} mm ⟷ {b} mm",
 } as const;
 
 export type MsgKey = keyof typeof en;

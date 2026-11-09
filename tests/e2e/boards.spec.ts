@@ -386,3 +386,39 @@ test('milestone 33: copy two shapes from the base, paste them onto a wall at its
   expect(d.panels[base].details.map((x: any) => x.id)).toEqual(shapes);
   expect(errors).toEqual([]);
 });
+
+test('milestone 35: Ctrl-drag along an edge from a third to the middle grows a panel on exactly that part', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'ply-3');
+  const b = await S<string>(page, () => {
+    const cf = (window as any).__cutforge;
+    let id = '';
+    cf.store.getState().apply((d: any) => void (id = cf.ops.addRootPanel(d, -60, 40, 120, 80)));
+    cf.store.getState().select(null);
+    return id;
+  });
+  await S(page, () => (window as any).__cutforge.setCamera([0, 220, 200], [0, 0, 0]));
+  await page.waitForTimeout(300);
+  // hover the panel so its edges can be picked, then Ctrl-drag along the front edge (e0) from ~40 to ~60 mm
+  const mid = await proj(page, b, 60, 40);
+  await page.mouse.move(mid.x, mid.y);
+  const a = await proj(page, b, 40.6, 0), z = await proj(page, b, 59.5, 0);
+  await page.mouse.move(a.x, a.y, { steps: 4 });
+  await page.keyboard.down('Control');
+  await page.mouse.down();
+  await page.mouse.move((a.x + z.x) / 2, (a.y + z.y) / 2, { steps: 4 });
+  await expect(page.getByTestId('span-pick-label')).toBeVisible();
+  await page.mouse.move(z.x, z.y, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up('Control');
+  const g = await S<any>(page, () => (window as any).__cutforge.store.getState().grow);
+  expect(g.span[0]).toBeCloseTo(40, 6);
+  expect(g.span[1]).toBeCloseTo(60, 6);
+  await page.getByTestId('grow-go').click();
+  const d = await design(page);
+  const c: any = Object.values(d.connections).find((x: any) => x.grown);
+  expect(c.span[0]).toBeCloseTo(40, 6);
+  expect(c.span[1]).toBeCloseTo(60, 6);
+  expect(errors).toEqual([]);
+});

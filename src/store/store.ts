@@ -166,6 +166,12 @@ type State = {
   clipboard: Detail[] | null;
   /** A paste following the pointer, until a click puts it down (then it waits for ✓ like any ghost). */
   pasting: boolean;
+  /**
+   * Picking part of an edge to grow on (milestone 35): its start, and its end
+   * while dragging (null: waiting for a second Cmd/Ctrl-click or a typed
+   * distance); `typed` is a distance being typed for the end.
+   */
+  spanPick: { panelId: string; edge: string; s0: number; s1: number | null; typed: string } | null;
   /** The panel point under the pointer (local mm), where a paste lands. Not reactive state for drawing. */
   pointerHit: { panelId: string; x: number; y: number; tol?: number } | null;
   copyShapes: () => boolean;
@@ -197,7 +203,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -263,6 +269,7 @@ export const useStore = create<State>()((set, get) => ({
   pending: null,
   clipboard: null,
   pasting: false,
+  spanPick: null,
   pointerHit: null,
   copyShapes: () => {
     const ids = selectedDetailIds(get().selection);
@@ -385,7 +392,7 @@ export const useStore = create<State>()((set, get) => ({
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
-    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
+    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
     // another tool drops what the last one made and was not confirmed

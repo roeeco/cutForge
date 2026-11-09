@@ -814,6 +814,53 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
       ),
     [],
   );
+  const ray = useRayFromScreen();
+  /** Where along the edge (mm from its start) the pointer is, snapped to the edge's targets (Alt, or smart snapping off: the grid). */
+  const spanAt = (clientX: number, clientY: number, A: THREE.Vector3, D: THREE.Vector3, ev: { altKey: boolean }): number => {
+    const sRaw = Math.max(0, Math.min(L, closestOnLine(ray(clientX, clientY), A, D)));
+    const tol = SNAP_PX * mmPerPx(camera, size.height, A.clone().addScaledVector(D, sRaw));
+    const sn = noSmartSnap(ev) ? null : snapTo(sRaw, spanTargets(useStore.getState().design, p.id, edge), tol);
+    return Math.max(0, Math.min(L, sn ?? gridSnap(sRaw, ev)));
+  };
+  const startSpanPick = (ev: ThreeEvent<PointerEvent>) => {
+    const parent = hits.current[0]?.parent;
+    if (!parent) return;
+    const A = parent.localToWorld(new THREE.Vector3(seg.a.x, seg.a.y, mid)), B = parent.localToWorld(new THREE.Vector3(seg.b.x, seg.b.y, mid));
+    const D = B.clone().sub(A).normalize();
+    const st = useStore.getState();
+    const s = spanAt(ev.nativeEvent.clientX, ev.nativeEvent.clientY, A, D, ev.nativeEvent);
+    const sp = st.spanPick;
+    // the second of two Cmd/Ctrl-clicks on this edge sets the end
+    if (sp && sp.panelId === p.id && sp.edge === edge && sp.s1 === null) {
+      if (Math.abs(s - sp.s0) >= MIN_PANEL) st.setGrow({ span: [Math.min(sp.s0, s), Math.max(sp.s0, s)], sketch: null });
+      st.set({ spanPick: null });
+      return;
+    }
+    if (!(st.selection?.kind === 'edge' && st.selection.panelId === p.id && st.selection.edge === edge)) st.select({ kind: 'edge', panelId: p.id, edge });
+    st.set({ spanPick: { panelId: p.id, edge, s0: s, s1: s, typed: '' } });
+    const { controls } = (three as unknown as { controls: { enabled: boolean } | null });
+    if (controls) controls.enabled = false;
+    const move = (e: PointerEvent) => {
+      const cur = useStore.getState().spanPick;
+      if (!cur || cur.s1 === null) return;
+      const s1 = spanAt(e.clientX, e.clientY, A, D, e);
+      useStore.getState().set({ spanPick: { ...cur, s1 } });
+      if (Math.abs(s1 - cur.s0) >= MIN_PANEL) useStore.getState().setGrow({ span: [Math.min(cur.s0, s1), Math.max(cur.s0, s1)], sketch: null });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (controls) controls.enabled = true;
+      const cur = useStore.getState().spanPick;
+      if (!cur) return;
+      // hardly moved: a click; the next Cmd/Ctrl-click (or a typed distance) sets the end
+      if (cur.s1 === null || Math.abs(cur.s1 - cur.s0) < MIN_PANEL) useStore.getState().set({ spanPick: { ...cur, s1: null } });
+      else useStore.getState().set({ spanPick: null });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const three = useThree();
   const follow = (ev: ThreeEvent<PointerEvent>) => {
     const parent = hits.current[0]?.parent;
     if (!parent) return;
@@ -839,6 +886,10 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
           onPointerDown={(ev) => {
             if (ev.button !== 0) return;
             ev.stopPropagation();
+            const ne = ev.nativeEvent;
+            const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+            // Cmd-drag (Mac) / Ctrl-drag: pick the part of the edge to grow on (milestone 35)
+            if (mac ? ne.metaKey : ne.ctrlKey) return startSpanPick(ev);
             useStore.getState().select({ kind: 'edge', panelId: p.id, edge });
           }}
           userData={{ edgeHit: edge }}
@@ -1173,7 +1224,51 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         ([0, 1] as const).map((i) => <SpanEnd key={i} at={edgeW(sp[i])} base={edgeW(0)} dir={Wdir(m, [parent.frame.u[0] * dir.x + parent.frame.v[0] * dir.y, parent.frame.u[1] * dir.x + parent.frame.v[1] * dir.y, parent.frame.u[2] * dir.x + parent.frame.v[2] * dir.y])} onMove={(s, ev) => setEnd(i, s, ev)} testId={`ghost-span-${i}`} />)}
       <DimLabel at={W(m, f, w, grow.height / 2, th / 2)} k="H" value={grow.height} unit={t('unit.mm')} ghost onCommit={(v) => setGrow({ height: v, sketch: null })} testId="ghost-dim-h" />
       {grow.editGhost && <GhostOutlineHandles ghost={ghost.p} m={m} th={th} />}
+      <SpanPickLabel panelId={panelId} edge={edge} L={L} at={edgeW} />
     </>
+  );
+}
+
+/**
+ * Picking part of an edge (milestone 35): the end being placed shows its
+ * distances from both ends of the edge; typing a number and Enter sets it (mm
+ * from the edge's start); Esc cancels.
+ */
+function SpanPickLabel({ panelId, edge, L, at }: { panelId: string; edge: string; L: number; at: (s: number) => V3 }) {
+  const t = useT();
+  const sp = useStore((s) => s.spanPick);
+  const mine = !!sp && sp.panelId === panelId && sp.edge === edge;
+  useEffect(() => {
+    if (!mine) return;
+    const key = (ev: KeyboardEvent) => {
+      const st = useStore.getState();
+      const cur = st.spanPick;
+      if (!cur) return;
+      if (ev.key === 'Escape') {
+        ev.stopPropagation();
+        st.set({ spanPick: null });
+        st.setGrow({ span: null, sketch: null });
+      } else if (/^[0-9.]$/.test(ev.key)) st.set({ spanPick: { ...cur, typed: cur.typed + ev.key } });
+      else if (ev.key === 'Backspace') st.set({ spanPick: { ...cur, typed: cur.typed.slice(0, -1) } });
+      else if (ev.key === 'Enter' && cur.typed) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const v = Math.max(0, Math.min(L, Number(cur.typed)));
+        if (Number.isFinite(v) && Math.abs(v - cur.s0) >= MIN_PANEL) st.setGrow({ span: [Math.min(cur.s0, v), Math.max(cur.s0, v)], sketch: null });
+        st.set({ spanPick: null });
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [mine, L]);
+  if (!sp || !mine) return null;
+  const s = sp.s1 ?? sp.s0;
+  return (
+    <StageHtml position={at(s)} style={{ pointerEvents: 'none' }}>
+      <span className="w-dim ghost span-pick" data-testid="span-pick-label" data-s0={sp.s0} data-s={s}>
+        {sp.typed ? `${sp.typed} ${t('unit.mm')}` : t('grow.spanPick', { a: fmtNum(s), b: fmtNum(L - s) })}
+      </span>
+    </StageHtml>
   );
 }
 

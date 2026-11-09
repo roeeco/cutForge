@@ -680,7 +680,18 @@ Verified
 Differences from the plan
 - **The flat height of the L base is its notch less the hinged wall's glue flap** (50 mm on card, 46 mm on corrugated 1.6, for a 60 mm notch), not the notch itself: the flap along the hinged wall's bottom reaches the opposite wall first.
 - **A hinged wall is glued to the base on corrugated too** (the plan had tabs and slots): tabs need the wall to stand in from the edge, which would take its side edge off the neighbour's and break the fold it hangs from.
-- The grow ghost's overlap check (amber with *Cut it as its own piece*) comes with the ghost bar (milestone 30).
+- The grow ghost's overlap check (amber with *Cut it as its own piece*) came with the ghost bar (milestone 30).
+
+## Milestone 35 (edge picking) — Growing on part of an edge ✅
+
+Implemented (`startSpanPick` in `EdgeHandle`, `SpanPickLabel` in `View3D.tsx`; `spanPick` in the store; new targets in `spanTargets`, `adapt.ts`)
+- A plain click on an edge grows on the whole free stretch, as before. **Cmd-drag (Mac) / Ctrl-drag (Windows) along a free edge** sets the start where the drag begins and the end where it is released, with the grow ghost following live; **two Cmd/Ctrl-clicks** do the same for trackpads. While the end is being placed a label shows its distances from both ends of the edge; typing a number and Enter sets it (mm from the edge's start); Esc cancels. Afterwards the span's end squares and *Starts at / Ends at* fields work as before, and ✓ grows it (milestone 30).
+- Both points snap with smart snapping (Alt or snapping off: the grid). Besides the edge's ends and middle, the ends of free stretches and of panels already grown on it, and where other panels meet the edge line, the targets now include **the base's own shapes** (their corners and centres, seen across onto the edge), **equal thirds and quarters of each free stretch**, and **the mirror of a span on the opposite (parallel) edge**, so two partial walls can line up face to face.
+- Only Cmd counts on a Mac (Ctrl-click is a right-click there). Cmd/Ctrl-click on a face stays multi-select (milestone 31); on an edge, whose hit target wins over the face, it picks a span.
+
+Verified
+- `tests/adapt.test.ts`: the front edge's targets include a base shape's corners and centre, a quarter and two thirds of the edge, and both ends of a partial wall on the back edge mirrored across.
+- `tests/e2e/boards.spec.ts`: **Ctrl-drag along a base's front edge from near a third to near the middle shows the distance label, snaps to exactly [40, 60] of 120 mm, and ✓ grows the panel on that part.**
 
 ## Milestone 36 — A material for each board ✅
 
