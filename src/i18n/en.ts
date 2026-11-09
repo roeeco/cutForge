@@ -353,6 +353,13 @@ export const en = {
   'val.slotEdge': 'A joint slot on panel {panel} is closer than {min} mm to an edge. Move the panel further in.',
   'val.broken': 'The joint between panels {a} and {b} no longer meets. The last good joint is kept; move the panels back or delete the connection.',
   'val.unsupported': 'Panel {panel} leans but nothing holds it. Add side walls so its tabs can sit in their slots.',
+  'val.collide': 'Panels {a} and {b} run into each other (deeper than the material is thick). Move one of them.',
+  'val.notJoined.sideBySide': 'Panels {a} and {b} touch but are not joined: they lie side by side in one plane, where no joint fits. Move one apart, or make them one panel.',
+  'val.notJoined.faceToFace': 'Panels {a} and {b} touch but are not joined: they lie face to face. Glue them, or move one apart.',
+  'val.notJoined.unjoined': 'Panels {a} and {b} touch but are not joined: their joint was removed by hand. Connect them again in Joints (advanced).',
+  'val.notJoined.angle': 'Panels {a} and {b} touch but are not joined: they meet at {angle}°, and joints are made from 30° to 150°.',
+  'val.notJoined.short': 'Panels {a} and {b} touch but are not joined: they meet over only about {len} mm, too little for a joint. Move one so they meet along an edge, or apart.',
+  'val.notJoined.noFit': 'Panels {a} and {b} touch but are not joined: no joint fits the way they meet. Move one so its edge sits on the other one’s face or edge.',
   'val.overlap': 'Panels {a} and {b} overlap where they meet. Connect them.',
 
   'hint.title': 'Getting started',

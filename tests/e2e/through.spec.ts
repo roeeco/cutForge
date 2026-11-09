@@ -58,10 +58,13 @@ test('a through-cut chamfer: live count while drawing, every panel updates, link
 
   // linked selection: clicking where it cut the back wall selects the source shape
   await S(page, () => (window as any).__cutforge.store.getState().select(null));
-  const onBack = await panelPt(page, back, 120 - 5, 47, false);
-  await page.mouse.click(onBack.x, onBack.y);
-  const sel = (await state(page)).selection;
-  expect(sel?.kind === 'detail' ? sel.id : null).toBe(cut.id);
+  // under load the camera may still be settling: project the point again and retry the click until it lands
+  await expect(async () => {
+    const onBack = await panelPt(page, back, 120 - 5, 47, false);
+    await page.mouse.click(onBack.x, onBack.y);
+    const sel = (await state(page)).selection;
+    expect(sel?.kind === 'detail' ? sel.id : null).toBe(cut.id);
+  }).toPass({ timeout: 10_000 });
 
   // switching it off restores the other panels
   await page.getByTestId('detail-through').uncheck();

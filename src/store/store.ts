@@ -8,7 +8,8 @@ import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
 
 export type Selection =
-  | { kind: 'panel'; id: string }
+  /** `also`: other panels shown selected with it (both panels a joint message is about). */
+  | { kind: 'panel'; id: string; also?: string[] }
   | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
@@ -17,6 +18,12 @@ export type Selection =
 /** Ids of the selected shapes (empty when none). */
 export function selectedDetailIds(s: Selection): string[] {
   return s?.kind === 'detail' ? s.ids : [];
+}
+/** What clicking an export-check message selects: the shape, the panel, or both panels of a joint message. */
+export function issueSelection(i: { target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }): Selection {
+  if (i.target.kind === 'detail') return { kind: 'detail', id: i.target.id, ids: [i.target.id] };
+  if (i.pair) return { kind: 'panel', id: i.pair[0], also: [i.pair[1]] };
+  return { kind: 'panel', id: i.target.id };
 }
 export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;

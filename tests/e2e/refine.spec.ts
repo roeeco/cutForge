@@ -117,3 +117,29 @@ for (const [mat, folds] of [
     await expect(page.getByTestId('fold-slider')).toHaveCount(folds ? 1 : 0);
   });
 }
+
+test('milestone 16: panels run into each other: the export check names both and selects both', async ({ page }) => {
+  await start(page, 'ply-3');
+  const ids = await S<string[]>(page, () => {
+    const cf = (window as any).__cutforge;
+    let a = '', b = '';
+    cf.store.getState().apply((d: any) => {
+      const base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      for (const e of [0, 1, 2, 3]) cf.ops.growPanel(d, base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' });
+      a = cf.ops.addDivider(d, base, 0, 30, 40);
+      b = cf.ops.addDivider(d, base, 0, 31.5, 40);
+    });
+    return [a, b];
+  });
+  await page.getByTestId('open-export').click();
+  const msg = page.getByTestId('export-issues').getByRole('button', { name: /run into each other/ });
+  await expect(msg).toHaveCount(1);
+  await msg.click();
+  const sel = (await state(page)).selection;
+  expect(sel.kind).toBe('panel');
+  expect([sel.id, ...sel.also].sort()).toEqual([...ids].sort());
+  // Hebrew
+  await S(page, () => (window as any).__cutforge.store.getState().setLang('he'));
+  await page.getByTestId('open-export').click();
+  await expect(page.getByTestId('export-issues')).toContainText('נכנסים זה בזה');
+});

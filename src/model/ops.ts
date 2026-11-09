@@ -9,7 +9,7 @@ import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
 import { edgeLength, growFrame, GROUND_FRAME, type GrowDir, type Seating } from './frame';
-import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
+import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
 import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
@@ -390,10 +390,11 @@ export function autoConnect(d: Design) {
   if (removed) solve(d);
   if (d.noAutoSeams?.length) d.noAutoSeams = d.noAutoSeams.filter((k) => k.split('|').every((id) => d.panels[id]));
   const skip = new Set(d.noAutoSeams ?? []);
+  const tried = new Set<string>();
   for (let i = 0; i < 500; i++) {
-    const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)));
+    const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)) && !tried.has(seamKey(x)));
     if (!s) break;
-    skip.add(pairKey(s.a.panelId, s.b.panelId));
+    tried.add(seamKey(s));
     connectSeam(d, s);
   }
 }

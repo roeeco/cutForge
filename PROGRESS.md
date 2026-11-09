@@ -341,6 +341,31 @@ Verified
 - `tests/e2e/refine.spec.ts`: hovering a wall's right and top edges at seven points each, the pill never shows inside the midpoint gap (and does show away from it); dragging `pp-width` and `pp-height` from those midpoints resizes the wall with the panel still selected and nothing grown. Reproduced first: with the old `EdgeHandle` the same drag selected the edge. The fold slider shows on the stage for a card tray and a corrugated tray (and folds/unfolds), not for plywood, and never in View settings or the panel card.
 - Screenshots: `docs/refine-shots/{en,he}-15-grow-pill-and-fold-bar.png`.
 
+## Milestone 16 — Reliable auto-connection ✅
+
+Reproduced first: `tests/autoseam.test.ts` builds 500 seeded random designs in six families (boxes, trays, dividers, leaning panels, notched walls, dragged floor panels; plywood, card and both corrugated boards), runs `solve` + `autoConnect` after every edit as the editor does, and checks with an independent sampler (`slabContacts` in `tests/solid.ts`: both faces and every side face of each nominal slab against every other slab) that **every pair whose slabs touch or overlap has a connection or an export-check message naming both**. Against the milestone-15 code 58 seeds failed; they are kept as fixed cases (`FIXED`).
+
+Real causes the fuzz test found
+- **Contacts no joint can use were silent** (54 seeds, all dragged floor panels): two bases side by side in one plane (touching or overlapping), walls of two boxes face to face (or overlapping), and grazes where only two panel ends meet over a t × t patch. There is no joint for these; they now get a message with the reason.
+- **Dividers placed into each other were silent** (3 corrugated seeds): two parallel dividers overlapping or face to face. Now *panels collide* / *face to face*.
+- **A crash** (1 seed, card tray with an opened side): `polygon-clipping` threw while merging a net, so the export check itself failed. `src/geom/clip.ts` retries such unions/differences on a coarser grid (and finally one polygon at a time); the first attempt is the plain call, so every result that worked before is unchanged.
+
+The brief's four causes, each confirmed with a test that fails on the old seam code and passes now (`milestone 16: causes of missed joints`)
+1. **Only touching counted** → an edge lying anywhere inside the other panel's slab (an overlap of up to t) is joined at the contact: `faceFit(…, inside)` seats the joint at the edge's actual depth (gaps cut back to the receiver's near face, tabs to its far face). Test: a front wall typed 0.5–3 mm into a lid is joined, with no overlap (volumetric check).
+2. **One seam per pair** → `seamsBetween` returns every distinct place two panels meet; a seam is identified by both edge keys (`seamKey`), and two candidates are the same seam only if they use the same two edges or touch in the same place (contact segments within 2t). `findOpenSeams` drops only seams an existing connection already covers; pairs joined by a grown connection are still joined by it alone; `noAutoSeams` stays keyed by pair. Test: a lid on a wall with a notched top meets it along two edges and gets two joints.
+3. **Angled faces skipped** → closing seams look for edge-on-face contacts at any angle from 30° to 150° (`faceFit(…, angled)`), and their geometry is laid out with the angled fit. Test: a panel leaning back at 45° with its top edge on the back wall gets a tab joint there.
+4. **Non-convex receivers** → `clipToOutline` returns every run of the owner edge on the receiver's outline, and the joint is laid out on each (`FaceFit.runs`). Test: a divider end meeting a wall with a slot cut in from its end has tabs below and above the slot.
+
+Messages (`src/model/contact.ts`, `contactIssues` in `validate.ts`)
+- Pairs that touch or overlap with no joint are found by sampling each panel's side faces (every 1.5 mm, three depths) and both faces (2.5 mm grid) against the other slab; contacts under 1.5 mm long (a corner grazing a face) are left out. Only unjoined pairs are sampled (about 1 ms for a 15-panel organiser), and results are cached by geometry.
+- *Panels X and Y run into each other* (`val.collide`) when one is inside the other and no joint fits; *X and Y touch but are not joined* with a reason: side by side in one plane, face to face, unjoined by hand, meeting at under 30°, meeting over only ~N mm, or no joint fits.
+- Joint messages carry both panels (`Issue.pair`); clicking one selects both (`Selection.also`), shown selected in 3D and on the cut plan.
+
+Verified
+- `npm test`: 244 tests, including the 500-seed fuzz test (~25 s), the 58 fixed seeds and the four cause tests. **Every golden SVG/DXF export is byte-identical** (no intended changes), and every pre-existing seam test passes unchanged.
+- Playwright: `refine.spec.ts` — two dividers placed into each other: the export check shows *run into each other*, clicking it selects both, and the Hebrew message shows. Full app suite passes.
+- Fixed a pre-existing flaky check in `through.spec.ts` (it also failed under load on the starting commit): the linked-selection click is re-projected and retried until it lands.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

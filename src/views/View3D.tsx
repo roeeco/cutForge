@@ -326,6 +326,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const foldOvers = useMemo(() => allFoldOvers(design), [design]);
   const selEdge = sel?.kind === 'edge' ? sel : null;
   const selPanel = sel?.kind === 'panel' ? sel.id : null;
+  const selAlso = sel?.kind === 'panel' ? (sel.also ?? []) : [];
   const selDetailPanels = useMemo(() => new Set(selectedDetailIds(sel).map((id) => findDetail(design, id)?.panel.id)), [sel, design]);
   const focus = selPanel;
   const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
@@ -375,7 +376,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {design.order.map((id, index) => {
         const p = design.panels[id];
         if (!p) return null;
-        const selected = selPanel === id || selDetailPanels.has(id) || selEdge?.panelId === id;
+        const selected = selPanel === id || selAlso.includes(id) || selDetailPanels.has(id) || selEdge?.panelId === id;
         return (
           <PanelObject
             key={id}
@@ -383,7 +384,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             p={p}
             index={index}
             m={display.xf.get(id) ?? IDM}
-            selected={selPanel === id}
+            selected={selPanel === id || selAlso.includes(id)}
             emphasis={selected ? 1 : sel ? -1 : hoverPart === id ? 0.5 : 0}
             hover={hoverPart === id}
             outlines={prefs.outlines}

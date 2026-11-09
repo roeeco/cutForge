@@ -12,7 +12,9 @@ import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry'
 import { bboxOf } from '../geom/vec';
 import { minWeb as materialMinWeb } from './materials';
 import { findOpenSeams } from './seams';
-import { leanSupported } from './ops';
+import { leanSupported, pairKey } from './ops';
+import { panelContacts, TOUCH_EPS } from './contact';
+import { MIN_CORNER } from './seams';
 import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
@@ -23,7 +25,8 @@ import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
-export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget };
+/** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
+export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget; pair?: [string, string] };
 
 export function minWeb(d: Design): number {
   return materialMinWeb(d.material);
@@ -95,16 +98,17 @@ export function validate(d: Design): Issue[] {
   }
   issues.push(...foldOverIssues(d));
   for (const c of Object.values(d.connections)) {
-    if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
-    else if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId } });
+    if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });
+    else if (c.broken) issues.push({ key: 'val.broken', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });
     if (c.grown && c.kind === 'lean' && !leanSupported(d, c.b.panelId))
       issues.push({ key: 'val.unsupported', vars: { panel: name(c.b.panelId) }, target: { kind: 'panel', id: c.b.panelId } });
   }
   issues.push(...shapeIssues(d), ...sheetIssues(d));
   for (const ti of templateIssues(d)) issues.push({ key: ti.key, vars: ti.vars, target: { kind: 'panel', id: d.panels[ti.panel] ? ti.panel : d.order[0] } });
   for (const s of findOpenSeams(d)) {
-    if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId } });
+    if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId }, pair: [s.a.panelId, s.b.panelId] });
   }
+  issues.push(...contactIssues(d, issues));
   return issues;
 }
 
@@ -287,5 +291,41 @@ function sheetIssues(d: Design): Issue[] {
       if (overlapArea(a.poly, b.poly) > 1e-3)
         out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: b.c.pieceKey } });
     }
+  return out;
+}
+
+/**
+ * Panels that touch or run into each other with no joint between them
+ * (milestone 16): never silent. Pairs already named by another joint message
+ * are left to that message.
+ */
+/** Contacts shorter than this (mm) are reported as too short to join (a corner grazing another panel). */
+const SHORT_CONTACT = 10;
+
+function contactIssues(d: Design, already: Issue[]): Issue[] {
+  const name = (id: string) => d.panels[id]?.name ?? '?';
+  const joined = new Set(Object.values(d.connections).map((c) => pairKey(c.a.panelId, c.b.panelId)));
+  const named = new Set(already.filter((i) => i.pair).map((i) => pairKey(i.pair![0], i.pair![1])));
+  const unjoined = new Set(d.noAutoSeams ?? []);
+  const out: Issue[] = [];
+  for (const c of panelContacts(d)) {
+    const k = pairKey(c.a, c.b);
+    if (joined.has(k) || named.has(k)) continue;
+    const key: MsgKey =
+      c.depth > TOUCH_EPS
+        ? 'val.collide'
+        : c.coplanar
+          ? 'val.notJoined.sideBySide'
+          : c.angle < 0.02
+            ? 'val.notJoined.faceToFace'
+            : unjoined.has(k)
+              ? 'val.notJoined.unjoined'
+              : c.extent < SHORT_CONTACT
+                ? 'val.notJoined.short'
+              : c.angle < MIN_CORNER - 1e-6
+                ? 'val.notJoined.angle'
+                : 'val.notJoined.noFit';
+    out.push({ key, vars: { a: name(c.a), b: name(c.b), angle: Math.round(c.angle), len: Math.round(c.extent) }, target: { kind: 'panel', id: c.a }, pair: [c.a, c.b] });
+  }
   return out;
 }

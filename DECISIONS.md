@@ -148,3 +148,7 @@ Defaults chosen where the brief left room. Each is reversible.
 ## Interaction refinements (see `INTERACTION_REFINEMENTS.md`)
 - **Grow targets and push-pull arrows** (milestone 15): an edge's grow target leaves a gap of 22 screen px each side of its midpoint and of any push-pull anchor on it; pieces under 12 px are dropped. The pill follows the pointer on the remaining pieces (or sits at 30% along the edge before the pointer moves). Push-pull arrows also win any raycast tie. The arrows sit on the panel's real outline (right side at half height, top at half width), which is the same place on a rectangle.
 - **Fold slider** lives only on the stage (bottom centre) while a net of two or more panels exists; on stages under 900 px wide it sits at the left above the card dock.
+- **Touching** (milestone 16) means a sample of one slab within 0.05 mm of the other, over a contact at least 1.5 mm long; a corner grazing a face is not a contact. Contacts under 10 mm that no joint uses are reported as too short.
+- **Overlap up to t** is an edge lying inside the other panel's slab: it is joined at the edge's actual depth. Anything else that overlaps with no joint is *panels collide*.
+- **Several seams per pair:** a seam is its two edge keys; a second candidate is the same seam if it uses the same two edges or its contact lies within 2t of one already kept. Parent and child (a grown connection) are joined by that connection only.
+- Clicking a joint message selects both panels (the first as the primary, the other shown selected too).

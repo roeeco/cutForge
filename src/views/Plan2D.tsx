@@ -429,7 +429,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             );
           })}
         {layout.placed.map((pl) => {
-          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId);
+          const also = sel?.kind === 'panel' ? (sel.also ?? []) : [];
+          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
           const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
           const tint = partTintCss(d.material.kind, Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
           return (

@@ -100,6 +100,8 @@ export type FaceFit = {
   m: number;
   /** Owner trim that keeps its end inside the receiver's outer face (acute corners). */
   trim: number;
+  /** Every stretch of the owner edge on the receiver's outline (a notched receiver gives several), [s0, s1] each. */
+  runs: [number, number][];
 };
 
 /**
@@ -107,7 +109,7 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2, range?: [number, number]): FaceFit | null {
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2, range?: [number, number], inside = false): FaceFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   if (!perp && !angled) return null;
   const [p0, p1] = edgeWorld(A, eA);
@@ -117,6 +119,8 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = fa
   let zE: number;
   if (Math.abs(z0) < TOL) zE = 0;
   else if (Math.abs(z0 - tB) < TOL) zE = tB;
+  // closing seams: an edge that lies inside the other's slab (an overlap of up to t) is joined at the contact
+  else if (inside && z0 > 0 && z0 < tB) zE = (z0 + z1) / 2;
   else return null;
   const k = v3dot(inwardWorld(A, eA), mB);
   if (Math.abs(k) < (perp ? 0.99 : SIN_MIN)) return null;
@@ -139,25 +143,24 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = fa
     trim = Math.max(0, at(zE, 0), at(zE, tA));
   }
   const q0 = toLocal(B.frame, p0), q1 = toLocal(B.frame, p1);
-  const span = clipToOutline(B, q0, q1);
-  if (!span) return null;
-  const [t0, t1] = span;
+  const spans = clipToOutline(B, q0, q1);
+  if (!spans.length) return null;
   const L = edgeLength(A, eA);
-  let s0 = t0 * L, s1 = t1 * L;
-  if (range) {
-    s0 = Math.max(s0, range[0]);
-    s1 = Math.min(s1, range[1]);
-  }
-  if (s1 - s0 < minLen) return null;
-  return { s0, s1, d0, d1, k: kk, zE, m, trim };
+  // every run on the receiver's outline (a notch splits it); the longest is the fit, or the one inside `range`
+  const runs = spans
+    .map(([t0, t1]) => [range ? Math.max(t0 * L, range[0]) : t0 * L, range ? Math.min(t1 * L, range[1]) : t1 * L] as [number, number])
+    .filter(([a, b]) => b - a >= minLen);
+  if (!runs.length) return null;
+  const [s0, s1] = runs.reduce((x, y) => (y[1] - y[0] > x[1] - x[0] ? y : x));
+  return { s0, s1, d0, d1, k: kk, zE, m, trim, runs };
 }
 
 /**
- * Parameter range [t0, t1] of segment q0 → q1 (B-local) that lies on B's
- * outline polygon, with a small tolerance; the longest inside run for a
- * non-convex outline.
+ * Parameter ranges [t0, t1] of segment q0 → q1 (B-local) that lie on B's
+ * outline polygon, with a small tolerance: one for a convex outline, one per
+ * inside run for a non-convex one.
  */
-function clipToOutline(B: Panel, q0: P2, q1: P2): [number, number] | null {
+function clipToOutline(B: Panel, q0: P2, q1: P2): [number, number][] {
   const ring = panelEdges(B);
   const dx = q1.x - q0.x, dy = q1.y - q0.y;
   const rect =
@@ -174,8 +177,8 @@ function clipToOutline(B: Panel, q0: P2, q1: P2): [number, number] | null {
       else t1 = Math.min(t1, r);
       return true;
     };
-    if (!clip(-dx, q0.x + TOL) || !clip(dx, B.w + TOL - q0.x) || !clip(-dy, q0.y + TOL) || !clip(dy, B.h + TOL - q0.y)) return null;
-    return t1 > t0 ? [t0, t1] : null;
+    if (!clip(-dx, q0.x + TOL) || !clip(dx, B.w + TOL - q0.x) || !clip(-dy, q0.y + TOL) || !clip(dy, B.h + TOL - q0.y)) return [];
+    return t1 > t0 ? [[t0, t1]] : [];
   }
   // general polygon: split at every crossing with an edge, keep runs whose midpoints are inside (or on) the outline
   const poly = ring.map((e) => e.a);
@@ -194,17 +197,17 @@ function clipToOutline(B: Panel, q0: P2, q1: P2): [number, number] | null {
     if (pointInPolygon(q, poly)) return true;
     return ring.some((e) => distToSeg(q, e.a, e.b) <= TOL);
   };
-  let best: [number, number] | null = null, cur: [number, number] | null = null;
+  const out: [number, number][] = [];
+  let cur: [number, number] | null = null;
   for (let i = 0; i + 1 < ts.length; i++) {
     const a = ts[i], b = ts[i + 1];
     if (b - a < 1e-12) continue;
     if (inside((a + b) / 2)) {
       if (cur && Math.abs(cur[1] - a) < 1e-12) cur[1] = b;
-      else cur = [a, b];
-      if (!best || cur[1] - cur[0] > best[1] - best[0]) best = [cur[0], cur[1]];
+      else out.push((cur = [a, b]));
     } else cur = null;
   }
-  return best;
+  return out;
 }
 
 function distToSeg(p: P2, a: P2, b: P2): number {
@@ -331,7 +334,7 @@ export function seamContact(d: Design, c: Connection): number {
     if (f) return f.s1 - f.s0;
   }
   const o = ownerOf(c);
-  const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], d.material.thickness, !c.grown && c.b.edge !== FACE, 1e-6);
+  const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], d.material.thickness, !c.grown, 1e-6, undefined, !c.grown);
   return f ? f.s1 - f.s0 : 0;
 }
 
@@ -541,8 +544,10 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   const { owner, edge, receiver } = ownerOf(c);
   const O = d.panels[owner], R = d.panels[receiver];
   const corner = !c.grown && c.b.edge !== FACE;
-  const fit = faceFit(O, edge, R, t, corner, 2, rng);
+  const fit = faceFit(O, edge, R, t, !c.grown, 2, rng, !c.grown);
   if (!fit) return null;
+  // a notched receiver: the joint is laid out on every stretch the owner edge still meets
+  if (!rng && fit.runs.length > 1) return mergeGeoms(fit.runs.map((r) => connectionGeomOne(d, c, r)));
   if (!rng) {
     const parts = survivingContact(d, O, edge, R, c.grown ? FACE : c.b.edge === FACE ? FACE : c.b.edge, fit.s0, fit.s1);
     if (parts) return mergeGeoms(parts.map((r) => (r[1] - r[0] >= 2 ? connectionGeomOne(d, c, r) : null)));
@@ -727,56 +732,145 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
 export type SeamType = 'corner' | 'face' | 'cross';
 export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b: { panelId: string; edge: string }; overlapping: boolean; /** Corner angle (degrees). */ angle?: number };
 
-function connectedPair(d: Design, x: string, y: string) {
-  return Object.values(d.connections).some((c) => (c.a.panelId === x && c.b.panelId === y) || (c.a.panelId === y && c.b.panelId === x));
+/** World segment where a seam's panels meet (along its owner edge), or null. */
+function seamSegment(d: Design, s: { type: SeamType; a: EdgeRef2; b: EdgeRef2 }): [V3, V3] | null {
+  const t = d.material.thickness;
+  const A = d.panels[s.a.panelId], B = d.panels[s.b.panelId];
+  if (!A || !B || s.type === 'cross') return null;
+  if (s.a.edge === FACE || !findEdge(A, s.a.edge)) return null;
+  const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6) : faceFit(A, s.a.edge, B, t, true, 1e-6, undefined, true);
+  if (!f) return null;
+  const [p0, p1] = edgeWorld(A, s.a.edge);
+  const L = v3len(v3sub(p1, p0)) || 1;
+  const at = (x: number) => v3add(p0, v3mul(v3sub(p1, p0), x / L));
+  return [at(f.s0), at(f.s1)];
+}
+type EdgeRef2 = { panelId: string; edge: string };
+
+/** Do two contact segments describe the same place (mostly within reach of each other)? */
+function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
+  const near = (p: V3, q: [V3, V3]) => {
+    const d = v3sub(q[1], q[0]);
+    const l2 = v3dot(d, d);
+    const k = l2 < 1e-12 ? 0 : Math.max(0, Math.min(1, v3dot(v3sub(p, q[0]), d) / l2));
+    return v3len(v3sub(p, v3add(q[0], v3mul(d, k)))) <= reach;
+  };
+  let n = 0;
+  for (let i = 0; i <= 4; i++) if (near(v3add(x[0], v3mul(v3sub(x[1], x[0]), i / 4)), y)) n++;
+  let m = 0;
+  for (let i = 0; i <= 4; i++) if (near(v3add(y[0], v3mul(v3sub(y[1], y[0]), i / 4)), x)) m++;
+  return n >= 3 || m >= 3;
 }
 
-/** How two panels meet, if they do (ignoring any connection between them). */
-export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
+/**
+ * Every distinct place two panels meet (ignoring any connection between
+ * them), best first: corners, then edges on a face (straight or angled, also
+ * an edge up to t inside the other's slab), then crossing panels. Two
+ * candidates on the same edge, or touching in the same place, are one seam.
+ */
+export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   const t = d.material.thickness;
   const ka = panelEdges(A).map((e) => e.key), kb = panelEdges(B).map((e) => e.key);
+  const cand: OpenSeam[] = [];
   for (const ea of ka)
     for (const eb of kb) {
       const f = cornerFit(A, ea, B, eb);
-      if (f) return { type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) };
+      if (f) cand.push({ type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) });
     }
   // an edge on the other's face; at a tray's inside corner the wall reaching across the corner is the one received
-  const faceB = kb.map((e) => ({ e, f: faceFit(B, e, A, t) })).find((x) => x.f);
-  const faceA = ka.map((e) => ({ e, f: faceFit(A, e, B, t) })).find((x) => x.f);
-  const preferA = faceA && faceB && (B.ext?.s || B.ext?.e) && !(A.ext?.s || A.ext?.e);
-  if (faceB && !preferA) return { type: 'face', a: { panelId: B.id, edge: faceB.e }, b: { panelId: A.id, edge: FACE }, overlapping: faceB.f!.d1 > 1e-6 };
-  if (faceA) return { type: 'face', a: { panelId: A.id, edge: faceA.e }, b: { panelId: B.id, edge: FACE }, overlapping: faceA.f!.d1 > 1e-6 };
-  if (crossFit(A, B, t)) return { type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true };
-  return null;
+  const faceB = kb.map((e) => ({ e, f: faceFit(B, e, A, t, true, 2, undefined, true) })).filter((x) => x.f);
+  const faceA = ka.map((e) => ({ e, f: faceFit(A, e, B, t, true, 2, undefined, true) })).filter((x) => x.f);
+  const preferA = faceA.length && faceB.length && (B.ext?.s || B.ext?.e) && !(A.ext?.s || A.ext?.e);
+  const fb = faceB.map((x) => ({ type: 'face' as const, a: { panelId: B.id, edge: x.e }, b: { panelId: A.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
+  const fa = faceA.map((x) => ({ type: 'face' as const, a: { panelId: A.id, edge: x.e }, b: { panelId: B.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
+  cand.push(...(preferA ? [...fa, ...fb] : [...fb, ...fa]));
+  if (crossFit(A, B, t)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
+  return dedupeSeams(d, cand, []);
 }
 
-/** Places where panels meet without a connection ("closing seams"). */
+/** Keep candidates that use no edge and no place already taken (by an earlier candidate or an existing connection). */
+function dedupeSeams(d: Design, cand: OpenSeam[], taken: { type: SeamType; a: EdgeRef2; b: EdgeRef2 }[]): OpenSeam[] {
+  const t = d.material.thickness;
+  const out: OpenSeam[] = [];
+  const segs = taken.map((x) => seamSegment(d, x));
+  for (const c of cand) {
+    const all = [...taken, ...out];
+    if (c.type === 'cross') {
+      if (!all.some((x) => x.type === 'cross')) out.push(c);
+      continue;
+    }
+    // the same two edges, or the same place reached from different edges, is one seam
+    if (all.some((x) => seamKey(x) === seamKey(c))) continue;
+    const seg = seamSegment(d, c);
+    const segAll = [...segs, ...out.map((x) => seamSegment(d, x))];
+    if (seg && segAll.some((x) => x && sameContact(seg, x, 2 * t + 0.05))) continue;
+    out.push(c);
+  }
+  return out;
+}
+
+/** How two panels meet, if they do (ignoring any connection between them): the best of `seamsBetween`. */
+export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
+  return seamsBetween(d, A, B)[0] ?? null;
+}
+
+/** World boxes of two panels overlap (with a margin): a cheap test before looking for seams. */
+function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
+  const t = d.material.thickness;
+  const box = (p: Panel) => {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const e of panelEdges(p))
+      for (const z of [0, t]) {
+        const w = toWorld(p.frame, e.a.x, e.a.y, z);
+        for (let k = 0; k < 3; k++) (lo[k] = Math.min(lo[k], w[k])), (hi[k] = Math.max(hi[k], w[k]));
+      }
+    return { lo, hi };
+  };
+  const a = box(A), b = box(B);
+  return [0, 1, 2].every((k) => a.lo[k] <= b.hi[k] + 0.5 && b.lo[k] <= a.hi[k] + 0.5);
+}
+
+/**
+ * Places where panels meet without a connection ("closing seams"). A pair can
+ * have several (an L-shaped outline on a face, a wall touching along two
+ * edges): a seam is identified by both its edges. Parent and child panels
+ * (a grown connection) are joined by that connection alone.
+ */
 export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const out: OpenSeam[] = [];
   const ids = d.order.filter((id) => d.panels[id]);
+  const conns = Object.values(d.connections);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       const A = d.panels[ids[i]], B = d.panels[ids[j]];
       if (only && A.id !== only && B.id !== only) continue;
-      if (connectedPair(d, A.id, B.id)) continue;
-      const found = seamBetween(d, A, B);
-      if (found) out.push(found);
+      const mine = conns.filter((c) => (c.a.panelId === A.id && c.b.panelId === B.id) || (c.a.panelId === B.id && c.b.panelId === A.id));
+      if (mine.some((c) => c.grown)) continue;
+      if (!nearEachOther(d, A, B)) continue;
+      const found = seamsBetween(d, A, B);
+      if (!found.length) continue;
+      if (!mine.length) {
+        out.push(...found);
+        continue;
+      }
+      out.push(...dedupeSeams(d, found, mine.map((c) => ({ type: seamTypeOf(c), a: c.a, b: c.b }))));
     }
   return out;
 }
 
-/** Does connection `c` still describe how its panels meet (same type and edges)? */
+/** Does connection `c` still describe a way its panels meet (same type and edges)? */
 export function seamStillFits(d: Design, c: Connection): boolean {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return false;
-  const s = seamBetween(d, A, B);
-  if (!s) return false;
   const type = seamTypeOf(c);
-  if (s.type !== type) return false;
   const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${baseKey(r.edge)}`;
-  const have = [key(c.a), key(c.b)].sort().join(), now = [key(s.a), key(s.b)].sort().join();
-  return have === now;
+  const have = [key(c.a), key(c.b)].sort().join();
+  return seamsBetween(d, A, B).some((s) => s.type === type && [key(s.a), key(s.b)].sort().join() === have);
 }
+
+/** Key of a seam: its two panels and edges. */
+export const seamKey = (s: { a: EdgeRef2; b: EdgeRef2 }) =>
+  [`${s.a.panelId}:${baseKey(s.a.edge)}`, `${s.b.panelId}:${baseKey(s.b.edge)}`].sort().join('|');
 
 /** What kind of meeting a closing seam is. */
 export function seamTypeOf(c: Pick<Connection, 'kind' | 'b'>): SeamType {
