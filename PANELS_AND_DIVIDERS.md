@@ -1,6 +1,6 @@
-# CutForge: panels anywhere, drafts, boards and dividers: brief
+# CutForge: panels anywhere, drafts, boards, dividers and flat nets: brief
 
-Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up (snapping toggles, add ghosts, outline snapping, curves), on `main`. Milestones 25–27 (in `GIZMO_JOINTS_FLAPS.md`) are planned but not built, so this brief starts at 28. The two plans don't depend on each other.
+Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up (snapping toggles, add ghosts, outline snapping, curves), on `main`. Milestones 25–27 (in `GIZMO_JOINTS_FLAPS.md`) are planned but not built, so this brief starts at 28. Milestones 25–27 have since been built (see `PROGRESS.md`). Milestone 35 (flat nets and growing on part of an edge) was added later the same day. The two plans don't depend on each other.
 
 ## 1. What changes for a student
 
@@ -10,6 +10,8 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - **One way to confirm.** Every new thing is a ghost first: panels, grown panels, extruded walls and shapes. Press the floating **✓** (or Enter) to make it, or **✕** (or Esc) to drop it. After a drawing tool makes something, it goes back to *Select*.
 - **Copy and paste shapes.** Cmd/Ctrl+C copies the selected shapes. Cmd/Ctrl+V pastes them onto whichever panel the pointer is over, as a ghost that follows the pointer and snaps. Then **✓**.
 - **Arrange boards.** Shift/Ctrl-click several panels to select them, then align and distribute them, the same way as shapes.
+- **Nets that lie flat.** Extruded walls never overlap their neighbours in the flat net. When they would, the app changes the net and says what it did: it trims a glue flap, folds a wall off its neighbour instead of the base, or cuts it as its own piece. It also shows how tall the walls can go while the net still lies flat.
+- **Grow on part of an edge, by pointing.** Clicking an edge still grows on the whole edge. Hold Cmd (Mac) or Ctrl (Windows) and drag along the edge, or click twice on it, to set where the new panel starts and ends. Both points snap to corners, the middle, other panels and the base's shapes.
 - **Dividers, one way.** Click a wall, then Shift-click the wall opposite it. A floating **+ Divider** button puts a divider halfway between them. Drag it afterwards: it snaps to equal compartments, and the compartment sizes stay clickable. Automatic divider sets, the *One divider* form and *Divider between* go away.
 
 ## 2. Decisions (from the interview)
@@ -24,6 +26,8 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 | Confirming | **A floating ✓ for every ghost:** the Panel tool (floor and faces), grow, extrude *Add walls*, every shape tool (rectangle, rounded rectangle, circle, polygon, text, imported SVG) and paste. The *Grow panel* and *Add walls* buttons leave the cards. After **✓** a drawing tool returns to *Select*. |
 | Copy and paste | **Shapes onto any panel** (or a face of one), keeping their layout, at the pointer. |
 | Arranging boards | **Align and distribute panels** that share a plane: floor panels, or panels placed on the same face. |
+| Flat nets | **Never overlap.** Every fold net is checked flat. On tray walls the app fixes overlaps itself, in this order: trim the flap, fold the wall off its neighbour, cut the wall as its own piece. The extrude ghost marks the tallest height that needs no fix. Panels you grow yourself are warned about, not changed. |
+| Partial growth | **Whole edge by default.** Cmd-drag (Mac) or Ctrl-drag (Windows) along an edge, or two clicks, sets the start and end, with smart snapping. |
 | Dividers | **One manual way:** select two facing parallel walls, then **+ Divider**. It goes halfway along and is dragged afterwards. Automatic sets, *One divider* and *Divider between* are removed. |
 
 **My calls (say if you want them different):**
@@ -31,6 +35,9 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - **Leaving a ghost.** A ghost stays until **✓** or **✕**. Choosing another tool, selecting something else or starting another drawing drops it.
 - **Construction is a property of a whole net.** Panels grown from a construction panel are construction too (useful for a guide box). Switching the root back to a real panel switches its whole net, and the joints are made then. Panels *placed* on a construction panel are real unless you tick *Construction* in their ghost.
 - **Dividers can be distributed.** Several dividers on the same base, parallel to each other, can be selected and distributed. That replaces *Space evenly again*.
+- **Which wall gives way** (milestone 35): at an inside corner, the shorter wall, or the later one in the base's edge order when they're equal. The tray card lets you pick the other one.
+- **A wall cut as its own piece** joins the base with the design's *Wall to base* kind, if that kind isn't a fold. Otherwise card uses a glue flap and corrugated uses tabs and slots.
+- **Cmd on Mac, Ctrl on Windows only.** Ctrl-click on a Mac is a right-click, so it's not used there.
 - **Not in this round:** copying and pasting whole panels, and a box drag to select several panels.
 
 ## 3. Milestones
@@ -140,6 +147,52 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
   - Copy two shapes from the base, paste them onto a wall: the layout is kept and they are snapped to the wall's centre.
   - Undo removes the paste in one step.
 
+### Milestone 35: nets that lie flat, and growing on part of an edge
+
+**What happens now.** I measured extruded trays flat (all three materials, walls 20, 40 and 80 mm tall). The cut outline is the union of the net's panels, so overlaps are merged without any warning.
+
+| Base | Overlap when flat | Why |
+| --- | --- | --- |
+| Rectangle, triangle, hexagon | none | at a convex corner the two walls fold apart |
+| Octagon, card, 20 mm walls | 7 mm² at every corner | the corner glue flap reaches past the narrow gap (45°) into the next wall |
+| L-shape, any material | 340–1,560 mm² at 20–40 mm, about height² | at the inside corner the two walls fold over each other; the wall that closes the corner also runs into the base |
+| L-shape, 80 mm walls | also 3–80 mm² between walls that aren't neighbours | walls taller than the notch (60 mm) reach across it |
+
+**Engine: find overlaps.**
+- `netOverlaps(d)` (`src/model/pieces.ts`): for each fold net, flatten every panel with its additions (flaps, fold-over rim and liner, tabs that go through) and intersect each pair. It returns the pairs, the area and the region.
+- The export check reports any overlap over 0.5 mm² (`val.netOverlap`: *Panels 3 and 4 overlap in the flat net*). Clicking it selects both, and the fold slider and the cut plan show the region in red.
+- The grow ghost checks too. When a new fold panel would overlap its net, the ghost turns amber with the reason, and the ghost bar (milestone 30) offers *Cut it as its own piece*.
+
+**Engine: fix trays automatically** (`src/model/trays.ts`, run in `solve` after the walls are placed; new `Tray.flat?: 'auto' | 'off'`, `auto` by default). For every overlapping pair in a tray's net, the first fix that clears it is used, and the result is checked again:
+1. **Trim the flap.** A corner glue flap or a through tab is clipped to the free space between the two walls when flat (a taper along the neighbour's edge). If what's left is narrower than the material's minimum flap, the flap moves to the other wall of that corner.
+2. **Fold the wall off its neighbour.** At an inside corner, one wall is hinged on its neighbour's side edge (a fold at the corner angle) instead of on the base. It lies flat in line with the neighbour, and joins the base with a glue flap (card) or tabs and slots (corrugated) along its bottom. This keeps one piece. It is used only when the new position overlaps nothing.
+3. **Cut the wall as its own piece.** The wall leaves the fold net and joins the base and its neighbours with the *Wall to base* and *Corners* kinds, like any separate panel.
+- Each fix is stored per wall as `Tray.fixes?: Record<edge, 'trim' | 'hinge' | 'own'>`, recomputed on every solve (stable ids, so shapes on a wall stay on it). The student can override one with `Tray.pin?: Record<edge, 'hinge' | 'own' | 'other'>`, where *other* means the corner's other wall gives way.
+- Plywood has no fold nets, so nothing changes there.
+
+**Height.**
+- `flatHeight(d, baseId)`: the tallest wall height whose net needs no fix (binary search on the height, 0.5 mm steps). It's infinite for convex bases without flaps.
+- The extrude ghost's height arrow shows it as a tick, and snaps to it. Past it, the ghost shows the walls that will be changed in amber, with a note: *Above 58 mm, wall 4 is cut as its own piece so the net lies flat.*
+- The tray card shows the same note and two buttons: *Lower to 58 mm* and *Keep in one piece* (sets `flat: 'off'`; the export check then reports the overlap).
+
+**Growing on part of an edge.**
+- A plain click on an edge grows on the whole free stretch, as now.
+- **Cmd-drag (Mac) / Ctrl-drag (Windows)** along a free edge sets the start where the drag begins and the end where it's released, with the ghost following live. Two Cmd/Ctrl-clicks do the same for trackpads. Esc cancels.
+- Both points snap with smart snapping. Targets:
+  - the edge's ends and middle
+  - the ends of free stretches and of panels already grown on it
+  - where other panels cross or touch the edge line (all from `spanTargets`)
+  - **new:** the base's own shapes (their corners and centres projected onto the edge), equal thirds and quarters of the free stretch, and the mirror of the opposite wall's span, so two partial walls can line up face to face.
+  - Alt or snapping off: the grid.
+- While setting the points, the distances from both ends of the edge show as labels. Typing a number and pressing Enter sets the one being placed. Afterwards the end squares and the *Starts at / Ends at* fields work as now.
+- **Modifier rules:** on a Mac only Cmd counts, because Ctrl-click is a right-click there. Cmd/Ctrl-click on a *face* stays multi-select (milestone 31); on an *edge* it picks a span. The edge's hit target wins over the face, as now.
+
+**Tests.**
+- unit: the five bases above × three materials × three heights all come out flat after `solve` (`netOverlaps` empty); the L tray uses a hinge at 20 mm and its own piece at 80 mm; the octagon's card flaps are trimmed and stay at least the minimum width; `flatHeight` for the L base is the height of its notch; `flat: 'off'` leaves the overlap and the export check reports it; a hinged wall keeps its shapes and its exports pass the golden checks for designs that don't need a fix (byte-identical).
+- unit: span snapping to a shape's corner on the base, to thirds, and to the opposite wall's mirror.
+- e2e: extrude an L base past the tick, read the note, *Lower to …* removes it. Cmd-drag along an edge from a third to the middle, then ✓: the panel stands exactly on [L/3, L/2].
+- EN/HE screenshots: the tick on the height arrow, the amber wall with its note, the fold view of a hinged wall, and Cmd-drag on an edge.
+
 ### Milestone 34: final verification
 
 - `npm test`, the e2e app specs, the golden exports and 500-design autoseam test.
@@ -154,4 +207,7 @@ Planning notes from 2026-11-09, made after milestones 21–24 and the follow-up 
 - 31 comes before 32, because the divider button needs selecting two panels.
 - 33 needs only 30.
 
-28, 29 and 32 are a few days each. 30, 31 and 33 are a day or two each.
+- 35's engine part (finding and fixing overlaps, the height tick) doesn't depend on 28–33 and can come first. Its Cmd/Ctrl span picking uses 30's ghost bar and must agree with 31's Cmd/Ctrl-click on faces, so it goes after 31.
+- 34 (final verification) runs last, after 35.
+
+28, 29 and 32 are a few days each. 30, 31 and 33 are a day or two each. 35 is about a week: the hinge fix is the largest part.
