@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { detailSel, growKind, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
+import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, releaseDivider, setDividerOffset, planDividerBetween, addDividerBetween, type FacePick } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
@@ -33,7 +33,8 @@ import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFr
 import { effectiveGrow } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
-import { MIN_EDGE, trayKinds, trayOf, wallHeight } from '../model/trays';
+import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
+import { newTrayKinds } from '../model/jointDefaults';
 import { isOutlineShape } from '../model/outline';
 import { allFoldOvers } from '../model/foldover';
 import { FoldOverObject } from './foldOver3d';
@@ -42,8 +43,8 @@ import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 
-const GRID = 1; // mm grid used when no smart-snap target is near
-const snap = (x: number) => Math.round(x / GRID) * GRID;
+// mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
+const snap = (x: number) => gridSnap(x);
 
 type Drag =
   | { kind: 'panel-draw'; start: V3; cur: V3 }
@@ -136,7 +137,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!panel || !p) return;
         const l = toLocal(panel.frame, p);
-        const ctx = ev.altKey ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
+        const ctx = noSmartSnap(ev) ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
         const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
         const x = sn?.dx ? l.x + sn.dx : snap(l.x), y = sn?.dy ? l.y + sn.dy : snap(l.y);
         setGuides(sn && sn.guides.length ? { panelId: g.panelId, guides: sn.guides, targets: sn.targets } : null);
@@ -160,7 +161,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const l = toLocal(panel.frame, p);
         let dx = l.x - g.start.x, dy = l.y - g.start.y;
         const base = st.txnBase ?? st.design;
-        const ctx = ev.altKey ? null : snapContext(base, g.panelId, new Set(g.ids));
+        const ctx = noSmartSnap(ev) ? null : snapContext(base, g.panelId, new Set(g.ids));
         const sn = ctx ? snapBox(ctx, { minX: g.box.minX + dx, maxX: g.box.maxX + dx, minY: g.box.minY + dy, maxY: g.box.maxY + dy }, tolAt(p)) : null;
         dx = sn?.dx ? dx + sn.dx : snap(dx);
         dy = sn?.dy ? dy + sn.dy : snap(dy);
@@ -181,7 +182,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         if (!p) return;
         // snap to other floor panels' corners and edges (Alt: off), otherwise to the grid
         const raw = [p[0] - g.start[0], p[2] - g.start[2]];
-        const sn = ev.altKey ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
+        const sn = noSmartSnap(ev) ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
         const dx = sn ? sn.dx : snap(raw[0]), dz = sn ? sn.dz : snap(raw[1]);
         st.preview((d) => movePanel(d, g.id, dx, dz));
       }
@@ -260,7 +261,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     }
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
       const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
-      const ctx = e.nativeEvent.altKey ? null : snapContext(design, p.id, new Set());
+      const ctx = noSmartSnap(e.nativeEvent) ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
       const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
       const nid = newId('x');
@@ -968,7 +969,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const targets = spanTargets(d, panelId, edge);
   const setEnd = (i: 0 | 1, s: number, ev: PointerEvent) => {
     let v = Math.max(freeAround[0], Math.min(freeAround[1], s));
-    const sn = ev.altKey ? null : snapTo(v, targets, tolAt(edgeW(v)));
+    const sn = noSmartSnap(ev) ? null : snapTo(v, targets, tolAt(edgeW(v)));
     v = sn ?? Math.round(v);
     const next: [number, number] = i === 0 ? [Math.min(v, sp[1] - MIN_PANEL), sp[1]] : [sp[0], Math.max(v, sp[0] + MIN_PANEL)];
     useStore.getState().setGrow({ span: next[0] <= 1e-6 && next[1] >= L - 1e-6 ? null : next, sketch: null });
@@ -1142,7 +1143,7 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
   const t = useT();
   const base = d.panels[baseId];
   const th = d.material.thickness;
-  const kind = trayKinds(d.material).wallKind;
+  const kind = newTrayKinds(d).wallKind;
   const ghosts = useMemo(() => {
     if (!base) return [];
     const h = Math.max(MIN_PANEL, wallHeight(d, kind, height));
@@ -1265,7 +1266,7 @@ function ShapeGizmo({ d, ids, m, tolAt }: { d: Design; ids: string[]; m: THREE.M
       n={Wdir(m, frameNormal(panel.frame))}
       onMove={(du, dv, ev) => {
         const { base, fs, box: b0 } = start();
-        const ctx = !ev || ev.altKey ? null : snapContext(base, panel.id, new Set(ids));
+        const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, panel.id, new Set(ids));
         const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
         const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
         st().preview((dd) => {
@@ -1331,7 +1332,7 @@ function ThroughEdit({ d, id, tolAt }: { d: Design; id: string; tolAt: (p: V3) =
               onMove={(du, dv, ev) => {
                 const base = st().txnBase ?? st().design;
                 const b0 = detailBBox(findDetail(base, id)!.detail);
-                const ctx = !ev || ev.altKey ? null : snapContext(base, S.id, new Set(ids));
+                const ctx = !ev || noSmartSnap(ev) ? null : snapContext(base, S.id, new Set(ids));
                 const at = onto(P, { x: dt.cx, y: dt.cy });
                 const sn = ctx ? snapBox(ctx, { minX: b0.minX + du, maxX: b0.maxX + du, minY: b0.minY + dv, maxY: b0.maxY + dv }, tolAt(at)) : null;
                 const x = !ev ? du : sn?.dx ? du + sn.dx : snap(du), y = !ev ? dv : sn?.dy ? dv + sn.dy : snap(dv);
@@ -1361,7 +1362,7 @@ function ThroughCorner(props: { at: V3; plane: { p: V3; n: V3 }; S: Panel; fixed
       if (!hit) return;
       let l = toLocal(props.S.frame, [hit.x, hit.y, hit.z]);
       const base = st().txnBase ?? st().design;
-      const ctx = ev.altKey ? null : snapContext(base, props.S.id, new Set([props.id]));
+      const ctx = noSmartSnap(ev) ? null : snapContext(base, props.S.id, new Set([props.id]));
       const sn = ctx ? snapPoint(ctx, l, props.tolAt([hit.x, hit.y, hit.z])) : null;
       l = { x: sn?.dx ? l.x + sn.dx : snap(l.x), y: sn?.dy ? l.y + sn.dy : snap(l.y) };
       const a = (props.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
@@ -1406,7 +1407,7 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
       onMove={(du, dv, ev) => {
         const base = st().txnBase ?? st().design;
         let dx = u[0] * du + v[0] * dv, dz = u[2] * du + v[2] * dv;
-        const sn = ev && !ev.altKey ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
+        const sn = ev && !noSmartSnap(ev) ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
         if (sn) [dx, dz] = [sn.dx, sn.dz];
         else if (ev) [dx, dz] = [snap(dx), snap(dz)];
         st().preview((dd) => movePanel(dd, p.id, dx, dz));

@@ -1,5 +1,6 @@
 // Gizmo, joints, flaps and settings (milestones 21–24).
 import { test, expect, type Page } from '@playwright/test';
+import { setNum } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const state = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState())));
@@ -202,5 +203,90 @@ test('milestone 22: in the fold view a glue flap moves with the panel it is cut 
     expect(f.box[4]).toBeGreaterThan(5);
     expect(Math.abs(f.box[4] - half.panels[f.owner][4])).toBeLessThan(15);
   }
+  expect(errors).toEqual([]);
+});
+
+test('milestones 23–24: the settings card changes every joint, shows the kept count, edits fit values and snapping', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await start(page, 'card-0.5');
+  const ids = await S<{ base: string; lean: string }>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.base = cf.ops.addRootPanel(d, -40, 30, 80, 60);
+      for (const e of [1, 2, 3]) cf.ops.growPanel(d, out.base, e, { height: 40, angle: 90, dir: 'up', kind: 'fold' });
+      out.lean = cf.ops.growPanel(d, out.base, 0, { height: 30, angle: 70, dir: 'up', kind: 'fold' }).connectionId;
+    });
+    cf.store.getState().select(null);
+    return out;
+  });
+  await expect(page.getByTestId('inspector-design')).toBeVisible();
+  // wall to base: tabs and slots fit the three square walls, not the one at 70°
+  await expect(page.getByTestId('joints-base')).toHaveValue('fold');
+  await page.getByTestId('joints-base').selectOption('tabslot');
+  const res = page.getByTestId('joints-base-result');
+  await expect(res).toHaveAttribute('data-changed', '3');
+  // kept: the wall at 70°, and its two edge-on-face seams with the side walls (card: slide, glue or butt there)
+  await expect(res).toHaveAttribute('data-kept', '3');
+  await expect(res).toContainText('3');
+  let d = await design(page);
+  expect(Object.values(d.connections).filter((c: any) => c.grown && c.kind === 'tabslot')).toHaveLength(3);
+  expect(d.connections[ids.lean].kind).toBe('fold');
+  expect(d.joints).toEqual({ base: 'tabslot' });
+  // one undo step
+  await page.keyboard.press('ControlOrMeta+z');
+  d = await design(page);
+  expect(Object.values(d.connections).filter((c: any) => c.grown && c.kind === 'fold')).toHaveLength(4);
+  expect(d.joints).toBeUndefined();
+  // the glue flap width default
+  await setNum(page, 'settings-flap', '14');
+  expect((await design(page)).joints.flap).toBe(14);
+  await page.getByTestId('settings-flap-auto').click();
+  expect((await design(page)).joints).toBeUndefined();
+
+  // material and fit: the same values as the drawer
+  await setNum(page, 'settings-clearance', '0.15');
+  expect((await design(page)).material.clearance).toBe(0.15);
+  await page.getByTestId('open-drawer').click();
+  await expect(page.getByTestId('material-drawer')).toBeVisible();
+  await expect(page.getByTestId('mat-clearance')).toHaveValue('0.15');
+  await page.getByTestId('drawer-close').click();
+
+  // snapping: smart snapping off (it would pull the shape's edge onto the wall's centre line), a 5 mm grid and a 10° turn step, saved per viewer
+  await page.getByTestId('settings-snap').uncheck();
+  await setNum(page, 'settings-grid', '5');
+  await setNum(page, 'settings-turn', '10');
+  const shape = await S<string>(page, (wall: string) => {
+    const cf = (window as any).__cutforge;
+    let id = '';
+    cf.store.getState().apply((d: any) => (id = cf.ops.addDetail(d, wall, 'rect', 'cut', 40, 20, 16, 10)));
+    cf.store.getState().select({ kind: 'detail', id, ids: [id] });
+    return id;
+  }, (Object.values((await design(page)).connections) as any[]).find((c: any) => c.grown && c.angle === 90 && c.a.edge === "e2")!.b.panelId);
+  const w = await S<string>(page, (id: string) => Object.values((window as any).__cutforge.store.getState().design.panels as Record<string, any>).find((p: any) => p.details.some((x: any) => x.id === id))!.id, shape);
+  await page.getByTestId('fit-view').click();
+  await page.waitForTimeout(400);
+  const c = await panelPt(page, w, 40, 20);
+  const p7 = await panelPt(page, w, 47, 20);
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  for (let k = 1; k <= 5; k++) await page.mouse.move(c.x + ((p7.x - c.x) * k) / 5, c.y + ((p7.y - c.y) * k) / 5);
+  await page.mouse.up();
+  const dt = (await design(page)).panels[w].details[0];
+  expect(dt.cx % 5, JSON.stringify(dt)).toBe(0);
+  expect(dt.cx).not.toBe(48);
+  expect(dt.cy).toBe(20);
+  // ring: 32° on screen → 30° with a 10° step
+  const cc = await panelPt(page, w, dt.cx, dt.cy);
+  const ringAt = (deg: number) => ({ x: cc.x + 64 * Math.cos((deg * Math.PI) / 180), y: cc.y - 64 * Math.sin((deg * Math.PI) / 180) });
+  await page.mouse.move(ringAt(0).x, ringAt(0).y);
+  await page.mouse.down();
+  for (let k = 1; k <= 8; k++) await page.mouse.move(ringAt((34 * k) / 8).x, ringAt((34 * k) / 8).y);
+  await page.mouse.up();
+  expect(Math.abs((await design(page)).panels[w].details[0].rot)).toBe(30);
+  // kept for this viewer
+  const prefs = await S<any>(page, () => JSON.parse(localStorage.getItem('cutforge.viewPrefs')!));
+  expect(prefs).toMatchObject({ snap: false, gridStep: 5, turnStep: 10 });
   expect(errors).toEqual([]);
 });

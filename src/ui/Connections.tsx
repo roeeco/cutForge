@@ -1,4 +1,5 @@
 // Inspector sections for a panel's connections, open seams, dividers and clear sizes.
+import { flapWidth } from '../model/jointDefaults';
 import { useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
@@ -9,7 +10,7 @@ import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { addDivider, addSideWalls, canDividerSet, connectSeam, deleteConnection, dividerSetOf, leanSupported, respaceDividers, setConnection, setDividerSet } from '../model/ops';
-import { autoFlap, autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
+import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design } from '../model/types';
@@ -94,7 +95,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           {d.material.kind === 'corrugated' && <p className="note">{t('conn.minTab', { w: fmtNum(minTabWidth(d.material), 1) })}</p>}
         </>
       )}
-      {c.kind === 'glue' && <NumField label={t('conn.flap')} value={c.flap ?? autoFlap(d.material)} unit={mm} min={3} max={100} onCommit={(v) => apply((x) => setConnection(x, c.id, { flap: v }))} />}
+      {c.kind === 'glue' && <NumField label={t('conn.flap')} value={flapWidth(d, c)} unit={mm} min={3} max={100} onCommit={(v) => apply((x) => setConnection(x, c.id, { flap: v }))} />}
       {c.grown && isChild && (c.kind === 'tabslot' || c.offset > 0) && (
         <NumField label={t('conn.offset')} value={c.offset} unit={mm} min={0} max={2000} onCommit={(v) => apply((x) => setConnection(x, c.id, { offset: v }))} testId="conn-offset" />
       )}

@@ -10,6 +10,7 @@ import type { V3 } from '../model/types';
 import { evalNumber } from '../ui/NumField';
 import { fmtNum } from '../i18n';
 import { snapHinge } from '../model/hinge';
+import { noSmartSnap, turnStep } from '../store/store';
 
 export const HTML_Z: [number, number] = [5, 0];
 
@@ -258,7 +259,8 @@ export function AngleArc(props: {
       }
       drag.current = { raw, x: ev.clientX, y: ev.clientY };
       const norm = ((raw % 360) + 360) % 360;
-      const near = ev.altKey ? undefined : props.targets?.find((x) => Math.abs(((x - norm + 540) % 360) - 180) < 3);
+      // rest angles on other panels are smart targets; the 5° steps (and the pull to 45° multiples) stay unless Alt is held
+      const near = noSmartSnap(ev) ? undefined : props.targets?.find((x) => Math.abs(((x - norm + 540) % 360) - 180) < 3);
       const a = near !== undefined ? near : snapHinge(raw, ev.altKey);
       if (a !== props.value) props.onChange(a);
     },
@@ -446,9 +448,9 @@ export function grazingMap(
   return { move: (dx, dy) => A.clone().multiplyScalar((dx * s.x + dy * s.y) * mmpp) };
 }
 
-/** Snap a raw angle (degrees): 15° steps, Shift 1°, Alt free (0.1°). */
+/** Snap a raw angle (degrees): the turn step from the settings (15° by default), Shift 1°, Alt free (0.1°). */
 export function snapAngle(raw: number, ev: { shiftKey: boolean; altKey: boolean }): number {
-  const step = ev.altKey ? 0.1 : ev.shiftKey ? 1 : 15;
+  const step = ev.altKey ? 0.1 : ev.shiftKey ? 1 : turnStep();
   return Math.round(Math.round(raw / step) * step * 10) / 10;
 }
 

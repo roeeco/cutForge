@@ -12,6 +12,22 @@ import { fmtNum } from '../i18n';
 import { Icon } from './icons';
 import { MaterialArt } from './MaterialArt';
 
+/** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
+export function useMaterialEdit() {
+  const apply = useStore((s) => s.apply);
+  return (patch: Partial<MaterialProfile>) =>
+    apply((x) => {
+      // Edited values make this a custom profile, still based on the same material kind.
+      const id = x.material.id.endsWith('-custom') ? x.material.id : `${x.material.id}-custom`;
+      const nm = { ...x.material, ...patch, id };
+      if (x.template) Object.assign(x, JSON.parse(JSON.stringify(changeMaterial(x as Design, nm).design)));
+      else {
+        Object.assign(x.material, nm);
+        solve(x);
+      }
+    });
+}
+
 export function MaterialDrawer() {
   const t = useT();
   const d = useStore((s) => s.design);
@@ -31,17 +47,7 @@ export function MaterialDrawer() {
       apply((dd) => void Object.assign(dd, JSON.parse(JSON.stringify(r.design))));
     } else apply((dd) => setMaterial(dd, mat));
   };
-  const setM = (patch: Partial<MaterialProfile>) =>
-    apply((x) => {
-      // Edited values make this a custom profile, still based on the same material kind.
-      const id = x.material.id.endsWith('-custom') ? x.material.id : `${x.material.id}-custom`;
-      const nm = { ...x.material, ...patch, id };
-      if (x.template) Object.assign(x, JSON.parse(JSON.stringify(changeMaterial(x as Design, nm).design)));
-      else {
-        Object.assign(x.material, nm);
-        solve(x);
-      }
-    });
+  const setM = useMaterialEdit();
   return (
     <>
       <div className="drawer-back" onClick={close} />

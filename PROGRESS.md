@@ -482,6 +482,46 @@ Verified
 - `tests/e2e/gizmo.spec.ts`: on a corrugated tray with glue corners, the drawn flaps lie flat on the floor beside their own wall (not on the wall they glue to) at foldT = 0, stand against the receiving wall at 1, and have left the floor with their wall at 0.5.
 - Exports are unchanged: the golden SVG/DXF tests pass. The new fields are in the stored joint geometry only, and that geometry is recomputed on solve.
 
+## Milestone 23 — Design-wide joint kinds ✅
+
+Implemented (`src/model/jointDefaults.ts`, `setAllJoints` / `setDefaultFlap` in `src/model/ops.ts`)
+- `Design.joints?: { base?, corner?, flap? }`, optional: designs without it load, solve and export exactly as before, and save without the field.
+- `setAllJoints(d, group, kind)` sets `kind` and `pref` on every joint of the group that may take it (including hand-set ones, which stay hand-set), sets trays' wall or corner kind where allowed, records the default and returns `{ changed, kept }`. `groupKinds` gives a group's list (kinds allowed for at least one of its joints) and `groupShown` its current value.
+- New joints use the default where allowed: `connectSeam` (corners and edge-on-face seams, so automatic joins too), growing from an edge (`growKind`, and the remembered wish), dividers (`addDivider`, *Divider between*, divider sets: `dividerKind`), side walls, new trays (`newTrayKinds`, also on the extrude card and ghost). A tray's own corner and wall joint still wins for its seams. When a joint's own wish is not allowed, it falls back to the design's kind before the material's.
+- `joints.flap` replaces the automatic glue flap width on joints without their own (`flapWidth`; the joint card shows it).
+- Template regeneration (sizes, material) re-applies the design's choices.
+
+Verified (`tests/jointdefaults.test.ts`)
+- Lists: a plywood box offers fingers, tabs and slots, butt for both groups; an empty card design offers what a new joint could take; a card wall at 60° narrows the wall-to-base list to fold and glue.
+- **A plywood box changed to tabs and slots wall to base: 4 changed, walls stand in, no overlap (volumetric), no messages**; a hand-set corner is changed too and stays hand-set; **a card wall at 70°/60° keeps its fold when tabs are chosen and is counted as kept**.
+- New corners, grown walls, dividers (but not fingers on a face) and trays take the defaults; a tray's own corner kind wins and a later design-wide change reaches it.
+- The design flap width replaces the automatic width, a joint's own width wins, *automatic* removes it; the defaults survive save and load, and a design without them saves no `joints`.
+
+## Milestone 24 — Settings card when nothing is selected ✅
+
+Implemented (`src/ui/DesignSettings.tsx`, `Inspector.tsx`; snapping in `src/store/store.ts`)
+- With nothing selected, the card (*Design settings*) shows the template's sizes when there is a template, then:
+  - **Joints**: *Wall to base* and *Corners* lists (`joints-base`, `joints-corner`); after a change a note says how many changed and how many kept theirs (`joints-<group>-result`). Card and corrugated also get the default glue flap width (`settings-flap`) with *Back to automatic*.
+  - **Material and fit**: the material's name, thickness, kerf and clearance (`settings-thickness`, `-kerf`, `-clearance`), the same edit as the drawer (`useMaterialEdit`), and *Change material…* (`open-drawer`) opening the drawer.
+  - **Snapping** (saved with the view options): smart snapping (`settings-snap`), grid step (`settings-grid`, 1 mm) and turn step (`settings-turn`, 15°). Smart snapping off is checked everywhere Alt was (`noSmartSnap`): 3D and cut-plan shape drags and drawing, the gizmo, floor panels, through-cut corners, the grow ghost and hinge rest angles. The grid step (`gridSnap`) and turn step (`snapAngle`) apply in the 3D view and the cut plan.
+- Every new string is in `en.ts` and `he.ts`.
+
+Verified (`tests/e2e/gizmo.spec.ts`)
+- **On card, *Wall to base* → tabs and slots changes the three square walls and reports 3 kept (the wall at 70° and its two edge-on-face seams); one undo step restores them and the default.** The flap width default is set and reset.
+- Clearance typed in the card is what the drawer shows; *Change material…* opens the drawer.
+- With smart snapping off, a 5 mm grid and a 10° turn step, a shape dragged with the gizmo lands on the grid (not on the wall's centre line it would otherwise snap to) and a 34° ring drag turns it 30°; the preferences are stored per viewer.
+- Screenshots: `docs/gizmo-shots/{en,he}-24-settings-card.png`, `…-22-flaps-half-folded.png`.
+
+## Final verification — gizmo, joints, flaps and settings (milestones 21–24) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (291 tests in 30 files; the ezdxf/svgpathtools reader checks are skipped here, since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (39 passed, including the classroom spec against the real Worker; 22 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical.
+
+Remaining limitations (milestones 21–24)
+- At the 20° grazing threshold the gizmo's speed per pixel changes (about 2.9× slower just inside it than a plane hit just outside it).
+- The gizmo ring in a grazing view still measures the screen angle about its centre, which is hard to use when the ring is seen edge-on.
+- A design-wide kind that the current material does not allow (fingers after switching to card) is remembered but unused until the material allows it again; the list then shows the kind most joints have.
+- The settings card is taller than a short stage and scrolls inside the card dock.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

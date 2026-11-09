@@ -551,6 +551,23 @@ export const en = {
   'fold.lockDepth': "Tab length",
   'fold.remove': "Remove fold-over",
   'fold.flute': "On this board the fold scores run across the flutes and may crack.",
+  'settings.joints': "Joints",
+  'settings.jointsBase': "Wall to base",
+  'settings.jointsCorner': "Corners",
+  'settings.jointsHelp': "A choice here changes every joint of that kind, including joints set by hand, and is used for new ones.",
+  'settings.changed': "{n} joints changed.",
+  'settings.kept': "{n} joints changed; {k} kept theirs (this joint does not fit their angle or material).",
+  'settings.flap': "Glue flap width",
+  'settings.flapAuto': "Back to automatic ({n} mm)",
+  'settings.material': "Material and fit",
+  'settings.changeMaterial': "Change material…",
+  'settings.snapping': "Snapping",
+  'settings.smartSnap': "Smart snapping",
+  'settings.smartSnapHelp': "Off works like holding Alt: nothing snaps to other shapes, edges or panels; the grid and turn steps still apply.",
+  'settings.grid': "Grid step",
+  'settings.turn': "Turn step",
+  'settings.kicker': "Nothing selected",
+  'settings.title': "Design settings",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -2,7 +2,7 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { detailSel, selectedDetailIds, useStore, useT } from '../store/store';
+import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetCount, type PieceCopy } from '../model/pack';
 import { panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
@@ -25,7 +25,7 @@ import { snapAngle } from './widgets';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
-const grid = (x: number) => Math.round(x);
+const grid = (x: number) => gridSnap(x);
 
 type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number };
 type VB = { x: number; y: number; w: number; h: number };
@@ -156,7 +156,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       const g = drag.current;
       if (!g) return;
       const st = useStore.getState();
-      const noSnap = ev.altKey;
+      const noSnap = noSmartSnap(ev);
       const tol = SNAP_PX * mmPerPx();
       if (g.kind === 'pan') {
         const svg = svgRef.current!;
@@ -350,7 +350,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     const st = useStore.getState();
     let l = toLocal(pl, panelId, svgPoint(ev));
     const ctx = snapContext(st.design, panelId, new Set());
-    const sn = ctx && !ev.altKey ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
+    const sn = ctx && !noSmartSnap(ev) ? snapPoint(ctx, l, SNAP_PX * mmPerPx()) : null;
     l = { x: sn?.dx ? l.x + sn.dx : grid(l.x), y: sn?.dy ? l.y + sn.dy : grid(l.y) };
     drag.current = { kind: 'draw', id: newId('x'), placed: pl, panelId, start: l };
   };

@@ -248,7 +248,16 @@ export type Design = {
   template?: { id: string; version: number; params: Record<string, number | string> };
   /** Automatic dividers on a base (see src/model/dividers.ts). */
   dividerSets?: Record<string, DividerSet>;
+  /**
+   * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
+   * wall-to-base joints (grown panels and edge-on-face seams) and for corners
+   * (wall-to-wall closing seams), used for new joints where allowed; and the
+   * glue flap width (mm) replacing the automatic one. Absent: the material's.
+   */
+  joints?: DesignJoints;
 };
+
+export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
 
 /**
  * Dividers made and spaced automatically in a rectangular clear inside:

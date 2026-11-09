@@ -1,4 +1,5 @@
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
+import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, DetailOp, DetailShape, WallSketch } from '../model/types';
@@ -49,10 +50,21 @@ export type GrowOptions = {
 
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
-export type ViewPrefs = { outlines: boolean; quality: Quality; dims: boolean; joints: boolean };
+export type ViewPrefs = {
+  outlines: boolean;
+  quality: Quality;
+  dims: boolean;
+  joints: boolean;
+  /** Smart snapping (to other shapes, edges, panels, rest angles); off works like holding Alt, except that the grid and turn steps still apply. */
+  snap: boolean;
+  /** Grid step (mm) used where no smart target is near. */
+  gridStep: number;
+  /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
+  turnStep: number;
+};
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
-  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false };
+  const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, gridStep: 1, turnStep: 15 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) return { ...def, ...JSON.parse(raw) };
@@ -262,9 +274,27 @@ export const useStore = create<State>()((set, get) => ({
 }));
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
+/** Smart snapping is off for this drag: Alt is held, or it is turned off in the settings. */
+export function noSmartSnap(ev?: { altKey: boolean } | null): boolean {
+  return !!ev?.altKey || !useStore.getState().viewPrefs.snap;
+}
+
+/** Round to the grid step (mm) from the settings. */
+export function gridSnap(x: number): number {
+  const g = useStore.getState().viewPrefs.gridStep;
+  const step = g > 0 ? g : 1;
+  return Math.round(Math.round(x / step) * step * 1e6) / 1e6;
+}
+
+/** The turn step (degrees) from the settings. */
+export function turnStep(): number {
+  const s = useStore.getState().viewPrefs.turnStep;
+  return s > 0 ? s : 15;
+}
+
 export function growKind(d: Design, g: GrowOptions): ConnectionKind {
   const options = connectionsFor(d.material, fromHinge(g.angle).angle);
-  return g.kind && options.includes(g.kind) ? g.kind : options[0];
+  return g.kind && options.includes(g.kind) ? g.kind : (designKind(d, 'base', options) ?? options[0]);
 }
 
 export function useT() {

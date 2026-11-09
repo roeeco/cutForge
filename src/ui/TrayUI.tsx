@@ -1,13 +1,14 @@
 // Tray cards: Extrude (a ghost tray on the stage with a push-pull height,
 // then "Add walls"), the tray section of a base's card (height, joints,
 // open edges with "Wall it"), and the own-height switch on a tray wall.
+import { newTrayKinds } from '../model/jointDefaults';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
 import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayHeight, setTrayKinds, updateFoldOver, wallIt } from '../model/ops';
-import { shortEdges, trayKinds, trayOf, MIN_EDGE } from '../model/trays';
+import { shortEdges, trayOf, MIN_EDGE } from '../model/trays';
 import { panelEdges, segLength } from '../model/edges';
 import { connectionsFor } from '../model/materials';
 import { seamKinds } from '../model/seams';
@@ -37,7 +38,7 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
     );
   const p = d.panels[panelId];
   const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE).length;
-  const kinds = trayKinds(d.material);
+  const kinds = newTrayKinds(d);
   return (
     <div className="subsection extrude-card" data-testid="extrude-card">
       <h4>{t('tray.extrude')}</h4>

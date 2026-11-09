@@ -3,6 +3,7 @@
 // the box re-spaces them. Reconciled in `solve` like tray walls: members have
 // stable ids (`<set>/a<n>`, `<set>/l<n>`), and only their offsets and heights
 // are written; their joints come from the ordinary seam code.
+import { dividerKind } from './jointDefaults';
 import type { Connection, ConnectionKind, Design, DividerSet, Panel } from './types';
 import { findEdge, isRectSketch } from './edges';
 import { edgeLength } from './frame';
@@ -43,7 +44,7 @@ export function memberOf(d: Design, panelId: string): { set: DividerSet; axis: '
 }
 
 const edgeOf = (axis: 'a' | 'l') => (axis === 'a' ? 'e3' : 'e0');
-const kindFor = (d: Design): ConnectionKind => (d.material.kind === 'plywood' ? 'tabslot' : 'butt');
+const kindFor = (d: Design): ConnectionKind => dividerKind(d);
 
 /** Offsets of each axis's members, as the set wants them now. */
 export function setOffsets(d: Design, set: DividerSet): { a: number[]; l: number[] } | null {

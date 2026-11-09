@@ -1,6 +1,7 @@
 // Grow card: shown while an edge is selected (the inspector card steps
 // aside). The hinge angle (0–360°) is also on the stage as a ring with a
 // handle at the hinge; height also has a push-pull arrow there.
+import { designKind } from '../model/jointDefaults';
 import { growKind, useStore, useT } from '../store/store';
 import { NumField } from './NumField';
 import { addSideWalls, growPanel } from '../model/ops';
@@ -32,8 +33,9 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const doGrow = () => {
     let res: ReturnType<typeof growPanel> = null;
     useStore.getState().apply((d) => {
-      // a joint the student did not pick follows the material's default (fingers / fold) whenever the angle allows
-      const pref = grow.kind && grow.kind === effKind ? effKind : connectionsFor(d.material, 90)[0];
+      // a joint the student did not pick follows the design's (or the material's) default whenever the angle allows
+      const sq = connectionsFor(d.material, 90);
+      const pref = grow.kind && grow.kind === effKind ? effKind : (designKind(d, 'base', sq) ?? sq[0]);
       res = growPanel(d, panelId, edge, { height: grow.height, angle, dir, kind: effKind, pref, span: eg.span, sketch: eg.sketch });
     });
     const r = res as ReturnType<typeof growPanel>;

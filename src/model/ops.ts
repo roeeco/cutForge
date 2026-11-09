@@ -4,12 +4,13 @@
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, DividerSet, FoldOver, MaterialProfile, P2, Panel, Tray, WallCorner, WallInsert, WallSketch } from './types';
-import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import { insideCornerExtensions, reconcileTrays, trayOf, trayWalls, wallHeight } from './trays';
 import { clearBox, memberOf, reconcileDividerSets, renamePanel } from './dividers';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { polygonArea } from '../geom/vec';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, minWeb } from './materials';
+import { allowedKinds, designKind, dividerKind, groupConnections, jointGroup, newTrayKinds, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
@@ -55,9 +56,9 @@ export function seatingOf(kind: ConnectionKind): Seating {
 }
 
 /** Use the preferred joint when it is allowed here, otherwise the default (first) one. */
-export function fitKind(c: Connection, allowed: ConnectionKind[]) {
+export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: ConnectionKind) {
   c.pref ??= c.kind;
-  c.kind = allowed.includes(c.pref) ? c.pref : allowed[0];
+  c.kind = allowed.includes(c.pref) ? c.pref : fallback && allowed.includes(fallback) ? fallback : allowed[0];
 }
 
 /**
@@ -105,7 +106,8 @@ export function solve(d: Design) {
       done.add(child.id);
       // the parent edge is gone (a vertex was deleted): keep the panel where it was, flagged
       if (!findEdge(parent, c.a.edge)) continue;
-      fitKind(c, connectionsFor(d.material, c.angle));
+      const ok = connectionsFor(d.material, c.angle);
+      fitKind(c, ok, designKind(d, 'base', ok));
       // part of the edge (a partial width), except for tray walls
       const span = c.trayId ? null : c.span;
       child.frame = spanFrame(parent, c.a.edge, c.angle, c.dir, t, seatingOf(c.kind), c.offset, span);
@@ -117,7 +119,9 @@ export function solve(d: Design) {
   }
   for (const c of Object.values(d.connections)) {
     if (!c.grown) {
-      fitKind(c, seamKinds(d.material, seamTypeOf(c)));
+      const ok = seamKinds(d.material, seamTypeOf(c));
+      const g = jointGroup(c);
+      fitKind(c, ok, g ? designKind(d, g, ok) : undefined);
     }
     const g = connectionGeom(d as Design, c as Connection);
     if (g) {
@@ -237,7 +241,7 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
   const id = newId('tr');
   d.trays ??= {};
-  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + d.material.thickness, height), ...trayKinds(d.material), ...kinds, openEdges: [] };
+  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + d.material.thickness, height), ...newTrayKinds(d), ...kinds, openEdges: [] };
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
@@ -389,6 +393,8 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   const ta = trayOf(d, seam.a.panelId), tb = trayOf(d, seam.b.panelId);
   const tray = ta && tb && ta.id === tb.id && ta.baseId !== seam.a.panelId && ta.baseId !== seam.b.panelId ? ta : undefined;
   if (!kind && tray && seam.type === 'corner') kind = tray.cornerKind;
+  // otherwise the design's choice for corners or for edges on a face
+  if (!kind && seam.type !== 'cross') kind = designKind(d, seam.type === 'corner' ? 'corner' : 'base', kinds);
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
   const cid = newId('c');
   // fingers: `a` must be the earlier panel, which owns the corners
@@ -451,7 +457,7 @@ export function deleteConnection(d: Design, id: string) {
  * with crossing dividers.
  */
 export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: number, height: number): string | null {
-  const kind: ConnectionKind = d.material.kind === 'plywood' ? 'tabslot' : 'butt';
+  const kind = dividerKind(d);
   const r = growPanel(d, baseId, edge, { height, angle: 90, dir: 'up', kind, offset: Math.max(0.5, position) });
   if (!r) return null;
   connectSeams(d, r.panelId);
@@ -624,7 +630,7 @@ export function planDividerBetween(d: Design, a: FacePick, b: FacePick): Between
 export function addDividerBetween(d: Design, a: FacePick, b: FacePick): string | null {
   const plan = planDividerBetween(d, a, b);
   if (!plan.ok) return null;
-  const kind: ConnectionKind = d.material.kind === 'plywood' ? 'tabslot' : 'butt';
+  const kind = dividerKind(d);
   const r = growPanel(d, plan.baseId, plan.edge, { height: plan.height, angle: 90, dir: 'up', kind, offset: plan.offset });
   if (!r) return null;
   connectSeams(d, r.panelId);
@@ -649,7 +655,7 @@ export function addSideWalls(d: Design, baseId: string, edge: EdgeArg, angle: nu
   const nb = base && edgeNeighbours(base, edge);
   if (!nb) return [];
   const h = Math.ceil(t + leanHeight * Math.sin((angle * Math.PI) / 180) + 5);
-  const kind: ConnectionKind = d.material.kind === 'plywood' ? 'finger' : 'fold';
+  const kind = designKind(d, 'base', connectionsFor(d.material, 90)) ?? (d.material.kind === 'plywood' ? 'finger' : 'fold');
   const made: string[] = [];
   for (const e of [nb[1].key, nb[0].key]) {
     if (edgeConnection(d, baseId, e)) continue;
@@ -1172,11 +1178,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.kind) {
     const allowed = c.grown ? connectionsFor(d.material, c.angle) : seamKinds(d.material, seamTypeOf(c));
     if (allowed.includes(patch.kind)) {
-      c.kind = patch.kind;
-      c.pref = patch.kind;
+      applyKind(d, c, patch.kind, patch.offset !== undefined);
       c.auto = false;
-      if (c.grown && c.kind !== 'tabslot' && patch.offset === undefined && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
-      if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot');
     }
   }
   if (patch.fingers !== undefined) c.fingers = patch.fingers === null ? null : Math.max(3, Math.round(patch.fingers) | 1);
@@ -1193,6 +1196,51 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.offset !== undefined && c.grown) c.offset = Math.max(0, patch.offset);
   solve(d);
   if (c.grown && c.kind === 'lean') connectSeams(d, c.b.panelId);
+}
+
+/** Set a joint's kind (and wish), moving a grown panel to or from the tab-and-slot stand-in. */
+function applyKind(d: Design, c: Connection, kind: ConnectionKind, keepOffset = false) {
+  c.kind = kind;
+  c.pref = kind;
+  if (c.grown && c.kind !== 'tabslot' && !keepOffset && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
+  if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot');
+}
+
+/**
+ * Design-wide joint kind for a group (*Wall to base* or *Corners*): every
+ * joint of the group that may take `kind` takes it, including joints set by
+ * hand (they stay hand-set or automatic as they were); trays take it for their
+ * walls or corners where a tray allows it; and it becomes the default for new
+ * joints of the group. Returns how many joints changed and how many kept
+ * their kind because `kind` is not allowed for them (angle, seam type).
+ */
+export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind): { changed: number; kept: number } {
+  let changed = 0, kept = 0;
+  for (const c of groupConnections(d, group)) {
+    if (!allowedKinds(d, c).includes(kind)) {
+      if (c.kind !== kind) kept++;
+      continue;
+    }
+    if (c.kind !== kind) changed++;
+    applyKind(d, c, kind);
+  }
+  for (const tray of Object.values(d.trays ?? {})) {
+    if (group === 'base' && connectionsFor(d.material, 90).includes(kind)) tray.wallKind = kind;
+    if (group === 'corner' && seamKinds(d.material, 'corner').includes(kind)) tray.cornerKind = kind;
+  }
+  d.joints = { ...d.joints, [group]: kind };
+  solve(d);
+  return { changed, kept };
+}
+
+/** The design's glue flap width (mm), replacing the automatic width on joints without their own; null: automatic. */
+export function setDefaultFlap(d: Design, width: number | null) {
+  const j = { ...d.joints };
+  if (width === null) delete j.flap;
+  else j.flap = Math.max(3, Math.min(100, width));
+  d.joints = j;
+  if (!Object.keys(j).length) delete d.joints;
+  solve(d);
 }
 
 /** A grown connection standing well inside its parent (a divider), not at the edge. */

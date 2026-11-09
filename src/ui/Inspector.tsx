@@ -1,13 +1,13 @@
 // Contextual card: shows only what belongs to the current selection. Nothing
-// selected → the template's sizes (or no card at all); an edge selected → the
-// grow card on the stage takes over.
+// selected → the design's settings (template sizes, joints, material and fit,
+// snapping); an edge selected → the grow card on the stage takes over.
 import type { ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, setPanelSize, setPanelYaw, updateDetail } from '../model/ops';
 import { pieceKeyOf } from '../model/pieces';
 import { rotateCopy } from '../model/pack';
-import { TemplateSection } from './TemplateUI';
+import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, DividerAdder, JointsAdvanced, PanelHinge } from './Connections';
@@ -171,15 +171,8 @@ export function Inspector() {
         </section>
       );
     }
-  } else if (!sel && d.template) {
-    body = (
-      <section data-testid="inspector-design">
-        <TemplateSection />
-        <button className="link" onClick={() => useStore.getState().set({ drawerOpen: true })} data-testid="open-drawer">
-          {t('drawer.link')}
-        </button>
-      </section>
-    );
+  } else if (!sel) {
+    body = <DesignSettings />;
   }
 
   if (!body) return null;
