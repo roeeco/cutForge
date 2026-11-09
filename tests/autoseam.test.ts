@@ -2,7 +2,9 @@
 // dividers, leaning panels, notched walls, dragged floor panels): every pair of
 // panels whose slabs touch or overlap (sampled independently in tests/solid.ts)
 // is joined by a connection, or the export check names the pair.
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { FONTS, registerFont } from '../src/text/fonts';
 import {
   addDetail,
   addDivider,
@@ -25,6 +27,10 @@ import { validate } from '../src/model/validate';
 import { slabContacts, type SlabContact } from './solid';
 import type { ConnectionKind, Design, MaterialProfile } from '../src/model/types';
 import { toWorld } from '../src/model/frame';
+import { addText } from '../src/model/ops';
+import { quickGuard } from '../src/easy/guard';
+import { blocking } from '../src/easy/fix';
+import { boxRecipe, dividerLine } from '../src/easy/recipes';
 
 const [CARD, CORR16, CORR4, PLY] = MATERIALS;
 
@@ -316,4 +322,73 @@ describe('milestone 16: causes of missed joints', () => {
     expect(slots.some((y) => y > 35)).toBe(true);
     expect(silentMisses(d)).toEqual([]);
   });
+});
+
+// Milestone 39: Quick build's guardrails. Seeded random sequences of Quick
+// build actions and drags (a box, dividers, holes, drags, engraved text), each
+// edit kept out of the keep-out zones as the editor does in Quick build; after
+// each sequence the export check reports nothing that blocks cutting.
+describe('Quick build guardrails (milestone 39)', () => {
+  beforeAll(() => {
+    const buf = (f: string) => {
+      const b = readFileSync(`public/fonts/${f}`);
+      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    };
+    for (const f of FONTS) registerFont(f.id, buf(`${f.file}-hebrew-400-normal.woff`), buf(`${f.file}-latin-400-normal.woff`));
+  });
+  /** One edit as the editor makes it in Quick build: the edit, solve and join, then the guard. */
+  function quickEdit(d: Design, fn: (x: Design) => void) {
+    const base: Design = JSON.parse(JSON.stringify(d));
+    fn(d);
+    quickGuard(base, d);
+  }
+
+  function quickSeed(seed: number): Design {
+    const r = rng(seed);
+    const R = (a: number, b: number) => a + (b - a) * r.next();
+    const d = createDesign(PLY);
+    const regular = r.next() < 0.25;
+    const W = Math.round(R(70, 260)), H = Math.round(R(60, 180));
+    let base = '';
+    quickEdit(d, (x) => void (base = boxRecipe(x, regular ? { kind: 'regular', x0: 0, z0: 0, x1: W, z1: W, sides: 3 + Math.floor(R(0, 6)) } : { kind: 'rect', x0: 0, z0: 0, x1: W, z1: H }, Math.round(R(30, 80)))!.baseId));
+    if (!regular) {
+      const xs = [R(0.2, 0.45), R(0.55, 0.8)].slice(0, Math.floor(R(0, 3)));
+      for (const k of xs) quickEdit(d, (x) => void dividerLine(x, base, { x: W * k, y: 2 }, { x: W * k, y: H - 2 }));
+    }
+    const shapes = ['circle', 'rect', 'roundrect'] as const;
+    for (let i = 0, n = 2 + Math.floor(R(0, 4)); i < n; i++) {
+      const id = d.order[Math.floor(R(0, d.order.length))];
+      const p = d.panels[id];
+      const s = shapes[Math.floor(R(0, 3))];
+      const w = R(4, 40), h = s === 'circle' ? w : R(4, 40);
+      quickEdit(d, (x) => {
+        const did = addDetail(x, id, s, 'cut', R(0, p.w), R(0, p.h), w, h);
+        if (did && s === 'roundrect') x.panels[id].details.find((q) => q.id === did)!.r = Math.min(w, h) / 4;
+      });
+    }
+    for (let i = 0, n = 2 + Math.floor(R(0, 3)); i < n; i++) {
+      const all = d.order.flatMap((id) => d.panels[id].details.map((q) => ({ id, q })));
+      if (!all.length) break;
+      const { q } = all[Math.floor(R(0, all.length))];
+      const dx = R(-80, 80), dy = R(-80, 80);
+      quickEdit(d, (x) => {
+        const f = x.order.flatMap((id) => x.panels[id].details).find((z) => z.id === q.id);
+        if (f) Object.assign(f, { cx: f.cx + dx, cy: f.cy + dy });
+      });
+    }
+    const tid = d.order[Math.floor(R(0, d.order.length))];
+    quickEdit(d, (x) => void addText(x, tid, R(0, x.panels[tid].w), R(0, x.panels[tid].h), 'CutForge', 'engrave', 'rubik', R(2, 14)));
+    return d;
+  }
+
+  it('500 seeded sequences: nothing blocks cutting', () => {
+    const bad: string[] = [];
+    const N = Number(process.env.QUICK_SEEDS ?? 500);
+    for (let seed = 1; seed <= N; seed++) {
+      const d = quickSeed(seed);
+      const issues = validate(d).filter(blocking);
+      if (issues.length) bad.push(`seed ${seed}: ${issues.map((i) => i.key).join(', ')}`);
+    }
+    expect(bad).toEqual([]);
+  }, 600_000);
 });

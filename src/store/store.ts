@@ -1,6 +1,7 @@
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
+import { quickGuard, type GuardNote } from '../easy/guard';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf } from '../model/materials';
@@ -88,6 +89,20 @@ export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string;
 /** Quick build grows at 90° on the whole edge, adapting, with the design's joint (feature 'grow.advanced' is 'auto', milestone 37). */
 const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, kind: undefined, sketch: null, editGhost: false };
 
+/**
+ * Quick build keeps shapes where the laser can cut them (milestone 39): the
+ * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
+ */
+function guarded(d: Design, base: Design) {
+  if (useStore.getState().viewPrefs.mode !== 'quick') {
+    solve(d);
+    autoConnect(d);
+    return;
+  }
+  const note = quickGuard(base, d);
+  if (note) queueMicrotask(() => useStore.setState({ guardNote: { ...note, at: Date.now() } }));
+}
+
 export type Quality = 'auto' | 'simple' | 'rich';
 /** How the 3D stage is drawn (per browser, not part of the design). */
 export type ViewPrefs = {
@@ -135,6 +150,8 @@ type State = {
   shapeOp: DetailOp;
   /** Quick build: the tool each action last used (a hole's shape, text or a sticker). */
   quickLast: Partial<Record<string, Tool>>;
+  /** Quick build's guardrails (milestone 39): what the last edit was kept from, for the tooltip. */
+  guardNote: (GuardNote & { at: number }) | null;
   /** Quick build's Box (milestone 38): the footprint, a regular footprint's sides, and the last height used. */
   boxFoot: 'rect' | 'regular';
   boxSides: number;
@@ -266,6 +283,7 @@ export const useStore = create<State>()((set, get) => ({
   tool: 'select',
   shapeOp: 'cut',
   quickLast: {},
+  guardNote: null,
   boxFoot: 'rect',
   boxSides: 6,
   boxHeight: 45,
@@ -375,9 +393,9 @@ export const useStore = create<State>()((set, get) => ({
     if (edited === cur) return;
     // shapes can change outlines, and outlines move walls and joints
     const next = produce(edited, (d) => {
-      solve(d as Design);
-      autoConnect(d as Design);
+      guarded(d as Design, cur);
     });
+    if (next === cur) return;
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
   preview: (fn) => {
@@ -386,8 +404,7 @@ export const useStore = create<State>()((set, get) => ({
       txnBase: base,
       design: produce(base, (d) => {
         fn(d);
-        solve(d as Design);
-        autoConnect(d as Design);
+        guarded(d as Design, base);
       }),
     });
   },

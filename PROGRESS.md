@@ -754,6 +754,22 @@ Verified
 - `tests/e2e/quick.spec.ts`: Box (dragged on the floor), Lid (the back wall's top edge, no angle dial), two Dividers (lines across the base), a Hole, Text and a Sticker on the front wall, each with ✓: seven actions, seven undo steps, then seven undos return to the empty design. Workshop: the Panel tool on a box's base, *Divider*, ✓ makes a divider.
 - EN/HE screenshots of each action's ghost in `docs/quick-shots/` (`SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots`).
 
+## Milestone 39 — Quick build: guardrails and Ready to cut ✅
+
+Implemented (`src/easy/guard.ts`, `src/easy/fix.ts`, `src/easy/ReadyBadge.tsx`; `panelFit`/`shapeFit` in `src/model/validate.ts`)
+- **Keep-out zones** from the geometry the export check uses: the panel's manufactured outline (with its joint notches) inset by the material's minimum web, every slot, tab and fold-over hole on the panel, and the other cut-outs (a web apart). The export check's own rule for a shape on a plain rectangle (a web inside its deepest joint notch) is shared with the guard (`shapeFit`), so a shape the guard allows is one the check accepts. Engravings only have to stay on the panel and off the slots.
+- **Every edit in Quick build is guarded** in the store (`apply` and `preview`, so drags, the gizmo, typed values, drawing, arrays and pastes alike): shapes the edit changed that land in a zone are pulled back along the change to the farthest allowed point (a group by one common amount, keeping its formation); a new shape is shrunk about its centre until it fits, and one that fits nowhere there is not made; text placed with a click moves to the nearest place it fits. The guard runs on the geometry the edit started from, then again after solve (joints may move around the shapes). A tooltip by the shape says why (*Kept 2 mm from the edge / the joints / the next cut-out*), and while a shape is dragged the zones of its panel show as a faint amber line. Workshop is unchanged.
+- **Text** keeps a minimum letter height per material (engraved: 4 mm, or the thickness; cut out: 8 mm, or three thicknesses).
+- **One-click fixes** (`fixIssue`) for what cannot be prevented: a shape outside the panel, too close to its edge or overlapping another cut-out moves to the nearest allowed place (smaller if it fits nowhere at its size); cut-out text with closed middles is engraved; a panel bigger than the sheet is shrunk to it; pieces off their sheet or overlapping are packed again. Workshop's export check gets the same *Fix* buttons.
+- **Ready to cut badge** in the top bar in Quick build (it replaces the export check list there): green *Ready to cut ✓* when nothing blocks cutting, else *1 thing to fix* / *N things to fix*; its panel lists each with *Show* and *Fix* (or *Fix it in Workshop*); warnings that do not block cutting (a split panel, a bevelled through-cut) are listed as notes.
+- **Sheet meter** next to it: *1 sheet · 12% used* with a thumbnail of the first sheet, from the packer.
+
+Verified
+- `tests/guard.test.ts`: a circle dragged toward the edge stops a web away and says why; on a box base a hole stops short of the finger joints; a group keeps its formation; cut-outs keep apart while an engraving may come close to the edge; a new shape across the edge is shrunk, one outside the panel is not made; text keeps a readable size; each fix (outside, too thin, overlapping, stencil text, too big for the sheet, off its sheet) clears its issue and adds none.
+- `tests/autoseam.test.ts`: **500 seeded sequences of Quick build actions and drags** (a rectangular or regular box, dividers, holes drawn anywhere, random drags, engraved text) through the guard: the export check reports nothing that blocks cutting after any of them.
+- `tests/e2e/quick.spec.ts`: a circle dragged past a base's edge stops at the zone, the tooltip shows, the badge stays green and the meter shows one sheet; a panel narrowed under its shape in Workshop shows *1 thing to fix* in Quick build, and *Fix* makes it *Ready to cut ✓*.
+- Screenshots: a clamped drag, the badge with its fix, the badge and meter (`docs/quick-shots/`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

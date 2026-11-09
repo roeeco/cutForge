@@ -215,3 +215,64 @@ test.describe('Workshop', () => {
     expect((await st(page)).tool).toBe('select');
   });
 });
+
+test('guardrails: a circle dragged toward the edge stops at the keep-out zone, says why, and the badge stays green (milestone 39)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
+  const { p, c } = await S<{ p: string; c: string }>(page, () => {
+    const cf = (window as any).__cutforge;
+    const out: any = {};
+    cf.store.getState().apply((d: any) => {
+      out.p = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+      out.c = cf.ops.addDetail(d, out.p, 'circle', 'cut', 60, 40, 12, 12);
+    });
+    cf.store.getState().select({ kind: 'detail', id: out.c, ids: [out.c] });
+    return out;
+  });
+  await S(page, () => (window as any).__cutforge.setCamera([0, 300, 1], [0, 0, 0]));
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+  await expect(page.getByTestId('sheet-meter')).toHaveAttribute('data-sheets', '1');
+  const a = await onFace(page, p, 60, 40), b = await onFace(page, p, 140, 40);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 10 });
+  await expect(page.getByTestId('guard-tip')).toBeVisible();
+  await expect(page.getByTestId('guard-tip')).toContainText('from the edge');
+  await page.mouse.up();
+  const cx = await S<number>(page, (id: string) => (window as any).__cutforge.store.getState().design.order.flatMap((k: string) => (window as any).__cutforge.store.getState().design.panels[k].details).find((x: any) => x.id === id).cx, c);
+  expect(cx).toBeGreaterThan(100);
+  expect(cx).toBeLessThanOrEqual(120 - 2 - 6 + 1e-6);
+  await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+});
+
+test.describe('Workshop to Quick build', () => {
+  test.use({ storageState: { cookies: [], origins: ['http://localhost:5199'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })) } });
+  test('a panel resized under its shape in Workshop: Quick build says 1 thing to fix, and the fix clears it (milestone 39)', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('start-go').click();
+    await page.getByTestId('hints-dismiss').click();
+    const p = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let id = '';
+      cf.store.getState().apply((d: any) => {
+        id = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+        cf.ops.addDetail(d, id, 'circle', 'cut', 85, 40, 12, 12);
+      });
+      cf.store.getState().select({ kind: 'panel', id });
+      return id;
+    });
+    await page.getByTestId('panel-w').fill('92');
+    await page.getByTestId('panel-w').press('Enter');
+    await expect.poll(() => S<number>(page, (id: string) => (window as any).__cutforge.store.getState().design.panels[id].w, p)).toBe(92);
+    await page.getByTestId('mode-quick').click();
+    await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-n', '1');
+    await expect(page.getByTestId('ready-badge')).toHaveText('1 thing to fix');
+    await page.getByTestId('ready-badge').click();
+    await page.getByTestId('ready-fix').click();
+    await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+    await expect(page.getByTestId('ready-badge')).toHaveText('Ready to cut ✓');
+  });
+});

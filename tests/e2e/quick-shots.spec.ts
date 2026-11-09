@@ -83,3 +83,48 @@ for (const lang of ['en', 'he']) {
     await shot(page, lang, '38-made');
   });
 }
+
+for (const lang of ['en', 'he']) {
+  test(`guardrails shots ${lang}`, async ({ page }) => {
+    test.skip(!process.env.SHOTS);
+    await page.goto('/');
+    await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('start-go').click();
+    await S(page, (l: string) => (window as any).__cutforge.store.getState().setLang(l), lang);
+    const { p, c } = await S<{ p: string; c: string }>(page, () => {
+      const cf = (window as any).__cutforge;
+      const out: any = {};
+      cf.store.getState().apply((d: any) => {
+        out.p = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+        cf.ops.addTray(d, out.p, 40);
+        out.c = cf.ops.addDetail(d, out.p, 'circle', 'cut', 60, 40, 14, 14);
+      });
+      cf.store.getState().select({ kind: 'detail', id: out.c, ids: [out.c] });
+      return out;
+    });
+    await S(page, () => (window as any).__cutforge.setCamera([0, 260, 60], [0, 0, 0]));
+    await page.waitForTimeout(300);
+    const a = await onFace(page, p, 60, 40), b = await onFace(page, p, 140, 40);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 10 });
+    await page.waitForTimeout(200);
+    await shot(page, lang, '39-clamped-drag');
+    await page.mouse.up();
+    // a shape too near the edge, made outside the guard: one thing to fix
+    await S(page, (id: string) => {
+      const cf = (window as any).__cutforge;
+      cf.store.getState().setPrefs({ mode: 'workshop' });
+      cf.store.getState().apply((d: any) => void cf.ops.addDetail(d, id, 'rect', 'cut', 20, 4, 14, 6));
+      cf.store.getState().setPrefs({ mode: 'quick' });
+      cf.store.getState().select(null);
+    }, p);
+    await page.waitForTimeout(400);
+    await page.getByTestId('ready-badge').click();
+    await page.waitForTimeout(200);
+    await shot(page, lang, '39-badge-fix');
+    await page.getByTestId('ready-fix').click();
+    await page.waitForTimeout(400);
+    await page.locator('.ready-wrap').screenshot({ path: `${OUT}/${lang}-39-ready-and-meter.png` });
+  });
+}

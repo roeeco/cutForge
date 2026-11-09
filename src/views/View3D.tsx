@@ -51,6 +51,7 @@ import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, p
 import { featureState, shown, useFeature, useMode } from '../easy/features';
 import { boxFootprintGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
+import { keepOutZones } from '../easy/guard';
 import { workshopOnly } from '../easy/mode';
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
@@ -643,6 +644,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
       {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
+      {!folded && quick && <GuardOverlay d={design} panelId={inTxn ? (drawingId ? findDetail(design, drawingId)?.panel.id : sel?.kind === 'detail' ? findDetail(design, sel.id)?.panel.id : undefined) : undefined} xf={display.xf} />}
       {!folded && (fJoints || prefs.joints) && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
@@ -963,6 +965,55 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
         <StageHtml position={[pill[0], pill[1], z1 + 1]} style={{ pointerEvents: 'none' }}>
           <span className="w-grow" data-testid="grow-pill" data-s={Math.round((pillS ?? 0) * 10) / 10} data-gap={Math.round(gapMm.current * 10) / 10} data-len={Math.round(L * 10) / 10}>
             <Icon name="plus" /> {tt('edge.growHere')}
+          </span>
+        </StageHtml>
+      )}
+    </>
+  );
+}
+
+/**
+ * Quick build's guardrails on the stage (milestone 39): while a shape is being
+ * dragged, the keep-out zones of its panel as a faint amber line; when an
+ * edit was kept from one, a tooltip saying why.
+ */
+function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map<string, THREE.Matrix4> }) {
+  const t = useT();
+  const note = useStore((s) => s.guardNote);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!note) return;
+    const h = setTimeout(() => tick((x) => x + 1), 2600);
+    return () => clearTimeout(h);
+  }, [note]);
+  const zones = useMemo(() => (panelId ? keepOutZones(d, panelId) : null), [d, panelId]);
+  const lines = useMemo(() => {
+    if (!zones || !panelId) return null;
+    const p = d.panels[panelId];
+    const z = tOf(d, panelId) + 0.4;
+    const ring = (pts: P2[]) => pts.map((q) => new THREE.Vector3(...toWorld(p.frame, q.x, q.y, z)));
+    const geo = (pts: THREE.Vector3[]) => new THREE.BufferGeometry().setFromPoints([...pts, pts[0]]);
+    return [zones.inset, ...zones.holes].filter((r) => r.length > 2).map((r) => geo(ring(r)));
+  }, [zones, d, panelId]);
+  useEffect(() => () => lines?.forEach((g) => g.dispose()), [lines]);
+  const f = note && Date.now() - note.at < 2500 ? findDetail(d, note.detailId) : null;
+  const m = panelId ? (xf.get(panelId) ?? IDM) : IDM;
+  return (
+    <>
+      {lines && (
+        <group matrixAutoUpdate={false} matrix={m} userData={{ noAO: true }}>
+          {lines.map((g, i) => (
+            <line key={i}>
+              <primitive object={g} attach="geometry" />
+              <lineBasicMaterial color="#d08a1a" transparent opacity={0.75} depthTest={false} />
+            </line>
+          ))}
+        </group>
+      )}
+      {f && note && (
+        <StageHtml position={W(xf.get(f.panel.id) ?? IDM, f.panel.frame, f.detail.cx, f.detail.cy + f.detail.h / 2 + 4, tOf(d, f.panel.id))} style={{ pointerEvents: 'none' }}>
+          <span className="guard-tip" data-testid="guard-tip" data-why={note.why}>
+            {t(`guard.${note.why}`, { mm: fmtNum(note.mm, 1) })}
           </span>
         </StageHtml>
       )}

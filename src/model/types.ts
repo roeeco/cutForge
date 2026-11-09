@@ -260,6 +260,9 @@ export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90;
 
 export type PieceSettings = { quantity: number };
 
+/** An object resting in a box (milestone 40): which one, how many, where on the base (base-local centre), its own size for a custom one. */
+export type Content = { id: string; object: string; baseId: string; x: number; y: number; count?: number; w?: number; d?: number; h?: number };
+
 export type Design = {
   schemaVersion: number;
   id: string;
@@ -285,6 +288,10 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
+  /** The Quick build mission this design was started from (milestone 40), so a submission shows which. */
+  mission?: { id: string; version: number };
+  /** Objects placed in its compartments (milestone 40): view state kept with the design, ignored by pieces, packing and export. */
+  contents?: Content[];
   /**
    * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
    * wall-to-base joints (grown panels and edge-on-face seams) and for corners

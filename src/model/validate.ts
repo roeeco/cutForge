@@ -46,18 +46,11 @@ export function validate(d: Design): Issue[] {
     const min = minWeb(d, id);
     const pm = matOf(d, id);
     const notches = panelNotches(d, p);
-    // inner limits: an edge cut back by joint notches loses that depth
-    const inset = [0, 1, 2, 3].map((e) => Math.max(0, ...(notches[`e${e}`] ?? []).map((n) => n.depth)));
-    const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
     const fitsW = Math.min(p.w, p.h) <= Math.min(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
     const fitsL = Math.max(p.w, p.h) <= Math.max(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
     if (!fitsW || !fitsL) issues.push({ key: 'val.tooBig', vars: { panel: p.name }, target: { kind: 'panel', id } });
-    const thin = (bb: { minX: number; minY: number; maxX: number; maxY: number }) =>
-      bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
-    const own = ownOutline(p);
-    const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
-    const anyTurned = p.details.some((dt) => dt.rot && dt.shape !== 'circle');
-    const outlines = plainRect && !anyTurned ? [] : own.rings.map((r) => panelOutline(p, notches, r));
+    const fit = panelFit(d, p);
+    const { own } = fit;
     // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
     const hit = throughHits(d).get(id);
     const frags = hit ? fragmentsAfterThrough(d, id) : own.rings.length;
@@ -71,30 +64,8 @@ export function validate(d: Design): Issue[] {
     }
     if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
     for (const dt of p.details) {
-      if (dt.op === 'score') continue;
-      // Adds and Cuts across the edge shape the outline: only one that misses the panel entirely is a problem
-      if (dt.op === 'add' || isOutlineShape(p, dt.id)) {
-        // an Add standing alone (its own ring), or a Cut that misses the material, does nothing useful
-        const alone = dt.op === 'add' && own.rings.some((r) => r.every((e) => e.key.startsWith(dt.id + '.')));
-        const misses = dt.op === 'cut' && !touchesMaterial(own, dt);
-        if (alone || misses) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
-        continue;
-      }
-      if (!plainRect || (dt.rot && dt.shape !== 'circle')) {
-        // any outline (or a turned shape): the shape must lie inside the panel's material, a cut with a web around it
-        const polys = instancePolys(dt).flatMap((ip) => ip.polys);
-        const inRing = (q: P2) => outlines.some((o) => pointInPolygon(q, o));
-        if (!polys.every((poly) => poly.every(inRing))) issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
-        else if (dt.op === 'cut' && polys.some((poly) => outlines.some((o) => webTo(poly, o) < min - 1e-9)))
-          issues.push({ key: 'val.tooThin', vars: { panel: p.name, min }, target: { kind: 'detail', id: dt.id } });
-        continue;
-      }
-      const bb = detailBBox(dt);
-      if (bb.minX < 0 || bb.minY < 0 || bb.maxX > p.w || bb.maxY > p.h) {
-        issues.push({ key: 'val.holeOutside', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
-      } else if (dt.op === 'cut' && thin(bb)) {
-        issues.push({ key: 'val.tooThin', vars: { panel: p.name, min }, target: { kind: 'detail', id: dt.id } });
-      }
+      const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id));
+      if (k) issues.push({ key: k, vars: k === 'val.tooThin' ? { panel: p.name, min } : { panel: p.name }, target: { kind: 'detail', id: dt.id } });
     }
     const outline = panelOutline(p, notches);
     for (const h of panelExtras(d, p).holes) {
@@ -120,6 +91,45 @@ export function validate(d: Design): Issue[] {
   }
   issues.push(...contactIssues(d, issues));
   return issues;
+}
+
+/** What the export check needs to place shapes on a panel (milestone 39: shared with Quick build's guard). */
+export type PanelFit = { min: number; lim: { x0: number; y0: number; x1: number; y1: number }; own: ReturnType<typeof ownOutline>; plainRect: boolean; outlines: P2[][] };
+
+export function panelFit(d: Design, p: Panel): PanelFit {
+  const min = minWeb(d, p.id);
+  const notches = panelNotches(d, p);
+  // inner limits: an edge cut back by joint notches loses that depth
+  const inset = [0, 1, 2, 3].map((e) => Math.max(0, ...(notches[`e${e}`] ?? []).map((n) => n.depth)));
+  const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
+  const own = ownOutline(p);
+  const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
+  return { min, lim, own, plainRect, outlines: own.rings.map((r) => panelOutline(p, notches, r)) };
+}
+
+/** A shape's place on its panel: outside the panel, too close to its edge, or fine (null). */
+export function shapeFit(fit: PanelFit, p: Panel, dt: Panel['details'][number], outlineShape: boolean): 'val.holeOutside' | 'val.tooThin' | null {
+  const { min, lim, own, plainRect, outlines } = fit;
+  if (dt.op === 'score') return null;
+  // Adds and Cuts across the edge shape the outline: only one that misses the panel entirely is a problem
+  if (dt.op === 'add' || outlineShape) {
+    // an Add standing alone (its own ring), or a Cut that misses the material, does nothing useful
+    const alone = dt.op === 'add' && own.rings.some((r) => r.every((e) => e.key.startsWith(dt.id + '.')));
+    const misses = dt.op === 'cut' && !touchesMaterial(own, dt);
+    return alone || misses ? 'val.holeOutside' : null;
+  }
+  if (!plainRect || (dt.rot && dt.shape !== 'circle')) {
+    // any outline (or a turned shape): the shape must lie inside the panel's material, a cut with a web around it
+    const polys = instancePolys(dt).flatMap((ip) => ip.polys);
+    const inRing = (q: P2) => outlines.some((o) => pointInPolygon(q, o));
+    if (!polys.every((poly) => poly.every(inRing))) return 'val.holeOutside';
+    if (dt.op === 'cut' && polys.some((poly) => outlines.some((o) => webTo(poly, o) < min - 1e-9))) return 'val.tooThin';
+    return null;
+  }
+  const bb = detailBBox(dt);
+  if (bb.minX < 0 || bb.minY < 0 || bb.maxX > p.w || bb.maxY > p.h) return 'val.holeOutside';
+  const thin = bb.minX - lim.x0 < min - 1e-9 || bb.minY - lim.y0 < min - 1e-9 || lim.x1 - bb.maxX < min - 1e-9 || lim.y1 - bb.maxY < min - 1e-9;
+  return dt.op === 'cut' && thin ? 'val.tooThin' : null;
 }
 
 /** Smallest distance from a closed polygon's edges to a ring's edges (they do not cross). */

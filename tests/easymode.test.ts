@@ -32,7 +32,7 @@ describe('the feature table', () => {
     const listed = new Set(Object.keys(FEATURES));
     expect([...used].filter((f) => !listed.has(f))).toEqual([]);
     // a feature Quick build changes is asked for somewhere ('rail.ops' goes with the Workshop rail, which 'rail.tools' replaces)
-    const changed = [...listed].filter((f) => FEATURES[f as keyof typeof FEATURES] !== 'show' && f !== 'rail.ops' && f !== 'exportCheck');
+    const changed = [...listed].filter((f) => FEATURES[f as keyof typeof FEATURES] !== 'show' && f !== 'rail.ops');
     expect(changed.filter((f) => !used.has(f))).toEqual([]);
   });
 

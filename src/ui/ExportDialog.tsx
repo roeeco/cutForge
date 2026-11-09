@@ -4,6 +4,8 @@ import { prepareExport, type KerfMode } from '../export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../export/svg';
 import { sheetsToDxf } from '../export/dxf';
 import { validate } from '../model/validate';
+import { canFix, fixIssue } from '../easy/fix';
+import { shown, useFeature } from '../easy/features';
 import { downloadText, safeName } from './download';
 import { fmtNum } from '../i18n';
 import type { Prepared } from '../export/prepare';
@@ -22,6 +24,7 @@ export function ExportDialog() {
   const [mode, setMode] = useState<KerfMode>('nominal');
   const prepared = useMemo(() => prepareExport(d, mode), [d, mode]);
   const issues = useMemo(() => validate(d), [d]);
+  const check = shown(useFeature('exportCheck'));
   const pieces = Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);
   const blocked = prepared.errors.length > 0;
   // one file per material (milestone 36), each with its own kerf; one material keeps the old names
@@ -96,7 +99,7 @@ export function ExportDialog() {
             </ul>
           </div>
         )}
-        {issues.length > 0 && (
+        {issues.length > 0 && check && (
           <div className="issues" data-testid="export-issues">
             <strong>{t('export.problems')}</strong>
             <ul>
@@ -111,6 +114,12 @@ export function ExportDialog() {
                   >
                     {t(i.key, i.vars)}
                   </button>
+                  {canFix(i) && (
+                    // the same one-click fixes as Quick build's badge (milestone 39)
+                    <button className="fix-btn" onClick={() => useStore.getState().apply((x) => void fixIssue(x, i))} data-testid="export-fix">
+                      {t('ready.fix')}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
