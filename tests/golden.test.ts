@@ -8,7 +8,8 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cardTray, corrDividers, plyBox, plyLean } from './goldenDesigns';
+import { cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
 import { sheetsToSvg } from '../src/export/svg';
@@ -95,5 +96,35 @@ describe('v5 project files migrate to identical exports', () => {
       const { svg, dxf } = exportsOf(d);
       expect(svg === readFileSync(`${DIR}/${v.golden}.svg`, 'utf8'), `${v.file} SVG`).toBe(true);
       expect(dxf === readFileSync(`${DIR}/${v.golden}.dxf`, 'utf8'), `${v.file} DXF`).toBe(true);
+    });
+});
+
+// Project files saved by the schema v6 code (before rotation, schema v7), with
+// the exports the v6 code made from them. Written once (GEN_V6=1) and never
+// regenerated: they check the v6 → v7 migration.
+const V6 = [
+  { name: 'v6-ply-hex-through', make: v6PlyHexThrough },
+  { name: 'v6-corr-foldover', make: v6CorrFoldover },
+  { name: 'v6-card-gable', make: v6CardGable },
+  { name: 'v6-ply-box', make: plyBox },
+  { name: 'v6-organiser-ply-3-lid', make: () => templateDesign('organiser', PLY, { lid: 'liftoff' }) },
+];
+
+describe('v6 project files migrate to identical exports', () => {
+  for (const v of V6)
+    it(v.name, () => {
+      const file = `${DIR}/${v.name}.json`;
+      if (process.env.GEN_V6 === '1') {
+        const d = v.make();
+        writeFileSync(file, serializeProject(d));
+        const { svg, dxf } = exportsOf(d);
+        writeFileSync(`${DIR}/${v.name}.svg`, svg);
+        writeFileSync(`${DIR}/${v.name}.dxf`, dxf);
+      }
+      const text = readFileSync(file, 'utf8');
+      expect(JSON.parse(text).schemaVersion).toBe(6);
+      const { svg, dxf } = exportsOf(parseProject(text));
+      expect(svg === readFileSync(`${DIR}/${v.name}.svg`, 'utf8'), `${v.name} SVG`).toBe(true);
+      expect(dxf === readFileSync(`${DIR}/${v.name}.dxf`, 'utf8'), `${v.name} DXF`).toBe(true);
     });
 });
