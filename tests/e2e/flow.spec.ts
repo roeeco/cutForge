@@ -1,6 +1,7 @@
 // The brief's end-to-end flow (POLYGONS_AND_CUTS.md §14): draw a polygon base,
 // extrude it, push-pull the height, cut through a corner, check the warnings
 // and the export check, then save, reload and get the same SVG.
+import { shapeTool, opPick } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -87,9 +88,9 @@ test('polygon base → extrude → push-pull → cut through a corner → warnin
   expect(new Set(hs).size).toBe(1);
 
   // cut through the front wall's top-left corner
-  await page.getByTestId('op-cut').click();
+  await opPick(page, 'cut');
   await page.getByTestId('op-through').click();
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   const H = d.panels[front].h;
   const a = await panelPt(page, front, 14, H - 14, false), b = await panelPt(page, front, -6, H + 6, false);
   await page.mouse.move(a.x, a.y);

@@ -665,3 +665,23 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .pose-pick button { min-height: 0; padding: 4px 10px; border-radius: var(--r-pill); font-size: 12px; background: var(--surface); border: 1px solid var(--accent-bright); box-shadow: var(--shadow-soft); }
 .pose-pick .pose-hint { background: var(--surface); border-radius: var(--r-pill); padding: 4px 10px; font-size: 12px; box-shadow: var(--shadow-soft); white-space: nowrap; pointer-events: none; }
 .joint-menu-sub { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; display: grid; gap: 2px; }
+/* Workshop's shape card: which shape, and what it does to the board (icons and words, not colour dots) */
+.shape-card { width: 250px; top: auto; bottom: 16px; }
+.shape-card h4 { margin: 8px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); }
+.shape-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.shape-pick button { display: grid; justify-items: center; gap: 2px; min-height: 0; padding: 6px 2px; font-size: 11px; border-radius: var(--r-md); }
+.shape-pick button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.op-list { display: grid; gap: 4px; }
+.op-list button { display: flex; align-items: center; gap: 10px; min-height: 0; padding: 6px 8px; text-align: start; border-radius: var(--r-md); }
+.op-list button.on { background: var(--accent-soft); border-color: var(--accent); }
+.op-list button svg { flex: none; }
+.op-list .op-text { display: grid; line-height: 1.2; }
+.op-list .op-text small { color: var(--ink-muted); font-size: 11px; }
+.op-list button[data-op='cut'] svg { color: #b4232a; }
+.op-list button[data-op='add'] svg { color: #2e8b57; }
+.op-list button[data-op='score'] svg { color: #2f6feb; }
+.through-check { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.op-ico { display: inline-grid; place-items: center; }
+.op-ico.cut { color: #b4232a; }
+.op-ico.add { color: #2e8b57; }
+.op-ico.score { color: #2f6feb; }

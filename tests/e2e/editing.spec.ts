@@ -1,6 +1,6 @@
 // Milestone 3: solo view, smart snapping with guides, multiple selection,
 // align/distribute, group move/duplicate/delete/resize, arrays, keyboard.
-import { setNum, pickPlane } from './util';
+import { setNum, pickPlane, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -57,11 +57,11 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await expect(page.getByTestId('solo')).toBeVisible();
 
   // draw a rectangle, then a second one whose bottom lands 1 px off the first's: snapping aligns it
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   await drag(page, await soloPt(page, 20, 20), await soloPt(page, 50, 40));
   // each shape is a ghost until ✓, then the tool goes back to Select (milestone 30)
   await page.getByTestId('ghost-ok').click();
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   let d = await design(page);
   expect(d.panels[base].details).toHaveLength(1);
   const r1 = d.panels[base].details[0];
@@ -74,7 +74,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
     },
   });
   await page.getByTestId('ghost-ok').click();
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   d = await design(page);
   const r2 = d.panels[base].details[1];
   expect(r2.cy - r2.h / 2).toBeCloseTo(20, 9);

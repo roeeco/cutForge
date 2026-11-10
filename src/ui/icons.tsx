@@ -133,6 +133,38 @@ const P: Record<string, ReactElement> = {
       <circle cx="12" cy="12" r="3.8" />
     </>
   ),
+  // the four operations, as pictures of what they do to a board (not colours)
+  opAdd: (
+    <>
+      <rect x="3.5" y="9" width="17" height="11" rx="1" />
+      <path d="M9 9V4.5h6V9" />
+      <path d="M12 12.5v4M10 14.5h4" />
+    </>
+  ),
+  opCut: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+      <rect x="8" y="9" width="8" height="6" rx="0.5" strokeDasharray="2 1.6" />
+    </>
+  ),
+  opEngrave: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+      <path d="M7.5 15.5l3-6.5 3 6.5M8.6 13.2h3.8M15.5 9.5v6" />
+    </>
+  ),
+  opScore: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1" />
+      <path d="M12 6.5v11" strokeDasharray="2 2" />
+    </>
+  ),
+  shapes: (
+    <>
+      <rect x="3.5" y="11" width="9" height="9" rx="1" />
+      <circle cx="16" cy="8" r="4.5" />
+    </>
+  ),
   sticker: <path d="m12 4 2.4 5 5.4.7-4 3.7 1 5.4L12 16.2 7.2 18.8l1-5.4-4-3.7 5.4-.7z" />,
 };
 

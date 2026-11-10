@@ -1,6 +1,6 @@
 // Panels and dividers round (PANELS_AND_DIVIDERS.md): a material for each
 // board (milestone 36).
-import { pickPlane } from './util';
+import { pickPlane, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -222,7 +222,7 @@ test.describe('milestone 30: one floating ✓ for every ghost', () => {
     const b = await setup(page);
     // ✓
     const p0 = await past(page);
-    await page.getByTestId('tool-rect').click();
+    await shapeTool(page, 'rect');
     await dragOn(page, await proj(page, b, 20, 20), await proj(page, b, 50, 40));
     await expect(page.getByTestId('pending-bar')).toBeVisible();
     expect(await nShapes(page)).toBe(1);
@@ -237,22 +237,22 @@ test.describe('milestone 30: one floating ✓ for every ghost', () => {
     await page.keyboard.press('ControlOrMeta+Shift+z');
     expect(await nShapes(page)).toBe(1);
     // ✕
-    await page.getByTestId('tool-circle').click();
+    await shapeTool(page, 'circle');
     await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
     expect(await nShapes(page)).toBe(2);
     await page.getByTestId('ghost-cancel').click();
     expect(await nShapes(page)).toBe(1);
     // Esc
-    await page.getByTestId('tool-roundrect').click();
+    await shapeTool(page, 'roundrect');
     await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
     expect(await nShapes(page)).toBe(2);
     await page.keyboard.press('Escape');
     expect(await nShapes(page)).toBe(1);
     // another tool drops it
-    await page.getByTestId('tool-rect').click();
+    await shapeTool(page, 'rect');
     await dragOn(page, await proj(page, b, 70, 60), await proj(page, b, 90, 80));
     expect(await nShapes(page)).toBe(2);
-    await page.getByTestId('tool-circle').click();
+    await shapeTool(page, 'circle');
     expect(await nShapes(page)).toBe(1);
     // text: placed, then ✓
     await page.getByTestId('tool-text').click();
@@ -280,7 +280,7 @@ test.describe('milestone 30: one floating ✓ for every ghost', () => {
   test('the cut plan: a drawn shape waits for ✓', async ({ page }) => {
     await setup(page);
     await page.getByTestId('view-2d').click();
-    await page.getByTestId('tool-rect').click();
+    await shapeTool(page, 'rect');
     const piece = page.locator('path.piece').first();
     const bb = (await piece.boundingBox())!;
     await dragOn(page, { x: bb.x + bb.width * 0.3, y: bb.y + bb.height * 0.3 }, { x: bb.x + bb.width * 0.6, y: bb.y + bb.height * 0.6 });

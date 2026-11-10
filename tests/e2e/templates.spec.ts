@@ -1,5 +1,5 @@
 // Milestone 5: start from a template, change parameters, keep user edits.
-import { setNum } from './util';
+import { setNum, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -18,7 +18,7 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
 
   // a cutout on the front wall (normal tools: Rectangle tool in the wall's solo view)
   await S(page, () => (window as any).__cutforge.store.getState().openSolo('t:wall0'));
-  await page.getByTestId('tool-circle').click();
+  await shapeTool(page, 'circle');
   const pt = (x: number, y: number) =>
     S(page, ([x, y]: number[]) => {
       const svg = document.querySelector('[data-testid=solo] svg') as SVGSVGElement;

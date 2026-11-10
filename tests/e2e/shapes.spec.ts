@@ -1,4 +1,5 @@
 // Milestone 9: Add and Cut shapes that change outlines, drawn on the stage.
+import { shapeTool, opPick } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -36,8 +37,8 @@ test('a Cut across a walled edge notches the base and splits its wall; an Add jo
   await page.waitForTimeout(300);
 
   // Cut: a rectangle from inside the base out past its front edge
-  await page.getByTestId('op-cut').click();
-  await page.getByTestId('tool-rect').click();
+  await opPick(page, 'cut');
+  await shapeTool(page, 'rect');
   await drag(page, await panelPt(page, base, 70, 25), await panelPt(page, base, 90, -10));
   let d = await design(page);
   expect(d.panels[base].details).toHaveLength(1);
@@ -48,16 +49,16 @@ test('a Cut across a walled edge notches the base and splits its wall; an Add jo
   await expect(page.getByTestId('grow-from-e0#1')).toBeVisible();
 
   // a Cut across the walled back edge splits the wall in two
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   await drag(page, await panelPt(page, base, 70, 85), await panelPt(page, base, 90, 110));
   await page.getByTestId('ghost-ok').click();
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   d = await design(page);
   expect(d.panels[`${wall}~1`]).toBeTruthy();
   expect(d.panels[wall].w + d.panels[`${wall}~1`].w).toBeCloseTo(160 - 20, 0);
 
   // Add: a tab on the left edge
-  await page.getByTestId('op-add').click();
+  await opPick(page, 'add');
   await expect(page.getByTestId('op-add')).toHaveAttribute('aria-checked', 'true');
   await drag(page, await panelPt(page, base, 10, 40), await panelPt(page, base, -15, 60));
   await page.getByTestId('ghost-ok').click();

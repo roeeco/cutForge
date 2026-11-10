@@ -1,6 +1,7 @@
 // Review screenshots for Quick build (milestones 37–41), skipped unless SHOTS=1:
 //   SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots
 import { test, type Page } from '@playwright/test';
+import { QUICK_STATE } from './util';
 const OUT = 'docs/quick-shots';
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const shot = (page: Page, lang: string, name: string) => page.screenshot({ path: `${OUT}/${lang}-${name}.png` });
@@ -15,7 +16,7 @@ async function drag(page: Page, a: { x: number; y: number }, b: { x: number; y: 
   await page.mouse.up();
 }
 
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({ storageState: QUICK_STATE });
 
 for (const lang of ['en', 'he']) {
   test(`quick build actions shots ${lang}`, async ({ page }) => {

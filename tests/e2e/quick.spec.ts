@@ -1,14 +1,14 @@
-// Quick build (milestones 37–41): a new browser starts in Quick build, with
+// Quick build (milestones 37–41): a browser that chose Quick build, with
 // five actions and no joint controls; Workshop is today's editor; parts made
 // with Workshop tools show read-only in Quick build.
 import { test, expect, type Page } from '@playwright/test';
-import { pickPlane } from './util';
+import { pickPlane, QUICK_STATE } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<string>(page, () => JSON.stringify((window as any).__cutforge.store.getState().design));
 
-// a browser that has never used CutForge
-test.use({ storageState: { cookies: [], origins: [] } });
+// a browser in Quick build (a new one starts in the Workshop: see the last test)
+test.use({ storageState: QUICK_STATE });
 
 test('Quick build: five actions, no joint controls, Workshop parts read-only', async ({ page }) => {
   const errors: string[] = [];
@@ -25,7 +25,8 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
 
   // the settings card: no joints or snapping, material read-only
   await expect(page.getByTestId('inspector-design')).toBeVisible();
-  await expect(page.getByTestId('settings-joints')).toHaveCount(0);
+  // the joints can be chosen in Quick build too: wall to base and corners
+  await expect(page.getByTestId('settings-joints')).toBeVisible();
   await expect(page.getByTestId('settings-snapping')).toHaveCount(0);
   await expect(page.getByTestId('settings-material')).toBeVisible();
 
@@ -76,7 +77,7 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
   await page.getByTestId('quick-open-workshop').click();
   await expect(page.getByTestId('mode-workshop')).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByTestId('tool-panel')).toBeVisible();
-  await expect(page.getByTestId('op-cut')).toBeVisible();
+  await expect(page.getByTestId('tool-shapes')).toBeVisible();
   await expect(page.getByTestId('panel-hinge-field')).toBeVisible();
   await expect(page.getByTestId('quick-rail')).toHaveCount(0);
   expect(await design(page)).toBe(before);
@@ -344,4 +345,49 @@ test('Quick build: the material can be changed (its kerf and clearance stay read
   await page.getByTestId('drawer-close').click();
   await page.getByTestId('settings-head-material').click();
   await expect(page.getByTestId('settings-kerf')).toBeDisabled();
+});
+
+test.describe('a new browser', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test('starts in the Workshop; Quick build is one click away', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('start-go').click();
+    await expect(page.getByTestId('mode-workshop')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('tool-panel')).toBeVisible();
+    await page.getByTestId('mode-quick').click();
+    await expect(page.getByTestId('quick-rail')).toBeVisible();
+  });
+});
+
+test('Quick build: a joint’s menu changes it, and the joints view shows only the selected panel’s joints', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
+  const ids = await S<{ base: string; walls: string[] }>(page, () => {
+    const cf = (window as any).__cutforge;
+    let out: any;
+    cf.store.getState().apply((d: any) => {
+      const b = cf.ops.addRootPanel(d, -60, 45, 120, 90);
+      const walls = [0, 1, 2, 3].map((e) => cf.ops.growPanel(d, b, e, { height: 45, angle: 90, dir: 'up', kind: 'finger' }).panelId);
+      cf.ops.autoConnect(d);
+      out = { base: b, walls };
+    });
+    cf.store.getState().select(null);
+    return out;
+  });
+  await page.getByTestId('fit-view').click();
+  await page.getByTestId('toggle-joints').click();
+  // nothing selected: no labels, and the hint says to select a panel
+  await expect(page.locator('[data-testid^=seam-pill-]')).toHaveCount(0);
+  await expect(page.locator('.view-hint')).toContainText('select a panel');
+  // a wall: only its joints
+  await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.walls[0]);
+  const mine = await S<number>(page, (id: string) => (Object.values((window as any).__cutforge.store.getState().design.connections) as any[]).filter((c) => c.a.panelId === id || c.b.panelId === id).length, ids.walls[0]);
+  await expect(page.locator('[data-testid^=seam-pill-]')).toHaveCount(mine);
+  // the menu works in Quick build
+  await page.locator('[data-testid^=seam-pill-]').first().click();
+  await expect(page.getByTestId('joint-kind-tabslot')).toBeEnabled();
+  await page.getByTestId('joint-kind-tabslot').click();
+  await expect.poll(() => S<number>(page, () => (Object.values((window as any).__cutforge.store.getState().design.connections) as any[]).filter((c) => c.kind === 'tabslot').length)).toBeGreaterThan(0);
 });
