@@ -4,6 +4,13 @@ A testing pass on 2026-11-10 found about 30 bugs. Some crash the app, some write
 
 Line numbers are for 25674dd and will drift; search for the function names.
 
+**Three plans live on this branch. Do them in this order:**
+1. **This bug-fix plan.** At least phases 1–2, which are crashes and corrupt data.
+2. **`BOARD_TOOL_PLAN.md` (milestone 42):** the Board tool in one drag, with a perpendicular toggle.
+3. **`TOUR_PLAN.md` (milestone 43):** the first-use tour. It needs milestone 42.
+
+Milestones 42–43 can run in a separate session in parallel with bug-fix phases 3–8. Only U1 (top bar) and U4 (the flaky `boards.spec.ts` spec) touch the same files, so merge carefully there.
+
 ## Before you start
 
 ```bash
@@ -82,7 +89,7 @@ Severity:
 | B25 | 6 | minor | Tray wall and corner kinds left invalid after a material change (suspected) | none; write one first |
 | U1 | 7 | UI | Top bar overflows below ~1390 px (Quick build) and 1366 px (Workshop): Download, Submit and language toggle off-screen or clipped | new e2e |
 | U2 | 7 | UI | 3D contact shadows drawn well away from the boxes | new e2e or manual screenshot |
-| U3 | 7 | UI | First tip and empty-stage hint say "drag", but the Panel tool takes three clicks | i18n strings |
+| U3 | 7 | UI | First tip and empty-stage hint say "drag", but the Panel tool takes three clicks. **Replaced by milestones 42/43; skip it here** | — |
 | U4 | 7 | tests | Two e2e specs are flaky (~50%) on main and the previous main | `boards.spec.ts:394`, `walls.spec.ts:8` |
 
 ## Phase 1: crashes and hangs
@@ -361,12 +368,8 @@ Severity:
   3. **The bounds don't match the meshes.** `bounds` (from `design` frames and `display.xf`) may not match where the meshes are drawn.
 - **Done when:** in the top view, each shadow sits under its box. Prove it with a screenshot in PROGRESS.md, or with an e2e test that reads canvas pixels under and beside a box.
 
-### U3: onboarding text
-- **Problem:** the Panel tool takes three clicks (face, Flat or Standing, then the drag; see DECISIONS.md), but two strings still say "drag on the grid". Dragging first just orbits the camera:
-  - `hint.1` (`src/i18n/en.ts` ~385)
-  - `view.empty3d` (~73)
-- **Fix:** rewrite both in en and he. Check `tests/i18n.test.ts` passes.
-- **Also seen:** the new-panel ✓ bar covers the panel's length label while the ghost is waiting. Move the bar, or the label.
+### U3: onboarding text (replaced; don't do it here)
+The tips said "drag" while the Panel tool took three clicks. Milestone 42 (`BOARD_TOOL_PLAN.md`) brings back drawing in one drag and rewrites `hint.1` / `view.empty3d`. Milestone 43 (`TOUR_PLAN.md`) then replaces the tips with a tour. The ✓ bar that covered the new panel's length label goes away with milestone 42 too.
 
 ### U4: flaky e2e specs
 - **Which:** `tests/e2e/boards.spec.ts:394` (Ctrl-drag along an edge: `span-pick-label` never appears) and `tests/e2e/walls.spec.ts:8` (a click on a wall's top edge in outline editing adds no point). They fail about half the time on both 25674dd and fc404f0, so they're not regressions.
