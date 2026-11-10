@@ -41,11 +41,15 @@ describe('organiser', () => {
     expect(maxOverlap(d, [-83, 0, -58], [83, 49, 58], 1.3)).toBe(1);
   });
 
-  it('corrugated: folded tray (one piece) with glue flaps; dividers have no wall slots', () => {
+  it('corrugated: folded tray (one piece) with glue flaps; the walls have slots only for the dividers’ tabs', () => {
     for (const m of [CORR16, CORR4]) {
       const d = generate(org, m, defaults(org));
       expect(Object.values(d.connections).filter((c) => c.kind === 'glue')).toHaveLength(4);
-      for (const w of [0, 1, 2, 3]) expect(panelExtras(d, d.panels[`t:wall${w}`]).holes).toHaveLength(0);
+      const dividerIds = Object.keys(d.panels).filter((id) => id.startsWith('t:div'));
+      for (const w of [0, 1, 2, 3]) {
+        const fromDividers = Object.values(d.connections).filter((c) => !c.grown && c.kind === 'tabslot' && dividerIds.includes(c.a.panelId)).flatMap((c) => c.geom!.holes).filter((h) => h.panelId === `t:wall${w}`);
+        expect(panelExtras(d, d.panels[`t:wall${w}`]).holes).toHaveLength(fromDividers.length);
+      }
       const tray = buildPieces(d).find((p) => p.key === 't:base')!;
       expect(tray.panels).toHaveLength(5);
     }

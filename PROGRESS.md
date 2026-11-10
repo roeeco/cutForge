@@ -802,6 +802,17 @@ Remaining limitations (milestones 37–40)
 - In the e2e test the pencils' compartment is sized by typing on the dividers' compartment labels on the stage rather than by dragging the slide arrow.
 - Goals met are counted by the student's app; the Worker only checks the numbers are consistent.
 
+## Follow-up — joints, materials, the joints view, the ✓, moving and the Panel tool ✅
+
+1. **Default joints for dividers and added walls**: an edge meeting a face (divider bottoms and ends, standing panels, walls meeting a face) now gets tabs in slots where they can be made, then glue flaps, and a slide fit only last; before, card and corrugated got a slide fit (or, for a grown divider, no joint at all). `jointWorks`/`fallBack` in `ops.ts` pass over a kind that cannot be laid out, whose slots would leave less than the material's web, or that would make a tray's net need changing to lie flat. Saved files keep their joints (the v5 corrugated organiser keeps its own golden export); new corrugated and card organisers export with tabs and slots (golden files updated).
+2. **Quick build can change the material** (the material pill and the settings card's *Change material…*); kerf, clearance and sheet stay read-only.
+3. **Joints view**: a bigger, labelled *Joints* button; while on, every joint has a label (all of them, or the selected panel's), the move, turn and grow handles are hidden, and clicking a label opens a menu of the kinds that joint can take, with *All joint settings…* (Quick build shows the menu read-only).
+4. **The grow and extrude ✓ bar** sits below the height arrow (and above other stage labels, so it is always clickable).
+5. **Moving a panel sticks to other panels' planes** (`src/model/planeSnap.ts`): dragging a floor panel, a placed panel, or using their gizmos snaps faces flush and edges in line, in two directions.
+6. **The Panel tool in three clicks**: the face (or floor), then *Flat* or *Standing* on two small planes shown there (or their labels), then the drag. Standing lines (and Quick build's divider lines) snap level and parallel within 7°, then land on wall faces along that line; Alt draws freely.
+
+Verified: `tests/dividers.test.ts`, `tests/joints.test.ts`, `tests/templates.test.ts` (tabs and slots for divider ends on every material, no slot without its web), `tests/planesnap.test.ts` (a box moved towards another lands flush and in line; a standing panel slides flush against a wall), `tests/flatnet.test.ts` (unchanged: a joint that would change a net falls back), golden exports; e2e: the joint menu changes a joint and the handles hide (`overhaul.spec.ts`), the three-click Panel tool with Esc and a level snap, the ✓ below the grow arrow (`boards.spec.ts`), Quick build's material change (`quick.spec.ts`); every spec drawing panels uses the new flow.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

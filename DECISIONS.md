@@ -209,3 +209,12 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Missions are a registry**, like templates: a template with parameters (or a recipe), objects placed at the start, and goals checked live against the design. `Design.mission` and `Design.contents` are optional, view-only for pieces, packing and export, kept by template regeneration. Goals met are counted by the student's app and stored with the submission for the teacher.
 - **Compartments** are a rectangular base's clear inside cut by its dividers (each assumed to run the whole way); another outline gets one compartment, the largest centred rectangle of its inside. Objects lie flat either way round and stack; the clearance is kept once around the lot.
 - **Stickers** are drawn for CutForge in code (closed outlines in a unit box), so there is nothing to license or fetch.
+
+## Follow-up fixes (after milestone 41)
+
+- **An edge on a face is joined with tabs and slots first**, then a glue flap (card and corrugated), and a slide fit only last (`FACE_ORDER`). A kind is passed over when it cannot be made: the joint does not lay out, a slot would not keep the material's web inside its panel, or (for a tray's own panels) it would make the tray's net need changing to lie flat. This applies to new joints (dividers, divider ends, standing panels, walls meeting a face); joints already in a saved file keep their kind, so old files export as before.
+- **Quick build lets the material change**; only its numbers (kerf, clearance, sheet) stay read-only.
+- **Joints view**: a joint's label opens a menu of the kinds it can take; Quick build shows the menu but leaves the choice to Workshop. Turning the view on hides the move, turn and grow handles so the joints read clearly.
+- **The grow and extrude ✓ sit below their height arrow**, above every other stage label.
+- **Moving sticks to planes**: in the plane a panel moves in, every panel is lines (faces of those standing across it, edges of those lying in it); a moving line within reach of a parallel one snaps onto it, and a second contact in another direction fixes the other axis. This comes before the older corner snapping.
+- **The Panel tool takes three clicks** (face, then flat or standing, then the drag) instead of a pose switch; a standing line snaps level and parallel within 7° (the face's axes, its edges, panels standing on it), then its end lands on a wall face along that line.

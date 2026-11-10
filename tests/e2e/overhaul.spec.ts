@@ -55,12 +55,24 @@ test('start screen, drawer, stage widgets, seam pills and folding', async ({ pag
   await page.getByTestId('dim-w-input').press('Enter');
   await expect.poll(async () => (await design(page)).panels['t:base'].w).toBe(200);
 
-  // joints are hidden on the stage until turned on; a pill opens that joint's settings in the card
+  // joints are hidden on the stage until turned on; a pill opens the joint's menu: its kinds, and all its settings in the card
   await expect(page.getByTestId('seam-pill-finger')).toHaveCount(0);
   await page.getByTestId('toggle-joints').click();
+  // the joints view hides the move and grow handles
+  await expect(page.getByTestId('dim-w')).toHaveCount(0);
   await page.getByTestId('seam-pill-finger').first().click();
+  await expect(page.getByTestId('joint-menu')).toBeVisible();
+  await expect(page.getByTestId('joint-kind-tabslot')).toBeVisible();
+  await page.getByTestId('joint-more').click();
   await expect.poll(async () => (await state(page)).openJoint).toBeTruthy();
   await expect(page.getByTestId('conn-fingers')).toBeVisible();
+  // change a joint from its label
+  const fingers = Object.values((await design(page)).connections).filter((c: any) => c.kind === 'finger').length;
+  await page.getByTestId('seam-pill-finger').first().click();
+  await page.getByTestId('joint-kind-tabslot').click();
+  await expect.poll(async () => Object.values((await design(page)).connections).filter((c: any) => c.kind === 'finger').length).toBeLessThan(fingers);
+  await page.getByTestId('undo').click();
+  await page.getByTestId('toggle-joints').click();
 
   // grow card: 360° hinge dial (ticks, arrow keys, typing), zones, ghost height label
   await S(page, () => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: 't:wall0', edge: 2 }));

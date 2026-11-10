@@ -1,5 +1,6 @@
 // Panels and dividers round (PANELS_AND_DIVIDERS.md): a material for each
 // board (milestone 36).
+import { pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -130,6 +131,8 @@ test.describe('milestone 29: the Panel tool on faces', () => {
     // high enough to see the back wall's inner face over the front wall
     await S(page, () => (window as any).__cutforge.setCamera([0, 200, 160], [0, 20, -30]));
     await page.getByTestId('tool-panel').click();
+    // three clicks: the face, flat, then the drag that draws
+    await pickPlane(page, await proj(page, back, 30, 20), 'flat');
     await dragOn(page, await proj(page, back, 30, 20), await proj(page, back, 0.8, 39.2));
     await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
     await expect(page.getByTestId('ghost-w')).toContainText('30');
@@ -152,7 +155,7 @@ test.describe('milestone 29: the Panel tool on faces', () => {
     await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
     await page.getByTestId('tool-panel').click();
     // Standing; a line across the box from just inside one side wall to just inside the other (walls stand at x 0–3 and 77–80 of the base)
-    await S(page, () => (window as any).__cutforge.store.getState().set({ panelPose: 'standing' }));
+    await pickPlane(page, await proj(page, base, 3.8, 30), 'standing');
     await dragOn(page, await proj(page, base, 3.8, 30), await proj(page, base, 76.2, 30));
     await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
     await expect(page.getByTestId('ghost-standing')).toHaveAttribute('aria-checked', 'true');
@@ -187,6 +190,7 @@ test.describe('milestone 29: the Panel tool on faces', () => {
     const { base } = await plyBox(page);
     await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
     await page.getByTestId('tool-panel').click();
+    await pickPlane(page, await proj(page, base, 20, 20), 'flat');
     await dragOn(page, await proj(page, base, 20, 20), await proj(page, base, 50, 40));
     await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
     const before = Object.keys((await design(page)).panels).length;
@@ -421,4 +425,54 @@ test('milestone 35: Ctrl-drag along an edge from a third to the middle grows a p
   expect(c.span[0]).toBeCloseTo(40, 6);
   expect(c.span[1]).toBeCloseTo(60, 6);
   expect(errors).toEqual([]);
+});
+
+test.describe('panel tool, joints view and grow bar (follow-up fixes)', () => {
+  const proj = (page: Page, id: string, x: number, y: number) => S<{ x: number; y: number }>(page, (a: any) => (window as any).__cutforge.projectFace(a.id, a.x, a.y, 1), { id, x, y });
+
+  test('the Panel tool takes three clicks: the face, flat or standing, then the drag; a standing line snaps level', async ({ page }) => {
+    await start(page, 'ply-3');
+    const { base } = await plyBox(page);
+    await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
+    await page.waitForTimeout(250);
+    await page.getByTestId('tool-panel').click();
+    const a = await proj(page, base, 15, 20), b = await proj(page, base, 60, 24);
+    // first click: the face is picked, the two small planes are offered
+    await page.mouse.click(a.x, a.y);
+    await expect(page.getByTestId('pick-flat')).toBeVisible();
+    await expect(page.getByTestId('pick-standing')).toBeVisible();
+    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelPick)).toMatchObject({ host: base, pose: null });
+    // Esc starts over; pick again
+    await page.keyboard.press('Escape');
+    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelPick)).toBeNull();
+    await page.mouse.click(a.x, a.y);
+    await page.getByTestId('pick-standing').click();
+    await expect(page.getByTestId('pose-pick')).toHaveAttribute('data-pose', 'standing');
+    // third: drag a line about 5° off level: it lands level
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 6 });
+    await page.mouse.up();
+    const g = await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost);
+    expect(g.pose).toBe('standing');
+    expect(Math.abs(g.b.y - g.a.y)).toBeLessThan(1e-6);
+    await page.getByTestId('ghost-ok').click();
+    const d = await design(page);
+    const placed: any = Object.values(d.panels).find((p: any) => p.place?.host === base);
+    expect(Math.abs(placed.place.rot) % 180).toBeCloseTo(0, 6);
+  });
+
+  test('the grow ghost’s ✓ sits below its height arrow', async ({ page }) => {
+    await start(page, 'ply-3');
+    const { base } = await plyBox(page);
+    await S(page, () => (window as any).__cutforge.store.getState().apply((d: any) => void (window as any).__cutforge.ops.addRootPanel(d, 80, 30, 80, 60)));
+    const free = await S<string>(page, () => (window as any).__cutforge.store.getState().design.order.at(-1));
+    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e0' }), free);
+    await page.getByTestId('fit-view').click();
+    await page.waitForTimeout(400);
+    const arrow = await S<{ x: number; y: number }>(page, () => (window as any).__cutforge.handleAt('ghost-height'));
+    const bar = (await page.getByTestId('grow-ghost-bar').boundingBox())!;
+    expect(bar.y).toBeGreaterThan(arrow.y + 10);
+    void base;
+  });
 });

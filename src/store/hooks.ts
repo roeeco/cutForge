@@ -94,6 +94,8 @@ export function useKeyboard() {
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
+        // the Panel tool's picked plane: start over (the tool stays)
+        if (s.panelPick) return s.set({ panelPick: null });
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();

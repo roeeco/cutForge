@@ -50,7 +50,7 @@ export function MaterialDrawer() {
     } else apply((dd) => setMaterial(dd, mat));
   };
   const setM0 = useMaterialEdit();
-  // Quick build (milestone 37): the material is shown, not changed
+  // Quick build: the material can be changed; its kerf, clearance and sheet are shown, not changed
   const ro = useFeature('drawer') === 'readonly';
   const setM = (patch: Parameters<typeof setM0>[0]) => !ro && setM0(patch);
   return (
@@ -66,7 +66,7 @@ export function MaterialDrawer() {
         {mixedMaterials(d) && <p className="note" data-testid="drawer-working-note">{t('drawer.workingNote')}</p>}
         <div className="mats" role="radiogroup" aria-label={t('top.material')}>
           {MATERIALS.map((x) => (
-            <button key={x.id} role="radio" aria-checked={base?.id === x.id} className={`mat-mini ${base?.id === x.id ? 'on' : ''}`} disabled={ro && base?.id !== x.id} onClick={() => !ro && base?.id !== x.id && choose(x)} data-testid={`drawer-mat-${x.id}`}>
+            <button key={x.id} role="radio" aria-checked={base?.id === x.id} className={`mat-mini ${base?.id === x.id ? 'on' : ''}`} onClick={() => base?.id !== x.id && choose(x)} data-testid={`drawer-mat-${x.id}`}>
               <MaterialArt kind={x.kind} thickness={x.thickness} />
               <span>{t(x.nameKey as 'mat.ply3')}</span>
             </button>

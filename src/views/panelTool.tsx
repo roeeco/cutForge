@@ -105,7 +105,7 @@ export function snapGhostPoint(t: FaceTargets | null, p: P2, tol: number, ev: { 
  * The floating ✓ / ✕ bar next to a ghost (milestone 30): Enter makes it, Esc
  * drops it (not while a field is being typed in). Extra controls go before ✓.
  */
-export function ConfirmBar(props: { at: V3; onOk: () => void; onCancel: () => void; okDisabled?: boolean; children?: React.ReactNode; testId?: string; okTestId?: string; cancelTestId?: string }) {
+export function ConfirmBar(props: { at: V3; onOk: () => void; onCancel: () => void; okDisabled?: boolean; children?: React.ReactNode; testId?: string; okTestId?: string; cancelTestId?: string; below?: boolean }) {
   const t = useT();
   const h = useRef(props);
   h.current = props;
@@ -122,8 +122,9 @@ export function ConfirmBar(props: { at: V3; onOk: () => void; onCancel: () => vo
     return () => window.removeEventListener('keydown', key);
   }, []);
   return (
-    <StageHtml position={props.at}>
-      <div className="ghost-bar" dir="auto" data-testid={props.testId ?? 'ghost-bar'} onPointerDown={(e) => e.stopPropagation()}>
+    // over the other stage labels (a hinge's angle, the height): the ✓ is always reachable
+    <StageHtml position={props.at} zIndexRange={[70, 60]}>
+      <div className={`ghost-bar ${props.below ? 'below' : ''}`} dir="auto" data-testid={props.testId ?? 'ghost-bar'} onPointerDown={(e) => e.stopPropagation()}>
         {props.children}
         <button className="ok" disabled={props.okDisabled} onClick={() => props.onOk()} title={t('ghost.ok')} aria-label={t('ghost.ok')} data-testid={props.okTestId ?? 'ghost-ok'}>
           <Icon name="check" size={16} />
@@ -168,9 +169,10 @@ export function PanelGhostView({ d }: { d: Design }) {
       if (!hit) return;
       const l = toLocal(hf.H, [hit.x, hit.y, hit.z]);
       const tol = SNAP_PX * mmPerPx(camera, gl.domElement.clientHeight || 600, hit);
-      const q = snapGhostPoint(targets, l, tol, ev).p;
       const cur = useStore.getState().panelGhost;
       if (!cur) return;
+      const standing = cur.pose === 'standing';
+      const q = standing && (which === 'a' || which === 'b') ? snapLineEnd(d, cur.host, targets, which === 'a' ? cur.b : cur.a, l, tol, ev) : snapGhostPoint(targets, l, tol, ev).p;
       if (which === 'a') set({ a: q });
       else if (which === 'b') set({ b: q });
       else if (which === 'ab') set({ a: { x: q.x, y: cur.a.y }, b: { x: cur.b.x, y: q.y } });
@@ -288,6 +290,53 @@ export function PanelGhostView({ d }: { d: Design }) {
       )}
     </>
   );
+}
+
+/** How close (degrees) a standing line's direction must come to snap level or parallel. */
+export const LEVEL_SNAP_DEG = 7;
+
+/**
+ * A standing panel's line, kept level and parallel (boards and dividers): its
+ * direction snaps to the face's own axes (level and square on a wall, the
+ * floor's axes), to the panels standing on the face and to the face's edges;
+ * its end then lands on a wall face along that direction. Alt draws freely.
+ */
+export function snapLineEnd(d: Design, host: string | null, t: FaceTargets | null, a: P2, raw: P2, tol: number, ev: { altKey: boolean } | null): P2 {
+  const free = snapGhostPoint(t, raw, tol, ev).p;
+  if (noSmartSnap(ev)) return free;
+  const L = Math.hypot(raw.x - a.x, raw.y - a.y);
+  if (L < 1e-6) return free;
+  const ang = Math.atan2(raw.y - a.y, raw.x - a.x);
+  const dirs: number[] = [0, Math.PI / 2];
+  for (const l of t?.lines ?? []) dirs.push(Math.atan2(l[1].y - l[0].y, l[1].x - l[0].x));
+  const hp = host !== null ? d.panels[host] : null;
+  if (hp) for (const e of panelEdges(hp)) dirs.push(Math.atan2(e.b.y - e.a.y, e.b.x - e.a.x));
+  // the nearest direction (lines have no sense: modulo 180°)
+  let best: number | null = null, bd = (LEVEL_SNAP_DEG * Math.PI) / 180;
+  for (const r of dirs) {
+    let diff = (((ang - r) % Math.PI) + Math.PI) % Math.PI;
+    if (diff > Math.PI / 2) diff -= Math.PI;
+    if (Math.abs(diff) < bd) [best, bd] = [ang - diff, Math.abs(diff)];
+  }
+  if (best === null) return free;
+  const u = { x: Math.cos(best), y: Math.sin(best) };
+  const s = (raw.x - a.x) * u.x + (raw.y - a.y) * u.y;
+  // the length to the grid, along the snapped direction
+  const sg = gridSnap(s, ev);
+  let end = { x: a.x + u.x * sg, y: a.y + u.y * sg };
+  // along that direction, the end lands on a wall face (or a corner) within reach
+  let hit: { p: P2; k: number } | null = null;
+  for (const l of t?.lines ?? []) {
+    const lx = l[1].x - l[0].x, ly = l[1].y - l[0].y;
+    const den = u.x * ly - u.y * lx;
+    if (Math.abs(den) < 1e-9) continue;
+    const k = ((l[0].x - a.x) * ly - (l[0].y - a.y) * lx) / den;
+    const m = ((l[0].x - a.x) * u.y - (l[0].y - a.y) * u.x) / den;
+    if (m < -0.02 || m > 1.02 || Math.abs(k - s) > tol) continue;
+    if (!hit || Math.abs(k - s) < Math.abs(hit.k - s)) hit = { p: { x: a.x + u.x * k, y: a.y + u.y * k }, k };
+  }
+  if (hit) end = hit.p;
+  return end;
 }
 
 /** A small draggable sphere on the face (a ghost's corner or line end). */

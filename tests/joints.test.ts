@@ -226,14 +226,14 @@ describe('dividers and half-laps', () => {
     expect(maxOverlap(d, [0, 0, -90], [120, 45, 0], 0.9)).toBe(1);
   });
 
-  it('corrugated dividers have no wall slots; they slide in with clearance', () => {
+  it('corrugated dividers are held by tabs in slots in the walls (an edge on a face: tabs and slots first)', () => {
     const { d, walls, a } = organiser(CORR);
-    // (wall corners are tab-and-slot on corrugated: only the divider's own joints matter here)
-    for (const c of Object.values(d.connections).filter((x) => x.a.panelId === a || x.b.panelId === a))
-      for (const w of walls) expect(c.geom!.holes.filter((h) => h.panelId === w)).toHaveLength(0);
     const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap');
-    expect(ends.map((c) => c.kind)).toEqual(['slide', 'slide']);
-    expect(panelNotches(d, d.panels[a]).e1[0].depth).toBeCloseTo(CORR.thickness + CORR.clearance, 9);
+    expect(ends.map((c) => c.kind)).toEqual(['tabslot', 'tabslot']);
+    // the slots are in the walls, with a web around them
+    const slots = ends.flatMap((c) => c.geom!.holes).filter((h) => walls.includes(h.panelId));
+    expect(slots.length).toBeGreaterThan(0);
+    expect(validate(d).filter((i) => i.key === 'val.slotEdge')).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 // Milestone 4: text, SVG import, quantity and packing with manual placement,
 // pre-export validation, kerf modes.
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -14,6 +14,7 @@ async function start(page: Page, w: number, h: number) {
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, 'flat');
   await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2 - 40);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });

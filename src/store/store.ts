@@ -47,6 +47,9 @@ const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
 /** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
 export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
+/** The Panel tool's chosen plane, and the pose once chosen. */
+export type PanelPick = { host: string | null; face: 1 | -1; at: { x: number; y: number }; pose: 'flat' | 'standing' | null };
+
 /**
  * The Panel tool's ghost (milestone 29), in its host's local coordinates (the
  * floor's for `host` null): flat, the rectangle with corners `a` and `b`;
@@ -199,6 +202,12 @@ type State = {
   panelPose: 'flat' | 'standing';
   standHeight: number;
   /**
+   * The Panel tool's first two clicks: the face (or the floor) the panel goes
+   * on, where it was clicked (host coordinates), and then flat or standing;
+   * the third click starts drawing.
+   */
+  panelPick: PanelPick | null;
+  /**
    * Something a drawing tool just made (milestone 30), waiting for ✓: shapes
    * (or a polygon panel), still adjustable. ✓ keeps it as one undo step and
    * goes back to Select; ✕ (or another tool, another selection, another
@@ -246,7 +255,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'panelPick' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
 };
 
@@ -315,6 +324,7 @@ export const useStore = create<State>()((set, get) => ({
   extrude: null,
   panelGhost: null,
   panelPose: 'flat',
+  panelPick: null,
   standHeight: 40,
   pending: null,
   clipboard: null,
@@ -447,7 +457,7 @@ export const useStore = create<State>()((set, get) => ({
     // another tool drops what the last one made and was not confirmed
     if (get().pending) get().cancelPending();
     const act = t === 'circle' || t === 'rect' || t === 'roundrect' ? 'hole' : t === 'text' || t === 'sticker' ? 'text' : null;
-    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
+    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, panelPick: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
   },
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),

@@ -163,12 +163,15 @@ export function standsOnFace(d: Design, c: Pick<Connection, 'grown' | 'offset'> 
   return c.grown && c.offset > 2 * m.thickness + minWeb(m);
 }
 
+/** The order joints are tried where an edge meets a face: tabs and slots, a glue flap, then a slide fit (no joint) last. */
+export const FACE_ORDER: ConnectionKind[] = ['tabslot', 'glue', 'slide'];
+
 /** Kinds for a new divider (an edge standing on a face at 90°), the design's choice first when allowed. */
 export function dividerKind(d: Design, baseId?: string): ConnectionKind {
   const m = baseId ? matOf(d, baseId) : d.material;
   const face = seamKinds(m, 'face');
   const ok = connectionsFor(m, 90).filter((k) => face.includes(k));
-  return designKind(d, 'base', ok, m.kind) ?? (m.kind === 'plywood' ? 'tabslot' : 'butt');
+  return designKind(d, 'base', ok, m.kind) ?? FACE_ORDER.find((k) => ok.includes(k)) ?? ok[0] ?? 'butt';
 }
 
 /** A new tray's joints: the design's choices where a tray allows them, else the material's. */

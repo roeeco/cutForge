@@ -960,5 +960,6 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
   if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'slide', 'butt'] : ['glue', 'tabslot', 'slide', 'butt'];
-  return ply ? ['tabslot', 'slide', 'butt'] : ['slide', 'glue', 'butt'];
+  // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
+  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'slide', 'butt'];
 }

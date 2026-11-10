@@ -2,6 +2,7 @@
 // five actions and no joint controls; Workshop is today's editor; parts made
 // with Workshop tools show read-only in Quick build.
 import { test, expect, type Page } from '@playwright/test';
+import { pickPlane } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<string>(page, () => JSON.stringify((window as any).__cutforge.store.getState().design));
@@ -204,7 +205,7 @@ test.describe('Workshop', () => {
     await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
     await page.waitForTimeout(300);
     await page.getByTestId('tool-panel').click();
-    await S(page, () => (window as any).__cutforge.store.getState().set({ panelPose: 'standing' }));
+    await pickPlane(page, await onFace(page, base, 70, 6), 'standing');
     await drag(page, await onFace(page, base, 70, 6), await onFace(page, base, 70, 84));
     await page.getByTestId('ghost-divider').click();
     await expect(page.getByTestId('divider-makes')).toHaveAttribute('data-kind', 'divider');
@@ -331,4 +332,16 @@ test(`mission (${lang}): Pencil box — size the compartments until the pencils 
   expect(errors).toEqual([]);
   // a classroom run-through: well inside a lesson (milestone 41)
   expect(Date.now() - t0).toBeLessThan(20 * 60_000);
+});
+
+test('Quick build: the material can be changed (its kerf and clearance stay read-only)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-go').click();
+  await page.getByTestId('material-pill').click();
+  await page.getByTestId('drawer-mat-card-0.5').click();
+  await expect.poll(() => S<string>(page, () => (window as any).__cutforge.store.getState().design.material.id)).toBe('card-0.5');
+  await page.getByTestId('drawer-close').click();
+  await page.getByTestId('settings-head-material').click();
+  await expect(page.getByTestId('settings-kerf')).toBeDisabled();
 });

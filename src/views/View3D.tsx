@@ -27,10 +27,10 @@ import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSiz
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
-import { ConfirmBar, FaceHover, PanelGhostView, PendingBar, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
+import { snapLineEnd, ConfirmBar, FaceHover, PanelGhostView, PendingBar, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
 import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
 import { commonPlane } from '../model/arrange';
-import { FLOOR_FRAME } from '../model/place';
+import { FLOOR_FRAME, faceOut } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
@@ -40,7 +40,7 @@ import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
-import { newTrayKinds } from '../model/jointDefaults';
+import { allowedKinds, newTrayKinds } from '../model/jointDefaults';
 import { isOutlineShape } from '../model/outline';
 import { allFoldOvers } from '../model/foldover';
 import { FoldOverObject } from './foldOver3d';
@@ -52,6 +52,7 @@ import { featureState, shown, useFeature, useMode } from '../easy/features';
 import { boxFootprintGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
 import { keepOutZones } from '../easy/guard';
+import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
 import { bundleSize, contentFit, objectById } from '../easy/objects';
 import { assembleFold, assembleLift, playAssembly } from '../easy/assemble';
 import { workshopOnly } from '../easy/mode';
@@ -100,6 +101,21 @@ function planeOf(p: Panel, point: THREE.Vector3) {
 }
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const IDM = new THREE.Matrix4();
+
+// Moving a panel sticks to other panels' planes (flush faces, edges in line): lines per design and moving set, kept for the drag
+const flushCache = new WeakMap<Design, Map<string, { moving: Seg[]; targets: Seg[] }>>();
+function flushMove(base: Design, ids: string[], F: Frame, dx: number, dy: number, tol: number) {
+  const key = `${ids.join(',')}|${F.o.join(',')}|${F.u.join(',')}|${F.v.join(',')}`;
+  let m = flushCache.get(base);
+  if (!m) flushCache.set(base, (m = new Map()));
+  let lines = m.get(key);
+  if (!lines) {
+    const movers = moverSet(base, ids);
+    lines = { moving: planeLines(base, F, (id) => movers.has(id)), targets: planeLines(base, F, (id) => !movers.has(id)) };
+    m.set(key, lines);
+  }
+  return snapFlush(lines.moving, lines.targets, dx, dy, tol);
+}
 const NO_RAYCAST = () => null;
 
 /** World point of a panel-local point (x, y, depth z into the material), through a display transform. */
@@ -119,6 +135,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const tool = useStore((s) => s.tool);
   const grow = useStore((s) => s.grow);
   const prefs = useStore((s) => s.viewPrefs);
+  // looking at the joints: their labels, without the grow, move and turn handles (a clearer joint stage)
+  const jointsOn = prefs.joints;
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
   const openJoint = useStore((s) => s.openJoint);
@@ -169,7 +187,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, g.plane);
         const cur = st.panelGhost;
         if (!p || !cur) return;
-        const q = snapGhostPoint(g.targets, toLocal(g.H, p), tolAt(p), ev).p;
+        // standing boards and dividers keep level and parallel; flat ones are drawn square to the face anyway
+        const q = cur.pose === 'standing' ? snapLineEnd(st.design, cur.host, g.targets, cur.a, toLocal(g.H, p), tolAt(p), ev) : snapGhostPoint(g.targets, toLocal(g.H, p), tolAt(p), ev).p;
         st.set({ panelGhost: { ...cur, b: q } });
         const w = Math.abs(q.x - cur.a.x), h = Math.abs(q.y - cur.a.y);
         setLabel({ text: cur.pose === 'flat' ? `${fmtNum(w)} × ${fmtNum(h)}` : fmtNum(Math.hypot(w, h)), x: ev.clientX, y: ev.clientY });
@@ -186,7 +205,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, g.plane);
         if (!p) return;
         const l = toLocal(g.H, p);
-        const dx = snap(l.x - g.start.x, ev), dy = snap(l.y - g.start.y, ev);
+        const fl = noSmartSnap(ev) ? null : flushMove(st.txnBase ?? st.design, [g.id], g.H, l.x - g.start.x, l.y - g.start.y, tolAt(p) * 1.5);
+        const dx = fl ? fl.dx : snap(l.x - g.start.x, ev), dy = fl ? fl.dy : snap(l.y - g.start.y, ev);
         st.preview((d) => movePlaced(d, g.id, dx, dy));
       } else if (g.kind === 'shape-draw') {
         const panel = st.design.panels[g.panelId];
@@ -238,8 +258,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         if (!p) return;
         // snap to other floor panels' corners and edges (Alt: off), otherwise to the grid
         const raw = [p[0] - g.start[0], p[2] - g.start[2]];
-        const sn = noSmartSnap(ev) ? null : snapFloor(st.txnBase ?? st.design, g.id, raw[0], raw[1], tolAt(p));
-        const dx = sn ? sn.dx : snap(raw[0], ev), dz = sn ? sn.dz : snap(raw[1], ev);
+        const base = st.txnBase ?? st.design;
+        // flush against other panels first (floor-local y runs along −Z), then corners and edges of floor panels
+        const fl = noSmartSnap(ev) ? null : flushMove(base, g.ids ?? [g.id], FLOOR_FRAME, raw[0], -raw[1], tolAt(p) * 1.5);
+        const sn = fl || noSmartSnap(ev) ? null : snapFloor(base, g.id, raw[0], raw[1], tolAt(p));
+        const dx = fl ? fl.dx : sn ? sn.dx : snap(raw[0], ev), dz = fl ? -fl.dy : sn ? sn.dz : snap(raw[1], ev);
         st.preview((d) => {
           for (const id of g.ids ?? [g.id]) movePanel(d, id, dx, dz);
         });
@@ -354,9 +377,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return;
     }
     if (tool === 'panel') {
-      if (e.button !== 0) return;
       const pt: V3 = [e.point.x, e.point.y, e.point.z];
-      return startGhost(e, p.id, faceAt(design, p, pt), pt);
+      return panelDown(e, p.id, faceAt(design, p, pt), pt);
     }
     if (tool === 'text') {
       if (e.button !== 0) return;
@@ -436,7 +458,27 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return;
     }
     if (tool !== 'panel') return;
-    startGhost(e, null, 1, [e.point.x, 0, e.point.z]);
+    panelDown(e, null, 1, [e.point.x, 0, e.point.z]);
+  };
+
+  /**
+   * The Panel tool, in three clicks: the first picks the face (or the floor)
+   * the panel goes on, the second flat or standing (on the small planes
+   * shown there), the third starts drawing on that face.
+   */
+  const panelDown = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, pt: V3) => {
+    if (e.button !== 0) return;
+    const st = useStore.getState();
+    const pick = st.panelPick;
+    if (pick?.pose && pick.host === host && (host === null || pick.face === face)) {
+      st.set({ panelPick: null, panelPose: pick.pose });
+      return startGhost(e, host, face, pt);
+    }
+    e.stopPropagation();
+    const hf = hostFace(design, host, face);
+    if (!hf) return;
+    const at = toLocal(hf.H, pt);
+    st.set({ panelPick: { host, face, at: { x: at.x, y: at.y }, pose: null }, panelGhost: null });
   };
 
   /** The Panel tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
@@ -598,7 +640,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             emphasis={selected ? 1 : sel ? -1 : hoverPart === id ? 0.5 : 0}
             hover={hoverPart === id}
             outlines={prefs.outlines}
-            showEdges={(tool === 'select' || tool === 'wall') && !folded && (selPanel === id || hoverPart === id) && !locked(id)}
+            showEdges={(tool === 'select' || tool === 'wall') && !folded && !jointsOn && (selPanel === id || hoverPart === id) && !locked(id)}
+            edges={!jointsOn}
             selDetails={selectedDetailIds(sel)}
             selEdge={selEdge && selEdge.panelId === id ? selEdge.edge : null}
             tool={tool}
@@ -632,8 +675,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <BendBead key={b.id} b={b} d={design} index={design.order.indexOf(b.panelId)} outlines={prefs.outlines} />
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
-      {selEdge && !folded && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
-      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && editOutline !== selPanel && (
+      {selEdge && !folded && !jointsOn && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
+      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && !jointsOn && editOutline !== selPanel && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
       {activeThrough && (
@@ -643,31 +686,32 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           </span>
         </StageHtml>
       )}
-      {tool === 'select' && !folded && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
+      {tool === 'select' && !folded && !jointsOn && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {(tool === 'panel' || tool === 'divider') && !folded && <PanelGhostView d={design} />}
+      {tool === 'panel' && !folded && <PanelPicker d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
       {tool === 'panel' && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
-      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
-      {selPanel && tool === 'select' && !folded && selGrown && editOutline !== selPanel && !selLocked && (
+      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && !selLocked && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
-      {multi && tool === 'select' && !folded && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
-      {selPanel && tool === 'select' && !folded && !selGrown && editOutline !== selPanel && !selLocked && design.panels[selPanel] && (
+      {multi && tool === 'select' && !folded && !jointsOn && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
+      {selPanel && tool === 'select' && !folded && !jointsOn && !selGrown && editOutline !== selPanel && !selLocked && design.panels[selPanel] && (
         design.panels[selPanel].place?.host ? (
           <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         ) : (
           <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         )
       )}
-      {sel?.kind === 'detail' && tool === 'select' && !folded && !editOutline && !shapeLocked && (
+      {sel?.kind === 'detail' && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && (
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
-      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
+      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
       {!folded && <ContentsView d={design} xf={display.xf} onDown={(c, e) => {
         if (tool !== 'select' || e.button !== 0) return;
         e.stopPropagation();
@@ -679,7 +723,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         drag.current = { kind: 'content-move', id: c.id, plane: hf.plane, H: hf.H, start: q, at: { x: c.x, y: c.y } };
       }} />}
       {!folded && quick && <GuardOverlay d={design} panelId={inTxn ? (drawingId ? findDetail(design, drawingId)?.panel.id : sel?.kind === 'detail' ? findDetail(design, sel.id)?.panel.id : undefined) : undefined} xf={display.xf} />}
-      {!folded && (fJoints || prefs.joints) && <SeamPills d={design} focus={prefs.joints ? focus : null} xf={display.xf} openJoint={openJoint} />}
+      {!folded && (fJoints || prefs.joints) && <SeamPills d={design} focus={prefs.joints ? focus : null} all={prefs.joints} xf={display.xf} openJoint={openJoint} />}
       {drawRect && (
         <mesh position={[(drawRect.a[0] + drawRect.b[0]) / 2, 0.2, (drawRect.a[2] + drawRect.b[2]) / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noAO: true }}>
           <planeGeometry args={[Math.max(0.1, Math.abs(drawRect.b[0] - drawRect.a[0])), Math.max(0.1, Math.abs(drawRect.b[2] - drawRect.a[2]))]} />
@@ -759,6 +803,8 @@ function PanelObject(props: {
   hover: boolean;
   outlines: boolean;
   showEdges: boolean;
+  /** Grow edges are offered (not while the joints are being looked at). */
+  edges?: boolean;
   selDetails: string[];
   selEdge: string | null;
   tool: string;
@@ -836,7 +882,7 @@ function PanelObject(props: {
           </group>
         );
       })}
-      {(tool === 'select' || tool === 'wall') && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
+      {(tool === 'select' || tool === 'wall') && props.edges !== false && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
     </group>
   );
 }
@@ -1002,6 +1048,71 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
           </span>
         </StageHtml>
       )}
+    </>
+  );
+}
+
+/**
+ * The Panel tool's second click: where the first click picked a face (or the
+ * floor), a small flat plane and a small standing one; click one (or its
+ * label) to choose, then press on the face to draw.
+ */
+function PanelPicker({ d }: { d: Design }) {
+  const t = useT();
+  const pick = useStore((s) => s.panelPick);
+  const [hover, setHover] = useState<'flat' | 'standing' | null>(null);
+  if (!pick) return null;
+  const hf = hostFace(d, pick.host, pick.face);
+  if (!hf) return null;
+  const H = hf.H;
+  const out = faceOut(H, pick.host === null ? 1 : pick.face);
+  const u = new THREE.Vector3(...H.u).normalize(), n = new THREE.Vector3(...out).normalize();
+  const v = new THREE.Vector3().crossVectors(n, u).normalize();
+  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
+  const at = toWorld(H, pick.at.x, pick.at.y, hf.z);
+  const choose = (pose: 'flat' | 'standing') => useStore.getState().set({ panelPick: { ...pick, pose }, panelPose: pose });
+  const col = (pose: 'flat' | 'standing') => (pick.pose === pose ? STAGE.selected : hover === pose ? STAGE.hover : STAGE.ghost);
+  const down = (pose: 'flat' | 'standing') => (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    choose(pose);
+  };
+  return (
+    <>
+      <ScreenSized position={at} quaternion={q}>
+        {/* the point picked */}
+        <mesh position={[0, 0, 1]} raycast={() => null} renderOrder={22}>
+          <circleGeometry args={[4, 20]} />
+          <meshBasicMaterial color={STAGE.selected} depthTest={false} transparent opacity={0.95} />
+        </mesh>
+        {pick.pose !== 'standing' && (
+          <mesh position={[-46, 0, 1.5]} onPointerDown={down('flat')} onPointerOver={() => setHover('flat')} onPointerOut={() => setHover(null)} raycast={priorityRaycast} renderOrder={21} userData={{ noAO: true, testId: 'pick-flat-plane' }}>
+            <planeGeometry args={[56, 56]} />
+            <meshBasicMaterial color={col('flat')} transparent opacity={0.55} depthTest={false} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+        {pick.pose !== 'flat' && (
+          <mesh position={[46, 0, 29]} rotation={[Math.PI / 2, 0, 0]} onPointerDown={down('standing')} onPointerOver={() => setHover('standing')} onPointerOut={() => setHover(null)} raycast={priorityRaycast} renderOrder={21} userData={{ noAO: true, testId: 'pick-standing-plane' }}>
+            <planeGeometry args={[56, 56]} />
+            <meshBasicMaterial color={col('standing')} transparent opacity={0.55} depthTest={false} side={THREE.DoubleSide} />
+          </mesh>
+        )}
+      </ScreenSized>
+      <StageHtml position={at}>
+        <div className="pose-pick" data-testid="pose-pick" data-pose={pick.pose ?? ''}>
+          {pick.pose ? (
+            <span className="pose-hint">{t('pick.draw')}</span>
+          ) : (
+            <>
+              <button onClick={() => choose('flat')} onPointerEnter={() => setHover('flat')} onPointerLeave={() => setHover(null)} data-testid="pick-flat">
+                {t('ghost.flat')}
+              </button>
+              <button onClick={() => choose('standing')} onPointerEnter={() => setHover('standing')} onPointerLeave={() => setHover(null)} data-testid="pick-standing">
+                {t('ghost.standing')}
+              </button>
+            </>
+          )}
+        </div>
+      </StageHtml>
     </>
   );
 }
@@ -1332,7 +1443,8 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const ghostTop = pushPullAnchors(ghost.p).height;
   const warn = blocked || over.length > 0;
   const color = warn ? STAGE.blocked : STAGE.ghost;
-  const barAt = W(m, f, w / 2, ghostTop.y + 12, th / 2);
+  // the ✓ bar sits a little below the height arrow (which points up from the top edge), never on it
+  const barAt = W(m, f, w / 2, ghostTop.y, th / 2);
   const tolAt = (p: V3) => SNAP_PX * mmPerPx(camera, size.height, new THREE.Vector3(...p));
   // span ends along the parent edge
   const pe = findEdge(parent, edge)!;
@@ -1359,6 +1471,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       </group>
       <ConfirmBar
         at={barAt}
+        below
         onOk={() => void doGrow(panelId, edge)}
         onCancel={() => useStore.getState().select({ kind: 'panel', id: panelId })}
         okDisabled={blocked}
@@ -1628,7 +1741,8 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       />
       <DimLabel at={W(m, first.frame, first.w, first.h / 2, th / 2)} k="H" value={height} unit={t('unit.mm')} ghost onCommit={setH} testId="tray-ghost-dim" />
       <ConfirmBar
-        at={W(m, first.frame, first.w / 2, first.h + 14, th / 2)}
+        at={W(m, first.frame, first.w / 2, first.h, th / 2)}
+        below
         onOk={extrudeGo}
         onCancel={extrudeCancel}
         okTestId="extrude-go"
@@ -1868,8 +1982,10 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
       onMove={(du, dv, ev) => {
         const base = st().txnBase ?? st().design;
         let dx = u[0] * du + v[0] * dv, dz = u[2] * du + v[2] * dv;
-        const sn = ev && !noSmartSnap(ev) ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
-        if (sn) [dx, dz] = [sn.dx, sn.dz];
+        const fl = ev && !noSmartSnap(ev) ? flushMove(base, [p.id], FLOOR_FRAME, dx, -dz, tolAt(at) * 1.5) : null;
+        const sn = !fl && ev && !noSmartSnap(ev) ? snapFloor(base, p.id, dx, dz, tolAt(at)) : null;
+        if (fl) [dx, dz] = [fl.dx, -fl.dy];
+        else if (sn) [dx, dz] = [sn.dx, sn.dz];
         else if (ev) [dx, dz] = [snap(dx, ev), snap(dz, ev)];
         st().preview((dd) => movePanel(dd, p.id, dx, dz));
         return { du: dx * u[0] + dz * u[2], dv: dx * v[0] + dz * v[2] };
@@ -1915,8 +2031,10 @@ function PlacedGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4
         const base = st().txnBase ?? st().design;
         const b = base.panels[p.id] ?? p;
         let dx = du, dy = dv;
-        // the footprint corner nearest a target snaps onto it
-        if (ev && !noSmartSnap(ev) && targets) {
+        // flush against other panels' faces first; else the footprint corner nearest a target snaps onto it
+        const fl = ev && !noSmartSnap(ev) ? flushMove(base, [p.id], H, du, dv, tolAt(at) * 1.5) : null;
+        if (fl) [dx, dy] = [fl.dx, fl.dy];
+        else if (ev && !noSmartSnap(ev) && targets) {
           let best: { x: number; y: number; d: number } | null = null;
           for (const q of feet(b)) {
             const sn = snapOnFace(targets, { x: q.x + dx, y: q.y + dy }, tolAt(at));
@@ -2172,32 +2290,85 @@ function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at 
 }
 
 /** Joint pills: the focused panel's connections (and broken ones, always). Clicking one opens its settings. */
-function SeamPills({ d, focus, xf, openJoint }: { d: Design; focus: string | null; xf: Map<string, THREE.Matrix4>; openJoint: string | null }) {
+function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string | null; all?: boolean; xf: Map<string, THREE.Matrix4>; openJoint: string | null }) {
   const t = useT();
-  const list = Object.values(d.connections).filter((c) => c.broken || (focus && (c.a.panelId === focus || c.b.panelId === focus)));
+  // the joints view shows every joint (of the selected panel, or all of them); otherwise broken ones and the selected panel's
+  const list = Object.values(d.connections).filter((c) => c.broken || (focus ? c.a.panelId === focus || c.b.panelId === focus : !!all));
+  const [menu, setMenu] = useState<string | null>(null);
+  const canChange = shown(useFeature('joints'));
+  // a click elsewhere, or Esc, closes the menu
+  useEffect(() => {
+    if (!menu) return;
+    const down = (e: PointerEvent) => !(e.target as HTMLElement | null)?.closest?.('.pill-wrap') && setMenu(null);
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(null);
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('keydown', key);
+    };
+  }, [menu]);
   return (
     <>
       {list.map((c) => {
         const at = seamPoint(d, c, xf, 0.24);
         if (!at) return null;
         const other = c.a.panelId === focus ? c.b.panelId : c.a.panelId;
+        const owner = focus && (c.a.panelId === focus || c.b.panelId === focus) ? focus : c.b.panelId;
+        const open = menu === c.id;
+        const kinds = open ? allowedKinds(d, c) : [];
         return (
-          <StageHtml key={c.id} position={at}>
-            <button
-              className={`w-pill ${c.broken ? 'broken' : ''} ${openJoint === c.id ? 'on' : ''}`}
-              title={t('conn.with', { kind: t(`conn.${c.kind}` as 'conn.fold'), panel: panelLabel(d, other, t) })}
-              onClick={() => {
-                const st = useStore.getState();
-                const owner = focus && (c.a.panelId === focus || c.b.panelId === focus) ? focus : c.b.panelId;
-                if (st.selection?.kind !== 'panel' || st.selection.id !== owner) st.select({ kind: 'panel', id: owner });
-                st.set({ openJoint: c.id });
-                requestAnimationFrame(() => document.querySelector('[data-testid=inspector-connection]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-              }}
-              data-testid={`seam-pill-${c.kind}`}
-            >
-              <Icon name={c.broken ? 'alert' : c.kind} />
-              {t(`conn.short.${c.kind}` as 'conn.short.fold')}
-            </button>
+          <StageHtml key={c.id} position={at} {...(open ? { zIndexRange: [60, 50] } : {})}>
+            <div className="pill-wrap">
+              <button
+                className={`w-pill ${c.broken ? 'broken' : ''} ${openJoint === c.id || open ? 'on' : ''}`}
+                title={t('conn.with', { kind: t(`conn.${c.kind}` as 'conn.fold'), panel: panelLabel(d, other, t) })}
+                aria-expanded={open}
+                onClick={() => setMenu(open ? null : c.id)}
+                data-testid={`seam-pill-${c.kind}`}
+              >
+                <Icon name={c.broken ? 'alert' : c.kind} />
+                {t(`conn.short.${c.kind}` as 'conn.short.fold')}
+              </button>
+              {open && (
+                // a joint's own menu (it was only in the card's advanced section)
+                <div className="joint-menu" role="menu" data-testid="joint-menu" onPointerDown={(e) => e.stopPropagation()}>
+                  <p className="joint-menu-head" dir="auto">
+                    {panelLabel(d, c.a.panelId, t)} · {panelLabel(d, c.b.panelId, t)}
+                  </p>
+                  {kinds.map((k) => (
+                    <button
+                      key={k}
+                      role="menuitemradio"
+                      aria-checked={c.kind === k}
+                      className={c.kind === k ? 'on' : ''}
+                      disabled={!canChange}
+                      onClick={() => {
+                        if (k !== c.kind) useStore.getState().apply((x) => void setConnection(x, c.id, { kind: k }));
+                        setMenu(null);
+                      }}
+                      data-testid={`joint-kind-${k}`}
+                    >
+                      <Icon name={k} size={16} /> {t(`conn.${k}` as 'conn.fold')}
+                    </button>
+                  ))}
+                  {!canChange && <p className="note">{t('joint.inWorkshop')}</p>}
+                  <button
+                    className="link"
+                    onClick={() => {
+                      const st = useStore.getState();
+                      if (st.selection?.kind !== 'panel' || st.selection.id !== owner) st.select({ kind: 'panel', id: owner });
+                      st.set({ openJoint: c.id });
+                      setMenu(null);
+                      requestAnimationFrame(() => document.querySelector('[data-testid=inspector-connection]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+                    }}
+                    data-testid="joint-more"
+                  >
+                    {t('joint.more')}
+                  </button>
+                </div>
+              )}
+            </div>
           </StageHtml>
         );
       })}
@@ -2454,6 +2625,7 @@ export function View3D() {
   const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
   // one wall selected: Shift-click the opposite wall for + Divider (milestone 32)
   const picking = useStore((s) => s.selection?.kind === 'panel' && !s.selection.ids && isWallLike(s.design, s.selection.id));
+  const panelPick = useStore((s) => s.panelPick);
   const hint =
     foldT < 0.999
       ? 'fold.hint'
@@ -2466,7 +2638,7 @@ export function View3D() {
         : tool === 'select'
           ? 'tool.hint.select'
           : tool === 'panel'
-            ? 'tool.hint.panel'
+            ? panelPick?.pose ? 'pick.hintDraw' : panelPick ? 'pick.hintPose' : 'pick.hintPlane'
             : tool === 'polygon'
               ? 'tool.hint.polygon'
               : tool === 'text'
@@ -2509,14 +2681,15 @@ export function View3D() {
             <Icon name="fit" />
           </button>
           <button
-            className={`stage-toggle ${prefs.joints ? 'on' : ''}`}
+            className={`stage-toggle joints-toggle ${prefs.joints ? 'on' : ''}`}
             onClick={() => useStore.getState().setPrefs({ joints: !prefs.joints })}
-            title={t(jointsKey)}
+            title={t('view.jointsHelp')}
             aria-label={t(jointsKey)}
             aria-pressed={prefs.joints}
             data-testid="toggle-joints"
           >
             <Icon name="finger" />
+            <span>{t(jointsKey === 'view.joints' ? 'view.jointsOn' : jointsKey)}</span>
           </button>
           <button onClick={playAssembly} title={t('assemble.go')} aria-label={t('assemble.go')} data-testid="assemble-go">
             <Icon name="play" />

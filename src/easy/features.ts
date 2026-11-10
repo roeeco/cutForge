@@ -22,9 +22,9 @@ export const FEATURES = {
   'settings.joints': 'auto',
   /** The settings card's *Snapping* section. */
   'settings.snapping': 'auto',
-  /** The settings card's *Material and fit* section. */
+  /** The settings card's *Material and fit* section (its *Change material…* stays; read-only keeps the numbers). */
   'settings.material': 'readonly',
-  /** The material drawer (material, kerf, clearance, sheet). */
+  /** The material drawer: the material can always be changed; read-only keeps its numbers (kerf, clearance, sheet) as they are. */
   drawer: 'readonly',
   /** The grow card's angle dial and Up/Down flip, side walls, part of the edge, adapt switch and ghost outline editing; Quick build grows at 90° on the whole edge, adapting. */
   'grow.advanced': 'auto',

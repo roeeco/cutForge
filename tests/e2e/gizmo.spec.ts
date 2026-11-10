@@ -271,8 +271,8 @@ test('milestones 23–24: the settings card changes every joint, shows the kept 
   await page.getByTestId('joints-base').selectOption('tabslot');
   const res = page.getByTestId('joints-base-result');
   await expect(res).toHaveAttribute('data-changed', '3');
-  // kept: the wall at 70°, and its two edge-on-face seams with the side walls (card: slide, glue or butt there)
-  await expect(res).toHaveAttribute('data-kept', '3');
+  // kept: the wall at 70° (its two edge-on-face seams with the side walls are tabs and slots already: an edge on a face gets them first)
+  await expect(res).toHaveAttribute('data-kept', '1');
   await expect(res).toContainText('3');
   let d = await design(page);
   expect(Object.values(d.connections).filter((c: any) => c.grown && c.kind === 'tabslot')).toHaveLength(3);

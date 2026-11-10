@@ -294,7 +294,8 @@ for (const mat of ['ply-3', 'corr-4'] as const) {
       const cs = Object.values(d.connections).filter((c: any) => !c.grown && [c.a.panelId, c.b.panelId].includes(nd) && [c.a.panelId, c.b.panelId].includes(w)) as any[];
       expect(cs.length, `joined to ${w}`).toBe(1);
       expect(cs[0].broken).toBe(false);
-      expect(cs[0].kind).toBe(mat === 'ply-3' ? 'tabslot' : 'slide');
+      // an edge on a face: tabs and slots first, on every material
+      expect(cs[0].kind).toBe('tabslot');
     }
     // centred: halfway along the walls (110 deep)
     const c0 = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === nd) as any;

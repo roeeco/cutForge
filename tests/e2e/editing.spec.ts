@@ -1,6 +1,6 @@
 // Milestone 3: solo view, smart snapping with guides, multiple selection,
 // align/distribute, group move/duplicate/delete/resize, arrays, keyboard.
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -40,6 +40,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, 'flat');
   await drag(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
   // the panel is a ghost until ✓ (milestone 29)
   await page.getByTestId('ghost-ok').click();

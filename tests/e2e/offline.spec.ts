@@ -1,5 +1,6 @@
 // With the network disabled after load, a student can design, save the
 // project file and download SVG and DXF.
+import { pickPlane } from './util';
 import { test, expect } from '@playwright/test';
 
 test('works offline after load', async ({ page, context }) => {
@@ -13,6 +14,7 @@ test('works offline after load', async ({ page, context }) => {
 
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 50 }, 'flat');
   await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2 - 50);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 50, { steps: 5 });

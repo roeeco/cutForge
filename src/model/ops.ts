@@ -6,10 +6,11 @@ import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayOf, trayWalls, wallHeight } from './trays';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
-import { polygonArea } from '../geom/vec';
+import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
+import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
-import { allowedKinds, designKind, dividerKind, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
+import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
@@ -435,6 +436,8 @@ export function edgeConnection(d: Design, panelId: string, edgeArg: EdgeArg): Co
  * any earlier "don't join these" choice for the pair.
  */
 export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, auto = true): string | null {
+  const asked = kind;
+  const nets = netState(d);
   const kinds = seamKinds(matOf(d, seam.a.panelId), seam.type, matOf(d, seam.b.panelId));
   // tray corners use the tray's corner joint
   const ta = trayOf(d, seam.a.panelId), tb = trayOf(d, seam.b.panelId);
@@ -451,7 +454,50 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}), ...(tray?.tabLen === 'through' ? { tabLen: 'through' as const } : {}) };
   if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
   solve(d);
+  // an edge on a face: tabs and slots if they can be made there, else a glue flap, else a slide fit
+  if (!asked && seam.type === 'face') fallBack(d, cid, kinds, nets);
   return cid;
+}
+
+/**
+ * Can a connection's joint be made as it is: laid out at all, and, for tabs
+ * and slots, every slot inside its panel with the material's web around it?
+ */
+export function jointWorks(d: Design, c: Connection): boolean {
+  if (c.broken || !c.geom) return false;
+  if (c.kind !== 'tabslot') return true;
+  for (const h of c.geom.holes) {
+    const p = d.panels[h.panelId];
+    if (!p) continue;
+    const outline = panelOutline(p, panelNotches(d, p));
+    const min = minWeb(matOf(d, p.id));
+    if (!h.poly.every((q) => pointInPolygon(q, outline))) return false;
+    for (let i = 0; i < h.poly.length; i++)
+      for (let j = 0; j < outline.length; j++) if (segDistPoint(h.poly[i], outline[j], outline[(j + 1) % outline.length]) < min - 1e-6) return false;
+  }
+  return true;
+}
+
+/** How the trays' nets lie flat (their fixes): a joint that changes this would not fit in its net. */
+const netState = (d: Design) => JSON.stringify(Object.values(d.trays ?? {}).map((t) => [t.id, t.fixes ?? null]));
+
+/**
+ * Try the next kind in FACE_ORDER (among `allowed`) while the joint cannot be
+ * made, or while it makes a tray's net need changing to lie flat (`nets`: the
+ * nets before it was added).
+ */
+export function fallBack(d: Design, cid: string, allowed: ConnectionKind[], nets?: string) {
+  const c = d.connections[cid];
+  if (!c) return;
+  const chain = FACE_ORDER.filter((k) => allowed.includes(k));
+  let i = chain.indexOf(c.kind);
+  if (i < 0) return;
+  const fits = () => jointWorks(d, d.connections[cid]) && (nets === undefined || netState(d) === nets);
+  while (!fits() && ++i < chain.length) {
+    d.connections[cid].kind = chain[i];
+    d.connections[cid].pref = chain[i];
+    solve(d);
+  }
 }
 
 export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
@@ -505,10 +551,20 @@ export function deleteConnection(d: Design, id: string) {
  */
 export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: number, height: number): string | null {
   const kind = dividerKind(d, baseId);
+  const nets = netState(d);
   const r = growPanel(d, baseId, edge, { height, angle: 90, dir: 'up', kind, offset: Math.max(0.5, position) });
   if (!r) return null;
+  dividerFallBack(d, r.panelId, nets);
   connectSeams(d, r.panelId);
   return r.panelId;
+}
+
+/** A divider's joint with its base: the next kind along FACE_ORDER while it cannot be made. */
+function dividerFallBack(d: Design, panelId: string, nets?: string) {
+  const c = parentConnection(d, panelId);
+  if (!c) return;
+  const m = matOf(d, c.a.panelId);
+  fallBack(d, c.id, connectionsFor(m, 90).filter((k) => seamKinds(m, 'face').includes(k)), nets);
 }
 
 /** A face picked on the stage: the panel, which face (1: its material side, z = t; −1: its plane, z = 0), and the world point clicked. */
@@ -633,8 +689,10 @@ export function addDividerBetween(d: Design, a: FacePick, b: FacePick): string |
   const plan = planDividerBetween(d, a, b);
   if (!plan.ok) return null;
   const kind = dividerKind(d, plan.baseId);
+  const nets = netState(d);
   const r = growPanel(d, plan.baseId, plan.edge, { height: plan.height, angle: 90, dir: 'up', kind, offset: plan.offset });
   if (!r) return null;
+  dividerFallBack(d, r.panelId, nets);
   connectSeams(d, r.panelId);
   return r.panelId;
 }

@@ -1,6 +1,7 @@
 // Review screenshots for milestones 28–36 (skipped unless SHOTS=1):
 //   SHOTS=1 npx playwright test -c pw-app.config.ts panel-shots
 import { test, type Page } from '@playwright/test';
+import { pickPlane } from './util';
 const OUT = 'docs/panel-shots';
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 async function setup(page: Page, lang: string, mat: string) {
@@ -38,6 +39,7 @@ for (const lang of ['en', 'he']) {
     await page.getByTestId('tool-panel').click();
     const back = walls[2];
     const a = await proj(page, back, 30, 12), b = await proj(page, back, 80, 36);
+    await pickPlane(page, a, 'flat');
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 6 });
@@ -49,8 +51,8 @@ for (const lang of ['en', 'he']) {
     await S(page, () => (window as any).__cutforge.setCamera([0, 320, 110], [0, 0, 0]));
     await page.waitForTimeout(300);
     await page.getByTestId('tool-panel').click();
-    await S(page, () => (window as any).__cutforge.store.getState().set({ panelPose: 'standing' }));
     const c = await proj(page, base, 3.8, 30), e = await proj(page, base, 116.2, 30);
+    await pickPlane(page, c, 'standing');
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();
     await page.mouse.move(e.x, e.y, { steps: 6 });

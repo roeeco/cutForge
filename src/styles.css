@@ -643,3 +643,24 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 /* Quick build's badge and meter share the top bar: the design name gives a little room */
 .topbar:has(.ready-wrap) .design-name { width: 120px; }
 @media (max-width: 1500px) { .topbar:has(.ready-wrap) .sheet-meter svg { display: none; } }
+/* The joints view (labels you can click to change a joint) */
+.view-dock .cluster .joints-toggle { width: auto; grid-auto-flow: column; padding-inline: 12px 14px; gap: 6px; display: inline-flex; align-items: center; font-weight: 600; font-size: 13px; }
+.view-dock .cluster .joints-toggle.on { background: var(--accent, #1a9c8c); color: white; }
+.pill-wrap { position: relative; display: inline-block; }
+.joint-menu {
+  position: absolute; top: calc(100% + 6px); inset-inline-start: 50%; transform: translateX(-50%); z-index: 3;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-float);
+  padding: 6px; display: grid; gap: 2px; min-width: 190px; pointer-events: auto;
+}
+[dir='rtl'] .joint-menu { transform: translateX(50%); }
+.joint-menu button { display: flex; align-items: center; gap: 8px; min-height: 0; padding: 5px 8px; background: transparent; border: none; text-align: start; font-size: 13px; }
+.joint-menu button.on { background: var(--accent-soft, #e3f4f1); font-weight: 600; }
+.joint-menu button:disabled { opacity: 0.6; }
+.joint-menu .joint-menu-head { margin: 0 0 4px; font-size: 11px; color: var(--muted, #5b6573); padding-inline: 8px; }
+.joint-menu .note { font-size: 11px; margin: 4px 8px; }
+/* below its anchor (the top of a ghost whose height arrow points up from there) */
+.ghost-bar.below { transform: translate(-50%, 38px); }
+/* The Panel tool's second click: flat or standing */
+.pose-pick { transform: translate(-50%, 44px); display: inline-flex; gap: 34px; pointer-events: auto; font-family: 'Rubik UI', system-ui, sans-serif; }
+.pose-pick button { min-height: 0; padding: 4px 10px; border-radius: var(--r-pill); font-size: 12px; background: var(--surface); border: 1px solid var(--accent-bright); box-shadow: var(--shadow-soft); }
+.pose-pick .pose-hint { background: var(--surface); border-radius: var(--r-pill); padding: 4px 10px; font-size: 12px; box-shadow: var(--shadow-soft); white-space: nowrap; pointer-events: none; }

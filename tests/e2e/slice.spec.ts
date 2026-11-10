@@ -2,7 +2,7 @@
 // language toggle → material → panel in 3D → grow at 90° with finger joint →
 // cutouts in both views → numeric resize → switch views → undo →
 // autosave + reload → download SVG and DXF (checked with independent readers).
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -34,6 +34,7 @@ test('vertical slice', async ({ page }) => {
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await pickPlane(page, { x: cx - 120, y: cy - 60 }, 'flat');
   await page.mouse.move(cx - 120, cy - 60);
   await page.mouse.down();
   await page.mouse.move(cx + 120, cy + 60, { steps: 8 });
