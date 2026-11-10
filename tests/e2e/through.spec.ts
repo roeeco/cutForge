@@ -1,4 +1,5 @@
 // Milestone 12: through-cuts drawn on the stage, with the live "Cuts N panels" preview.
+import { shapeTool, opPick } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -31,11 +32,11 @@ test('a through-cut chamfer: live count while drawing, every panel updates, link
   await page.waitForTimeout(300);
 
   // Cut + Cut through, then a rectangle over the front wall's top-left corner
-  await page.getByTestId('op-cut').click();
+  await opPick(page, 'cut');
   await expect(page.getByTestId('op-through')).toBeVisible();
   await page.getByTestId('op-through').click();
-  await expect(page.getByTestId('op-through')).toHaveAttribute('aria-checked', 'true');
-  await page.getByTestId('tool-rect').click();
+  await expect(page.getByTestId('op-through')).toBeChecked();
+  await shapeTool(page, 'rect');
   const a = await panelPt(page, front, 12, 38, false), b = await panelPt(page, front, -6, 56, false);
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
@@ -52,7 +53,7 @@ test('a through-cut chamfer: live count while drawing, every panel updates, link
   await expect(page.getByTestId('detail-through-count')).toHaveText('Cuts 2 panels');
 
   // the op row: Engrave hides the through toggle
-  await page.getByTestId('op-engrave').click();
+  await opPick(page, 'engrave');
   await expect(page.getByTestId('op-through')).toHaveCount(0);
   // ✓ keeps the cut and goes back to Select (milestone 30)
   await page.getByTestId('ghost-ok').click();
@@ -91,9 +92,9 @@ test('a through-hole in a base shows that it will slot the divider before commit
   });
   await page.getByTestId('fit-view').click();
   await page.waitForTimeout(300);
-  await page.getByTestId('op-cut').click();
+  await opPick(page, 'cut');
   await page.getByTestId('op-through').click();
-  await page.getByTestId('tool-circle').click();
+  await shapeTool(page, 'circle');
   // a circle across the divider (parallel to the left edge, 60 mm in)
   const a = await panelPt(page, base, 54, 20), b = await panelPt(page, base, 66, 32);
   await page.mouse.move(a.x, a.y);

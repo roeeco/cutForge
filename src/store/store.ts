@@ -136,12 +136,12 @@ function initialPrefs(): ViewPrefs {
   const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    // someone who has used CutForge before keeps the Workshop they know; a new browser starts in Quick build
+    // Workshop unless this browser (or its class) chose Quick build
     if (raw) return { ...def, mode: 'workshop', ...JSON.parse(raw) };
   } catch {
     /* storage unavailable */
   }
-  return { ...def, mode: 'quick' };
+  return { ...def, mode: 'workshop' };
 }
 
 type State = {

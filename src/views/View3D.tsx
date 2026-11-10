@@ -2292,10 +2292,9 @@ function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at 
 /** Joint pills: the focused panel's connections (and broken ones, always). Clicking one opens its settings. */
 function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string | null; all?: boolean; xf: Map<string, THREE.Matrix4>; openJoint: string | null }) {
   const t = useT();
-  // the joints view shows every joint (of the selected panel, or all of them); otherwise broken ones and the selected panel's
-  const list = Object.values(d.connections).filter((c) => c.broken || (focus ? c.a.panelId === focus || c.b.panelId === focus : !!all));
+  // the joints view: the selected panel's joints only (none while nothing is selected); otherwise the broken ones
+  const list = Object.values(d.connections).filter((c) => (all ? !!focus && (c.a.panelId === focus || c.b.panelId === focus) : c.broken));
   const [menu, setMenu] = useState<string | null>(null);
-  const canChange = shown(useFeature('joints'));
   // a click elsewhere, or Esc, closes the menu
   useEffect(() => {
     if (!menu) return;
@@ -2342,7 +2341,6 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
                       role="menuitemradio"
                       aria-checked={c.kind === k}
                       className={c.kind === k ? 'on' : ''}
-                      disabled={!canChange}
                       onClick={() => {
                         if (k !== c.kind) useStore.getState().apply((x) => void setConnection(x, c.id, { kind: k }));
                         setMenu(null);
@@ -2362,8 +2360,7 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
                           role="menuitemradio"
                           aria-checked={(c.tabLen ?? 'flush') === k}
                           className={(c.tabLen ?? 'flush') === k ? 'on' : ''}
-                          disabled={!canChange}
-                          onClick={() => {
+                              onClick={() => {
                             if (k !== (c.tabLen ?? 'flush')) useStore.getState().apply((x) => void setConnection(x, c.id, { tabLen: k }));
                             setMenu(null);
                           }}
@@ -2374,7 +2371,6 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
                       ))}
                     </div>
                   )}
-                  {!canChange && <p className="note">{t('joint.inWorkshop')}</p>}
                   <button
                     className="link"
                     onClick={() => {
@@ -2648,9 +2644,13 @@ export function View3D() {
   // one wall selected: Shift-click the opposite wall for + Divider (milestone 32)
   const picking = useStore((s) => s.selection?.kind === 'panel' && !s.selection.ids && isWallLike(s.design, s.selection.id));
   const panelPick = useStore((s) => s.panelPick);
+  // the joints view shows one panel's joints at a time
+  const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
   const hint =
     foldT < 0.999
       ? 'fold.hint'
+      : jointsIdle
+        ? 'joint.pickPanel'
       : picking && tool === 'select'
         ? 'div.pickHint'
       : editing && tool === 'select'

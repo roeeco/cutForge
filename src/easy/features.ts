@@ -18,8 +18,8 @@ export const FEATURES = {
   'op.scoreAdd': 'hide',
   /** Joint cards, *Joints (advanced)*, finger and tab counts, seam pills, meeting panels. */
   joints: 'auto',
-  /** The settings card's *Joints* section. */
-  'settings.joints': 'auto',
+  /** The settings card's *Joints* section (wall to base, corners): changeable in Quick build too. */
+  'settings.joints': 'show',
   /** The settings card's *Snapping* section. */
   'settings.snapping': 'auto',
   /** The settings card's *Material and fit* section (its *Change material…* stays; read-only keeps the numbers). */

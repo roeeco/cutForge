@@ -2,7 +2,7 @@
 // language toggle → material → panel in 3D → grow at 90° with finger joint →
 // cutouts in both views → numeric resize → switch views → undo →
 // autosave + reload → download SVG and DXF (checked with independent readers).
-import { setNum, pickPlane } from './util';
+import { setNum, pickPlane, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -66,7 +66,7 @@ test('vertical slice', async ({ page }) => {
   expect(Object.values(d.connections)[0]).toMatchObject({ kind: 'finger', angle: 90 });
 
   // cutout drawn on the wall in the 3D view
-  await page.getByTestId('tool-circle').click();
+  await shapeTool(page, 'circle');
   const p0 = await page.evaluate(([id]) => (window as any).__cutforge.project(id, 50, 25), [wall]);
   const p1 = await page.evaluate(([id]) => (window as any).__cutforge.project(id, 62, 37), [wall]);
   await page.mouse.move(p0.x, p0.y);
@@ -89,7 +89,7 @@ test('vertical slice', async ({ page }) => {
   // switch to the cut plan: the same hole is there; draw a rectangle on the base piece
   await page.getByTestId('view-2d').click();
   await expect(page.getByTestId(`detail-${hole.id}`)).toBeVisible();
-  await page.getByTestId('tool-rect').click();
+  await shapeTool(page, 'rect');
   const pb = (await page.locator(`[data-piece="${base}"] path.piece`).first().boundingBox())!;
   await page.mouse.move(pb.x + pb.width * 0.3, pb.y + pb.height * 0.4);
   await page.mouse.down();

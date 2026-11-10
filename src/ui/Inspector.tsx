@@ -28,6 +28,8 @@ import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
 
+const OP_ICONS = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' } as const;
+
 export function Inspector() {
   const t = useT();
   const sel = useStore((s) => s.selection);
@@ -109,7 +111,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <Segmented
               label={t('insp.op')}
               value={dt.op}
-              options={(['add', 'cut', 'engrave', 'score'] as const).map((o) => ({ value: o, label: <span className={`op-dot ${o}`} />, title: t(`tool.op.${o}`), testId: `detail-op-${o}` }))}
+              options={(['cut', 'engrave', 'score', 'add'] as const).map((o) => ({ value: o, label: <span className={`op-ico ${o}`}><Icon name={OP_ICONS[o]} size={18} /></span>, title: t(`op.name.${o}`), testId: `detail-op-${o}` }))}
               onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp }))}
             />
           ) : (
@@ -123,6 +125,11 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               ]}
               onChange={(o) => apply((x) => updateDetail(x, dt.id, { op: o as DetailOp, through: false }))}
             />
+          )}
+          {opsAll && (
+            <p className="note op-caption" data-testid="detail-op-caption">
+              <strong>{t(`op.name.${dt.op}`)}</strong> · {t(`op.desc.${dt.op}`)}
+            </p>
           )}
           {dt.op === 'cut' && opsAll && (
             <div className="through-row">

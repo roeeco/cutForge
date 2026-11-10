@@ -18,6 +18,12 @@ const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolea
   { id: 'text', key: 'tool.text', icon: 'text', kbd: 'T' },
 ];
 
+/** The shapes grouped under one rail button (as Quick build's Hole). */
+const SHAPES: Tool[] = ['rect', 'roundrect', 'circle'];
+/** Tools that make shapes on a panel: the operations card shows while one is in use. */
+const SHAPE_TOOLS: Tool[] = [...SHAPES, 'polygon', 'text'];
+const OP_ICON: Record<DetailOp, string> = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' };
+
 /** Single-key tool shortcuts (outside text fields). */
 export const TOOL_KEYS: Record<string, Tool> = Object.fromEntries(TOOLS.map((x) => [x.kbd.toLowerCase(), x.id]));
 
@@ -66,62 +72,87 @@ function WorkshopRail() {
     const notes = r.problems.filter((x) => x === 'openDropped' || x === 'simplified');
     if (notes.length) alert(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
   };
+  const lastShape = useStore((s) => (SHAPES.includes(s.quickLast.hole as Tool) ? (s.quickLast.hole as Tool) : 'rect'));
+  const inShapes = SHAPES.includes(tool);
+  const shapeIcon = inShapes ? tool : lastShape;
+  const railBtn = (id: Tool, key: MsgKey, icon: string, kbd: string) => (
+    <button key={id} className={tool === id ? 'on' : ''} aria-pressed={tool === id} aria-label={t(key)} onClick={() => setTool(id)} data-testid={`tool-${id}`}>
+      <Icon name={icon} />
+      <span className="tip" aria-hidden>
+        {t(key)}
+        <kbd>{kbd}</kbd>
+      </span>
+    </button>
+  );
+  const byId = (id: Tool) => TOOLS.find((x) => x.id === id)!;
   return (
-    <nav className="rail" aria-label={t('tool.title')}>
-      {TOOLS.filter((x) => !(x.only3d && view !== '3d')).map((x) => (
-        <button key={x.id} className={tool === x.id ? 'on' : ''} aria-pressed={tool === x.id} aria-label={t(x.key)} onClick={() => setTool(x.id)} data-testid={`tool-${x.id}`}>
-          <Icon name={x.icon} />
+    <>
+      <nav className="rail" aria-label={t('tool.title')}>
+        {railBtn('select', 'tool.select', 'select', 'V')}
+        {view === '3d' && railBtn('panel', 'tool.panel', 'panel', 'P')}
+        {/* rectangle, rounded rectangle and circle: one button, the card chooses */}
+        <button className={inShapes ? 'on' : ''} aria-pressed={inShapes} aria-label={t('tool.shapes')} onClick={() => setTool(inShapes ? 'select' : shapeIcon)} data-testid="tool-shapes">
+          <Icon name={shapeIcon === 'rect' ? 'shapes' : shapeIcon} />
           <span className="tip" aria-hidden>
-            {t(x.key)}
-            <kbd>{x.kbd}</kbd>
+            {t('tool.shapes')}
+            <kbd>{'R U C'}</kbd>
           </span>
         </button>
-      ))}
-      <div className="rail-sep" />
-      <button onClick={() => fileRef.current?.click()} aria-label={t('tool.import')} data-testid="import-svg">
-        <Icon name="import" />
-        <span className="tip" aria-hidden>
-          {t('tool.import')}
-        </span>
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".svg,image/svg+xml"
-        hidden
-        data-testid="import-file"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void onFile(f);
-          e.target.value = '';
-        }}
-      />
-      <div className="rail-sep" />
-      <div className="ops" role="radiogroup" aria-label={t('tool.op')}>
-        {(['add', 'cut', 'engrave', 'score'] as const).map((o) => (
-          <button key={o} className={`op-btn ${op === o ? 'on' : ''}`} role="radio" aria-checked={op === o} aria-label={t(`tool.op.${o}`)} data-op={o} onClick={() => setOp(o as DetailOp)} data-testid={`op-${o}`}>
-            <span className="dot" style={o === 'engrave' ? undefined : { background: `var(--op-${o})` }}>{o === 'add' ? '+' : null}</span>
-            <span className="tip" aria-hidden>
-              {t('tool.op')}: {t(`tool.op.${o}`)}
-            </span>
-          </button>
-        ))}
-        {op === 'cut' && (
-          <button
-            className={`op-btn through ${through ? 'on' : ''}`}
-            role="switch"
-            aria-checked={through}
-            aria-label={t('tool.op.through')}
-            onClick={() => useStore.getState().set({ shapeThrough: !through })}
-            data-testid="op-through"
-          >
-            <Icon name="through" size={18} />
-            <span className="tip" aria-hidden>
-              {t('tool.op.through')}
-            </span>
-          </button>
-        )}
-      </div>
-    </nav>
+        {view === '3d' && railBtn('polygon', 'tool.polygon', 'polygon', 'G')}
+        {railBtn('text', 'tool.text', 'text', 'T')}
+        <div className="rail-sep" />
+        <button onClick={() => fileRef.current?.click()} aria-label={t('tool.import')} data-testid="import-svg">
+          <Icon name="import" />
+          <span className="tip" aria-hidden>
+            {t('tool.import')}
+          </span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".svg,image/svg+xml"
+          hidden
+          data-testid="import-file"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void onFile(f);
+            e.target.value = '';
+          }}
+        />
+      </nav>
+      {SHAPE_TOOLS.includes(tool) && (
+        // the shape tool's card: which shape, and what it does to the board (only while a shape tool is in use)
+        <aside className="quick-card shape-card" aria-label={t('tool.op')} data-testid="shape-card">
+          {inShapes && (
+            <div className="shape-pick" role="radiogroup" aria-label={t('tool.shapes')}>
+              {SHAPES.map((id) => (
+                <button key={id} role="radio" aria-checked={tool === id} className={tool === id ? 'on' : ''} title={`${t(byId(id).key)} (${byId(id).kbd})`} aria-label={t(byId(id).key)} onClick={() => setTool(id)} data-testid={`tool-${id}`}>
+                  <Icon name={id} size={18} />
+                  <span>{t(byId(id).key)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <h4>{t('tool.op')}</h4>
+          <div className="op-list" role="radiogroup" aria-label={t('tool.op')}>
+            {(['cut', 'engrave', 'score', 'add'] as const).map((o) => (
+              <button key={o} role="radio" aria-checked={op === o} className={op === o ? 'on' : ''} data-op={o} onClick={() => setOp(o)} data-testid={`op-${o}`}>
+                <Icon name={OP_ICON[o]} size={20} />
+                <span className="op-text">
+                  <strong>{t(`op.name.${o}`)}</strong>
+                  <small>{t(`op.desc.${o}`)}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          {op === 'cut' && (
+            <label className="check through-check">
+              <input type="checkbox" checked={through} onChange={() => useStore.getState().set({ shapeThrough: !through })} data-testid="op-through" />
+              <Icon name="through" size={16} /> {t('tool.op.through')}
+            </label>
+          )}
+        </aside>
+      )}
+    </>
   );
 }

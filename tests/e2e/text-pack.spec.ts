@@ -1,6 +1,6 @@
 // Milestone 4: text, SVG import, quantity and packing with manual placement,
 // pre-export validation, kerf modes.
-import { setNum, pickPlane } from './util';
+import { setNum, pickPlane, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -78,7 +78,7 @@ test('text and SVG import export as outlines', async ({ page }) => {
 
 test('quantity, packing, manual placement and kerf modes', async ({ page }) => {
   const base = await start(page, 50, 50);
-  await page.getByTestId('tool-circle').click();
+  await shapeTool(page, 'circle');
   await page.getByTestId('tool-select').click();
   await S(page, ([id]: string[]) => (window as any).__cutforge.store.getState().apply((x: any) => void x.panels[id].details.push({ id: 'h1', shape: 'circle', op: 'cut', cx: 25, cy: 25, w: 10, h: 10 })), [base]);
   await S(page, ([id]: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), [base]);

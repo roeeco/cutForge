@@ -821,6 +821,15 @@ Verified: `tests/dividers.test.ts`, `tests/joints.test.ts`, `tests/templates.tes
 
 Verified: `tests/locktabs.test.ts` (the options per material; on plywood, corrugated and card the snap tabs reach the snap depth past the far face with two barbs each and a slit, the piece grows, and the export check is unchanged; bolted divider ends have two T-slots (stem and nut pocket) and two screw holes of the screw's size plus clearance, still clean; a tray's corners bolt together), e2e: the joint menu sets a joint to self-locking and offers bolts on plywood (`boards.spec.ts`), the tray's tab list (`trays.spec.ts`).
 
+## Follow-up — Workshop by default, grouped shapes with clear operations, Quick build joints, one panel's joints ✅
+
+1. A new browser starts in the **Workshop** (`initialPrefs`); Quick build stays one click away and is remembered.
+2. **Workshop's rail**: Select, Panel, **Shapes** (rectangle, rounded rectangle, circle in one button, showing the current one; `R`/`U`/`C` still pick them), Polygon, Text, Import. While a shape tool is in use a card shows the shape choice and the operations as pictures with words (*Cut out*: a hole, or a notch across the edge; *Engrave*; *Score line*; *Add material*), with *Cut through the whole design* under Cut. A selected shape's card uses the same pictures and says which operation it has.
+3. **Quick build's joints**: the settings card shows *Wall to base* and *Corners*; the joint label menu is no longer greyed out.
+4. **Joints view** (both modes): labels only the selected panel's (or wall's) joints; nothing selected: no labels, and the hint says to select a panel.
+
+Verified: `tests/e2e/quick.spec.ts` (a new browser opens in the Workshop; Quick build's joints view labels nothing until a wall is selected, then exactly its joints, and its menu changes a joint; Quick build's settings card shows the joint lists), every spec drawing shapes uses the Shapes card (`shapeTool`, `opPick` in `tests/e2e/util.ts`), and Quick build specs set Quick build explicitly (`QUICK_STATE`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
