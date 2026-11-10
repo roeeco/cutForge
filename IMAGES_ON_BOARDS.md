@@ -1,11 +1,11 @@
 # CutForge: images on boards: brief
 
-Planning notes from 2026-11-10, written after milestones 21–24 and the follow-up. The feature puts a picture on a board, then either **prints it** on paper (A4/A3, glued on) or **traces it** into engrave or score lines on the board itself. Built on `claude/image-board-wall-planning-1kdgu9`. The decisions in §2 come from the interview of 2026-11-10.
+Planning notes from 2026-11-10, written after milestones 25–41 (Quick build) and their follow-up, on `claude/zen-bell-k1gy09`. The feature puts a picture on a board, then either **prints it** on paper (A4/A3, glued on) or **traces it** into engrave or score lines on the board itself. Built on `claude/image-board-wall-planning-1kdgu9`, which branches from it. The decisions in §2 come from the interview of 2026-11-10.
 
 ## 1. What changes for a student
 
-- **Image mode.** A new stage toggle, *Images*, next to *Show joints*. While it is on, joint pills and every handle (grow, hinge, gizmos, dimensions) are hidden, and boards only answer to the pointer for images. Boards stay fully visible, with no dimming. Esc or the toggle leaves the mode.
-- **A "+" on the board under the pointer.** Hovering a board face shows a "+" at the pointer. Clicking it, or dropping a file on the face, opens a file picker. The image lands centred on that face, as large as fits inside the board's outline.
+- **Image mode.** A new labelled stage toggle, *Images*, next to the *Joints* button, working the same way as the joints view. While it is on, joint labels and every handle (move, turn, grow, hinge, dimensions) are hidden, and boards only answer to the pointer for images. Boards stay fully visible, with no dimming. Turning on *Images* turns off *Joints*, and the other way round. Esc or the toggle leaves the mode.
+- **A "+" on the board under the pointer.** Hovering a board face shows a "+" at the pointer. Construction panels (not cut) and locked boards show none. Clicking it, or dropping a file on the face, opens a file picker. The image lands centred on that face, as large as fits inside the board's outline.
 - **Scale and place.** Corner handles scale proportionally, and with **Shift** held they scale freely. Dragging moves the image and the ring turns it. The image is clipped to the board's outline and holes.
 - **One use per image**, chosen in its card:
   - **Print as is**: the clipped image, with a 5 mm bleed, becomes a *print piece* on **paper sheets** (A4 or A3) after the material sheets in the cut plan. *Download prints* gives 300 dpi JPGs at true size. A print too large for A3 is flagged.
@@ -29,22 +29,24 @@ Planning notes from 2026-11-10, written after milestones 21–24 and the follow-
 | 5 | Trace kinds | **Fill = contours** (closed areas with holes, engrave layer). **Outline = centerline** single strokes (open lines, score layer), with *Contour lines* as a second outline style. Before either, a **threshold** step turns the image into black and white with an adjustable slider, plus *Ignore specks* and *Invert*, to simplify it. |
 | 6 | Colour | **Black and white only.** No posterize or grey levels. |
 | 7 | Image mode | **Pills and handles hidden**, other boards neither dimmed nor hidden. |
-| 8 | Spreading | **An optional toggle in the cut plan**: an image or trace can be stretched with the transform handles across neighbouring walls (§3, milestone 34). |
+| 8 | Spreading | **An optional toggle in the cut plan**: an image or trace can be stretched with the transform handles across neighbouring walls (§3, milestone 48). |
 
 ### Proposed (from the code and the research)
 
 | Topic | Proposal |
 | --- | --- |
-| The mode | **A view state, `imageMode`, not a design field.** Like `editOutline`, it makes panels `inert` to normal tools and gates `PanelWidgets`, `HingeWidget`, gizmos, `SeamPills` and dimensions. *Show joints* today only shows or hides pills, so `editOutline` is the pattern to copy. |
+| The mode | **A view preference, `viewPrefs.images`, like the joints view's `viewPrefs.joints`.** It is not a design field. In `View3D` it gates the same overlays `jointsOn` gates today (edge handles, `GrowGhost`, panel, group and shape gizmos, `HingeWidget`, `ThroughEdit`, `DividerButton`) and also `SeamPills`. Panels are made `inert` to the normal tools, as `editOutline` does. Setting one of `images` and `joints` clears the other. |
+| Quick build | **Available in both modes.** One new row in the feature table (`src/easy/features.ts`): `images: 'show'`. In Quick build, the trace card shows only *Threshold*, *Fill / Outline* and *Apply*, with the other sliders behind *More…*. `quickGuard` lets image edits through, because they never change the build. |
+| Which boards | **Every cut board**, of any material. A trace goes on the sheets of its board's own material (milestone 36). Construction panels and locked boards show no "+". |
 | Which face | **The hovered face**, taken from the hit's depth into the slab, as the *Divider between* Shift-click does (`side` −1 = plane face, the outer face of grown walls; 1 = far face). Hits on the edge band show no "+". |
 | Model | **A new detail kind**: `shape: 'image'`, with `image: { asset, face, use: 'print' \| 'trace', spread?: boolean }`. It reuses selection, move, rotate, snapping and the card. `groupPieces` skips it for material sheets. |
 | Traced result | **An ordinary `path` detail**: `op: 'engrave'` for fill, `'score'` for outline, plus `trace: { asset, params }` so *Re-trace* works on the student's own device. The source image detail is kept, hidden, on the board. |
 | Open lines | **`path.lines?: P2[][]`** next to `path.polys`, for centerline strokes in the same unit box. SVG and DXF already write open contours (`Contour.closed`). `groupPieces` emits them as `role: 'line'`, and `detailContours` and the shape handles learn to carry them. |
 | Image storage | **Blobs in IndexedDB, not in the design.** A new `assets` object store, keyed by the SHA-256 hash. The design keeps `assets?: Record<hash, { w, h, mime, name }>`, so autosave and undo snapshots stay small. |
 | Import size | **Downscale on import** to what 300 dpi needs at the largest size the image can take, capped at 4000 px, then re-encode as JPEG 0.9. PNGs with transparency stay PNG: transparent areas are neither printed nor traced. EXIF orientation comes from `createImageBitmap`. |
-| Project file | **Images are embedded in the `.cutforge.json`** as base64 under the optional `assets` field. Opening the file restores them to IndexedDB. There is no schema bump, and golden exports stay byte-identical. Submissions remove the field (decision 4). |
+| Project file | **Images are embedded in the `.cutforge.json`** as base64 under the optional `assets` field. Opening the file restores them to IndexedDB. There is no schema bump (it stays at 8), and golden exports stay byte-identical. Submissions remove the field (decision 4). |
 | 3D look | **A textured mesh of (board outline ∩ image rectangle)**, made with `polygon-clipping` (already a dependency) and `ShapeGeometry`. UVs map the image rectangle, and the mesh sits 0.15 mm off the chosen face. The same clip, grown by the bleed, gives the print piece. |
-| Paper sheets | **A separate pack pass**: `pack()` with a paper-sized synthetic design, as `batch.ts` does. Settings: `print?: { paper: 'A4' \| 'A3' }`, with 5 mm printer margins and automatic orientation. They are drawn after the material sheets in `Plan2D`, with the chip *Paper n · A4*. Prints are never mirrored. |
+| Paper sheets | **Paper is one more sheet group.** `pack()` already packs each board material on its own sheets (`packOne`, `sheetGroups`, milestone 36). Print pieces become copies with `mat: 'paper'`, and a paper profile (A4 210×297 or A3 297×420, 5 mm margins, no grain, so prints can turn) is packed by the same `packOne`. Setting: `print?: { paper: 'A4' \| 'A3' }`. Plan2D draws the paper group last, with the chip *Paper n · A4*. `prepareExport` and `batch.ts` skip the paper group, so laser files are unchanged. Prints are never mirrored. |
 | JPG export | **Rendered in a Worker** on an `OffscreenCanvas` at 300 dpi (A4 2480×3508 px, A3 3508×4961 px), then `convertToBlob('image/jpeg', 0.92)`. A small helper of our own sets 300 dpi in the JFIF header. Several sheets download as one zip made with **fflate**. |
 | Threshold step | **Our own preprocessing in the trace Worker** on a ~1000 px proxy for the preview: grayscale, blur (*Smoothing*), threshold (starting at Otsu; slider), invert, and an area-based speck filter. *Apply* repeats it on the full image. |
 | Fill trace | **`d3-contour`** (ISC) on the black-and-white image gives polygons with holes. Specks are dropped by area, then simplified with the Douglas–Peucker already in `svgImport.ts`/`adapt.ts`. Chaikin smoothing is optional. |
@@ -59,7 +61,7 @@ Planning notes from 2026-11-10, written after milestones 21–24 and the follow-
 | Fill contours | **d3-contour** (ISC, ~38 kB) | potrace and all its ports (GPL-2, against `THIRD_PARTY.md`). autotrace (GPL). The npm `marchingsquares` packages (AGPL). opencv.js (~10 MB). |
 | Centerline | **skeleton-tracing-js** (MIT, 1.0.4) | autotrace's centerline mode (GPL) |
 | Zip | **fflate** (MIT) | JSZip (MIT/GPL-3 dual licence, heavier) |
-| PDF fallback | **@cantoo/pdf-lib** (MIT, a maintained pdf-lib fork), only if the large-canvas fallback is needed (milestone 31) | jsPDF (larger) |
+| PDF fallback | **@cantoo/pdf-lib** (MIT, a maintained pdf-lib fork), only if the large-canvas fallback is needed (milestone 45) | jsPDF (larger) |
 | HEIC photos | **None.** Safari decodes HEIC natively; elsewhere the student is asked for JPG or PNG. | `heic-to` and `libheif-js` (LGPL-3) |
 | Later, for quality | VTracer (MIT/Apache-2.0), built with `wasm-pack --target web` | – |
 
@@ -94,11 +96,11 @@ So moving or resizing the walls later keeps the image in place on the host and r
 
 ## 4. Milestones
 
-Each is a day or two. Numbering continues after the planned 25–27.
+Each is a day or two. Numbering continues after milestone 41 (Quick build) and its follow-up. As with earlier batches, a final verification closes it (milestone 49).
 
-### Milestone 28: image mode and placing an image
+### Milestone 42: image mode and placing an image
 
-- `imageMode` in the store (outside history), a stage toggle (`toggle-images`) and Esc to leave. Overlays are gated where `editOutline` already gates them, and the hint is `image.hint`.
+- `viewPrefs.images`, a labelled stage toggle next to *Joints* (`toggle-images`), and Esc to leave. `images` and `joints` clear each other. Overlays are gated wherever `jointsOn` gates them, plus `SeamPills`, and the hint is `image.hint`. A row in the feature table: `images: 'show'`.
 - `FaceAdd` widget: a screen-sized DOM "+" (`StageHtml`, `pointerEvents` on) following the pointer on the hovered face (`side` ±1), hidden on edge-band hits. Click opens a file input; drop works too.
 - Import: `createImageBitmap`, downscale, hash, blob into IndexedDB (an `assets` store in `persist.ts`), then an `image` detail fitted inside the outline.
 - 3D: a textured clipped mesh per image detail, with a texture cache keyed by hash.
@@ -106,28 +108,28 @@ Each is a day or two. Numbering continues after the planned 25–27.
 - Card: *Print as is* / *Trace*, size in mm, *Replace image*, *Delete*.
 - Tests: unit tests for the fit inside an L-shaped outline and the clip polygon; e2e tests for the toggle hiding pills and handles (other boards still drawn), "+" on a face but not on an edge, placing a fixture PNG, a corner drag keeping the aspect ratio, a Shift drag not keeping it, and undo.
 
-### Milestone 29: keeping images
+### Milestone 43: keeping images
 
 - Autosave references hashes only. The design's `assets` map lists them, and unused blobs are removed on load.
 - Saving a project embeds the used assets as base64, and opening restores them. A missing asset shows a placeholder with *Replace image*.
 - Submissions strip `assets` (decision 4). The Worker's 2 MB limit is unchanged. The teacher's app draws print pieces as placeholders.
-- Tests: save and load round trip (fake-indexeddb); a submitted project has no `assets` but keeps its traces; golden exports without images byte-identical; an old v7 file opens unchanged.
+- Tests: save and load round trip (fake-indexeddb); a submitted project has no `assets` but keeps its traces; golden exports without images byte-identical; a v8 file without images opens unchanged.
 
-### Milestone 30: print pieces on paper sheets
+### Milestone 44: print pieces on paper sheets
 
 - `printPieces(d)`: each `use: 'print'` image gives its clipped outline grown by the 5 mm bleed, the trim line, and the image transform.
-- `packPrints(d)` reuses `pack()` with the paper size. *Prints* (A4 / A3) goes in the settings card.
+- Print pieces join `pieceCopies` as `mat: 'paper'` copies, which `pack()` places on the paper group with `packOne`. `sheetGroups` lists paper last; `prepareExport` and `batch.ts` skip it. *Prints* (A4 / A3) goes in the settings card.
 - Plan2D draws paper sheets after material sheets: images (`<image>` with a `clipPath`) and trim lines. Prints can be moved, with placements kept per key.
 - Validation: a warning for a print larger than the printable A3 area (decision 2), and one for a missing image.
 - Tests: unit tests for the bleed outline, packing on A4 versus A3 and automatic rotation, and the A3 warning at 288 mm; e2e for the paper sheet and its chip.
 
-### Milestone 31: downloading prints
+### Milestone 45: downloading prints
 
 - *Download prints* in the export dialog. A Worker renders each paper sheet at 300 dpi to JPEG, sets 300 dpi in the JFIF header, and zips several sheets (fflate). `downloadBlob` sits next to `downloadText`.
 - Fallback when a canvas that large fails (iOS 17 and older: 16.7 M px; A3 at 300 dpi is 17.4 M): render in strips into a PDF (pdf-lib), or suggest A4.
 - Tests: unit tests that the JFIF density reads 300 × 300 and the size is exactly 2480×3508 for A4; an e2e download of a zip with two JPGs.
 
-### Milestone 32: threshold step and fill trace
+### Milestone 46: threshold step and fill trace
 
 - A trace Worker that lazy-loads `d3-contour`.
 - Card, step 1 (*Black and white*):
@@ -141,7 +143,7 @@ Each is a day or two. Numbering continues after the planned 25–27.
   - unit: mirroring on the far face, and the export carries the trace on the engrave layer as one even-odd path;
   - e2e: apply and undo.
 
-### Milestone 33: outline trace: centerline and contour lines
+### Milestone 47: outline trace: centerline and contour lines
 
 - `path.lines` (open polylines) in the model, carried by `detailContours`, `groupPieces` (as `role: 'line'`), Plan2D, the shape handles and validation.
 - Outline styles:
@@ -154,7 +156,7 @@ Each is a day or two. Numbering continues after the planned 25–27.
   - unit: SVG and DXF write open paths on the score layer, and golden exports are unchanged;
   - e2e: centerline apply.
 
-### Milestone 34: spreading onto neighbouring walls
+### Milestone 48: spreading onto neighbouring walls
 
 - `neighbourUnfold(d, panelId)`: direct neighbours unfolded into the host's plane, with overlapping ones dropped and named.
 - `spreadParts(d, detail)`: the image rectangle (prints) or traced rings and lines (traces), clipped per panel and mapped into each panel's coordinates. Used by the 3D view, `printPieces` and `groupPieces`.
@@ -164,3 +166,10 @@ Each is a day or two. Numbering continues after the planned 25–27.
   - unit: a card net keeps one print piece, and a spread trace's lines are split at the corner;
   - unit: moving the side wall's height re-cuts the parts;
   - e2e: a toggle and a handle drag across a corner, with both walls showing the image in 3D.
+
+### Milestone 49: final verification
+
+- `npm run typecheck`, `npm test`, `npm run build` and the full Playwright suite, with golden SVG/DXF exports byte-identical for designs without images.
+- Hebrew and English screenshots (`docs/image-shots/`): image mode with the "+", the threshold step, a fill and a centerline trace, a paper sheet in the cut plan, and an image spread across a corner. Each is taken in Workshop and in Quick build.
+- Bundle check: the tracers, fflate and pdf-lib are in their own lazy chunks, not in the main bundle.
+- `THIRD_PARTY.md` lists d3-contour (ISC), skeleton-tracing-js (MIT), fflate (MIT) and, if used, @cantoo/pdf-lib (MIT).
