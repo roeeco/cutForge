@@ -6,6 +6,7 @@
 // wall opens its edge; "Wall it" closes it again.
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
 import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
+import { matOf, minWeb, tOf } from './materials';
 
 export const MIN_EDGE = 5;
 
@@ -30,8 +31,8 @@ export function trayWalls(d: Design, trayId: string): string[] {
 }
 
 /** Wall height for a tray of outer height H: walls standing on the base lose its thickness. */
-export function wallHeight(d: Design, kind: ConnectionKind, H: number): number {
-  return kind === 'finger' ? H : H - d.material.thickness;
+export function wallHeight(d: Design, kind: ConnectionKind, H: number, baseId?: string): number {
+  return kind === 'finger' ? H : H - (baseId ? tOf(d, baseId) : d.material.thickness);
 }
 
 /** Base edges too short for a wall (left open, and named on the tray card). */
@@ -69,7 +70,7 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
       const e = findEdge(base, c.a.edge);
       if (e && keys.has(e.key)) {
         w.broken = false;
-        if (!w.customHeight) w.h = Math.max(MIN_EDGE, wallHeight(d, c.kind, tray.height));
+        if (!w.customHeight) w.h = Math.max(MIN_EDGE, wallHeight(d, c.kind, tray.height, base.id));
         continue;
       }
       if (!w.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === w.id)) {
@@ -90,7 +91,6 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
  * reaches a web further, so the slots are closed holes.
  */
 export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key: string) => string | undefined, seamKind: (a: string, b: string) => ConnectionKind | undefined) {
-  const t = d.material.thickness;
   for (const id of d.order) {
     const p = d.panels[id];
     if (p && p.ext) delete p.ext;
@@ -109,12 +109,17 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
       if (turn > -1e-6) continue;
       const wa = isWallOn(base.id, prev.key), wb = isWallOn(base.id, cur.key);
       if (!wa || !wb) continue;
-      const W = d.panels[wb];
+      // the wall that closes the corner: the outgoing one, or the incoming one where it gives way so the net lies flat (milestone 35)
+      const tray = Object.values(d.trays ?? {}).find((t) => t.baseId === base.id);
+      const flip = tray?.fixPlan?.extOn?.[cur.key] === 'prev';
+      const [closer, other] = flip ? [wa, wb] : [wb, wa];
+      const W = d.panels[closer];
       if (!W) continue;
       const sin = Math.min(1, Math.abs(turn));
-      let ext = t / Math.max(sin, 0.2);
-      if (seamKind(wa, wb) === 'tabslot') ext += Math.max(2, d.material.kind === 'plywood' ? 2 : d.material.kind === 'corrugated' ? 3 : 1.5) + d.material.clearance / 2;
-      W.ext = { s: ext, e: W.ext?.e ?? 0 };
+      // to the other wall's inner face: its thickness; a web past tab slots in it
+      let ext = tOf(d, other) / Math.max(sin, 0.2);
+      if (seamKind(wa, wb) === 'tabslot') ext += Math.max(2, minWeb(matOf(d, other))) + matOf(d, other).clearance / 2;
+      W.ext = flip ? { s: W.ext?.s ?? 0, e: ext } : { s: ext, e: W.ext?.e ?? 0 };
     }
   }
 }

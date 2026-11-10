@@ -2,7 +2,7 @@
 // language toggle → material → panel in 3D → grow at 90° with finger joint →
 // cutouts in both views → numeric resize → switch views → undo →
 // autosave + reload → download SVG and DXF (checked with independent readers).
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -34,10 +34,13 @@ test('vertical slice', async ({ page }) => {
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await pickPlane(page, { x: cx - 120, y: cy - 60 }, 'flat');
   await page.mouse.move(cx - 120, cy - 60);
   await page.mouse.down();
   await page.mouse.move(cx + 120, cy + 60, { steps: 8 });
   await page.mouse.up();
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
   let d = await state(page);
   expect(d.order).toHaveLength(1);
@@ -79,6 +82,8 @@ test('vertical slice', async ({ page }) => {
   await setNum(page, 'detail-diameter', '20');
   await setNum(page, 'detail-x', '60');
   await expect.poll(async () => (await state(page)).panels[wall].details[0]).toMatchObject({ id: hole.id, w: 20, h: 20, cx: 60 });
+  // the cutout is a ghost until ✓ (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   d = await state(page);
 
   // switch to the cut plan: the same hole is there; draw a rectangle on the base piece
@@ -90,6 +95,7 @@ test('vertical slice', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(pb.x + pb.width * 0.6, pb.y + pb.height * 0.7, { steps: 6 });
   await page.mouse.up();
+  await page.getByTestId('ghost-ok').click();
   d = await state(page);
   expect(d.panels[base].details).toHaveLength(1);
   const rect = d.panels[base].details[0];

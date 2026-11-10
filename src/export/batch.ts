@@ -4,7 +4,7 @@
 import type { Design } from '../model/types';
 import type { TaggedContour } from '../geom/types';
 import { createDesign } from '../model/ops';
-import { pack, pieceCopies, placementXform, sheetCount, type PieceCopy } from '../model/pack';
+import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
 import { polygonContour, xformContour } from '../geom/vec';
 import { outlineText } from '../text/outline';
 import { compensatePiece, type KerfMode, type PreparedSheet, type PrepError } from './prepare';
@@ -36,20 +36,23 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
   const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) =>
     pieceCopies(it.design).map((c) => ({ ...c, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label })),
   );
+  // boards of their own material: each material on its own sheets (grouped by material, like a student's export)
+  for (const it of items) if (it.design.materials) synth.materials = { ...(synth.materials ?? {}), ...it.design.materials };
   const placements = pack(synth, copies);
-  const n = sheetCount(placements);
-  const sheets: PreparedSheet[] = Array.from({ length: n }, (_, i) => ({ index: i, w: first.material.sheetW, h: first.material.sheetH, contours: [] }));
+  const groups = sheetGroups(synth, placements).map((g) => ({ ...g, list: Array.from({ length: g.sheets }, (_, i): PreparedSheet => ({ index: i, w: g.profile.sheetW, h: g.profile.sheetH, contours: [], ...(g.mat === synth.material.id ? {} : { mat: g.mat }) })) }));
   const errors: PrepError[] = [];
   for (const c of copies) {
     const pl = placements[c.key];
+    const g = groups.find((x) => x.mat === (pl.mat ?? synth.material.id)) ?? groups[0];
     let contours = c.contours;
     if (kerfMode === 'compensated') {
-      const r = compensatePiece(c.contours, first.material.kerf);
+      const r = compensatePiece(c.contours, g.profile.kerf);
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey });
       contours = r.contours;
     }
     const xf = placementXform(pl, c.h);
-    for (const tc of [...contours, ...label(c.owner, c.w, c.h)]) sheets[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
+    for (const tc of [...contours, ...label(c.owner, c.w, c.h)]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
+  const sheets = groups.flatMap((g) => g.list);
   return { sheets, errors };
 }

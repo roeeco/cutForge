@@ -1,6 +1,6 @@
 // Milestone 4: text, SVG import, quantity and packing with manual placement,
 // pre-export validation, kerf modes.
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -14,10 +14,13 @@ async function start(page: Page, w: number, h: number) {
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, 'flat');
   await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2 - 40);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });
   await page.mouse.up();
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await setNum(page, 'panel-w', String(w));
   await setNum(page, 'panel-h', String(h));
   return (await design(page)).order[0] as string;
@@ -42,6 +45,8 @@ test('text and SVG import export as outlines', async ({ page }) => {
   await page.getByTestId('text-value').fill('קופסה של Dana 7');
   await page.getByTestId('text-value').blur();
   await setNum(page, 'text-size', '12');
+  // the text is a ghost until ✓ (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   const d = await design(page);
   expect(d.panels[base].details[0]).toMatchObject({ shape: 'text', op: 'engrave', text: { value: 'קופסה של Dana 7', size: 12 } });
 
@@ -54,6 +59,7 @@ test('text and SVG import export as outlines', async ({ page }) => {
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><polygon points="10,0 13,7 20,7 14,12 16,20 10,15 4,20 6,12 0,7 7,7"/><line x1="0" y1="0" x2="5" y2="5"/></svg>'),
   });
   await expect.poll(async () => (await design(page)).panels[base].details.map((x: any) => x.shape)).toEqual(['text', 'path']);
+  await page.getByTestId('ghost-ok').click();
 
   // refused file, with the reason
   let msg = '';

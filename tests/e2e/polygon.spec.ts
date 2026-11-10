@@ -31,6 +31,8 @@ test('polygon base by clicks, n-gon, vertex editing and growing from a sloped ed
   await expect(page.getByTestId('poly-label')).toBeVisible();
   const first = await floorPt(page, ...corners[0]);
   await page.mouse.click(first.x, first.y);
+  // the closed polygon is a ghost until ✓, then back to Select (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   let d = await design(page);
   expect(d.order).toHaveLength(1);
   const base = d.order[0];
@@ -82,6 +84,7 @@ test('polygon base by clicks, n-gon, vertex editing and growing from a sloped ed
   await page.mouse.move((c.x + r.x) / 2, c.y, { steps: 3 });
   await page.mouse.move(r.x, r.y, { steps: 3 });
   await page.mouse.up();
+  await page.getByTestId('ghost-ok').click();
   d = await design(page);
   expect(d.order).toHaveLength(3);
   const oct = d.panels[d.order[2]];

@@ -5,19 +5,19 @@ import { panelExtras, panelNotches, panelOutline } from '../src/model/geometry';
 import { pointInPolygon } from '../src/geom/vec';
 import { throughRegions } from '../src/model/through';
 import { v3dot, v3len, v3sub } from '../src/geom/v3';
+import { tOf } from '../src/model/materials';
 
 export function solidCounter(d: Design) {
-  const t = d.material.thickness;
   const solids = d.order.map((id) => {
     const p = d.panels[id];
     const ex = panelExtras(d, p);
-    return { p, outline: panelOutline(p, panelNotches(d, p)), holes: [...ex.holes, ...ex.cuts, ...throughRegions(d, p.id)], m: matDir(p.frame) };
+    return { p, t: tOf(d, id), outline: panelOutline(p, panelNotches(d, p)), holes: [...ex.holes, ...ex.cuts, ...throughRegions(d, p.id)], m: matDir(p.frame) };
   });
   return (P: V3) => {
     let n = 0;
     for (const s of solids) {
       const z = v3dot(v3sub(P, s.p.frame.o), s.m);
-      if (z <= 1e-6 || z >= t - 1e-6) continue;
+      if (z <= 1e-6 || z >= s.t - 1e-6) continue;
       const l = toLocal(s.p.frame, P);
       if (!pointInPolygon(l, s.outline)) continue;
       if (s.holes.some((h) => pointInPolygon(l, h))) continue;

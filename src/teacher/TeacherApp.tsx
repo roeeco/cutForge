@@ -11,6 +11,7 @@ import { sheetsToDxf } from '../export/dxf';
 import { batchExport, type BatchItem } from '../export/batch';
 import { downloadText, safeName } from '../ui/download';
 import { MATERIALS } from '../model/materials';
+import { MISSIONS, missionById } from '../easy/missions';
 import { fmtNum, type MsgKey } from '../i18n';
 import type { Design } from '../model/types';
 import type { PreparedSheet } from '../export/prepare';
@@ -187,6 +188,72 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                 </select>
               </div>
             )}
+            {c.id === current && (
+              <fieldset className="field class-missions" data-testid="class-missions">
+                <legend>{t('class.missions')}</legend>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={!c.missions}
+                    onChange={async (e) => {
+                      await api.patchClass(c.id, { missions: e.target.checked ? null : MISSIONS.map((m) => m.id) });
+                      reload();
+                    }}
+                    data-testid="class-missions-all"
+                  />
+                  {t('class.allMissions')}
+                </label>
+                {c.missions &&
+                  MISSIONS.map((m) => (
+                    <label key={m.id} className="check">
+                      <input
+                        type="checkbox"
+                        checked={c.missions!.includes(m.id)}
+                        onChange={async (e) => {
+                          const next = e.target.checked ? [...c.missions!, m.id] : c.missions!.filter((x) => x !== m.id);
+                          await api.patchClass(c.id, { missions: next });
+                          reload();
+                        }}
+                        data-testid={`class-mission-${m.id}`}
+                      />
+                      {t(m.title)}
+                    </label>
+                  ))}
+              </fieldset>
+            )}
+            {c.id === current && (
+              <div className="field">
+                <label htmlFor={`mode-${c.id}`}>{t('class.mode')}</label>
+                <select
+                  id={`mode-${c.id}`}
+                  value={c.mode ?? ''}
+                  onChange={async (e) => {
+                    const v = e.target.value as 'quick' | 'workshop' | '';
+                    await api.patchClass(c.id, { mode: v || null, ...(v ? {} : { modeLocked: false }) });
+                    reload();
+                  }}
+                  data-testid="class-mode"
+                >
+                  <option value="">{t('class.modeNone')}</option>
+                  <option value="quick">{t('mode.quick')}</option>
+                  <option value="workshop">{t('mode.workshop')}</option>
+                </select>
+                {c.mode && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={!!c.modeLocked}
+                      onChange={async (e) => {
+                        await api.patchClass(c.id, { modeLocked: e.target.checked });
+                        reload();
+                      }}
+                      data-testid="class-mode-locked"
+                    />
+                    {t('class.modeLocked')}
+                  </label>
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -307,6 +374,14 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
                   <td dir="auto">
                     {s.title}
                     {s.superseded ? ` (${t('teach.replaced')})` : ''}
+                    {s.mission && missionById(s.mission) && (
+                      // the mission it was started from, and its goals met (milestone 40)
+                      <small className="sub-mission" data-testid="sub-mission">
+                        <br />
+                        {t(missionById(s.mission)!.title)}
+                        {s.goalsTotal ? ` · ${t('teach.goals', { met: s.goalsMet ?? 0, total: s.goalsTotal })}` : ''}
+                      </small>
+                    )}
                   </td>
                   <td>
                     {m ? t(m.nameKey as MsgKey) : s.materialKind}

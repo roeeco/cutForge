@@ -9,6 +9,7 @@ import { throughRegions } from '../model/through';
 import { panelExtras, panelNotches, panelOutline } from '../model/geometry';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
+import { profileOf, tOf } from '../model/materials';
 
 /**
  * Matrix taking panel-local (x, y, z) to world, with z measured along the
@@ -23,13 +24,28 @@ export function frameMatrix(f: Frame): THREE.Matrix4 {
   return m;
 }
 
+/** Joint additions lying in a panel's own plane (not folded like a glue flap). */
+function jointFlatAdds(d: Design, p: Panel): Vec2[][] {
+  const out: Vec2[][] = [];
+  for (const c of Object.values(d.connections)) for (const a of c.geom?.adds ?? []) if (a.flat && a.panelId === p.id) out.push(a.poly);
+  return out;
+}
+
 const toShapePts = (pts: Vec2[]) => pts.map((p) => new THREE.Vector2(p.x, p.y));
 
 export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = {}): THREE.BufferGeometry {
-  const t = d.material.thickness;
+  // its own material's thickness (a ghost: the material it would be made in)
+  const t = d.panels[p.id] ? tOf(d, p.id) : profileOf(d, p.material).thickness;
   const own = ownOutline(p);
   const notches = opts.joints === false ? {} : panelNotches(d, p);
   let rings = own.rings.map((r) => panelOutline(p, notches, r));
+  // material a joint adds in the panel's own plane (a locking tab's barbs)
+  const flatAdds = opts.joints === false ? [] : jointFlatAdds(d, p);
+  if (flatAdds.length) {
+    const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
+    const res = polygonClipping.union(rings.map((r) => [ring(r)]), ...flatAdds.map((k) => [ring(k)]));
+    rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
+  }
   const extraHoles: Vec2[][] = [];
   const cuts = opts.joints === false ? [] : [...panelExtras(d, p).cuts, ...throughRegions(d, p.id)];
   if (cuts.length) {

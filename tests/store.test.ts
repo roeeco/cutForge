@@ -49,3 +49,37 @@ describe('project file', () => {
     expect(() => parseProject(txt)).toThrowError('newerVersion');
   });
 });
+
+describe('copy and paste shapes (milestone 33), ghosts waiting for ✓ (milestone 30)', () => {
+  it('pasting with nothing under the pointer puts the shapes on the last selected panel’s centre; a through-cut stays one; ✓ is one undo step', () => {
+    const s = () => useStore.getState();
+    let a = '', b = '', x1 = '', x2 = '';
+    s().apply((d) => {
+      a = addRootPanel(d, 0, 0, 100, 60);
+      b = addRootPanel(d, 200, 0, 80, 40);
+      x1 = addDetail(d, a, 'circle', 'cut', 20, 20, 10, 10, undefined, true)!;
+      x2 = addDetail(d, a, 'rect', 'cut', 40, 20, 10, 6)!;
+    });
+    s().select({ kind: 'detail', id: x2, ids: [x1, x2] });
+    expect(s().copyShapes()).toBe(true);
+    s().select({ kind: 'panel', id: b });
+    useStore.setState({ pointerHit: null });
+    const p0 = s().past.length;
+    expect(s().pasteShapes()).toBe(true);
+    const got = s().design.panels[b].details;
+    expect(got).toHaveLength(2);
+    // centred on the panel, the layout kept, the through-cut still through
+    expect((got[0].cx - 5 + got[1].cx + 5) / 2).toBeCloseTo(40, 9);
+    expect(got[1].cx - got[0].cx).toBeCloseTo(20, 9);
+    expect(got[0].through).toBe(true);
+    expect(s().pending?.ids).toEqual(got.map((x) => x.id));
+    s().confirmPending();
+    expect(s().past.length).toBe(p0 + 1);
+    s().undo();
+    expect(s().design.panels[b].details).toHaveLength(0);
+    // ✕ leaves the design as it was
+    s().pasteShapes();
+    s().cancelPending();
+    expect(s().design.panels[b].details).toHaveLength(0);
+  });
+});

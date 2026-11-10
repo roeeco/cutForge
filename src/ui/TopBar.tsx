@@ -6,8 +6,14 @@ import { createDesign } from '../model/ops';
 import { parseProject, serializeProject, ProjectError } from '../model/serialize';
 import { downloadText, safeName } from './download';
 import { Icon, Logo } from './icons';
+import { setMode } from '../easy/mode';
+import { ReadyBadge } from '../easy/ReadyBadge';
+import { shown, useFeature } from '../easy/features';
 
 export function TopBar() {
+  const mode = useStore((x) => x.viewPrefs.mode ?? 'workshop');
+  // Quick build's Ready to cut badge replaces the export check (milestone 39)
+  const badge = !shown(useFeature('exportCheck'));
   const t = useT();
   const s = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,6 +113,16 @@ export function TopBar() {
         <span>{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
         <Icon name="chevDown" size={16} />
       </button>
+      {!s.viewPrefs.modeLocked && (
+        <div className="seg mode-seg" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
+          {(['quick', 'workshop'] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(m === 'quick' ? 'mode.quickHelp' : 'mode.workshopHelp')} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
+              {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
+            </button>
+          ))}
+        </div>
+      )}
+      {badge && <ReadyBadge />}
       <div className="seg" role="tablist">
         <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
           {t('top.view3d')}

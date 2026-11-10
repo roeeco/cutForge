@@ -3,17 +3,18 @@
 import type { Design } from './types';
 import { toLocal, toWorld, frameNormal } from './frame';
 import { v3dot } from '../geom/v3';
+import { tOf } from './materials';
 
 export function clearSpans(d: Design, baseId: string): { x: number[]; y: number[] } | null {
   const base = d.panels[baseId];
   if (!base) return null;
-  const t = d.material.thickness;
   const nB = frameNormal(base.frame);
   const occX: [number, number][] = [], occY: [number, number][] = [];
   for (const id of d.order) {
     const p = d.panels[id];
     if (!p || id === baseId) continue;
     if (Math.abs(v3dot(frameNormal(p.frame), nB)) > 0.02) continue; // must stand at 90°
+    const t = tOf(d, id);
     const pts = [];
     for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) for (const z of [0, t]) pts.push(toLocal(base.frame, toWorld(p.frame, x, y, z)));
     const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);

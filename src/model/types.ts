@@ -104,7 +104,27 @@ export type Panel = {
    * its parent edge, to close an inside corner of a tray.
    */
   ext?: { s: number; e: number };
+  /**
+   * The board's own material (a profile id: one of `Design.materials`, or a
+   * built-in one). Absent: the working material (`Design.material`).
+   */
+  material?: string;
+  /** Placed on the floor or a face of another panel (milestone 28): its frame follows the host. Absent: a floor panel or a grown panel, as before. */
+  place?: PanelPlace;
+  /** A guide (milestone 28), on the root of a net: drawn and snapped to, never cut or joined. Grown panels inherit it. */
+  construction?: true;
 };
+
+/**
+ * Where a placed panel sits (milestone 28). `host` null is the floor. `x`, `y`
+ * and `rot` (degrees) are in the host's local coordinates (the floor's: x along
+ * world X, y along world −Z). Flat: the panel's origin and its u axis turned
+ * by `rot`. Standing: the start of its bottom line and the line's direction;
+ * its height is the panel's `h`, and `side` says which side of the line the
+ * material is on. `face` is the host's face it is on (1: its material side,
+ * −1: its plane).
+ */
+export type PanelPlace = { host: string | null; face: 1 | -1; x: number; y: number; rot: number; pose: 'flat' | 'standing'; side?: 1 | -1 };
 
 /**
  * Fold-over on a free edge: a rim strip and a liner folded onto the wall's
@@ -193,11 +213,24 @@ export type Connection = {
   /**
    * Tab-and-slot: tabs flush with the receiver's far face (default), or long
    * enough to pass through and fold under (`lockDepth` mm past the far face,
-   * null = max(4, 1.5t)), with a score where they leave the slot.
+   * null = max(4, 1.5t)), with a score where they leave the slot; or
+   * self-locking (`snap`: through, with barbs that catch behind the far face
+   * and a slit so the tab flexes); or held with bolts in captive nuts (`bolt`:
+   * flush tabs, a T-slot for an M3 nut in the tab panel between tabs, a hole
+   * in the other panel).
    */
-  tabLen?: 'flush' | 'through';
+  tabLen?: TabLock;
   lockDepth?: number | null;
+  /**
+   * Derived (milestone 35): a tray corner made a fold so a wall lies flat
+   * beside its neighbour (`kind` 'fold' on a closing seam); the panel that
+   * folds off the other one.
+   */
+  hingeOf?: string;
 };
+
+/** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
+export type TabLock = 'flush' | 'through' | 'snap' | 'bolt';
 
 export type Notch = { s0: number; s1: number; depth: number };
 export type P2 = { x: number; y: number };
@@ -219,25 +252,34 @@ export type ConnGeom = {
   edges: { panelId: string; edge: string; notches: Notch[] }[];
   /** Interior cut-outs (slots). */
   holes: { panelId: string; poly: P2[] }[];
-  /** Extra material joined to a panel outline (glue flaps). */
-  adds: { panelId: string; poly: P2[] }[];
+  /** Extra material joined to a panel outline (glue flaps; `flat`: in the panel's own plane in 3D too, e.g. a locking tab's barbs). */
+  adds: { panelId: string; poly: P2[]; flat?: boolean }[];
   /** Score lines (flap folds). */
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
   flaps3d: Flap3d[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
   cuts?: { panelId: string; poly: P2[] }[];
+  /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
+  bolts?: number;
 };
 
-export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean };
+/** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
+export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean; mat?: string };
 
 export type PieceSettings = { quantity: number };
+
+/** An object resting in a box (milestone 40): which one, how many, where on the base (base-local centre), its own size for a custom one. */
+export type Content = { id: string; object: string; baseId: string; x: number; y: number; count?: number; w?: number; d?: number; h?: number };
 
 export type Design = {
   schemaVersion: number;
   id: string;
   name: string;
+  /** The working material: boards without their own material use it. */
   material: MaterialProfile;
+  /** Other materials boards use (`Panel.material`), by profile id; absent when every board uses the working material. */
+  materials?: Record<string, MaterialProfile>;
   panels: Record<string, Panel>;
   /** Display/creation order of panels. */
   order: string[];
@@ -255,37 +297,27 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
-  /** Automatic dividers on a base (see src/model/dividers.ts). */
-  dividerSets?: Record<string, DividerSet>;
+  /** The Quick build mission this design was started from (milestone 40), so a submission shows which. */
+  mission?: { id: string; version: number };
+  /** Objects placed in its compartments (milestone 40): view state kept with the design, ignored by pieces, packing and export. */
+  contents?: Content[];
   /**
    * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
    * wall-to-base joints (grown panels and edge-on-face seams) and for corners
    * (wall-to-wall closing seams), used for new joints where allowed; and the
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
-  joints?: DesignJoints;
+  joints?: JointChoices;
 };
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
-
 /**
- * Dividers made and spaced automatically in a rectangular clear inside:
- * `across` dividers parallel to the base's left edge (spaced along its width),
- * `along` dividers parallel to its front edge (spaced along its depth). Even
- * spacing, or compartments of `size` mm (the last takes the rest). Members are
- * `<id>/a<n>` and `<id>/l<n>`; a divider dragged by hand leaves the set and is
- * listed in `loose` until *Space evenly again*.
+ * The design-wide joint choices, one set per material kind (milestone 26): a
+ * switch to card and back to plywood restores the plywood choices, and card
+ * keeps its own. Older files have one flat `DesignJoints`; it is read into the
+ * current material's slot (`normalizeJoints`).
  */
-export type DividerSet = {
-  id: string;
-  baseId: string;
-  across: number;
-  along: number;
-  height: number;
-  mode: 'even' | 'size';
-  size?: number;
-  loose?: string[];
-};
+export type JointChoices = Partial<Record<MaterialKind, DesignJoints>>;
 
 /** A base extruded into walls on every straight edge, at one shared height. */
 export type Tray = {
@@ -297,8 +329,28 @@ export type Tray = {
   cornerKind: ConnectionKind;
   /** Edges left without a wall (deleted walls; "Wall it" removes them again). */
   openEdges: string[];
-  /** Tab-and-slot corners: tabs that pass through and fold under. */
-  tabLen?: 'flush' | 'through';
+  /** Tab-and-slot corners: how their tabs hold (see `Connection.tabLen`). */
+  tabLen?: TabLock;
+  /**
+   * Nets that lie flat (milestone 35): 'auto' (default) changes the net where
+   * walls would overlap when it lies flat; 'off' keeps it in one piece (the
+   * export check then reports the overlap).
+   */
+  flat?: 'auto' | 'off';
+  /** Derived (re-made by `solve`): how each wall (by base edge key) was changed so the net lies flat. */
+  fixes?: Record<string, TrayFix>;
+  /**
+   * Derived with `fixes`: which wall a hinged wall folds off (by base edge key),
+   * the corner joints whose flap was trimmed or moved, and inside corners
+   * (by the outgoing edge's key) where the incoming wall closes the corner
+   * because it gives way.
+   */
+  fixPlan?: { hinge?: Record<string, string>; trim?: string[]; swap?: string[]; extOn?: Record<string, 'prev'> };
+  /** The student's choice for a wall the app changed: hinge it, cut it as its own piece, or let the corner's other wall give way. */
+  pin?: Record<string, 'hinge' | 'own' | 'other'>;
 };
 
-export const SCHEMA_VERSION = 7;
+/** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
+export type TrayFix = 'trim' | 'hinge' | 'own';
+
+export const SCHEMA_VERSION = 8;

@@ -34,6 +34,8 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
   await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 5 });
   await page.mouse.up();
+  // a ghost until ✓ (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   await page.getByTestId('solo-back').click();
   d = await design(page);
   const holeId = d.panels['t:wall0'].details[0].id;

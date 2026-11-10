@@ -4,13 +4,14 @@
 // changes automatically.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, V3 } from './types';
+import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, TabLock, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
-import { minWeb } from './materials';
+import { matOf, minWeb, pairFilter, tOf } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
+import { constructionSet, flatOnHost } from './place';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -81,9 +82,10 @@ export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen =
  * is trimmed so it does not poke out past the other's outer face when acute
  * (t·cot α). At 90° these are t and 0.
  */
-export function cornerDepths(t: number, f: { sin: number; cos: number }): { depth: number; trim: number } {
+export function cornerDepths(t: number, f: { sin: number; cos: number }, tOwn = t): { depth: number; trim: number } {
+  // t: the other board's thickness (to clear), tOwn: the board's own (its square end)
   if (f.sin === 1 && f.cos === 0) return { depth: t, trim: 0 };
-  return { depth: (t + Math.max(0, t * f.cos)) / f.sin, trim: Math.max(0, (t * f.cos) / f.sin) };
+  return { depth: (t + Math.max(0, tOwn * f.cos)) / f.sin, trim: Math.max(0, (tOwn * f.cos) / f.sin) };
 }
 
 export type FaceFit = {
@@ -109,7 +111,7 @@ export type FaceFit = {
  * edge standing on a face (tabs protrude through B), and an edge that runs
  * into B's slab (A is cut back by B's thickness), at any angle within B.
  */
-export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2, range?: [number, number], inside = false): FaceFit | null {
+export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = false, minLen = 2, range?: [number, number], inside = false, tA = tB): FaceFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   if (!perp && !angled) return null;
   const [p0, p1] = edgeWorld(A, eA);
@@ -134,7 +136,6 @@ export function faceFit(A: Panel, eA: EdgeArg, B: Panel, tB: number, angled = fa
     // receiver depth of the owner point at inward distance d, owner depth z: zE + d·k + z·m
     kk = k;
     m = v3dot(matDir(A.frame), mB);
-    const tA = tB;
     const at = (target: number, z: number) => (target - zE - z * m) / k;
     const ds = [at(0, 0), at(0, tA), at(tB, 0), at(tB, tA)];
     d0 = Math.min(...ds);
@@ -220,23 +221,24 @@ function distToSeg(p: P2, a: P2, b: P2): number {
 export type CrossFit = { xA: number; xB: number; widthA: number; widthB: number; depthA: number; depthB: number };
 
 /** Two upright panels crossing each other in their interiors (dividers). */
-export function crossFit(A: Panel, B: Panel, t: number): CrossFit | null {
+export function crossFit(A: Panel, B: Panel, t: number, tB = t): CrossFit | null {
+  const tA = t;
   const nA = frameNormal(A.frame), nB = frameNormal(B.frame);
   if (Math.abs(v3dot(nA, nB)) > PERP || v3dot(A.frame.v, B.frame.v) < 0.999) return null;
   const mA = matDir(A.frame), mB = matDir(B.frame);
   const ka = v3dot(A.frame.u, mB), kb = v3dot(B.frame.u, mA);
   if (Math.abs(ka) < 0.99 || Math.abs(kb) < 0.99) return null;
-  const midA = v3add(A.frame.o, v3mul(mA, t / 2)), midB = v3add(B.frame.o, v3mul(mB, t / 2));
+  const midA = v3add(A.frame.o, v3mul(mA, tA / 2)), midB = v3add(B.frame.o, v3mul(mB, tB / 2));
   const xA = v3dot(v3sub(midB, midA), mB) / ka; // where B's mid-plane crosses A
   const xB = v3dot(v3sub(midA, midB), mA) / kb;
-  const half = t / 2 + 0.5;
-  if (xA < half || xA > A.w - half || xB < half || xB > B.w - half) return null;
+  const hA = tB / 2 + 0.5, hB = tA / 2 + 0.5;
+  if (xA < hA || xA > A.w - hA || xB < hB || xB > B.w - hB) return null;
   // vertical overlap along the shared v axis
   const yA0 = v3dot(A.frame.o, A.frame.v), yB0 = v3dot(B.frame.o, A.frame.v);
   const lo = Math.max(yA0, yB0), hi = Math.min(yA0 + A.h, yB0 + B.h);
   if (hi - lo < 2) return null;
   const mid = (lo + hi) / 2;
-  return { xA, xB, widthA: t, widthB: t, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
+  return { xA, xB, widthA: tB, widthB: tA, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
 }
 
 /** Normalise notches on one edge: cuts win over protrusions where they overlap. */
@@ -316,10 +318,12 @@ export function fingerCountFor(c: Pick<Connection, 'fingers'>, length: number, t
 }
 
 /** Shortest contact a joint can be laid out on: three fingers or tab segments. */
-export function minContact(d: Design, c: Pick<Connection, 'kind'>): number {
-  const t = d.material.thickness;
+export function minContact(d: Design, c: Pick<Connection, 'kind'> & Partial<Pick<Connection, 'a' | 'b' | 'grown'>>): number {
+  const ids = c.a && c.b ? [c.a.panelId, c.b.panelId] : null;
+  const t = ids ? Math.max(tOf(d, ids[0]), tOf(d, ids[1])) : d.material.thickness;
   if (c.kind === 'finger') return 3 * Math.max(t, 3);
-  if (c.kind === 'tabslot') return 3 * (d.material.kind === 'corrugated' ? minTabWidth(d.material) : 2);
+  const m = c.a && c.b ? matOf(d, ownerOf(c as Connection).owner) : d.material;
+  if (c.kind === 'tabslot') return 3 * (m.kind === 'corrugated' ? minTabWidth(m) : 2);
   return 0;
 }
 
@@ -334,7 +338,7 @@ export function seamContact(d: Design, c: Connection): number {
     if (f) return f.s1 - f.s0;
   }
   const o = ownerOf(c);
-  const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], d.material.thickness, !c.grown, 1e-6, undefined, !c.grown);
+  const f = faceFit(d.panels[o.owner], o.edge, d.panels[o.receiver], tOf(d, o.receiver), !c.grown, 1e-6, undefined, !c.grown, tOf(d, o.owner));
   return f ? f.s1 - f.s0 : 0;
 }
 
@@ -395,7 +399,7 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
             const f = cornerFit(A, ka, B, kb, 1e-6);
             if (f) {
               const b0 = f.mapB(f.s0), b1 = f.mapB(f.s1);
-              g.edges.push({ panelId: B.id, edge: kb, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cornerDepths(d.material.thickness, f).depth }] });
+              g.edges.push({ panelId: B.id, edge: kb, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cornerDepths(tOf(d, A.id), f, tOf(d, B.id)).depth }] });
             }
           }
         }
@@ -432,7 +436,7 @@ function survivingContact(d: Design, A: Panel, eA: string, B: Panel, eB: string,
     const q = { x: ea.a.x + dx * s - dy * 0.05, y: ea.a.y + dy * s + dx * 0.05 };
     if (rA.some((r) => pointInPolygon(q, r))) return true;
     if (!rB.length) return false;
-    const w = toWorld(A.frame, ea.a.x + dx * s, ea.a.y + dy * s, d.material.thickness / 2);
+    const w = toWorld(A.frame, ea.a.x + dx * s, ea.a.y + dy * s, tOf(d, A.id) / 2);
     let qb = toLocal(B.frame, w);
     if (ib) qb = { x: qb.x + ib.x * 0.05, y: qb.y + ib.y * 0.05 };
     return rB.some((r) => pointInPolygon(qb, r));
@@ -465,18 +469,34 @@ function mergeGeoms(parts: (ConnGeom | null)[]): ConnGeom | null {
     g.scores.push(...one.scores);
     g.flaps3d.push(...one.flaps3d);
     if (one.cuts?.length) g.cuts = [...(g.cuts ?? []), ...one.cuts];
+    if (one.bolts) g.bolts = (g.bolts ?? 0) + one.bolts;
   }
   return any ? g : null;
 }
 
 function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): ConnGeom | null {
-  const t = d.material.thickness, cl = d.material.clearance;
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
+  // each board's own thickness (one material: both are the design's)
+  const tA = tOf(d, A.id), tB = tOf(d, B.id);
+  const t = Math.max(tA, tB), cl = Math.max(matOf(d, A.id).clearance, matOf(d, B.id).clearance);
   // an edge that no longer exists (a deleted vertex): the joint is broken
   if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return null;
 
+  if (c.kind === 'fold' && !c.grown) {
+    // a tray corner made a fold (milestone 35): the wall folded off its neighbour gives way at the corner
+    const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6);
+    if (!fit) return null;
+    const childA = c.hingeOf === A.id;
+    const cut = childA ? cornerDepths(tB, fit, tA).depth : cornerDepths(tA, fit, tB).depth;
+    if (childA) g.edges.push({ panelId: A.id, edge: c.a.edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: cut }] });
+    else {
+      const b0 = fit.mapB(fit.s0), b1 = fit.mapB(fit.s1);
+      g.edges.push({ panelId: B.id, edge: c.b.edge, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cut }] });
+    }
+    return g;
+  }
   if (c.kind === 'fold' || c.kind === 'lean' || (c.kind === 'butt' && c.grown)) return g;
 
   if (c.kind === 'finger') {
@@ -493,7 +513,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const n = fingerCountFor(c, L, t);
     const seg = L / n;
     // angled fingers: depth across the other slab along this panel's plane (t / sin α)
-    const { depth, trim } = cornerDepths(t, fit);
+    const { depth, trim: trimA } = cornerDepths(tB, fit, tA);
+    const { depth: depthB, trim: trimB } = cornerDepths(tA, fit, tB);
     const na: Notch[] = [], nb: Notch[] = [];
     const onB = (s0: number, s1: number, dd: number) => {
       const b0 = fit.mapB(s0), b1 = fit.mapB(s1);
@@ -503,39 +524,39 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
       const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
       if (k % 2 === 1) {
         na.push({ s0: Math.max(fit.s0, s0 - cl / 2), s1: Math.min(fit.s1, s1 + cl / 2), depth });
-        if (trim > 0) onB(s0, s1, trim);
+        if (trimB > 0) onB(s0, s1, trimB);
       } else {
-        onB(s0, s1, depth);
-        if (trim > 0) na.push({ s0, s1, depth: trim });
+        onB(s0, s1, depthB);
+        if (trimA > 0) na.push({ s0, s1, depth: trimA });
       }
     }
     // a wall reaching past its parent edge (an inside corner of a tray) sits on the parent's face there
     if (c.grown && B.ext) {
       const L = segLength(findEdge(B, c.b.edge)!);
-      if (B.ext.s > 0) nb.push({ s0: 0, s1: B.ext.s, depth: t });
-      if (B.ext.e > 0) nb.push({ s0: L - B.ext.e, s1: L, depth: t });
+      if (B.ext.s > 0) nb.push({ s0: 0, s1: B.ext.s, depth: tA });
+      if (B.ext.e > 0) nb.push({ s0: L - B.ext.e, s1: L, depth: tA });
     }
     g.edges.push({ panelId: A.id, edge: c.a.edge, notches: na }, { panelId: B.id, edge: c.b.edge, notches: nb });
     if (!c.grown) {
-      const sl = [...cornerSlivers(A, c.a.edge, depth), ...cornerSlivers(B, c.b.edge, depth)];
+      const sl = [...cornerSlivers(A, c.a.edge, depth), ...cornerSlivers(B, c.b.edge, depthB)];
       if (sl.length) g.cuts = sl;
     }
     return g;
   }
 
   if (c.kind === 'halflap') {
-    const fit = crossFit(A, B, t);
+    const fit = crossFit(A, B, tA, tB);
     if (!fit) return null;
-    const w = t + cl;
+    const wA = fit.widthA + cl, wB = fit.widthB + cl;
     // A (the earlier panel) is slotted from its top edge, B from its bottom edge.
-    g.edges.push({ panelId: A.id, edge: 'e2', notches: [{ s0: A.w - fit.xA - w / 2, s1: A.w - fit.xA + w / 2, depth: fit.depthA }] });
-    g.edges.push({ panelId: B.id, edge: 'e0', notches: [{ s0: fit.xB - w / 2, s1: fit.xB + w / 2, depth: fit.depthB }] });
+    g.edges.push({ panelId: A.id, edge: 'e2', notches: [{ s0: A.w - fit.xA - wA / 2, s1: A.w - fit.xA + wA / 2, depth: fit.depthA }] });
+    g.edges.push({ panelId: B.id, edge: 'e0', notches: [{ s0: fit.xB - wB / 2, s1: fit.xB + wB / 2, depth: fit.depthB }] });
     return g;
   }
 
   if (c.kind === 'butt') {
     // a closing seam left as plain edges: valid while the panels still meet
-    return faceFit(A, c.a.edge, B, t) || (c.b.edge !== FACE && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
+    return faceFit(A, c.a.edge, B, tB, false, 2, undefined, false, tA) || (c.b.edge !== FACE && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
   }
 
   if (c.kind === 'glue' && c.grown) return grownGlue(d, c, A, B);
@@ -544,7 +565,9 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   const { owner, edge, receiver } = ownerOf(c);
   const O = d.panels[owner], R = d.panels[receiver];
   const corner = !c.grown && c.b.edge !== FACE;
-  const fit = faceFit(O, edge, R, t, !c.grown, 2, rng, !c.grown);
+  // tabs and flaps are the owner's material; slots and fit the receiver's
+  const mO = matOf(d, owner), tO = mO.thickness, tR = tOf(d, receiver), clR = matOf(d, receiver).clearance;
+  const fit = faceFit(O, edge, R, tR, !c.grown, 2, rng, !c.grown, tO);
   if (!fit) return null;
   // a notched receiver: the joint is laid out on every stretch the owner edge still meets
   if (!rng && fit.runs.length > 1) return mergeGeoms(fit.runs.map((r) => connectionGeomOne(d, c, r)));
@@ -557,29 +580,33 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   if (corner && c.kind === 'glue' && fit.m !== 0) return cornerGlue(d, c, O, edge, R, c.b.edge, fit);
 
   if (c.kind === 'slide') {
-    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + cl }] });
+    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + clR }] });
     return g;
   }
 
   if (c.kind === 'tabslot') {
-    const n = d.material.kind === 'corrugated' ? tabCount(d, c, len) : Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1));
+    const n = mO.kind === 'corrugated' ? tabCount(d, c, len, mO) : Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1));
     const seg = len / (2 * n + 1);
     const notches: Notch[] = [];
-    const lock = throughLock(d, c);
+    const lock = throughLock(d, c, mO);
     for (let k = 0; k < 2 * n + 1; k++) {
       const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
       notches.push({ s0, s1, depth: k % 2 ? fit.d0 - lock : fit.d1 });
       // a through tab folds under where it leaves the slot
-      if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, edge, s0, fit.d0), b: edgePoint(O, edge, s1, fit.d0) });
+      if (k % 2 && lock > 0 && c.tabLen === 'through') g.scores.push({ panelId: O.id, a: edgePoint(O, edge, s0, fit.d0), b: edgePoint(O, edge, s1, fit.d0) });
+      // a self-locking tab: barbs behind the far face, a slit so it flexes
+      if (k % 2 && c.tabLen === 'snap') snapTab(g, O, edge, s0, s1, fit.d0, fit.d1, lock, mO, tR, clR);
+      // bolts: at the two end gaps, a T-slot for the nut in the tab panel and a hole in the other
+      if (c.tabLen === 'bolt' && (k === 0 || k === 2 * n)) boltSite(g, O, edge, R, s0, s1, fit.d0, fit.d1, tO, tR, mO, clR);
       if (k % 2) {
         const corners: P2[] = [];
         for (const s of [s0, s1])
           for (const dd of [fit.d0, fit.d1])
-            for (const z of [0, t]) {
+            for (const z of [0, tO]) {
               const lp = edgePoint(O, edge, s, dd);
               corners.push(toLocal(R.frame, toWorld(O.frame, lp.x, lp.y, z)));
             }
-        g.holes.push({ panelId: R.id, poly: offsetConvex(hull(corners), cl / 2) });
+        g.holes.push({ panelId: R.id, poly: offsetConvex(hull(corners), clR / 2) });
       }
     }
     g.edges.push({ panelId: O.id, edge, notches });
@@ -587,7 +614,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   }
 
   if (c.kind === 'glue') {
-    const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+    const fh = (c.flap ?? d.joints?.[mO.kind]?.flap ?? autoFlap(mO));
     const taper = Math.min(fh, len / 3);
     if (fit.d1 > 1e-9) g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
     const p = (s: number, u: number) => edgePoint(O, edge, s, fit.d1 - u);
@@ -595,11 +622,11 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     g.adds.push({ panelId: O.id, poly: flat });
     g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
     // 3D: the flap folds along the receiver's face, towards the receiver's centre
-    const mO = matDir(O.frame);
-    const centre = toWorld(R.frame, R.w / 2, R.h / 2, t / 2);
+    const mdO = matDir(O.frame);
+    const centre = toWorld(R.frame, R.w / 2, R.h / 2, tR / 2);
     const [e0] = edgeWorld(O, edge);
-    const sign = v3dot(v3sub(centre, e0), mO) >= 0 ? 1 : -1;
-    const start = sign > 0 ? t : 0;
+    const sign = v3dot(v3sub(centre, e0), mdO) >= 0 ? 1 : -1;
+    const start = sign > 0 ? tO : 0;
     const poly3 = [
       [fit.s0, 0],
       [fit.s0 + taper, fh],
@@ -607,12 +634,12 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
       [fit.s1, 0],
     ].map(([s, u]) => {
       const lp = edgePoint(O, edge, s, fit.d1);
-      const w = v3add(toWorld(O.frame, lp.x, lp.y, start), v3mul(mO, sign * u));
+      const w = v3add(toWorld(O.frame, lp.x, lp.y, start), v3mul(mdO, sign * u));
       return toLocal(R.frame, w);
     });
     const zFace = fit.zE + fit.k * fit.d1;
-    const [z0, z1] = zFace < t / 2 ? [-t, 0] : [t, 2 * t];
-    g.flaps3d.push(withFold(t, O, flat, { panelId: R.id, poly: poly3, z0, z1 }, R));
+    const [z0, z1] = zFace < tR / 2 ? [-tO, 0] : [tR, tR + tO];
+    g.flaps3d.push(withFold(tO, O, flat, { panelId: R.id, poly: poly3, z0, z1 }, R));
     return g;
   }
   return null;
@@ -626,18 +653,21 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
  * past the corner by a web so the slots are closed holes.
  */
 function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
-  const t = d.material.thickness, cl = d.material.clearance;
+  const mO = matOf(d, O.id), mR = matOf(d, R.id);
+  const t = mO.thickness, cl = mR.clearance;
   const g = empty();
   const len = fit.s1 - fit.s0;
-  const n = tabCount(d, c, len);
+  const n = tabCount(d, c, len, mO);
   const seg = len / (2 * n + 1);
   const notches: Notch[] = [];
   const slots: P2[][] = [];
-  const lock = throughLock(d, c);
+  const lock = throughLock(d, c, mO);
   for (let k = 0; k < 2 * n + 1; k++) {
     const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
     notches.push({ s0, s1, depth: k % 2 ? fit.trim - lock : fit.d1 });
-    if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, eO, s0, fit.trim), b: edgePoint(O, eO, s1, fit.trim) });
+    if (k % 2 && lock > 0 && c.tabLen === 'through') g.scores.push({ panelId: O.id, a: edgePoint(O, eO, s0, fit.trim), b: edgePoint(O, eO, s1, fit.trim) });
+    if (k % 2 && c.tabLen === 'snap') snapTab(g, O, eO, s0, s1, fit.trim, fit.d1, lock, mO, mR.thickness, cl);
+    if (c.tabLen === 'bolt' && (k === 0 || k === 2 * n)) boltSite(g, O, eO, R, s0, s1, fit.trim, fit.d1, t, mR.thickness, mO, cl);
     if (k % 2) {
       const corners: P2[] = [];
       for (const s of [s0, s1])
@@ -659,7 +689,7 @@ function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
     let out = 0;
     for (const poly of slots) for (const q of poly) out = Math.max(out, -((q.x - re.a.x) * inw.x + (q.y - re.a.y) * inw.y));
     const b0 = cf.mapB(fit.s0), b1 = cf.mapB(fit.s1);
-    g.edges.push({ panelId: R.id, edge: eR, notches: [{ s0: Math.max(0, Math.min(b0, b1)), s1: Math.min(segLength(re), Math.max(b0, b1)), depth: -(out + minWeb(d.material)) }] });
+    g.edges.push({ panelId: R.id, edge: eR, notches: [{ s0: Math.max(0, Math.min(b0, b1)), s1: Math.min(segLength(re), Math.max(b0, b1)), depth: -(out + minWeb(mR)) }] });
   }
   return g;
 }
@@ -669,14 +699,100 @@ export function autoLockDepth(m: MaterialProfile): number {
   return Math.max(4, 1.5 * m.thickness);
 }
 
-/** How far a tab-and-slot joint's tabs reach past the receiver (0 for flush tabs). */
-export function throughLock(d: Design, c: Pick<Connection, 'tabLen' | 'lockDepth'>): number {
-  return c.tabLen === 'through' ? (c.lockDepth ?? autoLockDepth(d.material)) : 0;
+/** How far a tab-and-slot joint's tabs reach past the receiver (0 for flush tabs and for bolts). */
+export function throughLock(d: Design, c: Pick<Connection, 'tabLen' | 'lockDepth'>, m: MaterialProfile = d.material): number {
+  if (c.tabLen === 'through') return c.lockDepth ?? autoLockDepth(m);
+  if (c.tabLen === 'snap') return c.lockDepth ?? snapDepth(m);
+  return 0;
+}
+
+// ---- self-locking tabs and bolts (more ways for tabs to hold) ----
+
+/** How far a self-locking tab reaches past the far face: room for its barbs to spring out. */
+export function snapDepth(m: MaterialProfile): number {
+  return Math.max(3, 1.2 * m.thickness);
+}
+
+/** A barb's reach past the tab's side (each side), by the tab panel's material. */
+export function barbHeight(m: MaterialProfile): number {
+  return m.kind === 'corrugated' ? 0.8 : 0.5;
+}
+
+/**
+ * A self-locking tab between s0 and s1 (dFar: the receiver's far face, dNear:
+ * its near face, both as depths on the owner's edge): a barb on each side
+ * just past the far face, square on the face side and tapering to the tip,
+ * and a slit down the tab's middle, open at the tip and running back into the
+ * panel, so its two halves spring together to pass the slot. A tab too narrow
+ * for two halves of the material's web keeps half-height barbs and no slit.
+ */
+function snapTab(g: ConnGeom, O: Panel, edge: string, s0: number, s1: number, dFar: number, dNear: number, lock: number, mO: MaterialProfile, tR: number, clR: number) {
+  const w = s1 - s0;
+  const web = minWeb(mO);
+  let hb = barbHeight(mO);
+  const slit = Math.max(2 * hb + 0.2, 0.8);
+  const split = w - slit >= 2 * web;
+  if (!split) hb /= 2;
+  const dF = dFar - clR, ramp = dF - Math.max(1, lock * 0.8);
+  const P = (s: number, dd: number) => edgePoint(O, edge, s, dd);
+  g.adds.push({ panelId: O.id, poly: [P(s0, dF), P(s0, ramp), P(s0 - hb, dF)], flat: true });
+  g.adds.push({ panelId: O.id, poly: [P(s1, dF), P(s1 + hb, dF), P(s1, ramp)], flat: true });
+  if (split) {
+    const m = (s0 + s1) / 2, tip = dFar - lock - 1, back = dNear + tR + 2 * mO.thickness;
+    (g.cuts ??= []).push({ panelId: O.id, poly: [P(m - slit / 2, tip), P(m + slit / 2, tip), P(m + slit / 2, back), P(m - slit / 2, back)] });
+  }
+}
+
+/**
+ * The ways a tab panel's tabs can hold, by its material: plywood flush,
+ * self-locking or bolted (it does not fold); card and corrugated flush,
+ * through and folded under, or self-locking. A value already set stays offered.
+ */
+export function tabLocks(m: MaterialProfile, current?: TabLock): TabLock[] {
+  const out: TabLock[] = m.kind === 'plywood' ? ['flush', 'snap', ...(m.thickness >= 3 ? (['bolt'] as TabLock[]) : [])] : ['flush', 'through', 'snap'];
+  return current && !out.includes(current) ? [...out, current] : out;
+}
+
+/** Bolt and nut (mm): an M3 screw 12 long, its nut across flats and thick. */
+export const BOLT = { d: 3, len: 12, nutW: 5.5, nutT: 2.4 };
+
+/** Can a gap of this width on an edge take a bolt (its nut with a web either side)? */
+export const boltFits = (gap: number, mO: MaterialProfile) => mO.kind === 'plywood' && mO.thickness >= 3 && gap >= BOLT.nutW + 2 * minWeb(mO) + 1;
+
+/**
+ * A bolt between two tabs (the gap s0–s1): a T-slot in the tab panel's edge
+ * (the screw's stem, then the nut's pocket across it) and a hole for the screw
+ * in the other panel, on the same line.
+ */
+function boltSite(g: ConnGeom, O: Panel, edge: string, R: Panel, s0: number, s1: number, dFar: number, dNear: number, tO: number, tR: number, mO: MaterialProfile, clR: number) {
+  if (!boltFits(s1 - s0, mO)) return;
+  const m = (s0 + s1) / 2, cl = mO.clearance;
+  const stem = (BOLT.d + cl) / 2, nut = (BOLT.nutW + cl) / 2;
+  // the screw passes the other panel (dFar..dNear) and reaches len − tR into this one
+  const reach = BOLT.len - tR;
+  const nut0 = dNear + Math.max(2, reach - BOLT.nutT - 2), nut1 = nut0 + BOLT.nutT + cl;
+  const P = (s: number, dd: number) => edgePoint(O, edge, s, dd);
+  const open = dNear - 0.5;
+  (g.cuts ??= []).push({
+    panelId: O.id,
+    poly: [P(m - stem, open), P(m + stem, open), P(m + stem, nut0), P(m + nut, nut0), P(m + nut, nut1), P(m + stem, nut1), P(m + stem, dNear + reach + 0.5), P(m - stem, dNear + reach + 0.5), P(m - stem, nut1), P(m - nut, nut1), P(m - nut, nut0), P(m - stem, nut0)],
+  });
+  // the hole in the other panel, where the screw's axis crosses it
+  const at = P(m, (dFar + dNear) / 2);
+  const centre = toLocal(R.frame, toWorld(O.frame, at.x, at.y, tO / 2));
+  const r = (BOLT.d + clR) / 2;
+  g.bolts = (g.bolts ?? 0) + 1;
+  g.holes.push({ panelId: R.id, poly: Array.from({ length: 20 }, (_, i) => ({ x: centre.x + r * Math.cos((2 * Math.PI * i) / 20), y: centre.y + r * Math.sin((2 * Math.PI * i) / 20) })) });
+}
+
+/** Bolts a connection uses (each needs a screw and a nut). */
+export function boltCount(c: Pick<Connection, 'geom' | 'tabLen'>): number {
+  return c.tabLen === 'bolt' ? (c.geom?.bolts ?? 0) : 0;
 }
 
 /** Tab count for a tab-and-slot seam of this length (explicit or automatic), keeping tabs at least the material's minimum width. */
-export function tabCount(d: Design, c: Pick<Connection, 'tabs'>, len: number): number {
-  const minW = minTabWidth(d.material);
+export function tabCount(d: Design, c: Pick<Connection, 'tabs'>, len: number, m: MaterialProfile = d.material): number {
+  const minW = minTabWidth(m);
   const most = Math.max(1, Math.floor((len / minW - 1) / 2));
   return Math.max(1, Math.min(c.tabs ?? autoTabs(len), Math.floor((len / 6 - 1) / 2) || 1, most));
 }
@@ -691,10 +807,11 @@ export function minTabWidth(m: MaterialProfile): number {
  * receiver's inner face and its flap folds by the corner angle onto that face.
  */
 function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
-  const t = d.material.thickness;
+  const mO = matOf(d, O.id);
+  const t = mO.thickness, tR = tOf(d, R.id);
   const g = empty();
   const len = fit.s1 - fit.s0;
-  const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+  const fh = (c.flap ?? d.joints?.[mO.kind]?.flap ?? autoFlap(mO));
   const taper = Math.min(fh, len / 3);
   g.edges.push({ panelId: O.id, edge: eO, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 }] });
   const p = (s: number, u: number) => edgePoint(O, eO, s, fit.d1 - u);
@@ -704,9 +821,9 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   const cf = cornerFit(O, eO, R, eR);
   if (cf) {
     // on the receiver's inner face, starting where the owner's inner face meets it
-    const x0 = (t * (1 + cf.cos)) / cf.sin;
+    const x0 = (t + tR * cf.cos) / cf.sin;
     const q = (s: number, u: number) => edgePoint(R, eR, cf.mapB(s), x0 + u);
-    g.flaps3d.push(withFold(t, O, flat, { panelId: R.id, poly: [q(fit.s0, 0), q(fit.s0 + taper, fh), q(fit.s1 - taper, fh), q(fit.s1, 0)], z0: t, z1: 2 * t }, R));
+    g.flaps3d.push(withFold(t, O, flat, { panelId: R.id, poly: [q(fit.s0, 0), q(fit.s0 + taper, fh), q(fit.s1 - taper, fh), q(fit.s1, 0)], z0: tR, z1: tR + t }, R));
   }
   return g;
 }
@@ -716,10 +833,11 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
  * towards the parent's interior. Works at any angle.
  */
 function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
-  const t = d.material.thickness;
+  const mC = matOf(d, C.id);
+  const t = mC.thickness, tP = tOf(d, P.id);
   const g = empty();
   const L = C.w;
-  const fh = c.flap ?? d.joints?.flap ?? autoFlap(d.material);
+  const fh = (c.flap ?? d.joints?.[mC.kind]?.flap ?? autoFlap(mC));
   const taper = Math.min(fh, L / 3);
   const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
   const flat = [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)];
@@ -728,7 +846,7 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   // on the parent: along the parent edge (from where the child stands on it), from the child's position inwards
   const s0 = c.span && !c.trayId ? Math.min(c.span[0], c.span[1]) : 0;
   const q = (s: number, u: number) => edgePoint(P, c.a.edge, s0 + s, c.offset + u);
-  const [z0, z1] = c.dir === 'up' ? [t, 2 * t] : [-t, 0];
+  const [z0, z1] = c.dir === 'up' ? [tP, tP + t] : [-t, 0];
   g.flaps3d.push(withFold(t, C, flat, { panelId: P.id, poly: [q(0, 0), q(taper, fh), q(L - taper, fh), q(L, 0)], z0, z1 }, P));
   return g;
 }
@@ -778,11 +896,10 @@ export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b
 
 /** World segment where a seam's panels meet (along its owner edge), or null. */
 function seamSegment(d: Design, s: { type: SeamType; a: EdgeRef2; b: EdgeRef2 }): [V3, V3] | null {
-  const t = d.material.thickness;
   const A = d.panels[s.a.panelId], B = d.panels[s.b.panelId];
   if (!A || !B || s.type === 'cross') return null;
   if (s.a.edge === FACE || !findEdge(A, s.a.edge)) return null;
-  const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6) : faceFit(A, s.a.edge, B, t, true, 1e-6, undefined, true);
+  const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6) : faceFit(A, s.a.edge, B, tOf(d, B.id), true, 1e-6, undefined, true, tOf(d, A.id));
   if (!f) return null;
   const [p0, p1] = edgeWorld(A, s.a.edge);
   const L = v3len(v3sub(p1, p0)) || 1;
@@ -813,7 +930,7 @@ function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
  * candidates on the same edge, or touching in the same place, are one seam.
  */
 export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
-  const t = d.material.thickness;
+  const tA = tOf(d, A.id), tB = tOf(d, B.id);
   // a curve's flattened segments are never joined
   const ka = panelEdges(A).map((e) => e.key).filter((k) => !isCurveKey(k)), kb = panelEdges(B).map((e) => e.key).filter((k) => !isCurveKey(k));
   const cand: OpenSeam[] = [];
@@ -823,19 +940,18 @@ export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
       if (f) cand.push({ type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) });
     }
   // an edge on the other's face; at a tray's inside corner the wall reaching across the corner is the one received
-  const faceB = kb.map((e) => ({ e, f: faceFit(B, e, A, t, true, 2, undefined, true) })).filter((x) => x.f);
-  const faceA = ka.map((e) => ({ e, f: faceFit(A, e, B, t, true, 2, undefined, true) })).filter((x) => x.f);
+  const faceB = kb.map((e) => ({ e, f: faceFit(B, e, A, tA, true, 2, undefined, true, tB) })).filter((x) => x.f);
+  const faceA = ka.map((e) => ({ e, f: faceFit(A, e, B, tB, true, 2, undefined, true, tA) })).filter((x) => x.f);
   const preferA = faceA.length && faceB.length && (B.ext?.s || B.ext?.e) && !(A.ext?.s || A.ext?.e);
   const fb = faceB.map((x) => ({ type: 'face' as const, a: { panelId: B.id, edge: x.e }, b: { panelId: A.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
   const fa = faceA.map((x) => ({ type: 'face' as const, a: { panelId: A.id, edge: x.e }, b: { panelId: B.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
   cand.push(...(preferA ? [...fa, ...fb] : [...fb, ...fa]));
-  if (crossFit(A, B, t)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
+  if (crossFit(A, B, tA, tB)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
   return dedupeSeams(d, cand, []);
 }
 
 /** Keep candidates that use no edge and no place already taken (by an earlier candidate or an existing connection). */
 function dedupeSeams(d: Design, cand: OpenSeam[], taken: { type: SeamType; a: EdgeRef2; b: EdgeRef2 }[]): OpenSeam[] {
-  const t = d.material.thickness;
   const out: OpenSeam[] = [];
   const segs = taken.map((x) => seamSegment(d, x));
   for (const c of cand) {
@@ -848,6 +964,7 @@ function dedupeSeams(d: Design, cand: OpenSeam[], taken: { type: SeamType; a: Ed
     if (all.some((x) => seamKey(x) === seamKey(c))) continue;
     const seg = seamSegment(d, c);
     const segAll = [...segs, ...out.map((x) => seamSegment(d, x))];
+    const t = Math.max(tOf(d, c.a.panelId), tOf(d, c.b.panelId));
     if (seg && segAll.some((x) => x && sameContact(seg, x, 2 * t + 0.05))) continue;
     out.push(c);
   }
@@ -861,8 +978,8 @@ export function seamBetween(d: Design, A: Panel, B: Panel): OpenSeam | null {
 
 /** World boxes of two panels overlap (with a margin): a cheap test before looking for seams. */
 function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
-  const t = d.material.thickness;
   const box = (p: Panel) => {
+    const t = tOf(d, p.id);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const e of panelEdges(p))
       for (const z of [0, t]) {
@@ -883,7 +1000,9 @@ function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
  */
 export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const out: OpenSeam[] = [];
-  const ids = d.order.filter((id) => d.panels[id]);
+  // construction guides are never joined (milestone 28)
+  const guides = constructionSet(d);
+  const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
   const conns = Object.values(d.connections);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
@@ -891,6 +1010,8 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
       if (only && A.id !== only && B.id !== only) continue;
       const mine = conns.filter((c) => (c.a.panelId === A.id && c.b.panelId === B.id) || (c.a.panelId === B.id && c.b.panelId === A.id));
       if (mine.some((c) => c.grown)) continue;
+      // a flat panel placed on a face is a separate part, not joined to it
+      if (flatOnHost(d, A.id, B.id)) continue;
       if (!nearEachOther(d, A, B)) continue;
       const found = seamsBetween(d, A, B);
       if (!found.length) continue;
@@ -923,10 +1044,15 @@ export function seamTypeOf(c: Pick<Connection, 'kind' | 'b'>): SeamType {
 }
 
 /** Connection kinds offered for a closing seam. */
-export function seamKinds(m: MaterialProfile, type: SeamType): ConnectionKind[] {
+export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialProfile): ConnectionKind[] {
+  if (other && other !== m) {
+    const k = pairFilter(seamKinds(m, type), m, other);
+    return k.length ? k : ['butt'];
+  }
   if (type === 'cross') return ['halflap'];
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
   if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'slide', 'butt'] : ['glue', 'tabslot', 'slide', 'butt'];
-  return ply ? ['tabslot', 'slide', 'butt'] : ['slide', 'glue', 'butt'];
+  // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
+  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'slide', 'butt'];
 }

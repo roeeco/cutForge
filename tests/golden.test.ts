@@ -83,7 +83,8 @@ const V5 = [
   { file: 'v5-hand-ply-box.json', golden: 'hand-ply-box' },
   { file: 'v5-hand-card-tray.json', golden: 'hand-card-tray' },
   { file: 'v5-hand-ply-lean.json', golden: 'hand-ply-lean' },
-  { file: 'v5-organiser-corr-1.6-lid.json', golden: 'organiser-corr-1.6-lid' },
+  // saved before divider ends defaulted to tabs and slots on corrugated: the file keeps its slide fits (its own export)
+  { file: 'v5-organiser-corr-1.6-lid.json', golden: 'v5-organiser-corr-1.6-lid' },
   { file: 'v5-stand-ply-3.json', golden: 'stand-ply-3' },
 ];
 

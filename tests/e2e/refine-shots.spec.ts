@@ -73,33 +73,16 @@ for (const lang of ['en', 'he']) {
       cf.store.getState().apply((d: any) => {
         out.base = cf.ops.addRootPanel(d, -80, 55, 160, 110);
         out.walls = [0, 1, 2, 3].map((e: number) => cf.ops.growPanel(d, out.base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' }).panelId);
-        cf.ops.setDividerSet(d, out.base, { across: 2, along: 1 });
+        out.div = cf.ops.addDividerFor(d, out.walls[3], out.walls[1]);
       });
-      cf.store.getState().select({ kind: 'panel', id: out.base });
+      cf.store.getState().select({ kind: 'panel', id: out.div });
       return out;
     });
     await page.getByTestId('fit-view').click();
     await page.waitForTimeout(300);
-    await page.getByTestId('div-toggle').click();
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: `${OUT}/${lang}-18-divider-set-card.png` });
-    const set = await S<string>(page, () => Object.keys((window as any).__cutforge.store.getState().design.dividerSets)[0]);
-    await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), `${set}/a1`);
-    await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/${lang}-18-divider-slide.png` });
-    await S(page, (w: string[]) => {
-      const cf = (window as any).__cutforge;
-      const d = cf.store.getState().design;
-      const pick = (id: string, k: number) => {
-        const p = d.panels[id];
-        const f = p.frame, t = d.material.thickness;
-        const m = [f.u[1] * f.v[2] - f.u[2] * f.v[1], f.u[2] * f.v[0] - f.u[0] * f.v[2], f.u[0] * f.v[1] - f.u[1] * f.v[0]].map((x: number) => x * f.side);
-        const x = p.w * k, y = p.h * 0.85;
-        return { panelId: id, side: 1, point: [0, 1, 2].map((i) => f.o[i] + f.u[i] * x + f.v[i] * y + m[i] * t) };
-      };
-      cf.store.getState().select(null);
-      cf.store.getState().set({ facePick: [pick(w[3], 0.3), pick(w[0], 0.3)] });
-    }, ids.walls);
+    // two walls that are not parallel: + Divider greyed with the reason (milestone 32)
+    await S(page, (w: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: w[0], ids: [w[3], w[0]] }), ids.walls);
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/${lang}-18-between-refused.png` });
   });

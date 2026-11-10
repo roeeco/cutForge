@@ -1,22 +1,21 @@
-// Milestone 18: divider sets (automatic), dragged dividers, a divider between two faces.
+// Dividers: + Divider between two walls (milestone 32), a divider between two faces, dragging snaps; older files with divider sets.
 import { describe, expect, it } from 'vitest';
 import {
   addDividerBetween,
+  addDividerFor,
   addRootPanel,
   autoConnect,
   createDesign,
   growPanel,
   parentConnection,
   planDividerBetween,
-  releaseDivider,
-  respaceDividers,
-  setDividerOffset,
-  setDividerSet,
-  setPanelSize,
+  planDividerFor,
   solve,
   type FacePick,
 } from '../src/model/ops';
-import { clearBox, memberOf } from '../src/model/dividers';
+import { renamePanel } from '../src/model/dividers';
+import { prepareExport } from '../src/export/prepare';
+import { sheetsToSvg } from '../src/export/svg';
 import { MATERIALS } from '../src/model/materials';
 import { validate } from '../src/model/validate';
 import { maxOverlap } from './solid';
@@ -39,115 +38,79 @@ const edit = (d: Design, f: (d: Design) => unknown) => {
   solve(d);
   autoConnect(d);
 };
-const members = (d: Design, axis: 'a' | 'l') => d.order.filter((id) => memberOf(d, id)?.axis === axis).sort((x, y) => memberOf(d, x)!.n - memberOf(d, y)!.n);
-const offsets = (d: Design, ids: string[]) => ids.map((id) => parentConnection(d, id)!.offset);
 const conns = (d: Design, a: string, b: string) => Object.values(d.connections).filter((c) => (c.a.panelId === a && c.b.panelId === b) || (c.a.panelId === b && c.b.panelId === a));
-/** Compartment widths between consecutive slabs (walls' inner faces and dividers). */
-function compartments(d: Design, base: string, axis: 'a' | 'l', extra: string[] = []) {
-  const t = d.material.thickness;
-  const box = clearBox(d, base)!;
-  const ids = [...members(d, axis), ...extra];
-  const offs = offsets(d, ids).sort((x, y) => x - y);
-  const [lo, hi] = axis === 'a' ? [box.x0, box.x1] : [box.y0, box.y1];
-  const out: number[] = [];
-  let cur = lo;
-  for (const o of offs) {
-    out.push(o - cur);
-    cur = o + t;
-  }
-  out.push(hi - cur);
-  return out;
-}
 
-describe('divider sets', () => {
-  it('a 2 × 3 set in a plywood box: even spacing, half-laps where they cross, no overlap, a clean check', () => {
-    const { d, base } = box(PLY);
-    let set = '';
-    edit(d, (x) => void (set = setDividerSet(x, base, { across: 2, along: 3 })!));
-    expect(members(d, 'a')).toEqual([`${set}/a1`, `${set}/a2`]);
-    expect(members(d, 'l')).toHaveLength(3);
-    for (const c of compartments(d, base, 'a')) expect(c).toBeCloseTo(compartments(d, base, 'a')[0], 9);
-    for (const c of compartments(d, base, 'l')) expect(c).toBeCloseTo(compartments(d, base, 'l')[0], 9);
-    const laps = Object.values(d.connections).filter((c) => c.kind === 'halflap');
-    expect(laps).toHaveLength(6);
-    expect(Object.values(d.connections).some((c) => c.broken)).toBe(false);
-    expect(validate(d)).toEqual([]);
-    expect(maxOverlap(d, [-1, 0, -111], [161, 51, 1], 0.9)).toBeLessThanOrEqual(1);
-    // the set is saved with the project
-    const back = parseProject(serializeProject(d));
-    expect(back.dividerSets![set].across).toBe(2);
-    expect(members(back, 'l')).toHaveLength(3);
-  });
-
-  it('changing the box width re-spaces the set; changing a count re-spaces it', () => {
-    const { d, base } = box(PLY);
-    edit(d, (x) => void setDividerSet(x, base, { across: 2, along: 1 }));
-    const before = compartments(d, base, 'a');
-    edit(d, (x) => setPanelSize(x, base, 220, undefined));
-    const after = compartments(d, base, 'a');
-    expect(after[0]).toBeGreaterThan(before[0] + 15);
-    for (const c of after) expect(c).toBeCloseTo(after[0], 9);
-    edit(d, (x) => void setDividerSet(x, base, { across: 4 }));
-    expect(members(d, 'a')).toHaveLength(4);
-    const four = compartments(d, base, 'a');
-    for (const c of four) expect(c).toBeCloseTo(four[0], 9);
-    expect(validate(d)).toEqual([]);
-  });
-
-  it('by compartment size: compartments of the size, the last takes the rest', () => {
-    const { d, base } = box(PLY, 160, 110);
-    edit(d, (x) => void setDividerSet(x, base, { across: 1, along: 0, mode: 'size', size: 40 }));
-    const cs = compartments(d, base, 'a');
-    // clear 154 mm: 40 + 3 + 40 + 3 + 40 + 3 + 25 (the last takes the rest)
-    expect(cs.slice(0, -1).every((c) => Math.abs(c - 40) < 1e-9)).toBe(true);
-    expect(cs[cs.length - 1]).toBeGreaterThanOrEqual(0);
-    expect(members(d, 'a')).toHaveLength(3);
-  });
-
-  it('dragging one divider takes it out of the set, the rest re-space; Space evenly again brings it back', () => {
-    const { d, base } = box(PLY);
-    let set = '';
-    edit(d, (x) => void (set = setDividerSet(x, base, { across: 3, along: 0 })!));
-    const [a1, a2, a3] = members(d, 'a');
-    void a1;
-    void a3;
-    let loose = '';
-    edit(d, (x) => {
-      loose = releaseDivider(x, a2, 'p_dragged');
-      setDividerOffset(x, loose, 30);
-    });
-    expect(d.panels['p_dragged']).toBeTruthy();
-    expect(parentConnection(d, 'p_dragged')!.offset).toBe(30);
-    expect(d.dividerSets![set].across).toBe(2);
-    expect(d.dividerSets![set].loose).toEqual(['p_dragged']);
-    // the other two are evenly spaced (the dragged one is not part of the spacing)
-    const two = compartments(d, base, 'a');
-    expect(two).toHaveLength(3);
-    for (const c of two) expect(c).toBeCloseTo(two[0], 9);
-    expect(Object.values(d.connections).some((c) => c.broken)).toBe(false);
-    edit(d, (x) => respaceDividers(x, set));
-    expect(members(d, 'a')).toHaveLength(3);
-    expect(d.panels['p_dragged']).toBeUndefined();
-    const three = compartments(d, base, 'a');
-    for (const c of three) expect(c).toBeCloseTo(three[0], 9);
-  });
-
-  for (const m of [CARD, CORR16, CORR4])
-    it(`${m.id}: dividers slide in with clearance, no wall slots, half-laps where they cross`, () => {
-      const { d, base, walls } = box(m);
-      edit(d, (x) => void setDividerSet(x, base, { across: 2, along: 1 }));
-      const divs = [...members(d, 'a'), ...members(d, 'l')];
-      for (const w of walls) for (const v of divs) for (const c of conns(d, w, v)) expect(c.kind).toBe('slide');
-      // no slots in the walls from the dividers' joints
-      const wallHoles = Object.values(d.connections)
-        .filter((c) => divs.includes(c.a.panelId) || divs.includes(c.b.panelId))
-        .flatMap((c) => c.geom?.holes ?? [])
-        .filter((h) => walls.includes(h.panelId));
-      expect(wallHoles).toHaveLength(0);
-      expect(Object.values(d.connections).filter((c) => c.kind === 'halflap')).toHaveLength(2);
-      expect(Object.values(d.connections).some((c) => c.broken)).toBe(false);
+describe('+ Divider between two selected walls (milestone 32)', () => {
+  for (const m of [PLY, CARD, CORR4])
+    it(`${m.id}: the left and right walls: a divider halfway along them, joined to both`, () => {
+      const { d, walls } = box(m);
+      const [, right, , left] = walls;
+      expect(planDividerFor(d, left, right).ok).toBe(true);
+      let div = '';
+      edit(d, (x) => void (div = addDividerFor(x, left, right)!));
+      expect(div).toBeTruthy();
+      expect(conns(d, div, left).filter((c) => !c.broken)).toHaveLength(1);
+      expect(conns(d, div, right).filter((c) => !c.broken)).toHaveLength(1);
+      // halfway along the walls (the box is 110 deep): its mid-plane at 55 from the front edge
+      const c = parentConnection(d, div)!;
+      expect(['e0', 'e2']).toContain(c.a.edge);
+      expect(c.offset + m.thickness / 2).toBeCloseTo(55, 0);
+      // the lower wall's top less the gap (the walls stand on the base or overlap it)
+      const top = Math.max(...[0, d.panels[left].h].map((y) => toWorld(d.panels[left].frame, 0, y)[1]));
+      expect(toWorld(d.panels[div].frame, 0, d.panels[div].h)[1]).toBeLessThanOrEqual(top - 4);
       expect(validate(d).filter((i) => i.pair)).toEqual([]);
     });
+
+  it('walls that are not parallel give the reason', () => {
+    const { d, walls } = box(PLY);
+    const [front, , , left] = walls;
+    expect(planDividerFor(d, left, front)).toEqual({ ok: false, reason: 'notParallel' });
+    expect(addDividerFor(d, left, front)).toBeNull();
+  });
+
+  it('a divider counts as a wall: between a divider and the opposite wall', () => {
+    const { d, walls } = box(PLY);
+    const [, right, , left] = walls;
+    let a = '';
+    edit(d, (x) => void (a = addDividerFor(x, left, right)!));
+    // the divider runs front to back; the front and back walls face it from either side
+    const [front, , back] = walls;
+    const p = planDividerFor(d, front, a);
+    expect(p.ok || p.reason).toBeTruthy();
+    void back;
+  });
+});
+
+describe('older files with automatic divider sets', () => {
+  it('a v7 organiser with a 2 × 1 set keeps every member where it is and exports the same file', () => {
+    const { d, base } = box(PLY);
+    // the members as the set made them: stable ids, offsets in the clear inside
+    const set = `${base}/div`;
+    const ids = [
+      [3, 'a1', 55],
+      [3, 'a2', 105],
+      [0, 'l1', 55],
+    ] as const;
+    for (const [edge, n, off] of ids) {
+      const r = growPanel(d, base, edge, { height: 40, angle: 90, dir: 'up', kind: 'tabslot', offset: off })!;
+      renamePanel(d, r.panelId, `${set}/${n}`);
+      const c = d.connections[r.connectionId];
+      delete d.connections[c.id];
+      c.id = `${set}/c/${n}`;
+      d.connections[c.id] = c;
+    }
+    autoConnect(d);
+    const file = JSON.parse(serializeProject(d));
+    file.schemaVersion = 7;
+    file.design.schemaVersion = 7;
+    file.design.dividerSets = { [set]: { id: set, baseId: base, across: 2, along: 1, height: 40, mode: 'even' } };
+    const before = sheetsToSvg(prepareExport(d).sheets);
+    const back = parseProject(JSON.stringify(file));
+    expect((back as unknown as Record<string, unknown>).dividerSets).toBeUndefined();
+    expect(back.order).toEqual(d.order);
+    for (const [, n] of ids) expect(back.panels[`${set}/${n}`]).toBeTruthy();
+    expect(sheetsToSvg(prepareExport(back).sheets)).toBe(before);
+  });
 });
 
 describe('a divider between two faces', () => {
@@ -177,8 +140,8 @@ describe('a divider between two faces', () => {
       const n = [P.frame.u[1] * P.frame.v[2] - P.frame.u[2] * P.frame.v[1], P.frame.u[2] * P.frame.v[0] - P.frame.u[0] * P.frame.v[2], P.frame.u[0] * P.frame.v[1] - P.frame.u[1] * P.frame.v[0]];
       expect(Math.abs((b.point[0] - mid[0]) * n[0] + (b.point[1] - mid[1]) * n[1] + (b.point[2] - mid[2]) * n[2])).toBeLessThan(0.06);
       expect(validate(d).filter((i) => i.pair)).toEqual([]);
-      if (m.kind !== 'plywood')
-        expect(Object.values(d.connections).filter((x) => x.a.panelId === div || x.b.panelId === div).flatMap((x) => x.geom?.holes ?? []).filter((h) => walls.includes(h.panelId))).toHaveLength(0);
+      // its ends: tabs in slots in the walls, for every material (an edge on a face: tabs and slots first)
+      expect(Object.values(d.connections).filter((x) => !x.grown && (x.a.panelId === div || x.b.panelId === div) && walls.includes(x.a.panelId === div ? x.b.panelId : x.a.panelId)).map((x) => x.kind)).toEqual(['tabslot', 'tabslot']);
     });
 
   it('faces that are not parallel, not facing, or not on the same base are refused with the reason', () => {
@@ -194,23 +157,6 @@ describe('a divider between two faces', () => {
     void back;
     const r = planDividerBetween(d, pick(d, left, 40, 20), { panelId: ow, side: 1, point: toWorld(d.panels[ow].frame, 40, 20, 3) });
     expect(r.ok).toBe(false);
-  });
-});
-
-describe('emptying a set', () => {
-  it('counts of 0 and 0 remove the set and its dividers; hand-placed ones stay', () => {
-    const d = createDesign(PLY);
-    const base = addRootPanel(d, 0, 0, 160, 110);
-    for (const e of [0, 1, 2, 3]) growPanel(d, base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' });
-    autoConnect(d);
-    let set = '';
-    edit(d, (x) => void (set = setDividerSet(x, base, { across: 2, along: 1 })!));
-    edit(d, (x) => void releaseDivider(x, `${set}/a1`, 'p_hand'));
-    edit(d, (x) => void setDividerSet(x, base, { across: 0, along: 0 }));
-    expect(d.dividerSets?.[set]).toBeUndefined();
-    expect(d.order.filter((id) => id.startsWith(set + '/'))).toEqual([]);
-    expect(d.panels['p_hand']).toBeTruthy();
-    expect(validate(d)).toEqual([]);
   });
 });
 

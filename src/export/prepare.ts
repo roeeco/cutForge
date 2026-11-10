@@ -1,17 +1,19 @@
 // Export preparation: one prepared result shared by preview, validation and
 // the file writers. The model is always nominal; kerf compensation happens
 // here and only here, so it can never be applied twice.
-import type { Design } from '../model/types';
+import type { Design, MaterialProfile } from '../model/types';
 import type { Contour, TaggedContour } from '../geom/types';
 import { flattenContour, pointInPolygon, xformContour } from '../geom/vec';
-import { pack, pieceCopies, placementXform, sheetCount } from '../model/pack';
+import { pack, pieceCopies, placementXform, sheetGroups } from '../model/pack';
 import { offsetContour } from './offset';
 
 export type KerfMode = 'nominal' | 'compensated';
 
-export type PreparedSheet = { index: number; w: number; h: number; contours: TaggedContour[] };
+/** `index` counts the sheets of its material; `mat` names that material when it is not the working one. */
+export type PreparedSheet = { index: number; w: number; h: number; contours: TaggedContour[]; mat?: string };
 export type PrepError = { pieceKey: string; panelId?: string };
-export type Prepared = { sheets: PreparedSheet[]; kerfMode: KerfMode; kerf: number; errors: PrepError[] };
+/** `sheets`: every sheet, material by material; `materials`: the same sheets grouped by material (one group for one material). */
+export type Prepared = { sheets: PreparedSheet[]; kerfMode: KerfMode; kerf: number; errors: PrepError[]; materials: { mat: string; profile: MaterialProfile; sheets: PreparedSheet[] }[] };
 
 /**
  * Compensate the cut contours of one piece: a contour whose inside is
@@ -42,23 +44,34 @@ export function compensatePiece(contours: TaggedContour[], kerf: number): { cont
 export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepared {
   const copies = pieceCopies(d);
   const placements = pack(d, copies);
-  const n = sheetCount(placements);
-  const sheets: PreparedSheet[] = Array.from({ length: n }, (_, i) => ({ index: i, w: d.material.sheetW, h: d.material.sheetH, contours: [] }));
+  // each material its own sheets (milestone 36), in the layout's order: the working material first
+  const groups = sheetGroups(d, placements).map((g) => ({
+    ...g,
+    list: Array.from({ length: g.sheets }, (_, i): PreparedSheet => ({ index: i, w: g.profile.sheetW, h: g.profile.sheetH, contours: [], ...(g.mat === d.material.id ? {} : { mat: g.mat }) })),
+  }));
+  const groupOf = (mat: string | undefined) => groups.find((g) => g.mat === (mat ?? d.material.id)) ?? groups[0];
   const errors: PrepError[] = [];
   const compensated = new Map<string, { contours: TaggedContour[]; ok: boolean }>();
   for (const c of copies) {
     const pl = placements[c.key];
     if (!pl) continue;
+    const g = groupOf(pl.mat);
     let contours = c.contours;
     if (kerfMode === 'compensated') {
-      // copies share geometry: compensate once per piece
-      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(c.contours, d.material.kerf));
+      // copies share geometry: compensate once per piece, with its own material's kerf
+      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(c.contours, g.profile.kerf));
       const r = compensated.get(c.pieceKey)!;
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey, panelId: c.pieceKey });
       contours = r.contours;
     }
     const xf = placementXform(pl, c.h);
-    for (const tc of contours) sheets[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
+    for (const tc of contours) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
-  return { sheets, kerfMode, kerf: d.material.kerf, errors };
+  return {
+    sheets: groups.flatMap((g) => g.list),
+    kerfMode,
+    kerf: d.material.kerf,
+    errors,
+    materials: groups.map((g) => ({ mat: g.mat, profile: g.profile, sheets: g.list })),
+  };
 }

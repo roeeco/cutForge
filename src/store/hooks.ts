@@ -1,4 +1,5 @@
 import { TOOL_KEYS } from '../ui/Toolbar';
+import { QUICK_KEYS, startAction } from '../easy/QuickRail';
 import { useEffect } from 'react';
 import { useStore } from './store';
 import { loadLocal, saveLocal } from './persist';
@@ -69,6 +70,17 @@ export function useKeyboard() {
       if (isTyping(e)) return;
       const sel = s.selection;
       const ids = selectedDetailIds(sel);
+      // copy and paste shapes (milestone 33): the paste follows the pointer, a click puts it down, ✓ keeps it
+      if (mod && e.key.toLowerCase() === 'c' && ids.length) {
+        e.preventDefault();
+        s.copyShapes();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'v' && s.clipboard?.length) {
+        e.preventDefault();
+        s.pasteShapes();
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'd' && ids.length) {
         e.preventDefault();
         let copies: string[] = [];
@@ -82,10 +94,17 @@ export function useKeyboard() {
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
+        // the Panel tool's picked plane: start over (the tool stays)
+        if (s.panelPick) return s.set({ panelPick: null });
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();
-      } else if (!mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
+      } else if (s.viewPrefs.mode === 'quick' && !mod && !e.altKey && e.key.length === 1 && QUICK_KEYS[e.key.toLowerCase()]) {
+        // Quick build's actions (milestone 37)
+        const a = QUICK_KEYS[e.key.toLowerCase()];
+        if (a === 'select') s.setTool('select');
+        else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
+      } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
         if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {

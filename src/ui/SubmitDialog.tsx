@@ -1,6 +1,14 @@
 // "Submit to class": class code + display name (remembered locally). If the
 // network or server fails, say so plainly and offer the download instead;
 // the student's local work is never touched by a failed submission.
+import { applyClassMode } from '../easy/mode';
+import { missionState } from '../easy/missions';
+
+/** A mission's goals met, for the teacher (milestone 40). */
+function goalsOf(d: Design): { goalsMet?: number; goalsTotal?: number } {
+  const s = missionState(d);
+  return s ? { goalsMet: s.goals.filter((g) => g.ok).length, goalsTotal: s.goals.length } : {};
+}
 import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, deviceId, type ApiError, type ClassInfo } from '../net/api';
@@ -12,6 +20,9 @@ import { changeMaterial } from '../templates/registry';
 import { setMaterial } from '../model/ops';
 import { fmtNum, type MsgKey } from '../i18n';
 import type { Design, MaterialProfile } from '../model/types';
+import { matIdOf, matOf, mixedMaterials } from '../model/materials';
+import { materialName } from './materialName';
+import { panelLabel } from '../model/names';
 
 const remember = (k: string, v?: string) => {
   try {
@@ -44,6 +55,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         title: title.trim() || design.name || '—',
         project: serializeProject(design),
         preview: sheetPreviewSvg(prepareExport(design).sheets[0]),
+        ...goalsOf(design),
       });
       setState({ kind: 'done' });
     } catch (e) {
@@ -62,8 +74,11 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
     } catch (e) {
       return setState({ kind: 'error', error: (e as ApiError).code ?? 'network' });
     }
+    // the class's mode (milestone 37): its default, and kept when the teacher locks it
+    applyClassMode(cls.mode ?? null, !!cls.modeLocked);
     if (!cls.open) return setState({ kind: 'error', error: 'closed' });
-    if (cls.material && differs(cls.material, d.material)) return setState({ kind: 'profile', cls });
+    // the class's profile against the working material, and boards in other materials
+    if (cls.material && (differs(cls.material, d.material) || mixedMaterials(d))) return setState({ kind: 'profile', cls });
     await send(d);
   };
 
@@ -116,7 +131,17 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         )}
         {state.kind === 'profile' && m && (
           <div className="warn" data-testid="submit-profile">
-            <p>
+            {mixedMaterials(d) && (
+              <p data-testid="submit-other-mats">
+                {t('sub.otherMats', {
+                  list: d.order
+                    .filter((id) => d.panels[id] && matIdOf(d, id) !== d.material.id)
+                    .map((id) => `${panelLabel(d, id, t)} (${materialName(t, matOf(d, id))})`)
+                    .join(', '),
+                })}
+              </p>
+            )}
+            {differs(m, d.material) && <p>
               {t('sub.profileDiff', {
                 mat: t(m.nameKey as MsgKey),
                 t: fmtNum(m.thickness, 2),
@@ -126,7 +151,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
                 k2: fmtNum(d.material.kerf, 2),
                 c2: fmtNum(d.material.clearance, 2),
               })}
-            </p>
+            </p>}
             <div className="modal-actions">
               <button onClick={() => send(d)} data-testid="submit-anyway">
                 {t('sub.anyway')}

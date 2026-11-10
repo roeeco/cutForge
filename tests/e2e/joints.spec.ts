@@ -1,6 +1,6 @@
 // Milestone 2 flows through the UI: closing seams, dividers with half-laps,
 // a leaning plywood panel held by side walls, and a folded card tray.
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -15,10 +15,13 @@ async function start(page: Page, material: string, w: number, h: number) {
   // a base panel of exact size (drawing by mouse is covered by the vertical-slice test)
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, 'flat');
   await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2 - 40);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });
   await page.mouse.up();
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await setNum(page, 'panel-w', String(w));
   await setNum(page, 'panel-h', String(h));
   return (await design(page)).order[0] as string;
@@ -69,13 +72,13 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   await connectAll(page, walls);
   expect(await issues(page)).toBe('');
 
-  await select(page, base);
-  await page.getByTestId('div-toggle').click();
-  await page.getByTestId('div-add').click();
-  await select(page, base);
-  await page.getByTestId('div-toggle').click();
-  await page.getByTestId('div-edge').selectOption('3');
-  await page.getByTestId('div-add').click();
+  // two crossing dividers with + Divider (milestone 32): the front and back walls, then the left and right
+  const plus = async (a: string, b: string) => {
+    await S(page, (x: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: x[1], ids: x }), [a, b]);
+    await page.getByTestId('add-divider').click();
+  };
+  await plus(walls[0], walls[2]);
+  await plus(walls[3], walls[1]);
   const d = await design(page);
   const kinds = Object.values<any>(d.connections).map((c) => c.kind);
   expect(kinds.filter((k) => k === 'finger')).toHaveLength(8);

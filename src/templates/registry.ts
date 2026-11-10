@@ -5,7 +5,8 @@ import type { Design, MaterialProfile } from '../model/types';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
-import { createDesign, setAllJoints, setMaterial, solve } from '../model/ops';
+import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
+import { normalizeJoints } from '../model/jointDefaults';
 
 export const TEMPLATES: TemplateDef[] = [organiser, stand];
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
@@ -68,6 +69,9 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   d.sheetMargin = old.sheetMargin;
   d.sheetSpacing = old.sheetSpacing;
   d.allowRotate = old.allowRotate;
+  // the mission and what goes inside stay (milestone 40)
+  if (old.mission) d.mission = { ...old.mission };
+  if (old.contents) d.contents = old.contents.filter((c) => d.panels[c.baseId]).map((c) => ({ ...c }));
   const lost: Lost[] = [];
   // keep where root panels were moved to
   for (const id of d.order) {
@@ -84,6 +88,8 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
       if (n) {
         n.details = JSON.parse(JSON.stringify(o.details));
         n.name = o.name;
+        // a board's own material stays (its sizes are worked out in the working material)
+        if (o.material && o.material !== material.id) n.material = o.material;
       } else if (o.details.length) lost.push({ panel: o.name, shapes: o.details.length });
     } else {
       // a panel the student added: keep it (and its connections below)
@@ -95,15 +101,16 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
     const user = !c.a.panelId.startsWith(PREFIX) || !c.b.panelId.startsWith(PREFIX);
     if (user && d.panels[c.a.panelId] && d.panels[c.b.panelId]) d.connections[c.id] = JSON.parse(JSON.stringify(c));
   }
+  if (old.materials) d.materials = JSON.parse(JSON.stringify(old.materials));
+  // boards naming the old working material keep it
+  if (old.material.id !== material.id && Object.values(d.panels).some((p) => p.material === old.material.id)) d.materials = { ...(d.materials ?? {}), [old.material.id]: { ...old.material } };
   for (const id of d.order) if (old.pieces[id]) d.pieces[id] = { ...old.pieces[id] };
   for (const [k, p] of Object.entries(old.placements)) if (p.manual && d.panels[k.split('#')[0]]) d.placements[k] = { ...p };
-  // the design-wide joint choices apply to the regenerated joints too
+  // the design-wide joint choices (every material's) are kept, and the new material's apply to the regenerated joints
   if (old.joints) {
-    d.joints = { ...old.joints };
-    for (const g of ['base', 'corner'] as const) {
-      const k = old.joints[g];
-      if (k) setAllJoints(d, g, k);
-    }
+    d.joints = JSON.parse(JSON.stringify(old.joints));
+    normalizeJoints(d);
+    applyJointChoices(d);
   }
   solve(d);
   return { design: d, lost };

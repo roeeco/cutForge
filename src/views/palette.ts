@@ -3,7 +3,8 @@
 // lightness and hue (by creation order) so neighbouring parts never merge
 // into one shape, and the cut plan uses the same tint for the same part.
 import * as THREE from 'three';
-import type { MaterialKind } from '../model/types';
+import type { Design, MaterialKind, MaterialProfile } from '../model/types';
+import { matOf } from '../model/materials';
 
 export const MATERIAL_COLORS: Record<MaterialKind, { face: string; edge: string; sheet: string }> = {
   plywood: { face: '#e2c9a0', edge: '#b98f58', sheet: '#f4e8d3' },
@@ -36,4 +37,26 @@ export function partColors(kind: MaterialKind, index: number, lift = 0): { face:
 /** CSS colour of a part's tint (cut plan). */
 export function partTintCss(kind: MaterialKind, index: number): string {
   return '#' + partColors(kind, index).face.getHexString();
+}
+
+/**
+ * A board's colours in its own material (milestone 36): its material kind's
+ * look, a shade darker for each further thickness of that kind in the design,
+ * so two plywoods can be told apart.
+ */
+export function boardColors(d: Design, panelId: string, index: number, lift = 0): { face: THREE.Color; edge: THREE.Color } {
+  const m = matOf(d, panelId);
+  return partColors(m.kind, index, lift - 0.06 * thicknessRank(d, m));
+}
+
+/** CSS tint of a board (cut plan), in its own material. */
+export function boardTintCss(d: Design, panelId: string, index: number): string {
+  return '#' + boardColors(d, panelId, index).face.getHexString();
+}
+
+/** The rank of a material's thickness among the design's materials of its kind (0: the thinnest). */
+export function thicknessRank(d: Design, m: MaterialProfile): number {
+  if (!d.materials) return 0;
+  const ts = [...new Set([d.material, ...Object.values(d.materials)].filter((x) => x.kind === m.kind).map((x) => x.thickness))].sort((a, b) => a - b);
+  return Math.max(0, ts.indexOf(m.thickness));
 }
