@@ -385,7 +385,7 @@ function cornerSeam(d: Design, t: Tray, a: string, b: string): Connection | null
       // `a` must be the earlier panel (it owns finger corners)
       const [first, fe, second, se] = d.order.indexOf(a) <= d.order.indexOf(b) ? [a, ea.key, b, eb.key] : [b, eb.key, a, ea.key];
       const id = `${t.id}/k/${first}|${second}`;
-      d.connections[id] = { id, kind: k, pref: k, a: { panelId: first, edge: fe }, b: { panelId: second, edge: se }, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto: true, trayId: t.id, ...(t.tabLen === 'through' ? { tabLen: 'through' as const } : {}) };
+      d.connections[id] = { id, kind: k, pref: k, a: { panelId: first, edge: fe }, b: { panelId: second, edge: se }, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto: true, trayId: t.id, ...(t.tabLen && t.tabLen !== 'flush' ? { tabLen: t.tabLen } : {}) };
       return d.connections[id];
     }
   return null;

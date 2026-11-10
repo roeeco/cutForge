@@ -304,7 +304,7 @@ export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray
   if (!tray) return;
   Object.assign(tray, patch);
   if (patch.tabLen) for (const c of Object.values(d.connections)) if (c.trayId === trayId && !c.grown) {
-    if (patch.tabLen === 'through') c.tabLen = 'through';
+    if (patch.tabLen !== 'flush') c.tabLen = patch.tabLen;
     else delete c.tabLen;
   }
   for (const c of Object.values(d.connections)) {
@@ -451,7 +451,7 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   // a seam is kept on whole edges: its joint lays out over every piece of an edge a cut split
   let a = { ...seam.a, edge: baseKey(seam.a.edge) }, b = { ...seam.b, edge: baseKey(seam.b.edge) };
   if (seam.type === 'corner' && d.order.indexOf(a.panelId) > d.order.indexOf(b.panelId)) [a, b] = [b, a];
-  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}), ...(tray?.tabLen === 'through' ? { tabLen: 'through' as const } : {}) };
+  d.connections[cid] = { id: cid, kind: k, pref: k, a, b, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto, ...(tray ? { trayId: tray.id } : {}), ...(tray?.tabLen && tray.tabLen !== 'flush' ? { tabLen: tray.tabLen } : {}) };
   if (!auto && d.noAutoSeams) d.noAutoSeams = d.noAutoSeams.filter((x) => x !== pairKey(a.panelId, b.panelId));
   solve(d);
   // an edge on a face: tabs and slots if they can be made there, else a glue flap, else a slide fit
@@ -1490,7 +1490,7 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.flap !== undefined) c.flap = patch.flap === null ? null : Math.max(3, patch.flap);
   if (patch.foldDir) c.foldDir = patch.foldDir;
   if (patch.tabLen) {
-    if (patch.tabLen === 'through') c.tabLen = 'through';
+    if (patch.tabLen !== 'flush') c.tabLen = patch.tabLen;
     else delete c.tabLen;
     c.auto = false;
   }

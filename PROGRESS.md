@@ -813,6 +813,14 @@ Remaining limitations (milestones 37–40)
 
 Verified: `tests/dividers.test.ts`, `tests/joints.test.ts`, `tests/templates.test.ts` (tabs and slots for divider ends on every material, no slot without its web), `tests/planesnap.test.ts` (a box moved towards another lands flush and in line; a standing panel slides flush against a wall), `tests/flatnet.test.ts` (unchanged: a joint that would change a net falls back), golden exports; e2e: the joint menu changes a joint and the handles hide (`overhaul.spec.ts`), the three-click Panel tool with Esc and a level snap, the ✓ below the grow arrow (`boards.spec.ts`), Quick build's material change (`quick.spec.ts`); every spec drawing panels uses the new flow.
 
+## Follow-up — more ways for tabs to hold: self-locking tabs and bolts ✅
+
+- Tab-and-slot joints (between walls and bases, divider ends, tray corners, standing panels) choose how their tabs hold (`tabLen`): *Flush*, *Through, fold under* (card and corrugated), **Self-locking (snap)** (all materials: through tabs with barbs that catch behind the other panel and a slit so the tab flexes in), or **Bolts and nuts (M3)** (plywood ≥ 3 mm: a T-slot for an M3 nut in the tab panel's edge and a screw hole in the other panel, at both ends of the joint).
+- Chosen from the joint's label menu on the stage (joints view), the joint card (a list, with the lock depth for snap and through tabs and the screw count for bolts), and a tray's card for all its corners.
+- Geometry in `seams.ts` (`snapTab`, `boltSite`, `tabLocks`, `snapDepth`, `BOLT`, `boltCount`); barbs are in-plane joint additions (`adds[].flat`), unioned into the panel in 3D and in the cut pieces; slits and T-slots are joint cuts.
+
+Verified: `tests/locktabs.test.ts` (the options per material; on plywood, corrugated and card the snap tabs reach the snap depth past the far face with two barbs each and a slit, the piece grows, and the export check is unchanged; bolted divider ends have two T-slots (stem and nut pocket) and two screw holes of the screw's size plus clearance, still clean; a tray's corners bolt together), e2e: the joint menu sets a joint to self-locking and offers bolts on plywood (`boards.spec.ts`), the tray's tab list (`trays.spec.ts`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

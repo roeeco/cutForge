@@ -11,7 +11,7 @@ import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSke
 import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
-import { inwardWorld } from '../model/seams';
+import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
 import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
 import { detailBBox, detailContour, detailContours, detailCorners } from '../model/geometry';
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
@@ -20,7 +20,7 @@ import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
-import { tOf } from '../model/materials';
+import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
 import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
@@ -2352,6 +2352,28 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
                       <Icon name={k} size={16} /> {t(`conn.${k}` as 'conn.fold')}
                     </button>
                   ))}
+                  {c.kind === 'tabslot' && (
+                    // how the tabs hold: flush, folded under, self-locking, bolted
+                    <div className="joint-menu-sub" role="group" aria-label={t('conn.tabLen')}>
+                      <p className="joint-menu-head">{t('conn.tabLen')}</p>
+                      {tabLocks(matOf(d, ownerOf(c).owner), c.tabLen).map((k) => (
+                        <button
+                          key={k}
+                          role="menuitemradio"
+                          aria-checked={(c.tabLen ?? 'flush') === k}
+                          className={(c.tabLen ?? 'flush') === k ? 'on' : ''}
+                          disabled={!canChange}
+                          onClick={() => {
+                            if (k !== (c.tabLen ?? 'flush')) useStore.getState().apply((x) => void setConnection(x, c.id, { tabLen: k }));
+                            setMenu(null);
+                          }}
+                          data-testid={`joint-tablen-${k}`}
+                        >
+                          {t(`conn.tabLen.${k}`)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {!canChange && <p className="note">{t('joint.inWorkshop')}</p>}
                   <button
                     className="link"

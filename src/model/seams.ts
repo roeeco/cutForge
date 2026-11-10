@@ -4,7 +4,7 @@
 // changes automatically.
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, V3 } from './types';
+import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, TabLock, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
 import { matOf, minWeb, pairFilter, tOf } from './materials';
@@ -469,6 +469,7 @@ function mergeGeoms(parts: (ConnGeom | null)[]): ConnGeom | null {
     g.scores.push(...one.scores);
     g.flaps3d.push(...one.flaps3d);
     if (one.cuts?.length) g.cuts = [...(g.cuts ?? []), ...one.cuts];
+    if (one.bolts) g.bolts = (g.bolts ?? 0) + one.bolts;
   }
   return any ? g : null;
 }
@@ -592,7 +593,11 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
       const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
       notches.push({ s0, s1, depth: k % 2 ? fit.d0 - lock : fit.d1 });
       // a through tab folds under where it leaves the slot
-      if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, edge, s0, fit.d0), b: edgePoint(O, edge, s1, fit.d0) });
+      if (k % 2 && lock > 0 && c.tabLen === 'through') g.scores.push({ panelId: O.id, a: edgePoint(O, edge, s0, fit.d0), b: edgePoint(O, edge, s1, fit.d0) });
+      // a self-locking tab: barbs behind the far face, a slit so it flexes
+      if (k % 2 && c.tabLen === 'snap') snapTab(g, O, edge, s0, s1, fit.d0, fit.d1, lock, mO, tR, clR);
+      // bolts: at the two end gaps, a T-slot for the nut in the tab panel and a hole in the other
+      if (c.tabLen === 'bolt' && (k === 0 || k === 2 * n)) boltSite(g, O, edge, R, s0, s1, fit.d0, fit.d1, tO, tR, mO, clR);
       if (k % 2) {
         const corners: P2[] = [];
         for (const s of [s0, s1])
@@ -660,7 +665,9 @@ function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   for (let k = 0; k < 2 * n + 1; k++) {
     const s0 = fit.s0 + k * seg, s1 = fit.s0 + (k + 1) * seg;
     notches.push({ s0, s1, depth: k % 2 ? fit.trim - lock : fit.d1 });
-    if (k % 2 && lock > 0) g.scores.push({ panelId: O.id, a: edgePoint(O, eO, s0, fit.trim), b: edgePoint(O, eO, s1, fit.trim) });
+    if (k % 2 && lock > 0 && c.tabLen === 'through') g.scores.push({ panelId: O.id, a: edgePoint(O, eO, s0, fit.trim), b: edgePoint(O, eO, s1, fit.trim) });
+    if (k % 2 && c.tabLen === 'snap') snapTab(g, O, eO, s0, s1, fit.trim, fit.d1, lock, mO, mR.thickness, cl);
+    if (c.tabLen === 'bolt' && (k === 0 || k === 2 * n)) boltSite(g, O, eO, R, s0, s1, fit.trim, fit.d1, t, mR.thickness, mO, cl);
     if (k % 2) {
       const corners: P2[] = [];
       for (const s of [s0, s1])
@@ -692,9 +699,95 @@ export function autoLockDepth(m: MaterialProfile): number {
   return Math.max(4, 1.5 * m.thickness);
 }
 
-/** How far a tab-and-slot joint's tabs reach past the receiver (0 for flush tabs). */
+/** How far a tab-and-slot joint's tabs reach past the receiver (0 for flush tabs and for bolts). */
 export function throughLock(d: Design, c: Pick<Connection, 'tabLen' | 'lockDepth'>, m: MaterialProfile = d.material): number {
-  return c.tabLen === 'through' ? (c.lockDepth ?? autoLockDepth(m)) : 0;
+  if (c.tabLen === 'through') return c.lockDepth ?? autoLockDepth(m);
+  if (c.tabLen === 'snap') return c.lockDepth ?? snapDepth(m);
+  return 0;
+}
+
+// ---- self-locking tabs and bolts (more ways for tabs to hold) ----
+
+/** How far a self-locking tab reaches past the far face: room for its barbs to spring out. */
+export function snapDepth(m: MaterialProfile): number {
+  return Math.max(3, 1.2 * m.thickness);
+}
+
+/** A barb's reach past the tab's side (each side), by the tab panel's material. */
+export function barbHeight(m: MaterialProfile): number {
+  return m.kind === 'corrugated' ? 0.8 : 0.5;
+}
+
+/**
+ * A self-locking tab between s0 and s1 (dFar: the receiver's far face, dNear:
+ * its near face, both as depths on the owner's edge): a barb on each side
+ * just past the far face, square on the face side and tapering to the tip,
+ * and a slit down the tab's middle, open at the tip and running back into the
+ * panel, so its two halves spring together to pass the slot. A tab too narrow
+ * for two halves of the material's web keeps half-height barbs and no slit.
+ */
+function snapTab(g: ConnGeom, O: Panel, edge: string, s0: number, s1: number, dFar: number, dNear: number, lock: number, mO: MaterialProfile, tR: number, clR: number) {
+  const w = s1 - s0;
+  const web = minWeb(mO);
+  let hb = barbHeight(mO);
+  const slit = Math.max(2 * hb + 0.2, 0.8);
+  const split = w - slit >= 2 * web;
+  if (!split) hb /= 2;
+  const dF = dFar - clR, ramp = dF - Math.max(1, lock * 0.8);
+  const P = (s: number, dd: number) => edgePoint(O, edge, s, dd);
+  g.adds.push({ panelId: O.id, poly: [P(s0, dF), P(s0, ramp), P(s0 - hb, dF)], flat: true });
+  g.adds.push({ panelId: O.id, poly: [P(s1, dF), P(s1 + hb, dF), P(s1, ramp)], flat: true });
+  if (split) {
+    const m = (s0 + s1) / 2, tip = dFar - lock - 1, back = dNear + tR + 2 * mO.thickness;
+    (g.cuts ??= []).push({ panelId: O.id, poly: [P(m - slit / 2, tip), P(m + slit / 2, tip), P(m + slit / 2, back), P(m - slit / 2, back)] });
+  }
+}
+
+/**
+ * The ways a tab panel's tabs can hold, by its material: plywood flush,
+ * self-locking or bolted (it does not fold); card and corrugated flush,
+ * through and folded under, or self-locking. A value already set stays offered.
+ */
+export function tabLocks(m: MaterialProfile, current?: TabLock): TabLock[] {
+  const out: TabLock[] = m.kind === 'plywood' ? ['flush', 'snap', ...(m.thickness >= 3 ? (['bolt'] as TabLock[]) : [])] : ['flush', 'through', 'snap'];
+  return current && !out.includes(current) ? [...out, current] : out;
+}
+
+/** Bolt and nut (mm): an M3 screw 12 long, its nut across flats and thick. */
+export const BOLT = { d: 3, len: 12, nutW: 5.5, nutT: 2.4 };
+
+/** Can a gap of this width on an edge take a bolt (its nut with a web either side)? */
+export const boltFits = (gap: number, mO: MaterialProfile) => mO.kind === 'plywood' && mO.thickness >= 3 && gap >= BOLT.nutW + 2 * minWeb(mO) + 1;
+
+/**
+ * A bolt between two tabs (the gap s0–s1): a T-slot in the tab panel's edge
+ * (the screw's stem, then the nut's pocket across it) and a hole for the screw
+ * in the other panel, on the same line.
+ */
+function boltSite(g: ConnGeom, O: Panel, edge: string, R: Panel, s0: number, s1: number, dFar: number, dNear: number, tO: number, tR: number, mO: MaterialProfile, clR: number) {
+  if (!boltFits(s1 - s0, mO)) return;
+  const m = (s0 + s1) / 2, cl = mO.clearance;
+  const stem = (BOLT.d + cl) / 2, nut = (BOLT.nutW + cl) / 2;
+  // the screw passes the other panel (dFar..dNear) and reaches len − tR into this one
+  const reach = BOLT.len - tR;
+  const nut0 = dNear + Math.max(2, reach - BOLT.nutT - 2), nut1 = nut0 + BOLT.nutT + cl;
+  const P = (s: number, dd: number) => edgePoint(O, edge, s, dd);
+  const open = dNear - 0.5;
+  (g.cuts ??= []).push({
+    panelId: O.id,
+    poly: [P(m - stem, open), P(m + stem, open), P(m + stem, nut0), P(m + nut, nut0), P(m + nut, nut1), P(m + stem, nut1), P(m + stem, dNear + reach + 0.5), P(m - stem, dNear + reach + 0.5), P(m - stem, nut1), P(m - nut, nut1), P(m - nut, nut0), P(m - stem, nut0)],
+  });
+  // the hole in the other panel, where the screw's axis crosses it
+  const at = P(m, (dFar + dNear) / 2);
+  const centre = toLocal(R.frame, toWorld(O.frame, at.x, at.y, tO / 2));
+  const r = (BOLT.d + clR) / 2;
+  g.bolts = (g.bolts ?? 0) + 1;
+  g.holes.push({ panelId: R.id, poly: Array.from({ length: 20 }, (_, i) => ({ x: centre.x + r * Math.cos((2 * Math.PI * i) / 20), y: centre.y + r * Math.sin((2 * Math.PI * i) / 20) })) });
+}
+
+/** Bolts a connection uses (each needs a screw and a nut). */
+export function boltCount(c: Pick<Connection, 'geom' | 'tabLen'>): number {
+  return c.tabLen === 'bolt' ? (c.geom?.bolts ?? 0) : 0;
 }
 
 /** Tab count for a tab-and-slot seam of this length (explicit or automatic), keeping tabs at least the material's minimum width. */

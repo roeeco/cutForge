@@ -89,7 +89,7 @@ test('corrugated tray: tab-and-slot corners switched to through tabs on the tray
   });
   await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), base);
   await expect(page.getByTestId('tray-corner-kind')).toHaveValue('tabslot');
-  await page.getByTestId('tray-tablen-through').click();
+  await page.getByTestId('tray-tablen').selectOption('through');
   const d = await design(page);
   const cs = Object.values(d.connections).filter((x: any) => !x.grown && x.trayId);
   expect(cs).toHaveLength(4);
@@ -102,6 +102,6 @@ test('corrugated tray: tab-and-slot corners switched to through tabs on the tray
   await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), wall);
   await page.getByTestId('joints-advanced').click();
   await S(page, (id: string) => (window as any).__cutforge.store.getState().set({ openJoint: id }), (cs[0] as any).id);
-  await expect(page.getByTestId('conn-tablen-through')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('conn-tablen')).toHaveValue('through');
   await expect(page.getByTestId('conn-lockdepth')).toBeVisible();
 });

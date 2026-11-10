@@ -16,9 +16,9 @@ import type { Tray, TrayFix } from '../model/types';
 import { shortEdges, trayOf, MIN_EDGE } from '../model/trays';
 import { isCurveKey, panelEdges, segLength } from '../model/edges';
 import { connectionsFor, matOf, tOf } from '../model/materials';
-import { seamKinds } from '../model/seams';
+import { boltCount, seamKinds, tabLocks } from '../model/seams';
 import { edgeLabel } from '../model/names';
-import type { ConnectionKind } from '../model/types';
+import type { ConnectionKind, TabLock } from '../model/types';
 import { Gate } from '../easy/Gate';
 import { shown, useFeature } from '../easy/features';
 
@@ -103,12 +103,21 @@ export function TraySection({ panelId }: { panelId: string }) {
         </select>
       </div>
       {tray.cornerKind === 'tabslot' && (
-        <Segmented
-          label={t('conn.tabLen')}
-          value={tray.tabLen ?? 'flush'}
-          options={(['flush', 'through'] as const).map((o) => ({ value: o, label: t(`conn.tabLen.${o}`), testId: `tray-tablen-${o}` }))}
-          onChange={(o) => apply((x) => setTrayKinds(x, tray.id, { tabLen: o as 'flush' | 'through' }))}
-        />
+        <div className="field">
+          <label htmlFor={`ttl-${tray.id}`}>{t('conn.tabLen')}</label>
+          <select id={`ttl-${tray.id}`} value={tray.tabLen ?? 'flush'} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { tabLen: e.target.value as TabLock }))} data-testid="tray-tablen">
+            {tabLocks(matOf(d, tray.baseId), tray.tabLen).map((o) => (
+              <option key={o} value={o}>
+                {t(`conn.tabLen.${o}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {tray.cornerKind === 'tabslot' && tray.tabLen === 'bolt' && (
+        <p className="note" data-testid="tray-bolts">
+          {t('tray.boltNote', { n: Object.values(d.connections).filter((c) => c.trayId === tray.id).reduce((n, c) => n + boltCount(c), 0) })}
+        </p>
       )}
       </Gate>
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}

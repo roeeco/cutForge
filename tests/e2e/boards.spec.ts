@@ -475,4 +475,30 @@ test.describe('panel tool, joints view and grow bar (follow-up fixes)', () => {
     expect(bar.y).toBeGreaterThan(arrow.y + 10);
     void base;
   });
+
+  test('a tab-and-slot joint’s label offers how its tabs hold: self-locking, bolts', async ({ page }) => {
+    await start(page, 'ply-3');
+    const div = await S<string>(page, () => {
+      const cf = (window as any).__cutforge;
+      let id = '';
+      cf.store.getState().apply((d: any) => {
+        const b = cf.ops.addRootPanel(d, -80, 50, 160, 100);
+        cf.ops.addTray(d, b, 50);
+        id = cf.ops.addDivider(d, b, 'e3', 70, 40);
+      });
+      cf.store.getState().select({ kind: 'panel', id });
+      return id;
+    });
+    await page.getByTestId('fit-view').click();
+    await page.getByTestId('toggle-joints').click();
+    await page.getByTestId('seam-pill-tabslot').first().click();
+    await expect(page.getByTestId('joint-tablen-snap')).toBeVisible();
+    await expect(page.getByTestId('joint-tablen-bolt')).toBeVisible();
+    await page.getByTestId('joint-tablen-snap').click();
+    await expect.poll(async () => Object.values((await design(page)).connections).filter((c: any) => c.tabLen === 'snap' && (c.a.panelId === div || c.b.panelId === div)).length).toBe(1);
+    // the card's list says the same, and offers bolts on plywood
+    await page.getByTestId('seam-pill-tabslot').first().click();
+    await page.getByTestId('joint-more').click();
+    await expect(page.getByTestId('conn-tablen')).toBeVisible();
+  });
 });

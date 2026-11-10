@@ -213,9 +213,13 @@ export type Connection = {
   /**
    * Tab-and-slot: tabs flush with the receiver's far face (default), or long
    * enough to pass through and fold under (`lockDepth` mm past the far face,
-   * null = max(4, 1.5t)), with a score where they leave the slot.
+   * null = max(4, 1.5t)), with a score where they leave the slot; or
+   * self-locking (`snap`: through, with barbs that catch behind the far face
+   * and a slit so the tab flexes); or held with bolts in captive nuts (`bolt`:
+   * flush tabs, a T-slot for an M3 nut in the tab panel between tabs, a hole
+   * in the other panel).
    */
-  tabLen?: 'flush' | 'through';
+  tabLen?: TabLock;
   lockDepth?: number | null;
   /**
    * Derived (milestone 35): a tray corner made a fold so a wall lies flat
@@ -224,6 +228,9 @@ export type Connection = {
    */
   hingeOf?: string;
 };
+
+/** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
+export type TabLock = 'flush' | 'through' | 'snap' | 'bolt';
 
 export type Notch = { s0: number; s1: number; depth: number };
 export type P2 = { x: number; y: number };
@@ -245,14 +252,16 @@ export type ConnGeom = {
   edges: { panelId: string; edge: string; notches: Notch[] }[];
   /** Interior cut-outs (slots). */
   holes: { panelId: string; poly: P2[] }[];
-  /** Extra material joined to a panel outline (glue flaps). */
-  adds: { panelId: string; poly: P2[] }[];
+  /** Extra material joined to a panel outline (glue flaps; `flat`: in the panel's own plane in 3D too, e.g. a locking tab's barbs). */
+  adds: { panelId: string; poly: P2[]; flat?: boolean }[];
   /** Score lines (flap folds). */
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
   flaps3d: Flap3d[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
   cuts?: { panelId: string; poly: P2[] }[];
+  /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
+  bolts?: number;
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
@@ -320,8 +329,8 @@ export type Tray = {
   cornerKind: ConnectionKind;
   /** Edges left without a wall (deleted walls; "Wall it" removes them again). */
   openEdges: string[];
-  /** Tab-and-slot corners: tabs that pass through and fold under. */
-  tabLen?: 'flush' | 'through';
+  /** Tab-and-slot corners: how their tabs hold (see `Connection.tabLen`). */
+  tabLen?: TabLock;
   /**
    * Nets that lie flat (milestone 35): 'auto' (default) changes the net where
    * walls would overlap when it lies flat; 'off' keeps it in one piece (the

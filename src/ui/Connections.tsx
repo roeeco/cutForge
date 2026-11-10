@@ -8,12 +8,12 @@ import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
-import { connectionsFor } from '../model/materials';
+import { connectionsFor, matOf } from '../model/materials';
 import { addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
-import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf } from '../model/seams';
+import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf, tabLocks, snapDepth, boltCount } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
-import type { Connection, ConnectionKind, Design } from '../model/types';
+import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
 import { fmtNum } from '../i18n';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
@@ -80,18 +80,23 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
       {c.kind === 'tabslot' && <Stepper label={t('conn.tabs')} value={c.tabs ?? autoTabs(len)} min={1} max={30} onCommit={(v) => apply((x) => setConnection(x, c.id, { tabs: v }))} testId="conn-tabs" />}
       {c.kind === 'tabslot' && (
         <>
-          <Segmented
-            label={t('conn.tabLen')}
-            value={c.tabLen ?? 'flush'}
-            options={(['flush', 'through'] as const).map((o) => ({ value: o, label: t(`conn.tabLen.${o}`), testId: `conn-tablen-${o}` }))}
-            onChange={(o) => apply((x) => setConnection(x, c.id, { tabLen: o as 'flush' | 'through' }))}
-          />
-          {c.tabLen === 'through' && (
+          <div className="field">
+            <label htmlFor={`tl-${c.id}`}>{t('conn.tabLen')}</label>
+            <select id={`tl-${c.id}`} value={c.tabLen ?? 'flush'} onChange={(e) => apply((x) => setConnection(x, c.id, { tabLen: e.target.value as TabLock }))} data-testid="conn-tablen">
+              {tabLocks(matOf(d, ownerOf(c).owner), c.tabLen).map((o) => (
+                <option key={o} value={o} data-testid={`conn-tablen-${o}`}>
+                  {t(`conn.tabLen.${o}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(c.tabLen === 'through' || c.tabLen === 'snap') && (
             <>
-              <NumField label={t('conn.lockDepth')} value={c.lockDepth ?? autoLockDepth(d.material)} unit={mm} min={2} max={60} onCommit={(v) => apply((x) => setConnection(x, c.id, { lockDepth: v }))} testId="conn-lockdepth" />
-              <p className="note">{t('conn.throughHelp')}</p>
+              <NumField label={t('conn.lockDepth')} value={c.lockDepth ?? (c.tabLen === 'snap' ? snapDepth(matOf(d, ownerOf(c).owner)) : autoLockDepth(d.material))} unit={mm} min={2} max={60} onCommit={(v) => apply((x) => setConnection(x, c.id, { lockDepth: v }))} testId="conn-lockdepth" />
+              <p className="note">{t(c.tabLen === 'snap' ? 'conn.snapHelp' : 'conn.throughHelp')}</p>
             </>
           )}
+          {c.tabLen === 'bolt' && <p className="note" data-testid="conn-bolts">{t('conn.boltHelp', { n: boltCount(c) })}</p>}
           {d.material.kind === 'corrugated' && <p className="note">{t('conn.minTab', { w: fmtNum(minTabWidth(d.material), 1) })}</p>}
         </>
       )}
