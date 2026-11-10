@@ -1,4 +1,4 @@
-// Review screenshots for milestones 21–24 (skipped unless SHOTS=1):
+// Review screenshots for milestones 21–27 (skipped unless SHOTS=1):
 //   SHOTS=1 npx playwright test -c pw-app.config.ts gizmo-shots
 import { test, type Page } from '@playwright/test';
 const OUT = 'docs/gizmo-shots';
@@ -37,6 +37,7 @@ for (const lang of ['en', 'he']) {
     await page.screenshot({ path: `${OUT}/${lang}-22-flaps-half-folded.png` });
     // the snapping toggles at the bottom of the settings card
     await S(page, () => (window as any).__cutforge.store.getState().set({ foldT: 1 }));
+    if ((await page.getByTestId('settings-head-snapping').getAttribute('aria-expanded')) !== 'true') await page.getByTestId('settings-head-snapping').click();
     await page.getByTestId('settings-snapping').scrollIntoViewIfNeeded();
     await page.waitForTimeout(200);
     await page.screenshot({ path: `${OUT}/${lang}-25-snapping-toggles.png` });
@@ -59,5 +60,58 @@ for (const lang of ['en', 'he']) {
     });
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/${lang}-25-curve-point.png` });
+  });
+}
+
+// Milestones 25–27, at Chromebook size
+for (const lang of ['en', 'he']) {
+  test.describe(`milestones 25–27 shots ${lang}`, () => {
+    test.use({ viewport: { width: 1366, height: 768 } });
+
+    test(`settings sections ${lang}`, async ({ page }) => {
+      test.skip(!process.env.SHOTS);
+      await setup(page, lang, 'corr-1.6');
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${OUT}/${lang}-27-settings-sections.png` });
+    });
+
+    test(`joints inactive note ${lang}`, async ({ page }) => {
+      test.skip(!process.env.SHOTS);
+      await setup(page, lang, 'ply-3');
+      await S(page, () => {
+        const cf = (window as any).__cutforge;
+        cf.store.getState().apply((d: any) => {
+          const b = cf.ops.addRootPanel(d, -40, 30, 80, 60);
+          for (const e of [0, 1, 2, 3]) cf.ops.growPanel(d, b, e, { height: 40, angle: 90, dir: 'up', kind: 'finger' });
+          cf.ops.autoConnect(d);
+          cf.ops.setAllJoints(d, 'corner', 'finger');
+          cf.ops.setMaterial(d, { id: 'card-0.5', kind: 'card', nameKey: 'mat.card', thickness: 0.5, kerf: 0.1, clearance: 0.1, foldAllowance: 0.6, sheetW: 500, sheetH: 300, grain: 'none' });
+        });
+        cf.store.getState().select(null);
+      });
+      await page.getByTestId('fit-view').click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${OUT}/${lang}-26-joints-inactive.png` });
+    });
+
+    test(`ring edge-on ${lang}`, async ({ page }) => {
+      test.skip(!process.env.SHOTS);
+      await setup(page, lang, 'ply-3');
+      await S(page, () => {
+        const cf = (window as any).__cutforge;
+        let wall = '', id = '';
+        cf.store.getState().apply((d: any) => {
+          const b = cf.ops.addRootPanel(d, -60, 40, 120, 80);
+          wall = cf.ops.growPanel(d, b, 'e0', { height: 70, angle: 90, dir: 'up', kind: 'finger' }).panelId;
+          id = cf.ops.addDetail(d, wall, 'rect', 'cut', 60, 35, 16, 10);
+        });
+        cf.store.getState().select({ kind: 'detail', id, ids: [id] });
+        const f = cf.store.getState().design.panels[wall].frame;
+        const t = [0, 1, 2].map((k: number) => f.o[k] + f.u[k] * 60 + f.v[k] * 35);
+        cf.setCamera([t[0] + 260 * Math.cos((8 * Math.PI) / 180), t[1] + 40, t[2] + 260 * Math.sin((8 * Math.PI) / 180)], t);
+      });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${OUT}/${lang}-25-ring-edge-on.png` });
+    });
   });
 }

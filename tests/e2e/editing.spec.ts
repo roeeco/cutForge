@@ -1,6 +1,6 @@
 // Milestone 3: solo view, smart snapping with guides, multiple selection,
 // align/distribute, group move/duplicate/delete/resize, arrays, keyboard.
-import { setNum } from './util';
+import { setNum, pickPlane } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -40,7 +40,10 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.getByTestId('hints-dismiss').click();
   await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
+  await pickPlane(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, 'flat');
   await drag(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
+  // the panel is a ghost until ✓ (milestone 29)
+  await page.getByTestId('ghost-ok').click();
   await setNum(page, 'panel-w', '200');
   await setNum(page, 'panel-h', '120');
   const base = (await design(page)).order[0];
@@ -56,6 +59,9 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   // draw a rectangle, then a second one whose bottom lands 1 px off the first's: snapping aligns it
   await page.getByTestId('tool-rect').click();
   await drag(page, await soloPt(page, 20, 20), await soloPt(page, 50, 40));
+  // each shape is a ghost until ✓, then the tool goes back to Select (milestone 30)
+  await page.getByTestId('ghost-ok').click();
+  await page.getByTestId('tool-rect').click();
   let d = await design(page);
   expect(d.panels[base].details).toHaveLength(1);
   const r1 = d.panels[base].details[0];
@@ -67,11 +73,14 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
       expect(await page.locator('[data-testid=solo] line.guide').count()).toBeGreaterThan(0);
     },
   });
+  await page.getByTestId('ghost-ok').click();
+  await page.getByTestId('tool-rect').click();
   d = await design(page);
   const r2 = d.panels[base].details[1];
   expect(r2.cy - r2.h / 2).toBeCloseTo(20, 9);
   expect(r2.cy + r2.h / 2).toBeCloseTo(40, 9);
   await drag(page, await soloPt(page, 140, 60), await soloPt(page, 160, 85));
+  await page.getByTestId('ghost-ok').click();
   d = await design(page);
   expect(d.panels[base].details).toHaveLength(3);
   const ids = d.panels[base].details.map((x: any) => x.id);

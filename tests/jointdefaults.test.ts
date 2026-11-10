@@ -1,8 +1,10 @@
 // Milestone 23: design-wide joint kinds.
 import { describe, expect, it } from 'vitest';
-import { addDivider, addRootPanel, addTray, autoConnect, createDesign, growPanel, setAllJoints, setConnection, setDefaultFlap, solve } from '../src/model/ops';
+import { addDivider, addRootPanel, addTray, autoConnect, createDesign, growPanel, setAllJoints, setConnection, setDefaultFlap, setMaterial, solve } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
-import { groupKinds, groupShown, jointGroup, dividerKind } from '../src/model/jointDefaults';
+import { groupKinds, groupShown, jointGroup, dividerKind, inactiveChoice } from '../src/model/jointDefaults';
+import { changeMaterial, generate, templateById } from '../src/templates/registry';
+import { migrateDesign } from '../src/model/serialize';
 import { growKind } from '../src/store/store';
 import { panelExtras } from '../src/model/geometry';
 import { validate } from '../src/model/validate';
@@ -58,7 +60,7 @@ describe('setAllJoints', () => {
     const r = setAllJoints(d, 'base', 'tabslot');
     expect(r).toEqual({ changed: 4, kept: 0 });
     expect(grown(d).every((c) => c.kind === 'tabslot' && c.pref === 'tabslot' && c.offset >= 3)).toBe(true);
-    expect(d.joints).toEqual({ base: 'tabslot' });
+    expect(d.joints).toEqual({ plywood: { base: 'tabslot' } });
     autoConnect(d);
     expect(conns(d).some((c) => c.broken)).toBe(false);
     expect(validate(d)).toEqual([]);
@@ -179,8 +181,74 @@ describe('saving', () => {
     setAllJoints(d, 'corner', 'tabslot');
     setDefaultFlap(d, 12);
     const back = parseProject(serializeProject(d));
-    expect(back.joints).toEqual({ corner: 'tabslot', flap: 12 });
+    expect(back.joints).toEqual({ plywood: { corner: 'tabslot', flap: 12 } });
     solve(back);
     expect(corners(back).every((c) => c.kind === 'tabslot')).toBe(true);
+  });
+});
+
+describe('milestone 26: one set of choices per material kind', () => {
+  const CORR = MATERIALS[1];
+  it('plywood corners → tabs and slots; card keeps its own; switching back restores each', () => {
+    const { d } = box();
+    setAllJoints(d, 'corner', 'tabslot');
+    expect(corners(d).every((c) => c.kind === 'tabslot')).toBe(true);
+    // to card: the plywood choice is kept, card corners take card's default (tabs and slots are allowed on card too, but were not chosen there)
+    setMaterial(d, CARD);
+    expect(d.joints).toEqual({ plywood: { corner: 'tabslot' } });
+    expect(groupShown(d, 'corner')).toBe(corners(d)[0].kind);
+    // card corners → glue
+    setAllJoints(d, 'corner', 'glue');
+    expect(corners(d).every((c) => c.kind === 'glue')).toBe(true);
+    expect(d.joints).toEqual({ plywood: { corner: 'tabslot' }, card: { corner: 'glue' } });
+    // back to plywood: tabs and slots again
+    setMaterial(d, PLY);
+    expect(corners(d).every((c) => c.kind === 'tabslot')).toBe(true);
+    expect(groupShown(d, 'corner')).toBe('tabslot');
+    // back to card: glue again
+    setMaterial(d, CARD);
+    expect(corners(d).every((c) => c.kind === 'glue')).toBe(true);
+    expect(inactiveChoice(d, 'corner')).toBeNull();
+  });
+
+  it('a choice another material keeps, not allowed here, is named for the card', () => {
+    const { d } = box();
+    setAllJoints(d, 'corner', 'finger');
+    setMaterial(d, CARD);
+    expect(inactiveChoice(d, 'corner')).toEqual({ kind: 'finger', used: groupShown(d, 'corner'), material: 'plywood' });
+    // a choice of card's own clears it
+    setAllJoints(d, 'corner', 'glue');
+    expect(inactiveChoice(d, 'corner')).toBeNull();
+  });
+
+  it("the material's own choice that fits none of its joints is named too", () => {
+    const d = createDesign(CARD);
+    const b = addRootPanel(d, 0, 0, 60, 40);
+    growPanel(d, b, 0, { height: 30, angle: 60, dir: 'up', kind: 'fold' });
+    d.joints = { card: { base: 'tabslot' } };
+    expect(groupKinds(d, 'base')).not.toContain('tabslot');
+    expect(inactiveChoice(d, 'base')).toEqual({ kind: 'tabslot', used: 'fold', material: null });
+  });
+
+  it("an older flat set of choices loads into the file material's slot", () => {
+    const { d } = box(CORR);
+    const raw = JSON.parse(serializeProject(d)).design;
+    raw.joints = { corner: 'tabslot', flap: 9 };
+    const back = migrateDesign(raw);
+    expect(back.joints).toEqual({ corrugated: { corner: 'tabslot', flap: 9 } });
+    expect(corners(back).every((c) => c.kind === 'tabslot')).toBe(true);
+  });
+
+  it("a template keeps every material's choices through a material change", () => {
+    const tpl = templateById('organiser')!;
+    let d = generate(tpl, PLY, Object.fromEntries(tpl.params.map((p) => [p.key, p.default])));
+    setAllJoints(d, 'corner', 'tabslot');
+    d = changeMaterial(d, CORR).design;
+    expect(d.joints).toEqual({ plywood: { corner: 'tabslot' } });
+    setAllJoints(d, 'corner', 'glue');
+    d = changeMaterial(d, PLY).design;
+    expect(corners(d).every((c) => c.kind === 'tabslot')).toBe(true);
+    d = changeMaterial(d, CORR).design;
+    expect(corners(d).every((c) => c.kind === 'glue')).toBe(true);
   });
 });

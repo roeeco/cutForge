@@ -4,13 +4,15 @@
 import { useEffect } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
-import { MATERIALS } from '../model/materials';
-import { setMaterial, solve } from '../model/ops';
+import { MATERIALS, materialsInUse, mixedMaterials } from '../model/materials';
+import { materialName } from './materialName';
+import { editMaterial, setMaterial, solve } from '../model/ops';
 import { changeMaterial } from '../templates/registry';
 import type { Design, MaterialProfile } from '../model/types';
 import { fmtNum } from '../i18n';
 import { Icon } from './icons';
 import { MaterialArt } from './MaterialArt';
+import { useFeature } from '../easy/features';
 
 /** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
 export function useMaterialEdit() {
@@ -47,7 +49,10 @@ export function MaterialDrawer() {
       apply((dd) => void Object.assign(dd, JSON.parse(JSON.stringify(r.design))));
     } else apply((dd) => setMaterial(dd, mat));
   };
-  const setM = useMaterialEdit();
+  const setM0 = useMaterialEdit();
+  // Quick build: the material can be changed; its kerf, clearance and sheet are shown, not changed
+  const ro = useFeature('drawer') === 'readonly';
+  const setM = (patch: Parameters<typeof setM0>[0]) => !ro && setM0(patch);
   return (
     <>
       <div className="drawer-back" onClick={close} />
@@ -58,6 +63,7 @@ export function MaterialDrawer() {
             <Icon name="close" />
           </button>
         </div>
+        {mixedMaterials(d) && <p className="note" data-testid="drawer-working-note">{t('drawer.workingNote')}</p>}
         <div className="mats" role="radiogroup" aria-label={t('top.material')}>
           {MATERIALS.map((x) => (
             <button key={x.id} role="radio" aria-checked={base?.id === x.id} className={`mat-mini ${base?.id === x.id ? 'on' : ''}`} onClick={() => base?.id !== x.id && choose(x)} data-testid={`drawer-mat-${x.id}`}>
@@ -75,6 +81,7 @@ export function MaterialDrawer() {
           {m.kind !== 'plywood' && <NumField label={t('mat.foldAllowance')} value={m.foldAllowance} decimals={2} unit={mm} min={0} max={20} onCommit={(v) => setM({ foldAllowance: v })} />}
           <p className="note">{t('mat.calibrate')}</p>
         </div>
+        <MaterialsInUse />
         <div className="subsection">
           <h4>{t('drawer.sheet')}</h4>
           <NumField label={t('mat.sheetW')} value={m.sheetW} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetW: v })} />
@@ -90,5 +97,29 @@ export function MaterialDrawer() {
         </div>
       </aside>
     </>
+  );
+}
+
+/** Every other material the design's boards use, with their board counts; their kerf and clearance can be edited here. */
+function MaterialsInUse() {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const mm = t('unit.mm');
+  const others = materialsInUse(d).filter((m) => !m.working);
+  if (!others.length) return null;
+  const working = materialsInUse(d)[0];
+  return (
+    <div className="subsection" data-testid="drawer-in-use">
+      <h4>{t('drawer.inUse')}</h4>
+      <p className="note">{t('drawer.inUseRow', { name: `${materialName(t, d.material)} (${t('drawer.working')})`, n: working.count })}</p>
+      {others.map((m) => (
+        <div className="mat-row" key={m.id} data-testid={`drawer-mat-row-${m.id}`}>
+          <strong>{t('drawer.inUseRow', { name: materialName(t, m.profile), n: m.count })}</strong>
+          <NumField label={t('mat.kerf')} value={m.profile.kerf} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => apply((x) => editMaterial(x, m.id, { kerf: v }))} testId={`drawer-kerf-${m.id}`} />
+          <NumField label={t('mat.clearance')} value={m.profile.clearance} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => apply((x) => editMaterial(x, m.id, { clearance: v }))} testId={`drawer-clearance-${m.id}`} />
+        </div>
+      ))}
+    </div>
   );
 }

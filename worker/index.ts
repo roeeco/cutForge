@@ -152,6 +152,9 @@ async function siteGate(req: Request, env: Env, url: URL): Promise<Response | nu
   return loginPage(safeNext(url.pathname + url.search), false, 401);
 }
 
+/** A mission's goals met and in all, when both are small whole numbers that make sense. */
+const goals = (met: unknown, total: unknown): { goalsMet?: number; goalsTotal?: number } =>
+  Number.isInteger(met) && Number.isInteger(total) && (total as number) > 0 && (total as number) <= 20 && (met as number) >= 0 && (met as number) <= (total as number) ? { goalsMet: met as number, goalsTotal: total as number } : {};
 const clean = (s: unknown, max: number) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, '').trim().slice(0, max) : '');
 
 export default {
@@ -179,13 +182,13 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if ((m = /^\/api\/class\/([A-Za-z0-9]{4,10})$/.exec(p)) && M === 'GET') {
     const c = await db.select().from(classes).where(eq(classes.code, m[1].toUpperCase())).get();
     if (!c) return err(404, 'noClass');
-    return json({ name: c.name, open: c.open, material: c.material ? JSON.parse(c.material) : null });
+    return json({ name: c.name, open: c.open, material: c.material ? JSON.parse(c.material) : null, mode: c.mode ?? null, modeLocked: !!c.modeLocked, missions: c.missions ? JSON.parse(c.missions) : null });
   }
   if ((m = /^\/api\/class\/([A-Za-z0-9]{4,10})\/submit$/.exec(p)) && M === 'POST') {
     const c = await db.select().from(classes).where(eq(classes.code, m[1].toUpperCase())).get();
     if (!c) return err(404, 'noClass');
     if (!c.open) return err(403, 'closed');
-    const b = await body<{ displayName: string; deviceId: string; title: string; project: string; preview: string }>(req, LIMITS.projectBytes + LIMITS.previewBytes + 4096);
+    const b = await body<{ displayName: string; deviceId: string; title: string; project: string; preview: string; goalsMet?: number; goalsTotal?: number }>(req, LIMITS.projectBytes + LIMITS.previewBytes + 4096);
     if (!b) return err(413, 'tooLarge');
     const name = clean(b.displayName, LIMITS.nameChars), device = clean(b.deviceId, 64), title = clean(b.title, LIMITS.titleChars) || '—';
     if (!name || !/^[\w-]{8,64}$/.test(device)) return err(400, 'badRequest');
@@ -219,6 +222,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       materialKind: design.material.kind,
       thickness: Math.round(design.material.thickness * 1000),
       pieceCount: pieceCopies(design).length,
+      // the mission the design was started from, and its goals met as the student's app counted them (milestone 40)
+      ...(design.mission ? { mission: clean(design.mission.id, 40), ...goals(b.goalsMet, b.goalsTotal) } : {}),
       projectKey,
       previewKey,
       createdAt: Date.now(),
@@ -243,7 +248,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (p === '/api/teacher/classes' && M === 'GET') {
     const rows = await db.select().from(classes).orderBy(desc(classes.createdAt)).all();
     const counts = await db.select({ classId: submissions.classId, n: sql<number>`count(*)`, fresh: sql<number>`sum(case when status = 'new' then 1 else 0 end)` }).from(submissions).where(eq(submissions.superseded, false)).groupBy(submissions.classId).all();
-    return json(rows.map((c) => ({ ...c, material: c.material ? JSON.parse(c.material) : null, submissions: counts.find((x) => x.classId === c.id)?.n ?? 0, fresh: counts.find((x) => x.classId === c.id)?.fresh ?? 0 })));
+    return json(rows.map((c) => ({ ...c, material: c.material ? JSON.parse(c.material) : null, missions: c.missions ? JSON.parse(c.missions) : null, submissions: counts.find((x) => x.classId === c.id)?.n ?? 0, fresh: counts.find((x) => x.classId === c.id)?.fresh ?? 0 })));
   }
   if (p === '/api/teacher/classes' && M === 'POST') {
     const b = await body<{ name: string }>(req, 2000);
@@ -252,7 +257,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     for (let i = 0; i < 5; i++) {
       const code = newClassCode();
       if (await db.select().from(classes).where(eq(classes.code, code)).get()) continue;
-      const row = { id: randomId('c_'), code, name, open: true, material: null, createdAt: Date.now() };
+      const row = { id: randomId('c_'), code, name, open: true, material: null, mode: null, modeLocked: false, missions: null, createdAt: Date.now() };
       await db.insert(classes).values(row);
       return json(row, 201);
     }
@@ -261,13 +266,18 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if ((m = /^\/api\/teacher\/classes\/(c_[0-9a-f]+)$/.exec(p))) {
     const id = m[1];
     if (M === 'PATCH') {
-      const b = await body<{ open?: boolean; name?: string; material?: unknown }>(req, 20000);
+      const b = await body<{ open?: boolean; name?: string; material?: unknown; mode?: string | null; modeLocked?: boolean; missions?: string[] | null }>(req, 20000);
       if (!b) return err(400, 'badRequest');
       const patch: Partial<typeof classes.$inferInsert> = {};
       if (typeof b.open === 'boolean') patch.open = b.open;
       if (typeof b.name === 'string' && clean(b.name, 60)) patch.name = clean(b.name, 60);
       if (b.material === null) patch.material = null;
       else if (b.material && typeof b.material === 'object') patch.material = JSON.stringify(b.material).slice(0, 5000);
+      // Quick build (milestones 37, 40): the class's default mode, locked or not, and the missions it offers
+      if (b.mode === null || b.mode === 'quick' || b.mode === 'workshop') patch.mode = b.mode;
+      if (typeof b.modeLocked === 'boolean') patch.modeLocked = b.modeLocked;
+      if (b.missions === null) patch.missions = null;
+      else if (Array.isArray(b.missions)) patch.missions = JSON.stringify(b.missions.filter((x) => typeof x === 'string').slice(0, 50).map((x) => x.slice(0, 40)));
       await db.update(classes).set(patch).where(eq(classes.id, id));
       return json({ ok: true });
     }

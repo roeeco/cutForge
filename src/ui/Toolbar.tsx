@@ -5,6 +5,8 @@ import { importSvg } from '../io/svgImport';
 import { addPathShape, findDetail } from '../model/ops';
 import type { MsgKey } from '../i18n';
 import { Icon } from './icons';
+import { shown, useFeature } from '../easy/features';
+import { QuickRail } from '../easy/QuickRail';
 
 const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolean }[] = [
   { id: 'select', key: 'tool.select', icon: 'select', kbd: 'V' },
@@ -30,7 +32,12 @@ function targetPanel(): string | null {
   return null;
 }
 
+/** The tool rail: Workshop's tools, or Quick build's five actions (milestone 37). */
 export function Toolbar() {
+  return shown(useFeature('rail.tools')) ? <WorkshopRail /> : <QuickRail />;
+}
+
+function WorkshopRail() {
   const t = useT();
   const tool = useStore((s) => s.tool);
   const view = useStore((s) => s.view);
@@ -49,8 +56,13 @@ export function Toolbar() {
     // fit into 40% of the panel, keeping proportions
     const k = (Math.min(p.w, p.h) * 0.4) / Math.max(r.w, r.h);
     let id: string | null = null;
+    s.cancelPending();
     s.apply((d) => void (id = addPathShape(d, panelId, r.polys, p.w / 2, p.h / 2, r.w * k, r.h * k, s.shapeOp)));
-    if (id) s.select(detailSel([id]));
+    if (id) {
+      // a ghost until ✓ (milestone 30)
+      s.select(detailSel([id]));
+      s.beginPending({ kind: 'shape', ids: [id], panelId });
+    }
     const notes = r.problems.filter((x) => x === 'openDropped' || x === 'simplified');
     if (notes.length) alert(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
   };

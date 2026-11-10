@@ -107,6 +107,33 @@ const P: Record<string, ReactElement> = {
   lean: <path d="M4 19h16M6 19 16 6M14.5 19V9" />,
   slide: <path d="M4 16h16M8 16V6M12 10l4 0M14 8l2 2-2 2" />,
   butt: <path d="M4 12h7M13 12h7M12 6v12" />,
+  // Quick build's five actions (milestone 37)
+  box: (
+    <>
+      <path d="M3.5 9.5 12 6l8.5 3.5v7L12 20l-8.5-3.5z" />
+      <path d="M3.5 9.5 12 13l8.5-3.5M12 13v7" />
+    </>
+  ),
+  wall: (
+    <>
+      <path d="M3.5 17.5 12 21l8.5-3.5" />
+      <path d="M12 21V10l8.5-3.5v11" />
+      <path d="M12 10 9 4" strokeDasharray="2 2" />
+    </>
+  ),
+  divider: (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="1.5" />
+      <path d="M10 5v14M10 12h10.5" />
+    </>
+  ),
+  hole: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+      <circle cx="12" cy="12" r="3.8" />
+    </>
+  ),
+  sticker: <path d="m12 4 2.4 5 5.4.7-4 3.7 1 5.4L12 16.2 7.2 18.8l1-5.4-4-3.7 5.4-.7z" />,
 };
 
 export function Icon({ name, size }: { name: string; size?: number }) {

@@ -521,7 +521,7 @@ Remaining limitations (milestones 21–24)
 - The gizmo ring in a grazing view still measures the screen angle about its centre, which is hard to use when the ring is seen edge-on.
 - A design-wide kind that the current material does not allow (fingers after switching to card) is remembered but unused until the material allows it again; the list then shows the kind most joints have.
 - The settings card is taller than a short stage and scrolls inside the card dock.
-- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4 (milestones 25–27).
+- Plans for the last three: `GIZMO_JOINTS_FLAPS.md` §4; done in milestones 25–27 (below).
 
 ## Follow-up — snapping toggles, add ghosts, outline snapping and curves ✅
 
@@ -540,6 +540,278 @@ Remaining (follow-up)
 - Curves are auto only: no handles to shape them yet (`curve` leaves room for `'bezier'`). Exports carry the flattened curve (segments within 0.02 mm), not true curves.
 - An auto curve can bulge well past its points (e.g. a curve at a rectangle's corner pushes the next edge outward); there is no check that a curve crosses another edge of the outline.
 - The grow ghost's outline handles (*Edit outline* on the ghost) do not snap to corners and edges yet.
+
+## Milestone 25 — The gizmo ring seen edge-on ✅
+
+Implemented (`Gizmo` in `src/views/widgets.tsx`, `src/views/grazing.ts`)
+- When the ring's plane is within 20° of edge-on (`grazingRing`, the same threshold as the pad), a camera-facing ring of the same screen radius (64 px) replaces the flattened one, in a lighter amber, with the turn's axis drawn as a short line through the centre. Dragging around it measures the screen angle as before.
+- Positive stays counter-clockwise seen from the normal's side: the sign is taken from the camera's side at pointer-down (exactly edge-on: the normal's side).
+- **Dead zone:** pointer positions within 12 px of the centre (`RING_DEAD_PX`) hold the turn; when the pointer comes out, the turn carries on from there, so passing over the centre does not flip it by 180°. This applies in every view.
+- Typed angles, Shift for 1° and Alt for free turning are unchanged.
+
+Verified
+- `tests/grazing.test.ts`: `grazingRing` is true within 20° of edge-on (0°, 5°, ±19.5°) and false at 25°, 60° and 90°, whatever the vectors' lengths or the normal's sign.
+- `tests/e2e/gizmo.spec.ts`: with the camera 5° from a wall's plane, 32° around the screen-facing ring turns the shape 30°; a drag straight across the centre turns nothing, and 47° on from there gives 45°, not 225°.
+
+## Milestone 26 — Joint choices per material ✅
+
+Implemented (`src/model/jointDefaults.ts`, `setMaterial` / `applyJointChoices` in `ops.ts`, `regenerate` in `src/templates/registry.ts`, `src/ui/DesignSettings.tsx`)
+- `Design.joints` is now one set of choices per material kind: `{ plywood?: { base?, corner?, flap? }, card?: {…}, corrugated?: {…} }`. `jointsOf(d)` reads the current material's; `setAllJoints` and `setDefaultFlap` write it (`patchJoints`); empty sets and an empty `joints` are removed, so a design without choices saves exactly as before.
+- Older files with the flat form are read into the file's material slot (`normalizeJoints`, run by `solve`, so on load too). No schema bump.
+- Changing the material kind (`setMaterial`, so the drawer, the class profile and the settings card; template regeneration too) re-applies the new material's stored choices to every joint. A switch to card and back to plywood restores the plywood choices exactly; card keeps its own.
+- **The note:** when a group's list cannot show a choice, a note under it says why (`joints-<group>-inactive`):
+  - another material's choice kept for later: *Finger joint does not work on card: these joints use Fold. Your choice comes back if you switch to plywood again.*
+  - the current material's own choice fits none of its joints (angle or type): *Tabs and slots does not fit any of these joints (their angle or type): they use Fold.*
+
+Verified
+- `tests/jointdefaults.test.ts`: plywood corners set to tabs and slots, then card (plywood's choice kept, card on its own), card corners glue, back to plywood (tabs and slots again), back to card (glue again); the notes for another material's and the current material's choice; a flat-form file loads into its material's slot and applies; the organiser template keeps every material's choices through material changes. Existing tests now expect the per-material form.
+- `tests/e2e/settings.spec.ts`: fingers on plywood corners, the drawer switched to card: the note names Finger joint, card, the kind in use and plywood; back to plywood, fingers are chosen again and the note is gone.
+
+## Milestone 27 — A settings card that fits a short stage ✅
+
+Implemented (`src/ui/DesignSettings.tsx`, `TemplateSection` in `src/ui/TemplateUI.tsx`, `ViewPrefs.sections` in `src/store/store.ts`)
+- *Template*, *Joints*, *Material and fit* and *Snapping* are collapsible sections (`settings-head-<section>`), each closed header summing up what is set on a second line (`settings-sum-<section>`): *Organiser with dividers · 160 × 110 × 45 mm*, *Slide fit · Glue flap*, *Corrugated 1.6 mm · clearance 0.2*, *Smart · Grid 1 mm · 15°*.
+- Which sections are open is saved per viewer with the view options (`viewPrefs.sections`) as soon as one is opened or closed.
+- **Until then:** the template's sizes and *Joints* start open, and the others closed. *Joints* starts closed on a stage shorter than 700 px, or when the card would scroll with it open; this is checked when the stage changes size and for each new design or template, not when the content grows (it would close while being used).
+- The long joints help became the short note's tooltip (*Changes every joint, also new ones.*), and the template note in the card is shortened the same way.
+
+Verified (`tests/e2e/settings.spec.ts`, at 1366 × 768)
+- A blank design: *Joints* open, the others closed, the card does not scroll, and the closed headers show the material and snapping summaries. Opening *Snapping*, changing a toggle and reloading keeps it open; the summary follows the setting.
+- The organiser: its sizes open, *Joints* closed to make room; with the sizes closed the card does not scroll.
+- The existing settings tests open the sections they use.
+
+Remaining (milestones 25–27)
+- A long template (the organiser's eight sizes) still makes the card scroll on a Chromebook while its sizes are open; its sizes were kept open by default because they are what a template is for.
+- The flat-ring/proxy switch happens at 20°: moving the camera across it swaps the ring mid-view.
+
+## Milestone 28 — Placed and construction panels (model) ✅
+
+Implemented (`src/model/place.ts`; `addPlacedPanel`, `movePlaced`, `rotatePlaced`, `placedCentre`, `rehost`, `setConstruction` in `ops.ts`)
+- `Panel.place?: { host, face, x, y, rot, pose, side? }`: on the floor (`host: null`, the floor's coordinates as floor panels: x along world X, y along world −Z) or a face of another panel (`face` 1: its material side, −1: its plane), flat (the panel's origin and its u axis turned by `rot` in the host's plane) or standing (its bottom line from (x, y) along `rot`, rising out of the face; `side` says which side of the line its material is on). Floor panels without `place` are unchanged (schema 8 needs no conversion).
+- `solve` derives a placed panel's frame from its host's (`placeFrame`) in the same pass as grown frames (hosts first, so a panel can sit on a grown wall and panels can sit on placed panels); a cycle is refused (`placeCycle`). The fold view carries placed panels with their host.
+- Moving, turning and `normalizeSketch` work in the host's plane for placed panels (`movePanel`/`rotatePanel` carry floor moves into it; `panelYaw` is the place's turn).
+- Deleting a host drops the panels placed on it to the floor (`dropToFloor`): flat stays flat with its centre where it was seen from above, standing stays standing with its bottom line where it was; panels placed on *them* keep following them.
+- Joints: a standing placed panel is an edge on a face (`connectSeams`, the design's *Wall to base* kind: tabs and slots on plywood); a flat one is not joined to its host and is not reported as touching it (`flatOnHost`, seams and contacts).
+- `Panel.construction` on a net's root (`constructionSet`: grown panels inherit it): left out of seams and automatic joints, contacts, validation, through-cuts (neither cuts nor is cut), fold nets, pieces, packing, export and the cut plan; its own grown connections carry no joint. It stays a snap target, a host and a grow parent. `setConstruction` marks the net's root (removing its joints) or makes it real again (joining it).
+
+Verified (`tests/placed.test.ts`)
+- **A flat panel and a standing shelf on a wall keep their place on it when the base moves and turns and when the wall grows**; in the fold view they ride with it.
+- **Deleting the host drops them to the floor in place**: flat on the floor with the same centre seen from above, standing on the floor on the same line; a panel placed on the dropped one keeps following it.
+- **A standing panel on a plywood base gets tab-and-slot (slots in the base), its bottom on the face; a flat one makes no joint and the export check is clean** (three pieces).
+- **A construction box is missing from pieces and export, makes no joints, is still a snap target; switched real it gets its four corners and six pieces.** A panel placed on a construction panel is real and not joined to it. Saving keeps `place` and `construction`; designs without them save neither.
+
+## Milestone 29 — The Panel tool on faces, as a ghost ✅
+
+Implemented (`src/views/panelTool.tsx`; `faceTargets`, `snapOnFace` in `snap.ts`; `PlacedGizmo` and the `ghost-draw` / `placed-move` drags in `View3D.tsx`; `src/ui/PlacedUI.tsx`; `setPlacedPose` in `ops.ts`; `panelGhost`, `panelPose`, `standHeight` in the store)
+- With the Panel tool the face under the pointer is outlined (`FaceHover`; which face from the hit's depth in the slab, `faceAt`). Dragging on it, or on the floor, draws a ghost in that face's plane: a rectangle lying flat on it, or (Standing) a line with a wall standing on it at the last height used (40 mm the first time).
+- Points snap (`faceTargets`): the host's corners, edge midpoints, centre and shapes; panels already lying on that face; and where each face of a panel standing on or through the face crosses it, so a partition drawn wall to wall ends exactly on both walls' inner faces. Alt or smart snapping off: the grid.
+- After release the ghost waits: its corners (or line ends) can be dragged, W and H typed on the stage, a standing ghost's height pushed or typed and its material side flipped (`ghost-flip`). The ghost bar (`panel-ghost-bar`): Flat | Standing, Construction, ✓ (Enter), ✕ (Esc). ✓ makes it (a floor panel when flat on the floor, else a placed panel, joined as milestone 28 describes), selects it and returns to Select; choosing another tool or selecting something drops it.
+- A selected placed panel's gizmo moves it in its host's plane (its footprint's corners snapping to the face's targets) and turns it about the host's normal; dragging the panel itself moves it in that plane. Its card says what it is on (*On panel 3, inner face*; top/underside on a floor panel), switches Flat/Standing, and every panel's card has *Construction* (its net becomes a guide).
+
+Verified (`tests/e2e/boards.spec.ts`)
+- **A flat panel drawn on a wall's inner face snaps to the wall's corner**: placed at (0, 20), 30 × 20, on face 1; it is selected, the card reads *inner face*, and the tool is back on Select.
+- **A standing line drawn across a box from just inside one side wall to just inside the other lands on both walls' inner faces (x 3 and 77), the typed height is 25, ✓ joins it to the base and both walls with tabs and slots, each with slots.**
+- Esc drops the ghost and leaves the design as it was. The older specs that draw panels press ✓ after drawing.
+
+## Milestone 30 — One floating ✓ everywhere ✅
+
+Implemented (`ConfirmBar`, `PendingBar`, `PendingBarHtml` in `panelTool.tsx`; `pending`, `beginPending`, `confirmPending`, `cancelPending` in the store; `doGrow`, `growOverlap`, `ownGrowKind` in `views/ghost.ts`)
+- One floating bar (✓ / ✕, Enter / Esc, ignored while typing in a field) next to every ghost, in the look of the grow pill.
+- **Grow**: the ghost carries the bar (`grow-ghost-bar`, its ✓ keeps the `grow-go` id); *Grow panel* left the card, which keeps angle, height, span, joint and adapt. A fold whose net would overlap when flat (milestone 35) turns the ghost amber, names the panels and offers *Cut it as its own piece* (`grow-own`: the wall-to-base kind if it is not a fold, else glue on card, tabs on corrugated).
+- **Extrude**: the tray ghost carries the bar (`extrude-go`, `extrude-cancel`); *Add walls* left the card.
+- **Shapes** (rectangle, rounded rectangle, circle, polygon after closing, text, imported SVG, and a polygon floor panel), in 3D, the face-on view and the cut plan: what the tool made waits for ✓ while its handles, sizes and Add/Cut/Engrave/Score can still change. ✓ keeps everything since it was made as **one undo step** and returns to Select; ✕, Esc, undo, another tool, selecting something else or starting another drawing take it away again (the design and history from before it). The grow joint now follows the parent board's material (`growKind`).
+
+Verified (`tests/e2e/boards.spec.ts`)
+- **A rectangle drawn, resized in its card, then ✓: one undo step more than before, Select on; undo removes it and redo brings it back. ✕, Esc and choosing another tool each leave the design as it was; a text placed and confirmed with Enter.**
+- Grow is confirmed on the stage in one undo step and the card's button is gone; a rectangle drawn in the cut plan waits for ✓.
+- The older specs (editing, flow, polygon, shapes, slice, templates, text and SVG, through-cuts, trays) press ✓ where they draw; the whole app suite passes (52 specs).
+
+## Milestone 31 — Selecting and arranging boards ✅
+
+Implemented (`src/model/arrange.ts`; `selectedPanelIds`, `panelSel`, `clickPanel` in the store; `GroupGizmo` in `View3D.tsx`; `src/ui/MultiPanel.tsx`)
+- A panel selection holds every selected panel (`{ kind: 'panel', id, ids }`); Shift-click (or Ctrl, Cmd on a Mac) adds or removes a panel, in 3D and on the cut plan. It replaces the Shift-click face pick and the display-only `also` (an export-check message about two panels selects both).
+- With several panels selected the card (`inspector-multi-panel`) aligns them (left, centre, right, top, middle, bottom) and distributes them (equal gaps or equal centre spacing, the outer two staying put) when they share a surface (`commonPlane`): floor panels, or panels placed on the same face (in its plane, by their footprints there). Otherwise the buttons are greyed with the reason (*These panels are not on the same surface*). The material list sets them all (milestone 36).
+- Several parallel dividers grown from the same edge of one base get *Equal compartments* (`distributeDividers`) between their outermost neighbours (the walls' inner faces or the next dividers).
+- The group gizmo (and dragging one of the group) moves several floor panels, or several panels placed on one face, together.
+
+Verified
+- `tests/arrange.test.ts`: floor panels distributed with equal gaps (the outer two in place), aligned on their tops and left edges; panels placed on one face aligned and spaced in its plane, a mix refused; three dividers in equal compartments between the walls.
+- `tests/e2e/boards.spec.ts`: Shift-click three floor panels, distribute them, undo restores them; Shift-click takes one out again.
+
+## Milestone 32 — Dividers, one manual way ✅
+
+Implemented (`wallPicks`, `planDividerFor`, `addDividerFor` in `ops.ts`; `DividerButton` in `View3D.tsx`)
+- With two walls selected (a divider counts as a wall) a floating **+ Divider** button (`add-divider`) sits between them. It reuses `planDividerBetween` with each wall's face towards the other, and puts the divider halfway along the stretch where the two walls overlap (not at a click); its height is the lower wall's top less `DIVIDER_GAP`, its ends are joined to both walls, and it crosses other dividers with half-laps. When no divider fits it is greyed with the reason (`add-divider-why`, the `div.why.*` texts).
+- Selecting a wall shows *Shift-click the wall opposite to add a divider between them.* Dragging a divider (its arrow, snapping to equal compartments) and the clickable compartment sizes are as before.
+- Removed: `DividerSet`, `reconcileDividerSets`, `setDividerSet`, `releaseDivider`, `respaceDividers`, `canDividerSet`, `dividerSetOf`, `memberOf`; the card's *Add a divider* section (automatic and *One divider*); the `facePick` state, its Shift-click and the *Divider between* pill; their strings. `addDivider` stays for the organiser template.
+- Older files: the schema 8 migration drops `dividerSets`; every member stays where it is as an ordinary divider with its id and joints.
+
+Verified
+- `tests/dividers.test.ts`: in plywood, card and corrugated boxes, + Divider between the left and right walls is centred along them, below the lower wall's top, joined to both, with a clean check; walls that are not parallel are refused with the reason; **a v7 file with a 2 × 1 set keeps every member and exports the same file** after migration. The face-to-face divider and drag-snapping tests are kept.
+- `tests/e2e/refine.spec.ts` (plywood and corrugated 4 mm): click a wall (the hint), Shift-click the opposite one, + Divider: centred and joined to both; dragged away and back it snaps to the equal-compartment position; a wall and a wall at right angles to it give a greyed button with the reason. `joints.spec.ts` makes its two crossing dividers with + Divider.
+
+## Milestone 33 — Copy and paste shapes ✅
+
+Implemented (`clipboard`, `copyShapes`, `pasteShapes`, `movePaste`, `pasting`, `pointerHit` in the store; Cmd/Ctrl+C and +V in `hooks.ts`)
+- Cmd/Ctrl+C copies the selected shapes (their details with op, rotation, arrays and through-cut, laid out around their common centre). The clipboard is in the app, so it survives switching views but not a reload.
+- Cmd/Ctrl+V pastes them onto the panel under the pointer (3D, the face-on view and the cut plan), centred there on the grid and snapped by the group's box to that panel's targets, as a ghost that follows the pointer (laid out again on the design from before the paste, so no history while it moves) until a click puts it down; then it waits for ✓ like any ghost (milestone 30): one undo step. With nothing under the pointer it goes on the last selected panel's centre. Shapes partly off the panel are kept, and the export check says so as usual.
+
+Verified
+- `tests/e2e/boards.spec.ts`: **two shapes copied from the base and pasted onto the back wall keep their layout and are centred on the wall** (the pointer a hair off its centre); one undo step removes the paste and leaves the originals.
+- `tests/store.test.ts`: with nothing under the pointer the paste is centred on the last selected panel, keeps its layout and a through-cut; ✓ is one undo step; ✕ leaves the design as it was.
+
+## Milestone 35 (engine) — Nets that lie flat ✅
+
+Implemented (`src/model/flatnet.ts`; `netOverlaps`, `flatPanel`, `netFolds`, `cornerFoldXform` in `pieces.ts`; `Tray.flat`, `fixes`, `fixPlan`, `pin` in `types.ts`)
+- `netOverlaps(d)`: every fold net flattened panel by panel (outline with joints, plus flaps, fold-over rim and liner) and intersected pair by pair; overlaps over 0.5 mm² with their area and region. The export check reports them (`val.netOverlap`, both panels selected when clicked); the cut plan draws the region in red on the piece, and the 3D view on the net's root plane while it is unfolded.
+- `fixFlatNets` runs at the end of `solve` for trays on card and corrugated (`Tray.flat`, `auto` by default). For each overlap, largest first, the first fix that clears it is kept and the design is solved again:
+  1. **trim**: a corner glue flap between the two walls is clipped along the other wall's side edge, 1 mm short of it, flat and folded alike; if its average width falls below the minimum flap (half the automatic width) the flap moves to the corner's other wall.
+  2. **hinge**: the giving-way wall folds off its other neighbour across a convex corner (that corner becomes a fold, `Connection.hingeOf`; the wall is cut back by the corner, unfolds in line with the neighbour in the net, `cornerFoldXform`, with a fold strip and score) and is glued to the base along its bottom. Kept only when it then overlaps nothing (or the student pinned it). The fold view turns it with its neighbour.
+  3. **own**: the wall leaves the net and joins the base with the design's wall-to-base kind for its material (glue on card, tabs and slots on corrugated when that kind is a fold).
+- Which wall gives way: against the base, the wall; between walls, the shorter, or the later in the base's edge order. At an inside corner the giving-way wall is also the one that closes the corner (`fixPlan.extOn` moves the corner extension to it), so the other stays clear of the base. `Tray.pin` (the tray card's per-wall choice: automatic, fold off its neighbour, own piece, the other wall gives way) overrides.
+- `fixes` and `fixPlan` are re-made on every solve (stable ids, so shapes stay on their wall); a tray wall's offset now follows its joint (`defaultOffset`), and the tab-and-slot offset keeps the slot web at the material's minimum after the slot grows by half the clearance (corrugated 1.6 tab-and-slot walls were 0.1 mm short of it before).
+- `flatHeight` (`trayFlatInfo`): the tallest wall height at which the net lies flat in one piece (no wall cut as its own piece; trims and hinges keep it whole), by binary search in 0.5 mm steps on a copy of the base alone (kept per base, so a new height costs one solve); Infinity when any height does. The extrude ghost marks it on the walls (`flat-tick`), its arrow snaps to it within 2 mm, and walls that would be changed are drawn amber. The extrude and tray cards say what changes (`flat-own`: *Above 50 mm, wall 5 is cut as its own piece so the net lies flat.*, `flat-hinge`, `flat-trim`); the tray card offers *Lower to …* (`flat-lower`) and *Keep in one piece* (`flat-keep`, `Tray.flat = 'off'`), and back (`flat-auto`).
+
+Verified
+- `tests/flatnet.test.ts`: **rectangle, triangle, hexagon, octagon and L bases × card, corrugated 1.6 and 4 mm × 20, 40 and 80 mm walls all lie flat after `solve`** (`netOverlaps` empty, no joint broken, no `val.netOverlap`); **the L tray hinges its closing wall at 20 mm (one piece) and cuts it as its own piece at 80 mm (two pieces)** in all three materials; **the octagon's card flaps are trimmed and keep at least the minimum width**, flat and folded alike; hinged and separate walls overlap nothing in 3D, keep their shapes and pass the export check; in the fold view a hinged wall lies flat at foldT 0 and stands at 1; pins (own piece, the other wall gives way); *Keep in one piece* leaves the overlap and the export check reports it; convex bases have no flat height limit.
+- `tests/e2e/boards.spec.ts`: extruding an L card base shows the hinge note and the flat-height tick; at 80 mm the note names the wall cut as its own piece and the height; after *Add walls*, *Lower to …* sets the tray to the flat height and the note goes.
+- Golden SVG/DXF exports and fixtures are byte-identical.
+
+Differences from the plan
+- **The flat height of the L base is its notch less the hinged wall's glue flap** (50 mm on card, 46 mm on corrugated 1.6, for a 60 mm notch), not the notch itself: the flap along the hinged wall's bottom reaches the opposite wall first.
+- **A hinged wall is glued to the base on corrugated too** (the plan had tabs and slots): tabs need the wall to stand in from the edge, which would take its side edge off the neighbour's and break the fold it hangs from.
+- The grow ghost's overlap check (amber with *Cut it as its own piece*) came with the ghost bar (milestone 30).
+
+## Milestone 35 (edge picking) — Growing on part of an edge ✅
+
+Implemented (`startSpanPick` in `EdgeHandle`, `SpanPickLabel` in `View3D.tsx`; `spanPick` in the store; new targets in `spanTargets`, `adapt.ts`)
+- A plain click on an edge grows on the whole free stretch, as before. **Cmd-drag (Mac) / Ctrl-drag (Windows) along a free edge** sets the start where the drag begins and the end where it is released, with the grow ghost following live; **two Cmd/Ctrl-clicks** do the same for trackpads. While the end is being placed a label shows its distances from both ends of the edge; typing a number and Enter sets it (mm from the edge's start); Esc cancels. Afterwards the span's end squares and *Starts at / Ends at* fields work as before, and ✓ grows it (milestone 30).
+- Both points snap with smart snapping (Alt or snapping off: the grid). Besides the edge's ends and middle, the ends of free stretches and of panels already grown on it, and where other panels meet the edge line, the targets now include **the base's own shapes** (their corners and centres, seen across onto the edge), **equal thirds and quarters of each free stretch**, and **the mirror of a span on the opposite (parallel) edge**, so two partial walls can line up face to face.
+- Only Cmd counts on a Mac (Ctrl-click is a right-click there). Cmd/Ctrl-click on a face stays multi-select (milestone 31); on an edge, whose hit target wins over the face, it picks a span.
+
+Verified
+- `tests/adapt.test.ts`: the front edge's targets include a base shape's corners and centre, a quarter and two thirds of the edge, and both ends of a partial wall on the back edge mirrored across.
+- `tests/e2e/boards.spec.ts`: **Ctrl-drag along a base's front edge from near a third to near the middle shows the distance label, snaps to exactly [40, 60] of 120 mm, and ✓ grows the panel on that part.**
+
+## Milestone 36 — A material for each board ✅
+
+Implemented (`src/model/materials.ts`: `matOf`, `tOf`, `profileOf`, `pairFilter`, `connectionsForPair`, `materialsInUse`, `normalizeMaterials`; `setPanelMaterial`, `editMaterial` in `ops.ts`; `pairKinds`, `ownerMaterial` in `jointDefaults.ts`)
+- `Panel.material?` (a profile id) and `Design.materials?` (the other profiles boards use). Absent: the working material (`Design.material`), so designs with one material load, solve and export exactly as before. Schema 8 (v7 files load unchanged).
+- A grown board takes its parent's material (stored on the board when it is grown: tray walls, grown walls, dividers, side walls), so a box grown from a 6 mm base stays 6 mm when the working material changes. Boards drawn on the floor take the working material.
+- Every place a board is involved reads that board's own material: frames and seating (the parent's thickness for where a child stands, the child's for its own slab), fingers (each side cut as deep as the other board, trims by its own), tabs and slots (slots as wide as the tab board plus the receiver's clearance, webs by the receiver's material, tab counts and lock depth by the tab board's), glue flaps (the owner's flap width and slab), half-laps (each slot as wide as the other board), slides, tray heights and inside-corner extensions, fold-overs, through-cuts, contacts, seams and their de-duplication, snapping, adapt and hinge targets, validation (web, sheet size, fold-over rules).
+- Allowed kinds for a pair: fingers (and leaning plywood) need both boards in plywood, folds both in the same card or corrugated material (kind and thickness); the rest work across materials. A joint that no longer fits falls back to the design's choice for the feature-carrying board's material kind, keeping its wish (`pref`), so switching back restores it; a board leaving its net's material is cut as its own piece. The design-wide joint lists change the joints carried by boards of the working material's kind.
+- Packing: each material on its own sheets (its size, grain), placements name their material (`mat`, absent for the working material) and count sheets per material; manual moves stay on the material's sheets. `sheetGroups` lists them. Export: `prepareExport` groups sheets by material (`materials`), each compensated with its own kerf; the export dialog downloads one file per material (`<name>-<material>-<mode>-kerf<k>mm.svg`), and one material keeps the old name. Teacher batches group by material too.
+- UI: the board card's *Material* list (`board-material`: *Same as working*, materials in this design, built-in materials, *Custom…* with kind and thickness), a note listing the joints that changed kind (`board-mat-result`) and one when the board was cut from its fold net (`board-own-piece`); boards are drawn in their own material's colour, a shade darker per further thickness of the same kind (`boardColors`); a legend of materials with board counts by the view settings when more than one is used (`material-legend`, a chip selects those boards); the drawer lists every material in use with counts, kerf and clearance (`drawer-in-use`); the cut plan puts a heading over each material's sheets (`mat-heading-<id>`) and colours sheets by material; class submission lists boards in other materials than the class profile. Template regeneration keeps boards' own materials.
+
+Verified
+- `tests/boardmaterials.test.ts`: **a plywood box with one wall in 6 mm plywood: the base is cut 6 mm deep for that wall's fingers and the wall 3 mm deep for the base's; no joint broken, the export check is clean and no point lies in two boards (volumetric)**; a grown board takes its parent's material and keeps it when the working material changes, a new floor panel takes the working one; **a card tray with one wall in corrugated: the fold falls back (the wish is kept), the change is reported, the wall becomes its own piece, and switching back restores the fold and one net**; two materials pack onto separate sheets of each material's size and export as two groups; a design with one material exports byte-identically after switching a board away and back; save and load keep overrides; a v7 file loads unchanged.
+- `tests/e2e/boards.spec.ts`: switching a wall to corrugated 4 mm in the card changes its colour and its slab depth (3 → 4 mm) in 3D, the legend appears, the cut plan shows a heading for each material, and the export downloads two files named by material.
+- Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical.
+
+## Milestone 34 — Final verification: panels anywhere, drafts, boards, dividers, flat nets and board materials (milestones 28–36) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (374 tests in 36 files; the ezdxf/svgpathtools reader checks are skipped here, since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (57 passed, including the classroom spec against the real Worker; 40 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical; the 500-design autoseam test passes.
+
+- Screenshots (`SHOTS=1 npx playwright test -c pw-app.config.ts panel-shots`), English and Hebrew, in `docs/panel-shots/`: a flat panel on a wall with the ghost bar, a standing partition (ghost and made), a construction plane with a panel on it, aligned boards, + Divider, a paste ghost, the flat-height tick, an amber wall with its note, a hinged wall folding, Ctrl-drag on an edge, a mixed-material box, the board card's material list, the legend, and the cut plan with two material headings.
+- README *Using it* steps 2, 3, 10 and 15 rewritten, steps 18–22 added; DECISIONS has a section for this round.
+- The older end-to-end specs press ✓ where they draw (milestone 30) and use + Divider (milestone 32).
+
+Remaining limitations (milestones 28–36)
+- A pasted shape follows the pointer only while the pointer is over a bare part of a panel (the pasted shapes themselves do not pass the pointer on).
+- Placed panels: a standing panel's bottom stays on its face (its outline cannot be pulled below it); multiple selection is by click, not a box.
+- Flat nets: the hinge is tried only across a convex corner next to the giving-way wall; a hinged wall is glued to the base on corrugated too. Panels grown by hand (not tray walls) are warned about, not changed.
+- Board materials: a template's sizes are worked out in the working material only; the teacher's batch groups by material but still requires the students' working materials to match.
+
+## Milestone 37 — Quick build: the mode and the feature table ✅
+
+Implemented (`src/easy/features.ts`, `src/easy/Gate.tsx`, `src/easy/mode.ts`, `src/easy/QuickRail.tsx`; brief in `EASY_MODE.md`)
+- `ViewPrefs.mode` (`'quick' | 'workshop'`), saved with the other view preferences and never part of the design. A browser with saved preferences keeps the Workshop it knows; a new browser starts in Quick build. A *Quick build | Workshop* toggle in the top bar (`mode-toggle`); switching stops the current tool and changes nothing in the design.
+- One table (`FEATURES`) says what Quick build does with each feature: shown, read-only, chosen by the app (`auto`: hidden, the default applies) or hidden. Components ask `useFeature(f)` or wrap their control in `<Gate f>`; a unit test checks the table covers every feature asked for and that every feature Quick build changes is asked for.
+- Hidden or automatic in Quick build: the Workshop tool rail and operation dots (the shape card has *Cut out | Engrave*), Score and Add, the joint lists and *Joints (advanced)*, seam pills (shown with *How it's built*, the joints view's Quick build name), the settings card's *Joints* and *Snapping* sections, the grow card's angle dial, span ends, outline handles and side controls (an edge picked in Quick build grows at 90° on the whole edge, adapting, with the design's joint), the hinge, curved points, fold-overs, a tray's own wall heights, joint lists and *Keep in one piece*, board materials and placed/construction controls, the first-use hints. Read-only: *Material and fit* and the material drawer.
+- Quick build's rail: *Select* and the five actions (*Box*, *Wall / lid*, *Divider*, *Hole*, *Text & stickers*), with keys V, B, W, D, H, T; a hole is cut out and text engraved by default; one line of guidance on an empty design replaces the hints. (The actions' tools are milestone 38.)
+- Parts made with Workshop tools (`workshopOnly`: an angled hinge, a fold-over, a through-cut on or reaching it, another material, a construction guide) show in Quick build with a read-only card (*Made in Workshop: …*, *Open in Workshop*); their edges, gizmos and slides are not offered and they cannot be dragged.
+- *More…* at the bottom of a panel's or shape's card shows that card's Workshop version (joints, hinge, fold-over, …) until the selection changes; the mode is not switched.
+- Classes: `mode` (`'quick' | 'workshop' | null`), `mode_locked` and `missions` columns (migration `0001_quick_build`, with the submissions' `mission`, `goals_met`, `goals_total` for milestone 40); the teacher picks *Students start in* and *Students cannot switch*; `GET /api/class/:code` returns them. A student following the class link (`/?class=CODE`) or submitting with its code gets the class's mode, and a locked mode hides the toggle.
+
+Verified
+- `tests/easymode.test.ts`: the feature table covers every feature asked for; Workshop shows everything; switching the mode leaves the design and its history unchanged; a locked class mode cannot be switched; an edge picked in Quick build grows at 90° on the whole edge, adapting; angled, fold-over and other-material boards are Workshop-only, straight walls are not.
+- `tests/e2e/quick.spec.ts` (a new browser): Quick build is on, no hints, five actions and no Workshop tools or operation dots; the settings card has no Joints or Snapping; a wall's card has no joints or hinge until *More…*, which resets on the next selection; a leaning wall made in Workshop is read-only; H starts a cut hole; *Open in Workshop* shows today's editor with the design unchanged, and the choice survives a reload.
+- `tests/e2e/classroom.spec.ts`: a class locked to Quick build: a student from its link starts there with no toggle (also after a reload); unlocked, the toggle is back. The other specs open in the Workshop (their browsers carry saved preferences).
+
+## Milestone 38 — Quick build: the five actions ✅
+
+Implemented (`src/easy/recipes.ts`, `src/easy/actions.ts`, `src/easy/stickers.ts`, the rail's action card in `src/easy/QuickRail.tsx`)
+- Each action is a recipe over existing ops, run as a ghost and made with ✓ (Enter) as one undo step; the rail then goes back to *Select*. The action card next to the rail holds its few choices and one line of help (also shown under the stage).
+- **Box** (`boxRecipe`): *Rectangle* or *Regular* (3–12 sides, inscribed in the dragged square). Drag on the floor: the base waits for ✓ while its walls rise as a ghost at the last height used (45 mm the first time), with Extrude's push-pull arrow, typed height and flat-net tick; ✓ makes base and tray together (one step), ✕ drops both. The same as drawing the base and pressing Extrude in Workshop.
+- **Wall / lid** (`wallRecipe`): free edges show on hover; a click opens the grow ghost at 90° on the whole edge, fitted to its neighbours, with the design's joint (Workshop's grow card with its defaults, `growWith`). It starts at the height that fits (`quickWallHeight`): a lid across to the far face of the opposite wall, a wall as tall as the walls beside it.
+- **Divider** (`planDividerLine`, `dividerLine`): draw a line on a box's base (or start on any part of the box: the line is drawn on its base). Its ends snap to the inner faces of the walls within 15 mm. From wall to wall across facing, parallel walls it is the divider `addDividerBetween` makes at the line's position (height: the lower wall less the gap; crossing dividers get half-laps as before); otherwise a panel placed standing on the base. While drawing and on the ghost bar the compartments either side are shown (*Divider: 40.5 mm | 70.5 mm*). Workshop gets the same gesture: the Panel tool's ghost bar offers *Divider* on a box's base, so milestone 32 does not leave Workshop without an easy divider path.
+- **Hole**: circle, rectangle or rounded rectangle from the card (the last one used stays), drawn on a panel, cut out; the shape card offers *Cut out | Engrave*.
+- **Text & stickers**: text as before, engraved; eight stickers drawn for CutForge (`THIRD_PARTY.md`), stored like an imported SVG (`addPathShape`), placed by clicking a panel at a quarter of its smaller side, engraved.
+- Test hook `__cutforge.projectWorld(x, y, z)`.
+
+Verified
+- `tests/quickrecipes.test.ts`: a rectangle Box equals the floor panel plus Extrude, a regular Box the polygon base plus Extrude; Wall / lid equals Workshop's grow card with its defaults (through the store); a wall-to-wall line equals + Divider between the two walls, an off-centre line stands at the line with the compartments adding up to the inside, a line that stops short is a standing placed panel; Hole and stickers are the shape ops; stickers are closed outlines in their unit box; a lid starts at the box's depth and a wall at its neighbours' height.
+- `tests/e2e/quick.spec.ts`: Box (dragged on the floor), Lid (the back wall's top edge, no angle dial), two Dividers (lines across the base), a Hole, Text and a Sticker on the front wall, each with ✓: seven actions, seven undo steps, then seven undos return to the empty design. Workshop: the Panel tool on a box's base, *Divider*, ✓ makes a divider.
+- EN/HE screenshots of each action's ghost in `docs/quick-shots/` (`SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots`).
+
+## Milestone 39 — Quick build: guardrails and Ready to cut ✅
+
+Implemented (`src/easy/guard.ts`, `src/easy/fix.ts`, `src/easy/ReadyBadge.tsx`; `panelFit`/`shapeFit` in `src/model/validate.ts`)
+- **Keep-out zones** from the geometry the export check uses: the panel's manufactured outline (with its joint notches) inset by the material's minimum web, every slot, tab and fold-over hole on the panel, and the other cut-outs (a web apart). The export check's own rule for a shape on a plain rectangle (a web inside its deepest joint notch) is shared with the guard (`shapeFit`), so a shape the guard allows is one the check accepts. Engravings only have to stay on the panel and off the slots.
+- **Every edit in Quick build is guarded** in the store (`apply` and `preview`, so drags, the gizmo, typed values, drawing, arrays and pastes alike): shapes the edit changed that land in a zone are pulled back along the change to the farthest allowed point (a group by one common amount, keeping its formation); a new shape is shrunk about its centre until it fits, and one that fits nowhere there is not made; text placed with a click moves to the nearest place it fits. The guard runs on the geometry the edit started from, then again after solve (joints may move around the shapes). A tooltip by the shape says why (*Kept 2 mm from the edge / the joints / the next cut-out*), and while a shape is dragged the zones of its panel show as a faint amber line. Workshop is unchanged.
+- **Text** keeps a minimum letter height per material (engraved: 4 mm, or the thickness; cut out: 8 mm, or three thicknesses).
+- **One-click fixes** (`fixIssue`) for what cannot be prevented: a shape outside the panel, too close to its edge or overlapping another cut-out moves to the nearest allowed place (smaller if it fits nowhere at its size); cut-out text with closed middles is engraved; a panel bigger than the sheet is shrunk to it; pieces off their sheet or overlapping are packed again. Workshop's export check gets the same *Fix* buttons.
+- **Ready to cut badge** in the top bar in Quick build (it replaces the export check list there): green *Ready to cut ✓* when nothing blocks cutting, else *1 thing to fix* / *N things to fix*; its panel lists each with *Show* and *Fix* (or *Fix it in Workshop*); warnings that do not block cutting (a split panel, a bevelled through-cut) are listed as notes.
+- **Sheet meter** next to it: *1 sheet · 12% used* with a thumbnail of the first sheet, from the packer.
+
+Verified
+- `tests/guard.test.ts`: a circle dragged toward the edge stops a web away and says why; on a box base a hole stops short of the finger joints; a group keeps its formation; cut-outs keep apart while an engraving may come close to the edge; a new shape across the edge is shrunk, one outside the panel is not made; text keeps a readable size; each fix (outside, too thin, overlapping, stencil text, too big for the sheet, off its sheet) clears its issue and adds none.
+- `tests/autoseam.test.ts`: **500 seeded sequences of Quick build actions and drags** (a rectangular or regular box, dividers, holes drawn anywhere, random drags, engraved text) through the guard: the export check reports nothing that blocks cutting after any of them.
+- `tests/e2e/quick.spec.ts`: a circle dragged past a base's edge stops at the zone, the tooltip shows, the badge stays green and the meter shows one sheet; a panel narrowed under its shape in Workshop shows *1 thing to fix* in Quick build, and *Fix* makes it *Ready to cut ✓*.
+- Screenshots: a clamped drag, the badge with its fix, the badge and meter (`docs/quick-shots/`).
+
+## Milestone 40 — Quick build: missions, what goes inside, and the payoff ✅
+
+Implemented (`src/easy/missions.ts`, `src/easy/objects.ts`, `src/easy/InsideUI.tsx`, `src/easy/assemble.ts`, `src/easy/sheet.ts`)
+- **Missions**, a registry like the templates': `{ id, version, title, description, materials, template | start, contents, goals }`. A goal is a check over the design as it is now, with a label, the panel it points to and a group (one star per group whose goals are all met, three at most). Goal kinds: an object fits (the placed object, or any compartment that would hold it), compartment counts, a lid, fits on one sheet (the packer), ready to cut (milestone 39), a name engraved (text other than the placeholder), a sticker, and the card stand's deck and angle (its template parameters).
+- **The first four**: *Pencil box* (holds 12 pencils, 3 compartments, one sheet, ready to cut, your name engraved), *Dice tray* (a hexagon tray made with Box: 6 dice fit, one sheet, ready to cut, a sticker), *Card stand* (the card stand template: your deck fits, one sheet, ready to cut, leans back 45° or less), *Game organiser* (4 compartments, a lid, a deck fits, one sheet, ready to cut). Each starter meets some goals and none completely.
+- **Start screen**: in Quick build, step 2 offers the missions (with their goals) after the templates and *Blank*; a class can limit which (the teacher's *Missions offered*, the `missions` column; a student following the class link gets the list). `Design.mission = { id, version }`; template regeneration keeps the mission and the objects.
+- **Mission card** on the stage: the checklist, checked live (deferred), stars, *Mission complete!*; a goal selects what it is about.
+- **What goes inside**: an object library (pencil, marker, dice, deck of cards, phone, coin, *Your own size*). `compartments()` splits a box's clear inside by its dividers (a rectangle base; another outline gets the largest centred rectangle); `capacity()` counts how many lie flat either way round and stack; `contentFit()` says whether a placed lot fits its compartment (with the material's clearance) or how much wider, deeper or taller it needs to be. The box card's *What goes inside* adds an object to a free compartment it fits (count, custom size, remove); on the stage each lot is a translucent block resting on the floor, green when it fits and amber with what it needs, and can be dragged. Objects are kept with the design (`Design.contents`), ignored by pieces, packing and export, so they survive a reload and a submission.
+- **Show how it goes together** (the view dock's play button): the folds close, then each separate piece comes down into place, one at a time (view only).
+- **Teacher**: the submissions table shows the mission and *N of M goals* (sent by the student's app; the Worker accepts small consistent numbers only, and only when the project names a mission).
+
+Verified
+- `tests/missions.test.ts`: for each mission, the starter is not complete and a reference solution (dividers moved, a name engraved, a bigger tray with a sticker, the stand's thickness and angle, a lift-off lid and a cross divider) meets every goal with the full stars; an object fits a compartment exactly when its footprint plus clearance is inside, half a millimetre less says *0.5 mm wider*, and stacking counts layers.
+- `tests/e2e/quick.spec.ts`: start *Pencil box*, the pencils do not fit; size the compartments on the stage (the dividers' compartment labels) until the pencils' compartment turns green; engrave a name: the checklist is complete with three stars, the badge is green, and it all survives a reload.
+- `tests/e2e/classroom.spec.ts`: a class offering only *Pencil box* (in Quick build): the student from its link sees only that mission, submits, and the teacher sees *Pencil box · 3 of 5 goals*.
+- Screenshots: the start screen with missions, a mission with objects in compartments (green and amber), the assembly animation (`docs/quick-shots/`).
+
+## Milestone 41 — Final verification: Quick build (milestones 37–40) ✅
+
+Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (408 tests in 40 files, including the 500 Quick build guardrail sequences and the 500-design autoseam test; the ezdxf/svgpathtools reader checks are skipped here since the Python packages are not installed), `npm run build`, and the full Playwright suite `npx playwright test` (66 passed, including the classroom spec against the real Worker with a locked Quick build class and a class offering one mission; 48 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` set to the pre-installed Chromium. Golden SVG/DXF exports and the v5/v6 fixtures are byte-identical: designs without a mission or objects are unchanged, and nothing Quick build adds reaches pieces, packing or export.
+
+- **Classroom run-through** (`tests/e2e/quick.spec.ts`, in English and in Hebrew): a new browser starts in Quick build, picks *Pencil box*, sizes the compartments until the pencils fit, engraves a name, and reaches *Mission complete* with three stars and *Ready to cut ✓* — in about ten seconds of scripted work (the test checks it stays well under twenty minutes; a student's own pace is the real measure).
+- Screenshots, English and Hebrew, in `docs/quick-shots/` (`SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots`): Quick build and Workshop side by side on the same organiser, an empty Quick build stage, each action's ghost (Box, Divider, Lid, Hole, Sticker) and the result, a clamped drag with its tooltip, the badge with a fix and the meter, the start screen with missions, a mission with objects in compartments (green and amber), and the assembly animation.
+- README has a *Quick build* section and the teacher's new class settings; DECISIONS has a *Quick build* section (a mode is a viewer preference, the feature table, recipes over existing ops, guardrails prevent instead of report, fixes are narrow, missions as a registry, compartments).
+
+Remaining limitations (milestones 37–40)
+- Compartments assume each divider runs the whole way across; a box that is not a rectangle has one compartment (the largest centred rectangle of its inside). Objects lie flat, either way round.
+- The guardrails keep cut-outs a web apart but do not stop two new shapes made in one edit (a paste of several, an exploded array) from touching each other; the badge then offers the fix. Text is guarded by its box.
+- The Box action's *Regular* footprint is inscribed in the dragged square; *Freeform* is Workshop's polygon tool.
+- In the e2e test the pencils' compartment is sized by typing on the dividers' compartment labels on the stage rather than by dragging the slide arrow.
+- Goals met are counted by the student's app; the Worker only checks the numbers are consistent.
+
+## Follow-up — joints, materials, the joints view, the ✓, moving and the Panel tool ✅
+
+1. **Default joints for dividers and added walls**: an edge meeting a face (divider bottoms and ends, standing panels, walls meeting a face) now gets tabs in slots where they can be made, then glue flaps, and a slide fit only last; before, card and corrugated got a slide fit (or, for a grown divider, no joint at all). `jointWorks`/`fallBack` in `ops.ts` pass over a kind that cannot be laid out, whose slots would leave less than the material's web, or that would make a tray's net need changing to lie flat. Saved files keep their joints (the v5 corrugated organiser keeps its own golden export); new corrugated and card organisers export with tabs and slots (golden files updated).
+2. **Quick build can change the material** (the material pill and the settings card's *Change material…*); kerf, clearance and sheet stay read-only.
+3. **Joints view**: a bigger, labelled *Joints* button; while on, every joint has a label (all of them, or the selected panel's), the move, turn and grow handles are hidden, and clicking a label opens a menu of the kinds that joint can take, with *All joint settings…* (Quick build shows the menu read-only).
+4. **The grow and extrude ✓ bar** sits below the height arrow (and above other stage labels, so it is always clickable).
+5. **Moving a panel sticks to other panels' planes** (`src/model/planeSnap.ts`): dragging a floor panel, a placed panel, or using their gizmos snaps faces flush and edges in line, in two directions.
+6. **The Panel tool in three clicks**: the face (or floor), then *Flat* or *Standing* on two small planes shown there (or their labels), then the drag. Standing lines (and Quick build's divider lines) snap level and parallel within 7°, then land on wall faces along that line; Alt draws freely.
+
+Verified: `tests/dividers.test.ts`, `tests/joints.test.ts`, `tests/templates.test.ts` (tabs and slots for divider ends on every material, no slot without its web), `tests/planesnap.test.ts` (a box moved towards another lands flush and in line; a standing panel slides flush against a wall), `tests/flatnet.test.ts` (unchanged: a joint that would change a net falls back), golden exports; e2e: the joint menu changes a joint and the handles hide (`overhaul.spec.ts`), the three-click Panel tool with Esc and a level snap, the ✓ below the grow arrow (`boards.spec.ts`), Quick build's material change (`quick.spec.ts`); every spec drawing panels uses the new flow.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

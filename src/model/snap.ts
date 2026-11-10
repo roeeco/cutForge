@@ -173,6 +173,8 @@ function finish(bx: Cand | null, by: Cand | null): SnapResult {
 import { isCurveKey, panelEdges, sketchRing } from './edges';
 import { frameNormal, matDir, toLocal, toWorld } from './frame';
 import { panelsCutBy } from './through';
+import { tOf } from './materials';
+import { FLOOR_FRAME, faceOut } from './place';
 
 type F2 = { x: number; z: number };
 export type FloorSnap = { dx: number; dz: number; guides: [F2, F2][] };
@@ -255,7 +257,7 @@ export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineT
   const S = d.panels[panelId];
   const out: OutlineTargets = { corners: [], edges: [], align: [] };
   if (!S) return out;
-  const t = d.material.thickness;
+  const t = tOf(d, panelId);
   const same = (q: P2) => Math.hypot(q.x - moving.x, q.y - moving.y) < 1e-6;
   // own outline: vertices (the start of a curve, not its flattened points), and edges not touching the moving point
   const own = sketchRing(S);
@@ -277,7 +279,7 @@ export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineT
     const P = d.panels[id];
     if (!P || id === panelId) continue;
     for (const e of panelEdges(P))
-      for (const z of [0, t]) {
+      for (const z of [0, tOf(d, id)]) {
         const wa = toWorld(P.frame, e.a.x, e.a.y, z), wb = toWorld(P.frame, e.b.x, e.b.y, z);
         const na = near(wa), nb = near(wb);
         const a = toLocal(S.frame, wa), b = toLocal(S.frame, wb);
@@ -313,4 +315,93 @@ export function snapOutlinePoint(tg: OutlineTargets, l: P2, tol: number): Outlin
   const fx = r.guides.some((g) => g.a.x === g.b.x && Math.abs(g.a.x - (l.x + r.dx)) < 1e-9), fy = r.guides.some((g) => g.a.y === g.b.y && Math.abs(g.a.y - (l.y + r.dy)) < 1e-9);
   if (!fx && !fy) return { p: l, kind: null, target: null, guides: [], fixed: { x: false, y: false } };
   return { p: { x: l.x + r.dx, y: l.y + r.dy }, kind: 'align', target: null, guides: r.guides, fixed: { x: fx, y: fy } };
+}
+
+// ---------------------------------------------------------------------------
+// Drawing on a face (milestone 29): the Panel tool's points snap to targets on
+// the face (in the host's local coordinates; the floor's for `host` null):
+// the host's outline (corners, edge midpoints, centre) and shapes, panels
+// already placed flat on that face, and the lines where panels standing on
+// the face meet it (both their faces), so a partition drawn wall to wall ends
+// exactly on both walls.
+
+export type FaceTargets = { points: P2[]; lines: [P2, P2][] };
+
+export function faceTargets(d: Design, host: string | null, face: 1 | -1): FaceTargets {
+  const out: FaceTargets = { points: [], lines: [] };
+  const H = host === null ? FLOOR_FRAME : d.panels[host]?.frame;
+  if (!H) return out;
+  const tH = host === null ? 0 : tOf(d, host);
+  const out3 = faceOut(H, host === null ? 1 : face);
+  const at = toWorld(H, 0, 0, host === null || face === 1 ? tH : 0);
+  const off = (w: V3) => (w[0] - at[0]) * out3[0] + (w[1] - at[1]) * out3[1] + (w[2] - at[2]) * out3[2];
+  if (host !== null) {
+    const ctx = snapContext(d, host, new Set());
+    if (ctx) out.points.push(...ctx.points);
+  }
+  const nH = frameNormal(H);
+  for (const id of d.order) {
+    const P = d.panels[id];
+    if (!P || id === host) continue;
+    const tP = tOf(d, id);
+    const ring = panelEdges(P);
+    const nP = frameNormal(P.frame);
+    const k = Math.abs(nP[0] * nH[0] + nP[1] * nH[1] + nP[2] * nH[2]);
+    if (k > 0.999) {
+      // lying on this face: its corners (the floor: every panel lying on the floor)
+      for (const z of [0, tP]) {
+        const pts = ring.map((e) => toWorld(P.frame, e.a.x, e.a.y, z)).filter((w) => Math.abs(off(w)) < 0.05);
+        if (pts.length === ring.length) {
+          out.points.push(...pts.map((w) => toLocal(H, w)));
+          if (host === null) for (let i = 0; i < pts.length; i++) out.lines.push([toLocal(H, pts[i]), toLocal(H, pts[(i + 1) % pts.length])]);
+        }
+      }
+    } else if (k < 0.02) {
+      // standing on it (or through it): where each of its faces crosses this face, within its outline
+      for (const z of [0, tP]) {
+        const pts: P2[] = [];
+        for (const e of ring) {
+          const wa = toWorld(P.frame, e.a.x, e.a.y, z), wb = toWorld(P.frame, e.b.x, e.b.y, z);
+          const fa = off(wa), fb = off(wb);
+          if (Math.abs(fa) < 1e-6) pts.push(toLocal(H, wa));
+          else if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) {
+            const s2 = fa / (fa - fb);
+            pts.push(toLocal(H, [wa[0] + (wb[0] - wa[0]) * s2, wa[1] + (wb[1] - wa[1]) * s2, wa[2] + (wb[2] - wa[2]) * s2]));
+          }
+        }
+        if (pts.length < 2) continue;
+        let best: [P2, P2] = [pts[0], pts[1]], len = -1;
+        for (let i = 0; i < pts.length; i++)
+          for (let j = i + 1; j < pts.length; j++) {
+            const l = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+            if (l > len) [best, len] = [[pts[i], pts[j]], l];
+          }
+        if (len > 1) out.lines.push(best);
+      }
+    }
+  }
+  return out;
+}
+
+/** Snap a point drawn on a face: onto a target point, else onto a line (a standing wall's face), else null (the grid is the caller's). */
+export function snapOnFace(t: FaceTargets, p: P2, tol: number): { p: P2; target: P2 | null; line: [P2, P2] | null } | null {
+  let bp: P2 | null = null, bd = tol;
+  for (const q of t.points) {
+    const dist = Math.hypot(q.x - p.x, q.y - p.y);
+    if (dist <= bd) [bp, bd] = [q, dist];
+  }
+  if (bp) return { p: { x: bp.x, y: bp.y }, target: bp, line: null };
+  let bl: { q: P2; l: [P2, P2]; d: number } | null = null;
+  for (const l of t.lines) {
+    const [a, b] = l;
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (L < 1e-9) continue;
+    const ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+    const s = (p.x - a.x) * ux + (p.y - a.y) * uy;
+    if (s < -tol || s > L + tol) continue;
+    const q = { x: a.x + ux * s, y: a.y + uy * s };
+    const dist = Math.hypot(q.x - p.x, q.y - p.y);
+    if (dist <= tol && (!bl || dist < bl.d)) bl = { q, l, d: dist };
+  }
+  return bl ? { p: bl.q, target: null, line: bl.l } : null;
 }

@@ -9,6 +9,9 @@ When code is copied or adapted, record it here with repository, commit and licen
 ## npm dependencies
 Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). opentype.js (MIT), bidi-js (MIT), drizzle-orm (Apache-2.0). Tooling: wrangler (MIT/Apache-2.0), drizzle-kit, @cloudflare/workers-types. Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
 
+## Stickers
+Quick build's stickers (`src/easy/stickers.ts`: star, heart, house, lightning, moon, flower, smile, tree) were drawn for CutForge as simple closed outlines generated in code; no icon set was copied. They are released with the project under its own license (and may be used as public domain, CC0 1.0). Nothing is fetched at run time.
+
 ## Fonts
 Bundled in `public/fonts/` (Hebrew and Latin subsets, WOFF, from the @fontsource 5.3.0 packages), each under the SIL Open Font License 1.1 — license texts next to the files:
 - Rubik — Copyright 2015 The Rubik Project Authors (also the interface font: `rubik-{latin,hebrew}-wght-normal.woff2`, variable weight, from @fontsource-variable/rubik 5.3.0)

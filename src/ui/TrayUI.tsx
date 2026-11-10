@@ -7,17 +7,25 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
-import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayHeight, setTrayKinds, updateFoldOver, wallIt } from '../model/ops';
+import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt } from '../model/ops';
+import { trayWallOn } from '../model/flatnet';
+import { panelLabel } from '../model/names';
+import { fmtNum } from '../i18n';
+import { useMemo } from 'react';
+import type { Tray, TrayFix } from '../model/types';
 import { shortEdges, trayOf, MIN_EDGE } from '../model/trays';
 import { isCurveKey, panelEdges, segLength } from '../model/edges';
-import { connectionsFor } from '../model/materials';
+import { connectionsFor, matOf, tOf } from '../model/materials';
 import { seamKinds } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind } from '../model/types';
+import { Gate } from '../easy/Gate';
+import { shown, useFeature } from '../easy/features';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
 export function canExtrude(d: ReturnType<typeof useStore.getState>['design'], id: string): boolean {
-  if (!d.panels[id] || parentConnection(d, id) || trayOf(d, id)) return false;
+  // a panel standing on a face (milestone 28) is a wall, not a base
+  if (!d.panels[id] || parentConnection(d, id) || trayOf(d, id) || d.panels[id].place?.pose === 'standing') return false;
   return !Object.values(d.connections).some((c) => c.grown && c.a.panelId === id && !(c.offset > 0));
 }
 
@@ -38,30 +46,19 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
     );
   const p = d.panels[panelId];
   const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length;
-  const kinds = newTrayKinds(d);
+  const kinds = newTrayKinds(d, panelId);
   return (
     <div className="subsection extrude-card" data-testid="extrude-card">
       <h4>{t('tray.extrude')}</h4>
       <p className="note">{t('tray.extrudeHelp', { n })}</p>
-      <NumField label={t('tray.height')} value={ex.height} unit={mm} min={5 + d.material.thickness} max={1000} onCommit={(v) => set({ extrude: { ...ex, height: v } })} testId="extrude-height" />
-      <p className="note">
-        {t('tray.joints', { wall: t(`conn.${kinds.wallKind}` as 'conn.fold'), corner: t(`conn.${kinds.cornerKind}` as 'conn.fold') })}
-      </p>
-      <div className="card-actions">
-        <button
-          className="primary"
-          onClick={() => {
-            useStore.getState().apply((x) => void addTray(x, panelId, ex.height));
-            set({ extrude: null });
-          }}
-          data-testid="extrude-go"
-        >
-          {t('tray.addWalls')}
-        </button>
-        <button className="ghost" onClick={() => set({ extrude: null })} data-testid="extrude-cancel">
-          {t('tray.cancel')}
-        </button>
-      </div>
+      <NumField label={t('tray.height')} value={ex.height} unit={mm} min={5 + tOf(d, panelId)} max={1000} onCommit={(v) => set({ extrude: { ...ex, height: v } })} testId="extrude-height" />
+      <FlatNote baseId={panelId} height={ex.height} />
+      <Gate f="tray.joints">
+        <p className="note">
+          {t('tray.joints', { wall: t(`conn.${kinds.wallKind}` as 'conn.fold'), corner: t(`conn.${kinds.cornerKind}` as 'conn.fold') })}
+        </p>
+      </Gate>
+      <p className="note">{t('tray.confirmOnStage')}</p>
     </div>
   );
 }
@@ -74,14 +71,17 @@ export function TraySection({ panelId }: { panelId: string }) {
   const tray = trayOf(d, panelId);
   if (!tray || tray.baseId !== panelId) return null;
   const mm = t('unit.mm');
-  const wallKinds = connectionsFor(d.material, 90).filter((k) => k !== 'butt');
-  const cornerKinds = seamKinds(d.material, 'corner');
+  const bm = matOf(d, panelId);
+  const wallKinds = connectionsFor(bm, 90).filter((k) => k !== 'butt');
+  const cornerKinds = seamKinds(bm, 'corner');
   const short = shortEdges(d, tray);
   const open = tray.openEdges.filter((k) => panelEdges(d.panels[panelId]).some((e) => e.key === k));
   return (
     <div className="subsection tray-card" data-testid="tray-card">
       <h4>{t('tray.title')}</h4>
-      <NumField label={t('tray.height')} value={tray.height} unit={mm} min={5 + d.material.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
+      <NumField label={t('tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
+      <FlatNote baseId={panelId} height={tray.height} tray={tray} />
+      <Gate f="tray.joints">
       <div className="field">
         <label htmlFor="tray-wall-kind">{t('tray.wallJoint')}</label>
         <select id="tray-wall-kind" value={tray.wallKind} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { wallKind: e.target.value as ConnectionKind }))} data-testid="tray-wall-kind">
@@ -110,6 +110,7 @@ export function TraySection({ panelId }: { panelId: string }) {
           onChange={(o) => apply((x) => setTrayKinds(x, tray.id, { tabLen: o as 'flush' | 'through' }))}
         />
       )}
+      </Gate>
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
@@ -138,10 +139,12 @@ export function TrayWallNote({ panelId }: { panelId: string }) {
   return (
     <div className="tray-wall-note" data-testid="tray-wall">
       <p className="note">{p.customHeight ? t('tray.customHeight') : t('tray.sharedHeight')}</p>
+      <Gate f="tray.ownHeight">
       <label className="check">
         <input type="checkbox" checked={!!p.customHeight} onChange={(e) => apply((x) => setCustomHeight(x, panelId, e.target.checked))} data-testid="custom-height" />
         {t('tray.ownHeight')}
       </label>
+      </Gate>
     </div>
   );
 }
@@ -152,7 +155,7 @@ export function FoldOverSection({ panelId }: { panelId: string }) {
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const p = d.panels[panelId];
-  if (!p || d.material.kind === 'plywood' || !parentConnection(d, panelId)) return null;
+  if (!p || matOf(d, panelId).kind === 'plywood' || !parentConnection(d, panelId)) return null;
   const f = p.foldOvers?.[0];
   const mm = t('unit.mm');
   if (!f)
@@ -204,6 +207,85 @@ export function FoldOverSection({ panelId }: { panelId: string }) {
       <button className="link" onClick={() => apply((x) => removeFoldOver(x, panelId, f.id))} data-testid="fold-remove">
         {t('fold.remove')}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Nets that lie flat (milestone 35): what the app changes so a tray's net lies
+ * flat at this height, the tallest height that keeps it in one piece, and (on
+ * the tray card) *Lower to …*, *Keep in one piece* and a choice per changed wall.
+ */
+export function FlatNote({ baseId, height, tray }: { baseId: string; height: number; tray?: Tray }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const info = useMemo(() => trayFlatInfo(d, baseId, height), [d, baseId, height]);
+  // Quick build: the app decides which wall gives way
+  const pins = shown(useFeature('tray.keepWhole'));
+  if (!info) return null;
+  if (tray?.flat === 'off')
+    return (
+      <div className="flat-note" data-testid="flat-note">
+        <p className="note" data-testid="flat-kept">{t('flat.kept')}</p>
+        <button onClick={() => apply((x) => setTrayFlat(x, tray.id, 'auto'))} data-testid="flat-auto">
+          {t('flat.auto')}
+        </button>
+      </div>
+    );
+  // on a tray: its own fixes; on the extrude ghost: the probe's
+  const fixes: Record<string, TrayFix> = tray ? (tray.fixes ?? {}) : info.fixes;
+  const label = (key: string) => {
+    const w = tray ? trayWallOn(d, tray, key) : undefined;
+    // before the walls exist (extruding): the wall on that edge of the base
+    return w ? panelLabel(d, w, t) : edgeLabel(d, baseId, key, t);
+  };
+  const by = (f: TrayFix) => Object.keys(fixes).filter((k) => fixes[k] === f);
+  const own = by('own'), hinge = by('hinge'), trim = by('trim');
+  const changed = [...own, ...hinge];
+  if (!own.length && !hinge.length && !trim.length && !(tray?.pin && Object.keys(tray.pin).length)) return null;
+  const fh = info.flatHeight;
+  const finite = Number.isFinite(fh) && fh < height;
+  return (
+    <div className="flat-note" data-testid="flat-note">
+      {own.length > 0 && (
+        <p className="note warn-text" data-testid="flat-own">
+          {finite
+            ? t(own.length > 1 ? 'flat.ownAboveN' : 'flat.ownAbove', { h: fmtNum(fh, 1), walls: own.map(label).join(', ') })
+            : t('flat.own', { walls: own.map(label).join(', ') })}
+        </p>
+      )}
+      {hinge.length > 0 && <p className="note" data-testid="flat-hinge">{t('flat.hinge', { walls: hinge.map(label).join(', ') })}</p>}
+      {trim.length > 0 && <p className="note" data-testid="flat-trim">{t('flat.trim')}</p>}
+      {tray && (
+        <>
+          {own.length > 0 && (
+            <div className="card-actions">
+              {finite && (
+                <button onClick={() => apply((x) => setTrayHeight(x, tray.id, fh))} data-testid="flat-lower">
+                  {t('flat.lower', { h: fmtNum(fh, 1) })}
+                </button>
+              )}
+              <Gate f="tray.keepWhole">
+                <button className="ghost" onClick={() => apply((x) => setTrayFlat(x, tray.id, 'off'))} data-testid="flat-keep">
+                  {t('flat.keep')}
+                </button>
+              </Gate>
+            </div>
+          )}
+          {pins && [...new Set([...changed, ...Object.keys(tray.pin ?? {})])].map((k) => (
+            <div className="field" key={k}>
+              <label htmlFor={`flat-pin-${k}`}>{t('flat.pin', { wall: label(k) })}</label>
+              <select id={`flat-pin-${k}`} value={tray.pin?.[k] ?? ''} onChange={(e) => apply((x) => setTrayPin(x, tray.id, k, (e.target.value || null) as 'hinge' | 'own' | 'other' | null))} data-testid={`flat-pin-${k}`}>
+                <option value="">{t('flat.pin.auto')}</option>
+                <option value="hinge">{t('flat.pin.hinge')}</option>
+                <option value="own">{t('flat.pin.own')}</option>
+                <option value="other">{t('flat.pin.other')}</option>
+              </select>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import type { MaterialProfile } from '../model/types';
 import { Icon, Logo } from './icons';
 import { MaterialArt } from './MaterialArt';
 import { renderThumbnail } from '../views/thumbnail';
+import { MISSIONS, missionById, startMission } from '../easy/missions';
+import { useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
 function thumb(tplId: string, m: MaterialProfile): string | null {
@@ -16,6 +18,14 @@ function thumb(tplId: string, m: MaterialProfile): string | null {
   if (!thumbCache.has(key)) {
     const tp = templateById(tplId);
     thumbCache.set(key, tp ? renderThumbnail(generate(tp, m, defaults(tp)), 520, 300) : null);
+  }
+  return thumbCache.get(key) ?? null;
+}
+function missionThumb(id: string, m: MaterialProfile): string | null {
+  const key = `mission:${id}:${m.id}`;
+  if (!thumbCache.has(key)) {
+    const ms = missionById(id);
+    thumbCache.set(key, ms ? renderThumbnail(startMission(ms, m), 520, 300) : null);
   }
   return thumbCache.get(key) ?? null;
 }
@@ -42,14 +52,20 @@ export function StartScreen() {
   const setLang = useStore((s) => s.setLang);
   const [matId, setMatId] = useState(DEFAULT_MATERIAL.id);
   const [tpl, setTpl] = useState('');
+  // Quick build offers missions next to the templates (milestone 40); a class may choose which
+  const quick = useMode() === 'quick';
+  const offered = useStore((s) => s.viewPrefs.missions);
+  const missions = quick ? MISSIONS.filter((m) => !offered || offered.includes(m.id)) : [];
   const mat = MATERIALS.find((m) => m.id === matId)!;
-  const tplOk = (id: string) => !id || !!templateById(id)?.materials.includes(mat.kind);
+  const tplOk = (id: string) => !id || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
   const effTpl = tplOk(tpl) ? tpl : '';
   const thumbs = useMemo(() => Object.fromEntries(TEMPLATES.map((tp) => [tp.id, tp.materials.includes(mat.kind) ? thumb(tp.id, mat) : null])), [mat]);
   const start = () => {
     const s = useStore.getState();
+    const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
     const tp = effTpl && templateById(effTpl);
-    if (tp) s.replaceDesign(generate(tp, mat, defaults(tp)), false);
+    if (ms) s.replaceDesign(startMission(ms, mat), false);
+    else if (tp) s.replaceDesign(generate(tp, mat, defaults(tp)), false);
     else {
       s.apply((d) => setMaterial(d, mat));
       useStore.setState({ past: [], future: [], needsMaterial: false });
@@ -119,6 +135,30 @@ export function StartScreen() {
           </button>
         ))}
       </div>
+      {missions.length > 0 && (
+        <>
+          <p className="step-label">{t('start.missions')}</p>
+          <div className="tpl-grid" role="radiogroup" aria-label={t('start.missions')}>
+            {missions.map((m) => (
+              <button key={m.id} className="pick-card mission-card" role="radio" aria-checked={effTpl === `mission:${m.id}`} disabled={!tplOk(`mission:${m.id}`)} onClick={() => setTpl(`mission:${m.id}`)} data-testid={`mission-${m.id}`}>
+                <span className="art">{m.materials.includes(mat.kind) ? <MissionArt id={m.id} mat={mat} /> : null}</span>
+                <span className="cap">
+                  <strong>{t(m.title)}</strong>
+                  <small>{t(m.description)}</small>
+                  <ul className="goal-list" aria-label={t('start.missionGoals')}>
+                    {m.goals.map((g) => (
+                      <li key={g.id}>{t(g.label, g.vars)}</li>
+                    ))}
+                  </ul>
+                </span>
+                <span className="tick-mark">
+                  <Icon name="check" size={16} />
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="start-foot">
         <p className="note">{t('mat.calibrate')}</p>
@@ -128,4 +168,9 @@ export function StartScreen() {
       </div>
     </div>
   );
+}
+
+function MissionArt({ id, mat }: { id: string; mat: MaterialProfile }) {
+  const src = useMemo(() => missionThumb(id, mat), [id, mat]);
+  return src ? <img src={src} alt="" /> : null;
 }

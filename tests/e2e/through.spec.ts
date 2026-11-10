@@ -54,7 +54,8 @@ test('a through-cut chamfer: live count while drawing, every panel updates, link
   // the op row: Engrave hides the through toggle
   await page.getByTestId('op-engrave').click();
   await expect(page.getByTestId('op-through')).toHaveCount(0);
-  await page.getByTestId('tool-select').click();
+  // ✓ keeps the cut and goes back to Select (milestone 30)
+  await page.getByTestId('ghost-ok').click();
 
   // linked selection: clicking where it cut the back wall selects the source shape
   await S(page, () => (window as any).__cutforge.store.getState().select(null));

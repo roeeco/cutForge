@@ -22,19 +22,20 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (type.includes('json') && !path.endsWith('/project') ? r.json() : r.text()) as Promise<T>;
 }
 
-export type ClassInfo = { name: string; open: boolean; material: import('../model/types').MaterialProfile | null };
-export type TeacherClass = { id: string; code: string; name: string; open: boolean; material: import('../model/types').MaterialProfile | null; createdAt: number; submissions: number; fresh: number };
-export type Submission = { id: string; classId: string; displayName: string; title: string; materialId: string; materialKind: string; thickness: number; pieceCount: number; status: 'new' | 'cut'; superseded: boolean; createdAt: number; device: string };
+export type ClassMode = 'quick' | 'workshop' | null;
+export type ClassInfo = { name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null };
+export type TeacherClass = { id: string; code: string; name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null; createdAt: number; submissions: number; fresh: number };
+export type Submission = { id: string; classId: string; displayName: string; title: string; materialId: string; materialKind: string; thickness: number; pieceCount: number; status: 'new' | 'cut'; superseded: boolean; createdAt: number; device: string; mission?: string | null; goalsMet?: number | null; goalsTotal?: number | null };
 
 export const api = {
   classInfo: (code: string) => call<ClassInfo>(`/api/class/${encodeURIComponent(code.trim().toUpperCase())}`),
-  submit: (code: string, body: { displayName: string; deviceId: string; title: string; project: string; preview: string }) =>
+  submit: (code: string, body: { displayName: string; deviceId: string; title: string; project: string; preview: string; goalsMet?: number; goalsTotal?: number }) =>
     call<{ id: string }>(`/api/class/${encodeURIComponent(code.trim().toUpperCase())}/submit`, { method: 'POST', body: JSON.stringify(body) }),
   login: (key: string) => call<{ ok: true }>('/api/teacher/login', { method: 'POST', body: JSON.stringify({ key }) }),
   logout: () => call<{ ok: true }>('/api/teacher/logout', { method: 'POST' }),
   classes: () => call<TeacherClass[]>('/api/teacher/classes'),
   createClass: (name: string) => call<TeacherClass>('/api/teacher/classes', { method: 'POST', body: JSON.stringify({ name }) }),
-  patchClass: (id: string, patch: { open?: boolean; material?: unknown }) => call(`/api/teacher/classes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  patchClass: (id: string, patch: { open?: boolean; material?: unknown; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null }) => call(`/api/teacher/classes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteClass: (id: string) => call(`/api/teacher/classes/${id}`, { method: 'DELETE' }),
   submissions: (classId: string, history = false) => call<Submission[]>(`/api/teacher/classes/${classId}/submissions${history ? '?history=1' : ''}`),
   project: (id: string) => call<string>(`/api/teacher/submissions/${id}/project`),

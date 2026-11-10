@@ -23,6 +23,8 @@ test('card hexagon: extrude, one net, shared height, open a side and wall it aga
   await page.mouse.move((c.x + r.x) / 2, c.y, { steps: 3 });
   await page.mouse.move(r.x, r.y, { steps: 3 });
   await page.mouse.up();
+  // the polygon is a ghost until ✓ (milestone 30)
+  await page.getByTestId('ghost-ok').click();
   let d = await design(page);
   const base = d.order[0];
   expect(d.panels[base].sketch.pts).toHaveLength(6);

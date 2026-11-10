@@ -138,3 +138,27 @@ describe('adapting to what the ghost meets', () => {
     expect(panelEdges(d.panels[wall]).map((e) => e.key)).toEqual(['e0', 'e1', 'e2', 'e3']);
   });
 });
+
+describe('span targets for growing on part of an edge (milestone 35)', () => {
+  it('a shape’s corner on the base, thirds and quarters, and the opposite wall’s span mirrored', async () => {
+    const { addRootPanel, addDetail, createDesign, growPanel } = await import('../src/model/ops');
+    const { spanTargets } = await import('../src/model/adapt');
+    const { MATERIALS } = await import('../src/model/materials');
+    const d = createDesign(MATERIALS[3]);
+    const b = addRootPanel(d, 0, 0, 120, 80);
+    addDetail(d, b, 'rect', 'cut', 50, 40, 20, 10);
+    // a wall on part of the back edge (e2 runs from (120, 80) to (0, 80))
+    growPanel(d, b, 'e2', { height: 30, angle: 90, dir: 'up', kind: 'tabslot', span: [10, 45] });
+    const tg = spanTargets(d, b, 'e0');
+    // the shape's corners (40, 60) and centre (50) along the front edge
+    expect(tg).toContain(40);
+    expect(tg).toContain(60);
+    expect(tg).toContain(50);
+    expect(tg).toContain(40);
+    expect(tg).toContain(30); // a quarter of 120
+    expect(tg.some((x) => Math.abs(x - 80) < 1e-6)).toBe(true); // two thirds
+    // the back wall stands on [10, 45] from (120, 80): x 110 … 75 — its mirror on the front edge
+    expect(tg.some((x) => Math.abs(x - 110) < 1e-6)).toBe(true);
+    expect(tg.some((x) => Math.abs(x - 75) < 1e-6)).toBe(true);
+  });
+});

@@ -9,6 +9,7 @@ import { throughRegions } from '../model/through';
 import { panelExtras, panelNotches, panelOutline } from '../model/geometry';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
+import { profileOf, tOf } from '../model/materials';
 
 /**
  * Matrix taking panel-local (x, y, z) to world, with z measured along the
@@ -26,7 +27,8 @@ export function frameMatrix(f: Frame): THREE.Matrix4 {
 const toShapePts = (pts: Vec2[]) => pts.map((p) => new THREE.Vector2(p.x, p.y));
 
 export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = {}): THREE.BufferGeometry {
-  const t = d.material.thickness;
+  // its own material's thickness (a ghost: the material it would be made in)
+  const t = d.panels[p.id] ? tOf(d, p.id) : profileOf(d, p.material).thickness;
   const own = ownOutline(p);
   const notches = opts.joints === false ? {} : panelNotches(d, p);
   let rings = own.rings.map((r) => panelOutline(p, notches, r));

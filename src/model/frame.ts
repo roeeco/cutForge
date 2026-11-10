@@ -66,9 +66,10 @@ export type Seating = 'overlap' | 'onTop';
  * parent face the new panel rises from ('up' = the face the material lies
  * towards). The new panel's material always lies on the inside of the fold,
  * so the outer faces stay flush (outer dimensions). `offset` moves the new
- * panel in from the edge (dividers, tab-and-slot walls).
+ * panel in from the edge (dividers, tab-and-slot walls). `t` is the parent's
+ * thickness, `tc` the new panel's (a board of another material).
  */
-export function growFrame(parent: Panel, edge: EdgeArg, angleDeg: number, dir: GrowDir, t: number, seating: Seating = 'overlap', offset = 0): Frame {
+export function growFrame(parent: Panel, edge: EdgeArg, angleDeg: number, dir: GrowDir, t: number, seating: Seating = 'overlap', offset = 0, tc = t): Frame {
   const [A0, B] = edgeWorld(parent, edge);
   const U = v3norm(v3sub(B, A0));
   const inL = edgeInwardLocal(parent, edge);
@@ -82,7 +83,7 @@ export function growFrame(parent: Panel, edge: EdgeArg, angleDeg: number, dir: G
   let o = onFar ? v3add(A, v3mul(m, t)) : A;
   // A panel leaning over its parent: lift it so its lower slab corner rests on the face
   // instead of dipping into the parent (a square-cut edge touches along one line).
-  if (seating === 'onTop' && Math.cos(th) > 1e-9) o = v3add(o, v3mul(up, t * Math.cos(th)));
+  if (seating === 'onTop' && Math.cos(th) > 1e-9) o = v3add(o, v3mul(up, tc * Math.cos(th)));
   // inside-of-fold direction, perpendicular to V
   const inside = v3sub(v3mul(dIn, Math.sin(th)), v3mul(up, Math.cos(th)));
   const N = v3cross(U, V);

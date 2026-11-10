@@ -2,6 +2,7 @@
 //  - PushPull: an arrow you drag along an axis (panel width/height, ghost height)
 //  - AngleArc: the hinge ring, a full circle with a rotate handle
 //  - DimLabel: an in-place dimension; click to type an exact value
+import { GRAZING_DEG, RING_DEAD_PX } from './grazing';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
@@ -95,6 +96,19 @@ export function ScreenSized({ position, children, quaternion }: { position: V3; 
       {children}
     </group>
   );
+}
+
+/** Children turned to face the camera every frame (a screen-facing ring). */
+function CameraFacing({ children }: { children: React.ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  useFrame(() => {
+    const g = ref.current;
+    if (!g?.parent) return;
+    // world orientation = the camera's; undo the parent's turn (ScreenSized has none, but be safe)
+    g.quaternion.copy(g.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(camera.quaternion));
+  });
+  return <group ref={ref}>{children}</group>;
 }
 
 const onTop = { depthTest: false, depthWrite: false, transparent: true } as const;
@@ -382,8 +396,7 @@ function padRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THREE.Intersecti
   for (let i = n; i < out.length; i++) out[i].distance = 1e-4 * (i - n + 1);
 }
 
-/** Within this angle of edge-on (a plane) or of the view direction (an axis), the gizmo moves by screen distance. */
-export const GRAZING_DEG = 20;
+export { GRAZING_DEG } from './grazing';
 
 /** Whether a plane (normal n, through p) is seen within GRAZING_DEG of edge-on; updated as the camera moves. */
 export function useGrazing(n: V3, p: V3): boolean {
@@ -497,7 +510,11 @@ export function Gizmo(props: {
     facing: number;
     /** Grazing view: pointer pixels map to millimetres along these display directions (null: plane / axis hits). */
     screen: ScreenMap | null;
+    /** Turning: the pointer is within RING_DEAD_PX of the centre (the angle is held until it leaves). */
+    inDead?: boolean;
   } | null>(null);
+  // the ring seen nearly edge-on: a screen-facing ring of the same size takes its place (milestone 25)
+  const grazing = useGrazing(props.n, props.at);
   const toScreen = (p: THREE.Vector3) => {
     const r = gl.domElement.getBoundingClientRect();
     const v = p.clone().project(camera);
@@ -527,6 +544,20 @@ export function Gizmo(props: {
       const s = st.current;
       if (!s) return;
       if (s.mode === 'ring') {
+        // near the centre the screen angle is meaningless: hold the turn, and carry on from where the pointer
+        // comes out (passing over the centre does not flip it by 180°)
+        const c = toScreen(s.c0);
+        if (Math.hypot(ev.clientX - c.x, ev.clientY - c.y) < RING_DEAD_PX) {
+          s.inDead = true;
+          return;
+        }
+        if (s.inDead) {
+          const out = screenAngle(ev, s.c0, s.facing);
+          s.a0 += out - s.last;
+          s.last = out;
+          s.inDead = false;
+          return;
+        }
         let a = screenAngle(ev, s.c0, s.facing);
         // unwrap so a drag past ±180° keeps turning
         while (a - s.last > 180) a -= 360;
@@ -636,8 +667,31 @@ export function Gizmo(props: {
   const shownAt = frozenAt ?? props.at;
   return (
     <group userData={{ noAO: true }}>
+      {modes.includes('ring') && grazing && (
+        <ScreenSized position={shownAt}>
+          <CameraFacing>
+            <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined, proxy: true }}>
+              <mesh renderOrder={22} raycast={() => null}>
+                <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
+                <meshBasicMaterial color={col('ring', '#f1c867')} {...onTop} />
+              </mesh>
+              <mesh renderOrder={21} raycast={priorityRaycast}>
+                <torusGeometry args={[R, 9, 6, 48]} />
+                <meshBasicMaterial color="white" opacity={0} {...onTop} />
+              </mesh>
+            </group>
+          </CameraFacing>
+        </ScreenSized>
+      )}
       <ScreenSized position={shownAt} quaternion={quat}>
-        {modes.includes('ring') && (
+        {modes.includes('ring') && grazing && (
+          // the turn's axis through the centre, so a screen-facing ring still says what it turns about
+          <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={22} raycast={() => null} userData={{ testId: props.testId ? `${props.testId}-axis` : undefined }}>
+            <cylinderGeometry args={[1.2, 1.2, 44, 6]} />
+            <meshBasicMaterial color="#e0a21b" opacity={0.8} {...onTop} />
+          </mesh>
+        )}
+        {modes.includes('ring') && !grazing && (
           <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined }}>
             <mesh renderOrder={22} raycast={() => null}>
               <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
