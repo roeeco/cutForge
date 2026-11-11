@@ -793,3 +793,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .sheet-meter { display: none; }
   .topbar:has(.ready-wrap) .design-name { width: 72px; }
 }
+@media (max-width: 1000px) {
+  .topbar:has(.ready-wrap) .brand { display: none; }
+  .topbar:has(.ready-wrap) .mat-pill > svg { display: none; }
+  .topbar:has(.ready-wrap) .design-name { width: 64px; }
+}

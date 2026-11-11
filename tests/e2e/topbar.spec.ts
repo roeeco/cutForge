@@ -2,7 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { QUICK_STATE, WORKSHOP_STATE } from './util';
 
-async function start(page: Page, lang: 'en' | 'he') {
+async function start(page: Page, lang: 'en' | 'he', mode: 'workshop' | 'quick') {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
@@ -13,6 +13,8 @@ async function start(page: Page, lang: 'en' | 'he') {
     const { store, ops } = (window as any).__cutforge;
     store.getState().apply((d: any) => void ops.addRootPanel(d, 0, 0, 120, 80));
   });
+  // Quick build's bar is laid out once its Ready badge is there
+  if (mode === 'quick') await page.locator('.ready-wrap').waitFor({ state: 'attached' });
   if (lang === 'he') {
     // on a narrow bar the language is in the ⋯ menu
     if (await page.getByTestId('lang-toggle').isVisible()) await page.getByTestId('lang-toggle').click();
@@ -53,7 +55,7 @@ for (const [mode, state] of [['workshop', WORKSHOP_STATE], ['quick', QUICK_STATE
       for (const size of SIZES)
         test(`${size.width} x ${size.height}`, async ({ page }) => {
           await page.setViewportSize(size);
-          await start(page, lang);
+          await start(page, lang, mode);
           expect(await fits(page)).toEqual([]);
           // Download for laser and Undo / Redo are always on the bar itself
           for (const id of ['open-export', 'undo', 'redo']) await expect(page.getByTestId(id)).toBeVisible();
