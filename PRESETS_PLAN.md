@@ -1,6 +1,10 @@
-# CutForge: presets, parametric designs on the same engine: brief (milestones 44–51)
+# CutForge: presets, parametric designs on the same engine: brief (milestones 49–56)
 
-Planning notes from 2026-11-11, made after milestone 43 (the tour). Build this after `BOARD_TOOL_PLAN.md` and `TOUR_PLAN.md`; nothing here depends on the tour.
+Planning notes from 2026-11-11, made after milestone 43 (the tour).
+
+**Build this after the branch `claude/gifted-lamport-uwf70b`.** It holds milestone 44, dividers that find their own ends (`DIVIDERS_PLAN.md`), and milestones 45–48, round bases and curved walls (`CURVED_WALLS.md`). Start milestone 49 from that branch, or from `main` once it has merged. Two things here depend on it:
+- **Dividers:** in its model a divider is a drawn line on its base (`Panel.divider`: `at`, `rot`, `reach`) whose ends are found by `reconcileDividers`. The organiser's generator, and a student's dividers in a preset, use that model (§5).
+- **Round bases** (milestone 45) and **bent walls** (milestones 46–48) give the pen cup a *Round* and *Oval* shape (§7).
 
 ## 1. What changes for a student
 
@@ -58,7 +62,7 @@ The kit also hands out the stable role ids the registry already uses (`t:<role>`
 | Same engine | **No new geometry engines.** Every preset is a script over existing `ops`. Where a preset needs something the engine can't do yet (§6), that piece is added to `ops` with its own tests, usable from Workshop too. |
 | Design model | **`Design.template` stays the record** (`{ id, version, params }`). Generated entities keep the `t:` prefix. One new optional field: `template.free?: true` after *Make it a free design* (§5), or drop `template` entirely (see *My calls*). |
 | Focus | **Card and corrugated first.** Every preset supports `corrugated`. Most support `card`. Plywood only where the form works with fingers or lean slots (see the matrix in §7). |
-| Thick paper | **Thick paper is the `card` kind.** The built-in `card-0.5` covers it. Adding a 300 gsm profile (`card-0.3`) is one line in `materials.ts`, so presets don't treat it as anything special. See *My calls*. |
+| Thick paper | **Thick paper means cardstock: the `card` kind** (the built-in `card-0.5`). No new material profile. |
 | Material filter | **Hidden, not disabled.** Step 2 shows only presets whose `supports(m)` passes for the chosen material, with one line naming what the hidden ones need. `supports` can check thickness as well as kind (the slotted grid needs ≥ 1.6 mm). |
 | Material change later | The material drawer lists every material. Ones the preset can't use are greyed with the reason. *Make it a free design* is offered when the student still wants that material. |
 | The form lock | **Prevent in the UI, enforce in the store.** The UI hides structural controls on preset boards. The store's `guarded()` (already run on every `apply` and `preview`) compares the preset boards' *form signature* with the one the parameters produce, and rejects an edit that changes it, with a toast. §5 has the full table. |
@@ -77,7 +81,6 @@ The kit also hands out the stable role ids the registry already uses (`t:<role>`
 - ***Make it a free design* keeps the boards and drops `Design.template`.** It doesn't keep a "detached" flag. One undo step brings the preset back. Workshop only; Quick build shows *Open in Workshop* instead. Simpler than a flag, and nothing else reads it.
 - **The student may *Add material* only on boards they made.** On preset boards it's *Cut out*, *Engrave* and *Score*. An *Add* on a preset board changes its outline, and the joints and flat-net math would no longer match the preset.
 - **Cut-outs that the preset makes** (a handle, a thumb notch, a door) are preset shapes: generated, with stable ids (`t:<role>:<name>`), changed only from the card. The student's own holes sit next to them and stay through every regeneration (§5).
-- **No `card-0.3` profile yet.** Say if your printers/lasers use thinner stock and I'll add it in milestone 45.
 - **Plywood versions of the house and the mailer are out of this phase.** They need angled finger joints the laser can't cut square. The house in plywood would need butt + glue roofs. Card and corrugated only.
 
 ## 4. The settings card, field by field
@@ -89,7 +92,7 @@ Sources this borrows from, and what each adds:
   - focusing a field makes the geometry it drives glow
   - named diagnostics with no silent correction
   - one undo step per edit
-- **boxes.py** (Florian Festi): parameters grouped per generator, a help line on each, an explicit *outside* (inner/outer) switch, and compartments as a list of widths (`50:30:30`). The list is in milestone 50 as an optional *Compartments: equal / custom* field.
+- **boxes.py** (Florian Festi): parameters grouped per generator, a help line on each, an explicit *outside* (inner/outer) switch, and compartments as a list of widths (`50:30:30`). The list is in milestone 55 as an optional *Compartments: equal / custom* field.
 - **Cuttle** templates: a reset icon on each changed parameter, and *Edit in Cuttle* to leave the packaged view. That's our *Make it a free design*.
 - **OpenSCAD Customizer**:
   - groups as tabs
@@ -141,10 +144,10 @@ The card shows that number next to the field, and the slider's range ends there.
 
 **Enforcement:** `presetForm(d)` computes, for each `t:` panel, its outline, size, frame relative to its root, and connections (angle, kind, edges). `guarded(d, before)` in `store.ts` already runs on every `apply` and `preview`. When `d.template` is set and the edit wasn't a regeneration, the guard compares `presetForm` before and after. If it changed, the edit is undone and the store sets `lockNote` for the toast. Regeneration goes through a store action that marks itself, so the guard lets it through. This is the safety net. The UI hides the controls, so students should never see the toast in normal use; it fires on keyboard shortcuts and paths we missed. The feature table in `easy/features.ts` gets a second axis for this (`lockState(feature, d, panelId)`) so components keep asking one function.
 
-**Regeneration that follows the student's work.** Today `regenerate()` keeps details by panel id, user panels and their connections, names, quantities and placements. It doesn't move anything when a size changes, so a hole can end up off a shrunk wall. Added in milestone 47:
+**Regeneration that follows the student's work.** Today `regenerate()` keeps details by panel id, user panels and their connections, names, quantities and placements. It doesn't move anything when a size changes, so a hole can end up off a shrunk wall. Added in milestone 52:
 - **Student shapes on a preset board keep their place relative to the board.** Each shape is stored against the nearest of the board's centre, edges and corners. A shape near the top edge stays that far below it when the height changes. Afterwards it's pulled inside with the Quick build guard (`easy/guard.ts`: inset by `minWeb`, away from joints and other cut-outs). A shape that can't fit is listed with the existing *lost* message (shapes it had to move are listed too).
 - **Student boards placed on a preset face** keep their place the same way, and are clamped to the face.
-- **Student dividers between preset walls** are re-planned between the same two walls (`planDividerFor`), at the same fraction of the clear inside.
+- **Student dividers in a preset box** keep their drawn line (milestone 44's `Panel.divider`). Its point `at` is scaled with the base, so it stays at the same fraction of the inside, and its direction is kept. `reconcileDividers` then finds the new ends against the regenerated walls, as it does after any edit.
 - **Preset keep-out zones:** a preset can mark regions where student cuts aren't allowed (a mailer's tuck flap and its slit, lock-tab slots, the sleeve's glue flap). The guard treats them like joint holes.
 
 ## 6. Engine work the presets need
@@ -163,12 +166,12 @@ Most of what the presets need exists already:
 
 Missing, and added to `ops` (each with unit tests, each usable from Workshop):
 
-1. **`regenerate` follows** (§5): anchored shapes, placed boards, re-planned dividers, keep-out zones.
+1. **`regenerate` follows** (§5): anchored shapes, placed boards, scaled divider lines, keep-out zones.
 2. **A flap chain:** a panel grown from a grown panel's edge, folding inwards, with rounded free corners (a tuck flap). `growPanel` from a grown panel works today, and rounded corners work through `setPointCurve`. The new parts:
    - a clearance rule: the tuck is shortened by `t + clearance` per fold it passes
    - the nets-lie-flat check covering three-deep chains
 
-   Spike first in milestone 49. If it misbehaves, the mailer ships with a hinged lid and a front lip (no tuck), and the tuck moves to a follow-up.
+   Spike first in milestone 54. If it misbehaves, the mailer ships with a hinged lid and a front lip (no tuck), and the tuck moves to a follow-up.
 3. **Dust ears:** small flaps grown from a lid's side edges at 90° down, inside the side walls, trimmed by `adapt` where they meet the walls.
 4. **A free-standing slotted grid:** crossing standing boards with half-laps and no box. Plan A: a construction base with construction walls (never cut) as the frame, dividers between them, with slots against construction walls suppressed. Plan B, if A fights the joint code: `addGrid(d, x, z, W, D, H, rows, cols)` placing standing boards directly, with half-laps from the existing upright-crossing detection.
 5. **Sleeve closing seam:** a band of four panels closed by one glue flap (base, two walls, top, flap back onto the first wall). The fold chain exists. Check that `connectSeam(…, 'glue')` closes a band that ends on its own first panel, and that the flat net places the flap on the outside.
@@ -181,7 +184,7 @@ Default material in brackets. ✅ supported · — not offered.
 | --- | --- | --- | --- | --- | --- | --- |
 | **Organiser with dividers** (exists) | ✅ | ✅ | ✅ | ✅ | tray, dividers, lift-off lid; adds **hinged lid** | low |
 | **Card / tile stand** (exists) | ✅ | ✅ | ✅ | ✅ | leaning supports | low |
-| **Pen cup** [corr 1.6] | ✅ | ✅ | ✅ | ✅ | polygon tray, slanted top | low |
+| **Pen cup** [corr 1.6] | ✅ | ✅ | ✅ | ✅ (sided only; round needs a living hinge) | polygon tray, slanted top; round/oval from milestones 45–48 | low (sided), medium (round) |
 | **Magazine file** [corr 4] | — (too floppy at that height) | ✅ | ✅ | ✅ | tray, own heights, sloped side corners, finger hole | low |
 | **Phone stand** [corr 4] | ✅ | ✅ | ✅ | ✅ | stand kit with one support, cable notch | low |
 | **Drawer: tray and sleeve** [card] | ✅ | ✅ | ✅ | — (v2) | tray, sleeve band (§6.5), thumb notch | medium |
@@ -193,7 +196,7 @@ Default material in brackets. ✅ supported · — not offered.
 
 - **Pen cup:**
   - Size: across flats, height
-  - Shape: sides 3–12, top flat/slanted, low side
+  - Shape: outline *sided* (3–12 sides) / *round* / *oval* (round and oval use milestone 45's `RoundShape` and milestones 46–48's bent walls; they're offered only where the material's bend limit allows the radius, with the reason otherwise), top flat/slanted, low side
   - Openings: none
   - *Advanced:* corners (material default), inside/outside
   - Chips: *Pencils*, *Brushes (tall)*
@@ -237,14 +240,14 @@ Default material in brackets. ✅ supported · — not offered.
 
 | # | Milestone | Done when |
 | --- | --- | --- |
-| **44** | **PresetDef, the kit, the settings card.** `PresetDef` (alias `TemplateDef`), `kit.ts`, `presets/` folder. `organiser` and `stand` moved onto the kit, golden exports byte-identical. The card gets groups, *Advanced*, help lines, ± and the slider popover (extend `NumField`), `when`, live limits, reset dots, size chips, readouts, field-focus highlight. | Golden files unchanged; vitest for the kit; e2e: focus a field → its boards glow; out-of-range typed value refused with the range. |
-| **45** | **Welcome screen and material filter.** *Start from* with *Available now*, grouped; hidden-by-material with the *"N more with …"* line that switches material; `supports(m)` with thickness; the drawer greys unsupported materials with the reason. Optional `viewPrefs.presets` for the class. | e2e: corrugated shows the grid insert, card hides it and says why; switching material from the line selects it. |
-| **46** | **The form lock.** `presetForm`, the store guard, the lock axis on the feature table, handles → parameters, *Add* limited to student boards, *Make it a free design* (Workshop, confirm, one undo). | Unit: every structural op on a `t:` panel is rejected by the guard; e2e: dragging a preset wall's arrow changes the parameter; delete shows the toast. |
-| **47** | **Regeneration that follows.** Anchored shapes, placed boards, re-planned student dividers, keep-out zones, extended *lost* message. | Unit: a hole 10 mm under the top edge stays 10 mm under it at every height; a student divider stays at the same fraction; regenerate twice = once (as B24). |
-| **48** | **Presets, batch A:** pen cup, magazine file, phone stand, organiser's hinged lid. | Per preset × supported material: defaults and 200 seeded random parameter sets (`tests/fuzz/templates.test.ts` pattern) generate with no blocking export errors, every touching pair joined (`autoseam` check), nets lie flat or the card says why, regenerate idempotent; goldens for defaults. |
-| **49** | **Presets, batch B, with spikes first:** drawer (sleeve seam §6.5), little house, slotted grid (§6.4 plan A or B), mailer (§6.2–3, with the hinged-lid fallback). Each spike gets a half-day timebox; record what was chosen in `DECISIONS.md`. | Same tests as 48; e2e per preset: start → change two sizes → cut a hole → export. |
-| **50** | **Polish:** *Compartments: equal / custom widths* for the organiser (boxes.py-style list), Quick build pass (Advanced hidden, missions from presets: *Mailer for a gift*, *House with 2 windows*), Hebrew strings, thumbnails for every preset × material, screenshots into `docs/preset-shots/`. | i18n coverage test; screenshots reviewed in en and he. |
-| **51** | **Final verification** in the usual form: everything above re-run, `PROGRESS.md` updated, remaining limitations listed. | — |
+| **49** | **PresetDef, the kit, the settings card.** `PresetDef` (alias `TemplateDef`), `kit.ts`, `presets/` folder. `organiser` and `stand` moved onto the kit, golden exports byte-identical. The card gets groups, *Advanced*, help lines, ± and the slider popover (extend `NumField`), `when`, live limits, reset dots, size chips, readouts, field-focus highlight. | Golden files unchanged; vitest for the kit; e2e: focus a field → its boards glow; out-of-range typed value refused with the range. |
+| **50** | **Welcome screen and material filter.** *Start from* with *Available now*, grouped; hidden-by-material with the *"N more with …"* line that switches material; `supports(m)` with thickness; the drawer greys unsupported materials with the reason. Optional `viewPrefs.presets` for the class. | e2e: corrugated shows the grid insert, card hides it and says why; switching material from the line selects it. |
+| **51** | **The form lock.** `presetForm`, the store guard, the lock axis on the feature table, handles → parameters, *Add* limited to student boards, *Make it a free design* (Workshop, confirm, one undo). | Unit: every structural op on a `t:` panel is rejected by the guard; e2e: dragging a preset wall's arrow changes the parameter; delete shows the toast. |
+| **52** | **Regeneration that follows.** Anchored shapes, placed boards, re-planned student dividers, keep-out zones, extended *lost* message. | Unit: a hole 10 mm under the top edge stays 10 mm under it at every height; a student divider stays at the same fraction and still meets both walls; regenerate twice = once (as B24). |
+| **53** | **Presets, batch A:** pen cup, magazine file, phone stand, organiser's hinged lid. | Per preset × supported material: defaults and 200 seeded random parameter sets (`tests/fuzz/templates.test.ts` pattern) generate with no blocking export errors, every touching pair joined (`autoseam` check), nets lie flat or the card says why, regenerate idempotent; goldens for defaults. |
+| **54** | **Presets, batch B, with spikes first:** drawer (sleeve seam §6.5), little house, slotted grid (§6.4 plan A or B), mailer (§6.2–3, with the hinged-lid fallback). Each spike gets a half-day timebox; record what was chosen in `DECISIONS.md`. | Same tests as 53; e2e per preset: start → change two sizes → cut a hole → export. |
+| **55** | **Polish:** *Compartments: equal / custom widths* for the organiser (boxes.py-style list), Quick build pass (Advanced hidden, missions from presets: *Mailer for a gift*, *House with 2 windows*), Hebrew strings, thumbnails for every preset × material, screenshots into `docs/preset-shots/`. | i18n coverage test; screenshots reviewed in en and he. |
+| **56** | **Final verification** in the usual form: everything above re-run, `PROGRESS.md` updated, remaining limitations listed. | — |
 
 ## 9. Tests to add
 
@@ -258,10 +261,9 @@ Default material in brackets. ✅ supported · — not offered.
 ## 10. Open questions for you
 
 1. **Hebrew name** for "preset" and for each preset (draft names go in `he.ts` marked for review).
-2. **Coming soon row:** show batch B presets as locked cards while 48 ships, or keep them hidden until they work? Default: hidden.
-3. **Thinner stock:** add a 300 gsm cardstock profile?
-4. **Teacher control:** is per-class preset choice wanted now, or later?
-5. **The mailer in card:** a tuck-top deck box is the natural card version. Keep it as the mailer's card variant, or make *Deck box* its own preset with its own sizes?
+2. **Coming soon row:** show batch B presets as locked cards while 53 ships, or keep them hidden until they work? Default: hidden.
+3. **Teacher control:** is per-class preset choice wanted now, or later?
+4. **The mailer in card:** a tuck-top deck box is the natural card version. Keep it as the mailer's card variant, or make *Deck box* its own preset with its own sizes?
 
 ## References
 
