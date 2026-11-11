@@ -6,6 +6,7 @@ import { pieceRoot, placementPiece } from './keys';
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayCurveKind, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import { LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
 import { BENT_WEB, bendAlong, bentLift, facetsOf, onRun, reconcileInline } from './bent';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -146,6 +147,8 @@ function solveOnce(d: Design) {
     }
   }
   reconcileWallSets(d);
+  // telescoping lids follow their boxes (milestone 46)
+  reconcileLids(d);
   fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
   dropOrphansToFloor(d);
@@ -370,6 +373,27 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
+}
+
+/**
+ * A telescoping lid for a box's tray (milestone 46, CURVED_WALLS.md §6.3): a
+ * shallow tray of the box's outline grown by its wall's thickness and the
+ * clearance, turned over on top of it. Its rim is `rim` mm deep. Null when the
+ * tray already has one or is a lid itself.
+ */
+export function addLid(d: Design, trayId: string, rim = LID_RIM): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || !d.panels[box.baseId]) return null;
+  const B = d.panels[box.baseId];
+  const id = addRootPanel(d, 0, 0, B.w, B.h);
+  const lid = d.panels[id];
+  if (B.material) lid.material = B.material;
+  placeLid(d, lid, box);
+  const tid = addTray(d, id, rim + tOf(d, id));
+  if (!tid) return null;
+  d.trays[tid].lidOf = trayId;
+  solve(d);
+  return tid;
 }
 
 /** Change a tray's shared outer height (walls with their own height keep it). */

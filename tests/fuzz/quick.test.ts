@@ -25,12 +25,13 @@ type Fail = { cls: string; seed: number; msg: string };
 const clone = (d: Design): Design => JSON.parse(JSON.stringify(d));
 
 function footprint(r: R) {
-  const kind = r.chance(0.6) ? ('rect' as const) : ('regular' as const);
+  // milestone 46: round and rounded footprints too
+  const kind = r.chance(0.5) ? ('rect' as const) : r.pick(['regular', 'regular', 'round', 'rounded'] as const);
   const cx = r.num(-200, 200), cz = r.num(-200, 200);
   const sz = r.pick([r.num(0, 10), r.num(10, 120), r.num(100, 400), r.num(400, 900)]);
   const sz2 = r.chance(0.3) ? sz : r.pick([r.num(0, 10), r.num(10, 120), r.num(100, 400)]);
   const flipX = r.chance(0.3) ? -1 : 1, flipZ = r.chance(0.3) ? -1 : 1;
-  return { kind, x0: cx, z0: cz, x1: cx + flipX * sz, z1: cz + flipZ * sz2, sides: r.int(3, 12) } as const;
+  return { kind, x0: cx, z0: cz, x1: cx + flipX * sz, z1: cz + flipZ * sz2, sides: r.int(3, 12), r: r.num(1, 60) } as const;
 }
 
 function session(seed: number, fails: Fail[], stats: Record<string, number>) {

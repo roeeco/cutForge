@@ -11,7 +11,7 @@ export function boxFootprintGo(a: V3, b: V3) {
   const st = useStore.getState();
   st.cancelPending();
   let id: string | null = null;
-  st.apply((d) => void (id = addBoxBase(d, { kind: st.boxFoot, x0: a[0], z0: a[2], x1: b[0], z1: b[2], sides: st.boxSides })));
+  st.apply((d) => void (id = addBoxBase(d, { kind: st.boxFoot, x0: a[0], z0: a[2], x1: b[0], z1: b[2], sides: st.boxSides, r: st.boxCorner })));
   if (!id) return;
   st.beginPending({ kind: 'panel', ids: [id], panelId: id });
   st.select({ kind: 'panel', id });

@@ -169,8 +169,10 @@ type State = {
   /** Quick build's guardrails (milestone 39): what the last edit was kept from, for the tooltip. */
   guardNote: (GuardNote & { at: number }) | null;
   /** Quick build's Box (milestone 38): the footprint, a regular footprint's sides, and the last height used. */
-  boxFoot: 'rect' | 'regular';
+  boxFoot: 'rect' | 'regular' | 'round' | 'rounded';
   boxSides: number;
+  /** A Rounded box's corner radius (milestone 46). */
+  boxCorner: number;
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
@@ -264,7 +266,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -320,6 +322,7 @@ export const useStore = create<State>()((set, get) => ({
   guardNote: null,
   boxFoot: 'rect',
   boxSides: 6,
+  boxCorner: 15,
   boxHeight: 45,
   sticker: 'star',
   assemble: null,

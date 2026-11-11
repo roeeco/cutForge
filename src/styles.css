@@ -604,6 +604,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 }
 .quick-card h4 { margin: 0 0 6px; }
 .quick-card .note { margin: 6px 0 0; }
+/* the Box's four footprints (milestone 46): two rows */
+.quick-card [data-testid='box-foot'] { display: grid; grid-template-columns: 1fr 1fr; }
 .sticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
 .sticker-grid button { min-height: 0; height: 40px; padding: 0; display: grid; place-items: center; }
 .sticker-grid button.on { outline: 2px solid var(--accent, #1a9c8c); }

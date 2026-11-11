@@ -17,11 +17,11 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
-import { facetsOf, panelToLocal, panelToWorld, unbendPanel } from '../model/bent';
+import { bendAlong, bentLift, facetsOf, panelToLocal, panelToWorld, unbendPanel } from '../model/bent';
 import { bentWarp, contourLinePoints, contourShapeGeometry, densify, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
-import { matOf, tOf } from '../model/materials';
+import { bendOf, curvedFor, curvedKinds, matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
 import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
@@ -34,7 +34,7 @@ import { commonPlane } from '../model/arrange';
 import { FLOOR_FRAME, faceOut } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
-import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
+import { FACE, curveRuns, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { dividerAxes, dividerRow, snapDividerLine, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
 import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
@@ -220,6 +220,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, GROUND);
         if (!p) return;
         g.cur = [snap(p[0], ev), 0, snap(p[2], ev)];
+        // a Round box with Shift: a circle (milestone 46)
+        if (st.tool === 'box' && st.boxFoot === 'round' && ev.shiftKey) {
+          const dx = g.cur[0] - g.start[0], dz = g.cur[2] - g.start[2], m = Math.max(Math.abs(dx), Math.abs(dz));
+          g.cur = [g.start[0] + (Math.sign(dx) || 1) * m, 0, g.start[2] + (Math.sign(dz) || 1) * m];
+        }
         setDrawRect({ a: g.start, b: g.cur });
         setLabel({ text: `${fmtNum(Math.abs(g.cur[0] - g.start[0]))} × ${fmtNum(Math.abs(g.cur[2] - g.start[2]))}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'ghost-draw') {
@@ -1739,7 +1744,23 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
         const frame = growFrame(base, e.key, 90, 'up', th, seatingOf(kind), defaultOffset(d, kind, baseId));
         const p: Panel = { id: `ghost-${e.key}`, name: '', w: segLength(e), h, sketch: { kind: 'wall' }, frame, details: [], ...(base.material ? { material: base.material } : {}) };
         return { key: e.key, p, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
-      });
+      })
+      .concat(
+        // a bent wall on each curve run (milestone 46), with the joint a new tray would give it
+        curveRuns(base)
+          .filter((r) => r.length >= MIN_EDGE)
+          .map((r) => {
+            const bm = matOf(d, baseId);
+            const straight = panelEdges(base).some((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key));
+            const ck = straight ? curvedFor(kind, bm) : curvedKinds(bm)[0];
+            const bent = bendAlong(base, r, defaultOffset(d, ck, baseId), bm.thickness, bendOf(bm).k, bentLift(ck, th));
+            const fs = bent.facets;
+            const w = fs[fs.length - 1].s1;
+            const frame = (fs.find((f) => f.s1 >= w / 2) ?? fs[0]).frame;
+            const p: Panel = { id: `ghost-${r.key}`, name: '', w, h: Math.max(MIN_PANEL, wallHeight(d, ck, height, baseId)), sketch: { kind: 'wall' }, frame, details: [], bent, ...(base.material ? { material: base.material } : {}) };
+            return { key: r.key, p, geom: panelGeometry(d, p, { joints: false }), matrix: m.clone().multiply(frameMatrix(frame)) };
+          }),
+      );
   }, [d, base, height, kind, m, th]);
   useEffect(() => () => ghosts.forEach((g) => g.geom.dispose()), [ghosts]);
   // nets that lie flat (milestone 35): the tallest height that keeps the net one piece, and the walls changed past it

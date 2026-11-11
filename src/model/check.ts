@@ -286,6 +286,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   oneOf(x.wallKind, CONNECTION_KINDS, `${where}.wallKind`);
   oneOf(x.cornerKind, CONNECTION_KINDS, `${where}.cornerKind`);
   if (x.curveKind !== undefined) oneOf(x.curveKind, CONNECTION_KINDS, `${where}.curveKind`);
+  if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
   arr(x.openEdges, `${where}.openEdges`).forEach((e, i) => str(e, `${where}.openEdges[${i}]`));
   if (x.tabLen !== undefined) oneOf(x.tabLen, TAB_LOCKS, `${where}.tabLen`);
   if (x.flat !== undefined) oneOf(x.flat, ['auto', 'off'] as const, `${where}.flat`);

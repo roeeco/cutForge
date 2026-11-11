@@ -2,10 +2,11 @@
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
 import type { Design, DetailOp, DetailShape, DividerRec, P2, V3 } from '../model/types';
-import { addDetail, addDividerRec, addPathShape, addPolygonPanel, addRootPanel, addText, addTray, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon } from '../model/ops';
+import { addDetail, addDividerRec, addPathShape, addPolygonPanel, addRootPanel, addRoundedRect, addRoundPanel, addText, addTray, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon } from '../model/ops';
 import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
-import { tOf } from '../model/materials';
+import { bendOf, tOf } from '../model/materials';
+import { defaultEnd } from '../model/round';
 import { effectiveGrow, growWith } from '../views/ghost';
 import { heightTargets } from '../model/adapt';
 
@@ -13,13 +14,49 @@ import { heightTargets } from '../model/adapt';
 export const BOX_HEIGHT = 45;
 
 /** A box's footprint on the floor (floor coordinates: x along world X, z along world Z). */
-export type Footprint = { kind: 'rect'; x0: number; z0: number; x1: number; z1: number } | { kind: 'regular'; x0: number; z0: number; x1: number; z1: number; sides: number };
+export type Footprint =
+  | { kind: 'rect'; x0: number; z0: number; x1: number; z1: number }
+  | { kind: 'regular'; x0: number; z0: number; x1: number; z1: number; sides: number }
+  // milestone 46: a circle (a square drag) or an oval; a rectangle with rounded corners of radius r
+  | { kind: 'round'; x0: number; z0: number; x1: number; z1: number }
+  | { kind: 'rounded'; x0: number; z0: number; x1: number; z1: number; r: number };
+
+/** The default corner radius of a Rounded box (mm). */
+export const BOX_CORNER = 15;
+
+/**
+ * The radius guard (CURVED_WALLS.md §5.1): the tightest curve the working
+ * material's walls bend to with their pattern. A Rounded box's corners and a
+ * Round box's ends are at least this round; a circle at least twice it across.
+ */
+export const reachR = (d: Design) => Math.ceil(bendOf(d.material).patternR);
+
+/** A Round footprint as made: a circle when the drag is (about) square, else an oval whose ends are at least `reachR` round (a stadium when the short side allows no more). */
+export function roundFootprint(d: Design, w: number, h: number): { w: number; h: number; shape: 'circle' | 'oval' | 'stadium'; rEnd?: number; grown: boolean } {
+  const R = reachR(d);
+  if (Math.abs(w - h) <= Math.max(1, 0.03 * Math.max(w, h))) {
+    const D = Math.max((w + h) / 2, 2 * R);
+    return { w: D, h: D, shape: 'circle', grown: D > (w + h) / 2 + 1e-9 };
+  }
+  // the short side at least 2R, so the ends can be R round
+  const W = w >= h ? w : Math.max(w, 2 * R), H = w >= h ? Math.max(h, 2 * R) : h;
+  const rEnd = Math.max(defaultEnd(W, H), R);
+  const b = Math.min(W, H) / 2;
+  return rEnd >= b - 1e-6 ? { w: W, h: H, shape: 'stadium', grown: W !== w || H !== h } : { w: W, h: H, shape: 'oval', rEnd: Math.round(rEnd * 10) / 10, grown: W !== w || H !== h || rEnd > defaultEnd(W, H) + 1e-9 };
+}
 
 /** The base a footprint makes (the same as drawing it with the Panel or Polygon tool); null when too small. */
 export function addBoxBase(d: Design, f: Footprint): string | null {
   const x0 = Math.min(f.x0, f.x1), x1 = Math.max(f.x0, f.x1), z0 = Math.min(f.z0, f.z1), z1 = Math.max(f.z0, f.z1);
   if (x1 - x0 < MIN_PANEL || z1 - z0 < MIN_PANEL) return null;
   if (f.kind === 'rect') return addRootPanel(d, x0, z1, x1 - x0, z1 - z0);
+  if (f.kind === 'round') {
+    // grown about the drag's centre where the guard makes it bigger
+    const r = roundFootprint(d, x1 - x0, z1 - z0);
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    return addRoundPanel(d, cx - r.w / 2, cz + r.h / 2, r.w, r.h, r.shape === 'oval' ? { shape: 'oval', rEnd: r.rEnd } : { shape: r.shape });
+  }
+  if (f.kind === 'rounded') return addRoundedRect(d, x0, z1, x1 - x0, z1 - z0, Math.max(f.r, reachR(d)));
   // a regular polygon inside the dragged square, centred on it
   const r = Math.min(x1 - x0, z1 - z0) / 2;
   return addPolygonPanel(d, (x0 + x1) / 2, (z0 + z1) / 2, regularPolygon(f.sides, r));

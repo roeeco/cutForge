@@ -1041,6 +1041,18 @@ Verified so far
 - In the browser (a script): a rectangle dragged on the front of a curved wall lands at its flat place and size (30 × 20 at the middle); the fold slider unrolls the wall.
 - Unit suite: 596 pass. Browser suite: 96 passed, 0 failed, 57 skipped.
 
+Part 3: Quick build's Round and Rounded boxes, telescoping lids (`CURVED_WALLS.md` §5.1, §6.3, §6.5; `src/easy/recipes.ts`, `src/easy/QuickRail.tsx`, `src/model/lid.ts`, `src/ui/TrayUI.tsx`, `src/views/View3D.tsx` `TrayGhost`)
+- **Box footprints** *Rectangle · Regular · Round · Rounded* (`box-round`, `box-rounded`, in two rows). Round: a square drag (Shift keeps it square) is a circle, a longer one an oval; Rounded: a rectangle with rounded corners, *Corner radius* on the card (`box-corner`, default 15).
+- **The radius guard** (`reachR`, `roundFootprint`): curves are at least the working material's `patternR` round (a circle at least twice it across, an oval's ends at least it, a stadium when the short side allows no more; a Rounded box's corners at least it). The card says so (`box-reach`).
+- **The extrude ghost** shows the bent walls a new tray would stand (with the joint it would give them), and its note counts curves.
+- **Telescoping lids** (`addLid`, `Tray.lidOf`, `placeLid`, `reconcileLids`): *Add a lid* on a tray's card (`tray-lid`) makes a shallow tray (rim 12 mm) of the box's outline grown by the wall's thickness and the clearance (straight edges moved out, rounded corners' radii grown, an oval's ends too), turned over and resting on the box a clearance above its walls. It follows the box on every solve; a lid's card says what it is (`tray-is-lid`).
+
+Verified so far
+- `tests/bentWalls.test.ts` (+4, 21): Round boxes (a circle, an oval whose ends reach the material's radius, a small plywood circle made 60 across and clear of `val.bendTight`); Rounded boxes (plywood corners raised to 30 with eight walls; card at 15, export check clean); a corrugated round box's lid (centred, its rim's inner face the clearance outside the box wall's outer face, above the box, following it when the box grows, clean); a card rounded box's lid (sides and corner radii grown by the gap).
+- The Quick build fuzzer draws Round and Rounded footprints too.
+- In the browser (a script, Quick build): a Shift-drag with *Round* makes a circle whose bent wall rises as a ghost; ✓ and *Add a lid* show the hat-box lid on top.
+- Unit suite: 600 pass.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

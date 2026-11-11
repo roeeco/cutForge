@@ -322,3 +322,5 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A closed strip's seam is at the back left (135°)**, where no divider drawn on the box's grid or in 30° steps through its middle meets it.
 - **Dividers end on a curved wall** at its far face, found from one footprint per facet, and are joined on the facet they meet as on a planar wall (tabs and slots; plywood a slide fit, since its bend will be a living hinge).
 - **The fold slider unrolls bent walls** (display only).
+- **Quick build's Box** has *Round* (a square drag or Shift: a circle; otherwise an oval) and *Rounded* (corner radius on the card, default 15). Curves are never tighter than the material's `patternR` (the guard grows them; the card says how round).
+- **A lid for any box is a telescoping tray** (*Add a lid* on the tray card): the box's outline grown by the wall's thickness and the clearance, turned over on top, rim 12 mm. It is re-made from the box on every solve, so it follows the box's size and shape.

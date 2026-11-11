@@ -419,6 +419,8 @@ export type Tray = {
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
   /** Milestone 46: the joint of its bent walls (on curve runs) with the base; absent: chosen from `wallKind` and the material. */
   curveKind?: ConnectionKind;
+  /** Milestone 46: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
+  lidOf?: string;
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */

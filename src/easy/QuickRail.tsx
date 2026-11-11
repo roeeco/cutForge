@@ -7,6 +7,7 @@ import type { MsgKey } from '../i18n';
 import { Icon } from '../ui/icons';
 import { Segmented, Stepper } from '../ui/NumField';
 import { STICKERS } from './stickers';
+import { reachR } from './recipes';
 
 export type QuickAction = 'box' | 'wall' | 'divider' | 'standing' | 'hole' | 'text';
 
@@ -82,6 +83,9 @@ function ActionCard() {
   const tool = useStore((s) => s.tool);
   const boxFoot = useStore((s) => s.boxFoot);
   const sides = useStore((s) => s.boxSides);
+  const corner = useStore((s) => s.boxCorner);
+  // the radius guard: the working material's tightest bend (milestone 46)
+  const reach = useStore((s) => reachR(s.design));
   const sticker = useStore((s) => s.sticker);
   const set = useStore((s) => s.set);
   const a = QUICK_ACTIONS.find((x) => x.tools.includes(tool));
@@ -96,11 +100,20 @@ function ActionCard() {
           options={[
             { value: 'rect', label: t('quick.boxRect'), testId: 'box-rect' },
             { value: 'regular', label: t('quick.boxRegular'), testId: 'box-regular' },
+            { value: 'round', label: t('quick.boxRound'), testId: 'box-round' },
+            { value: 'rounded', label: t('quick.boxRounded'), testId: 'box-rounded' },
           ]}
           onChange={(v) => set({ boxFoot: v })}
+          testId="box-foot"
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
-        <p className="note">{t('quick.boxHelp')}</p>
+        {boxFoot === 'rounded' && <Stepper label={t('quick.boxCorner')} value={Math.max(corner, reach)} min={reach} max={200} slider={false} onCommit={(v) => set({ boxCorner: Math.max(reach, Math.round(v)) })} testId="box-corner" />}
+        {(boxFoot === 'round' || boxFoot === 'rounded') && (
+          <p className="note" data-testid="box-reach">
+            {t('quick.boxReach', { r: reach })}
+          </p>
+        )}
+        <p className="note">{t(boxFoot === 'round' ? 'quick.boxRoundHelp' : 'quick.boxHelp')}</p>
       </>
     );
   else if (a.id === 'wall') body = <p className="note">{t('quick.wallHelp')}</p>;

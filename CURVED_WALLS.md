@@ -350,6 +350,8 @@ Each one keeps every existing test green and adds its own. Golden exports change
 - *Schema 12 (new joint kinds).*
 - *A closed strip's closing seam is at the back left (135°) rather than the back: a divider drawn on the box's grid, or in 30° steps through its middle, then never meets it.*
 - *A divider ends on a curved wall at its far face like on any wall; its end is joined on the facet it meets, through a view of the design in which the wall is planar there (`onFacet`), so the joint code is unchanged. Plywood gets a slide fit there.*
+- *Quick build's Round box keeps the circle/oval split by the drag's aspect (within 3 %), and its guard grows the footprint about its centre rather than refusing it. No faint ring on the stage: the card states the limit.*
+- *The telescoping lid is a tray with `lidOf` (its box's tray), its base re-derived on every solve: the box's outline grown by wall thickness + clearance, turned over, its underside a clearance above the walls. It is offered on every tray's card (round or not), in both modes; *Lip lid* is left for later.*
 - *From milestone 45:* `curveRuns` in `edges.ts`; Quick build Box *Round · Rounded* with the radius guard (§6.5).
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`

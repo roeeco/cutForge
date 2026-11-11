@@ -1,7 +1,8 @@
 // Milestone 46 (CURVED_WALLS.md §3.1, §3.2, §3.4, §4.3, §6.2): walls bent along curve runs.
 import { describe, expect, it } from 'vitest';
-import { addDividerLine, addFoldOver, addRoundedRect, addRoundPanel, addTray, autoConnect, canFoldOver, createDesign, deleteConnection, growPanel, setTrayKinds, setCornerRadius, solve } from '../src/model/ops';
+import { addDividerLine, addFoldOver, addLid, setRoundShape, addRoundedRect, addRoundPanel, addTray, autoConnect, canFoldOver, createDesign, deleteConnection, growPanel, setTrayKinds, setCornerRadius, solve } from '../src/model/ops';
 import { fixIssue } from '../src/easy/fix';
+import { boxRecipe, reachR } from '../src/easy/recipes';
 import { rng } from './fuzz/gen';
 import { curveRuns, findRun, panelEdges } from '../src/model/edges';
 import { MATERIALS, bendOf } from '../src/model/materials';
@@ -359,4 +360,85 @@ describe('round bases, random (auto-connection fuzz)', () => {
     }
     expect(fails).toEqual([]);
   }, 120_000);
+});
+
+describe('Quick build: Round and Rounded boxes', () => {
+  it('Round: a square drag is a circle, a long one an oval whose ends reach the material’s radius; walls rise bent', () => {
+    const d = createDesign(CORR16);
+    const c = boxRecipe(d, { kind: 'round', x0: 0, z0: 0, x1: 80, z1: 80 }, 50)!;
+    expect(d.panels[c.baseId].sketch).toMatchObject({ round: { shape: 'circle' } });
+    expect(bentOf(d, c.baseId)).toHaveLength(1);
+    const o = boxRecipe(d, { kind: 'round', x0: 200, z0: 0, x1: 340, z1: 60 }, 40)!;
+    const r = (d.panels[o.baseId].sketch as { round?: { shape: string; rEnd?: number } }).round!;
+    expect(['oval', 'stadium']).toContain(r.shape);
+    if (r.shape === 'oval') expect(r.rEnd!).toBeGreaterThanOrEqual(bendOf(CORR16).patternR);
+    // a circle smaller than the material bends is made that big (plywood: 2 × 30)
+    const p = createDesign(PLY);
+    const s = boxRecipe(p, { kind: 'round', x0: 0, z0: 0, x1: 30, z1: 30 }, 40)!;
+    expect(p.panels[s.baseId].w).toBe(2 * reachR(p));
+    expect(validate(p).some((i) => i.key === 'val.bendTight')).toBe(false);
+  });
+
+  it('Rounded: a rectangle with rounded corners, clamped to the material’s radius; straight walls and bent corners', () => {
+    const d = createDesign(PLY);
+    const b = boxRecipe(d, { kind: 'rounded', x0: 0, z0: 0, x1: 160, z1: 100, r: 15 }, 45)!;
+    const pts = (d.panels[b.baseId].sketch as { pts: { r?: number }[] }).pts;
+    expect(pts.every((q) => q.r === reachR(d))).toBe(true);
+    expect(bentOf(d, b.baseId)).toHaveLength(4);
+    expect(wallsOf(d, b.baseId)).toHaveLength(8);
+    const c = createDesign(CARD);
+    const cb = boxRecipe(c, { kind: 'rounded', x0: 0, z0: 0, x1: 100, z1: 60, r: 15 }, 40)!;
+    expect((c.panels[cb.baseId].sketch as { pts: { r?: number }[] }).pts[0].r).toBe(15);
+    expect(blocking(c)).toEqual([]);
+  });
+});
+
+describe('telescoping lids', () => {
+  it('a corrugated round box’s lid fits over its wall with the clearance, sits on top, and follows the box', () => {
+    const d = createDesign(CORR16);
+    const base = addRoundPanel(d, 0, 0, 80, 80, { shape: 'circle' })!;
+    const tray = addTray(d, base, 50)!;
+    autoConnect(d);
+    const lt = addLid(d, tray)!;
+    autoConnect(d);
+    expect(lt).toBeTruthy();
+    expect(addLid(d, tray)).toBeNull();
+    const lid = d.trays[lt];
+    const lb = d.panels[lid.baseId];
+    expect(lb.w).toBeCloseTo(80 + 2 * (CORR16.thickness + CORR16.clearance), 9);
+    const box = d.panels[bentOf(d, base)[0].b.panelId], rim = d.panels[bentOf(d, lid.baseId)[0].b.panelId];
+    // the centre's world position
+    const ctr = (id: string) => {
+      const p = d.panels[id];
+      return [p.frame.o[0] + (p.frame.u[0] * p.w) / 2 + (p.frame.v[0] * p.h) / 2, p.frame.o[2] + (p.frame.u[2] * p.w) / 2 + (p.frame.v[2] * p.h) / 2];
+    };
+    const [cx, cz] = ctr(base);
+    const [lx, lz] = ctr(lid.baseId);
+    expect(lx).toBeCloseTo(cx, 6);
+    expect(lz).toBeCloseTo(cz, 6);
+    const rad = (q: number[]) => Math.hypot(q[0] - cx, q[2] - cz);
+    const outerBox = rad(panelToWorld(box, box.w / 3, 10, 0));
+    const innerLid = rad(panelToWorld(rim, rim.w / 3, 5, CORR16.thickness));
+    expect(innerLid - outerBox).toBeCloseTo(CORR16.clearance, 1);
+    // upside down, its top above the box
+    expect(lb.frame.o[1]).toBeGreaterThan(50);
+    expect(Math.min(...[0, 0.25, 0.5].map((k) => panelToWorld(rim, rim.w * k, rim.h, 0)[1]))).toBeLessThan(50);
+    // the box grows: the lid follows
+    setRoundShape(d, base, { w: 100 });
+    expect(d.panels[lid.baseId].w).toBeCloseTo(100 + 2 * (CORR16.thickness + CORR16.clearance), 9);
+    expect(blocking(d)).toEqual([]);
+    expect(() => sheetsToSvg(prepareExport(d).sheets)).not.toThrow();
+  });
+
+  it('a card rounded box’s lid: rounded corners grown by the gap', () => {
+    const d = createDesign(CARD);
+    const b = boxRecipe(d, { kind: 'rounded', x0: 0, z0: 0, x1: 100, z1: 60, r: 15 }, 40)!;
+    const tray = Object.values(d.trays).find((t) => t.baseId === b.baseId)!;
+    const lt = addLid(d, tray.id)!;
+    const g = CARD.thickness + CARD.clearance;
+    const lb = d.panels[d.trays[lt].baseId];
+    expect(lb.w).toBeCloseTo(100 + 2 * g, 9);
+    expect(lb.h).toBeCloseTo(60 + 2 * g, 9);
+    expect((lb.sketch as { pts: { r?: number }[] }).pts.every((q) => Math.abs(q.r! - (15 + g)) < 1e-9)).toBe(true);
+  });
 });

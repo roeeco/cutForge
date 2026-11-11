@@ -7,13 +7,14 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
-import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt } from '../model/ops';
+import { addFoldOver, addLid, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt } from '../model/ops';
 import { trayWallOn } from '../model/flatnet';
 import { panelLabel } from '../model/names';
 import { fmtNum } from '../i18n';
 import { useMemo } from 'react';
 import type { Tray, TrayFix } from '../model/types';
 import { shortEdges, trayCurveKind, trayOf, MIN_EDGE } from '../model/trays';
+import { lidOn } from '../model/lid';
 import { curveRuns, isCurveKey, panelEdges, segLength } from '../model/edges';
 import { connectionsFor, curvedKinds, matOf, tOf } from '../model/materials';
 import { boltCount, seamKinds, tabLocks } from '../model/seams';
@@ -45,7 +46,8 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
       </div>
     );
   const p = d.panels[panelId];
-  const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length;
+  // a wall on each straight edge and each curve (milestone 46)
+  const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length + curveRuns(p).filter((r) => r.length >= MIN_EDGE).length;
   const kinds = newTrayKinds(d, panelId);
   return (
     <div className="subsection extrude-card" data-testid="extrude-card">
@@ -141,6 +143,18 @@ export function TraySection({ panelId }: { panelId: string }) {
       )}
       </Gate>
       {straight && tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
+      {tray.lidOf ? (
+        <p className="note" data-testid="tray-is-lid">{t('tray.isLid')}</p>
+      ) : (
+        !lidOn(d, tray.id) && (
+          <div className="tray-lid">
+            <button onClick={() => apply((x) => void addLid(x, tray.id))} data-testid="tray-lid">
+              {t('tray.lid')}
+            </button>
+            <p className="note">{t('tray.lidHelp')}</p>
+          </div>
+        )
+      )}
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
         <div className="tray-open" data-testid="tray-open">
