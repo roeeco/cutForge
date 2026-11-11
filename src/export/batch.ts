@@ -10,7 +10,8 @@ import { outlineText } from '../text/outline';
 import { compensatePiece, type KerfMode, type PreparedSheet, type PrepError } from './prepare';
 
 export type BatchItem = { design: Design; label: string; id: string };
-export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[] } | { error: 'mixed' | 'empty' };
+/** `skipped`: the items (by id) that could not be included, e.g. a damaged submission. */
+export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[]; skipped: string[] } | { error: 'mixed' | 'empty' };
 
 export const sameMaterial = (a: Design, b: Design) => a.material.kind === b.material.kind && Math.abs(a.material.thickness - b.material.thickness) < 1e-6;
 
@@ -33,9 +34,16 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
   const synth = createDesign(first.material);
   synth.sheetMargin = first.sheetMargin;
   synth.sheetSpacing = first.sheetSpacing;
-  const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) =>
-    pieceCopies(it.design).map((c) => ({ ...c, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label })),
-  );
+  // one submission that cannot be cut (a damaged design) is left out and named, never the whole batch
+  const skipped: string[] = [];
+  const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) => {
+    try {
+      return pieceCopies(it.design).map((c) => ({ ...c, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label }));
+    } catch {
+      skipped.push(it.id);
+      return [];
+    }
+  });
   // boards of their own material: each material on its own sheets (grouped by material, like a student's export)
   for (const it of items) if (it.design.materials) synth.materials = { ...(synth.materials ?? {}), ...it.design.materials };
   const placements = pack(synth, copies);
@@ -54,5 +62,5 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
     for (const tc of [...contours, ...label(c.owner, c.w, c.h)]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   const sheets = groups.flatMap((g) => g.list);
-  return { sheets, errors };
+  return { sheets, errors, skipped };
 }

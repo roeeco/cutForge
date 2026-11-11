@@ -312,10 +312,20 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
     setBatch(null);
     const chosen = subs.filter((s) => sel.has(s.id));
     const items: BatchItem[] = [];
-    for (const s of chosen) items.push({ id: s.id, label: s.displayName, design: await loadDesign(s.id) });
+    const failed: string[] = [];
+    // a submission that cannot be loaded is left out and named (BUGFIX_PLAN B3)
+    for (const s of chosen) {
+      try {
+        items.push({ id: s.id, label: s.displayName, design: await loadDesign(s.id) });
+      } catch {
+        failed.push(s.id);
+      }
+    }
     const r = batchExport(items);
-    if ('error' in r) return setMsg(r.error === 'mixed' ? t('teach.mixed') : '');
-    setBatch({ sheets: r.sheets, pieces: chosen.reduce((n, s) => n + s.pieceCount, 0) });
+    if ('error' in r) return setMsg(r.error === 'mixed' ? t('teach.mixed') : failed.length ? t('teach.skipped', { names: chosen.filter((s) => failed.includes(s.id)).map((s) => s.displayName).join(', ') }) : '');
+    const left = new Set([...failed, ...r.skipped]);
+    if (left.size) setMsg(t('teach.skipped', { names: chosen.filter((s) => left.has(s.id)).map((s) => s.displayName).join(', ') }));
+    setBatch({ sheets: r.sheets, pieces: chosen.filter((s) => !left.has(s.id)).reduce((n, s) => n + s.pieceCount, 0) });
   };
   const mark = async (ids: string[], status: 'new' | 'cut') => {
     await api.setStatus(ids, status);

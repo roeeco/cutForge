@@ -2,14 +2,15 @@
 import type { Design } from './types';
 import { SCHEMA_VERSION } from './types';
 import { solve } from './ops';
+import { checkDesign, checkSolved, DamagedError } from './check';
 
 export const PROJECT_FORMAT = 'cutforge-project';
 
 export type ProjectFile = { format: typeof PROJECT_FORMAT; schemaVersion: number; savedAt: string; design: Design };
 
 export class ProjectError extends Error {
-  constructor(public code: 'notProject' | 'newerVersion') {
-    super(code);
+  constructor(public code: 'notProject' | 'newerVersion' | 'damaged', detail?: string) {
+    super(detail ? `${code}: ${detail}` : code);
   }
 }
 
@@ -75,23 +76,34 @@ export function serializeProject(d: Design): string {
 }
 
 export function migrateDesign(raw: any): Design {
-  if (!raw || typeof raw !== 'object' || typeof raw.schemaVersion !== 'number' || typeof raw.panels !== 'object') throw new ProjectError('notProject');
+  if (!raw || typeof raw !== 'object' || typeof raw.schemaVersion !== 'number' || !raw.panels || typeof raw.panels !== 'object') throw new ProjectError('notProject');
   if (raw.schemaVersion > SCHEMA_VERSION) throw new ProjectError('newerVersion');
-  let d = structuredClone(raw);
-  while (d.schemaVersion < SCHEMA_VERSION) {
-    const m = MIGRATIONS[d.schemaVersion];
-    if (!m) throw new ProjectError('notProject');
-    d = m(d);
-    d.schemaVersion++;
+  if (!Number.isInteger(raw.schemaVersion) || raw.schemaVersion < 1) throw new ProjectError('notProject');
+  try {
+    let d = structuredClone(raw);
+    while (d.schemaVersion < SCHEMA_VERSION) {
+      const m = MIGRATIONS[d.schemaVersion];
+      if (!m) throw new ProjectError('notProject');
+      d = m(d);
+      d.schemaVersion++;
+    }
+    d.order = Array.isArray(d.order) ? d.order : Object.keys(d.panels);
+    d.connections ??= {};
+    d.pieces ??= {};
+    d.placements ??= {};
+    d.trays ??= {};
+    // every field the model reads, checked before solve sees it (BUGFIX_PLAN B3)
+    checkDesign(d);
+    for (const id of d.order) if (!Object.prototype.hasOwnProperty.call(d.pieces, id)) d.pieces[id] = { quantity: 1 };
+    // older files keep one flat set of joint choices: it belongs to the file's material (`solve` reads it in)
+    solve(d);
+    checkSolved(d);
+    return d as Design;
+  } catch (e) {
+    if (e instanceof ProjectError) throw e;
+    // a damaged field, or a design the model cannot solve: never a raw TypeError
+    throw new ProjectError('damaged', e instanceof DamagedError ? e.message : String((e as Error)?.message ?? e));
   }
-  d.order = (Array.isArray(d.order) ? d.order : Object.keys(d.panels)).filter((id: string) => d.panels[id]);
-  d.connections ??= {};
-  d.pieces ??= {};
-  d.placements ??= {};
-  for (const id of d.order) d.pieces[id] ??= { quantity: 1 };
-  // older files keep one flat set of joint choices: it belongs to the file's material (`solve` reads it in)
-  solve(d);
-  return d as Design;
 }
 
 export function parseProject(text: string): Design {

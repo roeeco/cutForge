@@ -38,7 +38,9 @@ export function TopBar() {
       const design = parseProject(await f.text());
       useStore.getState().replaceDesign(design);
     } catch (e) {
-      const reason = e instanceof ProjectError ? t(e.code === 'newerVersion' ? 'err.newerVersion' : 'err.notProject') : String(e);
+      // a friendly reason for any failure, never a raw error message
+      const code = e instanceof ProjectError ? e.code : 'damaged';
+      const reason = t(code === 'newerVersion' ? 'err.newerVersion' : code === 'notProject' ? 'err.notProject' : 'err.damaged');
       alert(t('dlg.openFailed', { reason }));
     }
   };

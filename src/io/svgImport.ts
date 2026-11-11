@@ -200,6 +200,8 @@ export function importSvg(text: string, parser: { parseFromString(s: string, t: 
       }
       if (!closed) return problems.add('openDropped');
       const tp = pts.map((p) => ap(mm, p));
+      // a number like 1e999 (or a transform that overflows) is not a shape
+      if (!tp.every((q) => Number.isFinite(q.x) && Number.isFinite(q.y))) return;
       if (tp.length >= 3 && Math.abs(polygonArea(tp)) > 1e-9) rings.push(tp);
     };
     if (tag === 'path') for (const sp of parsePathData(el.getAttribute('d') ?? '')) add(sp.pts, sp.closed);

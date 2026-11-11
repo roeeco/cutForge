@@ -11,7 +11,7 @@ import { panelEdges } from '../../src/model/edges';
 
 describe('repro: huge coordinate in a loaded file', () => {
   it('is refused, or loads with finite geometry', () => {
-    const text = readFileSync('tests/bugs-output/fixtures/huge-coordinate.json', 'utf8');
+    const text = readFileSync('tests/regress/fixtures/huge-coordinate.json', 'utf8');
     let d;
     try {
       d = parseProject(text);
