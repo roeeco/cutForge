@@ -754,3 +754,42 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .tour-offer .cap small { color: var(--ink-muted); font-size: 13.5px; line-height: 1.35; }
 .tour-offer .primary { white-space: nowrap; }
 .start-foot .tour-link { margin-inline-start: 8px; }
+
+/* ---------- the top bar on narrower windows (BUGFIX_PLAN U1) ---------- */
+.topbar button, .topbar .mat-pill { white-space: nowrap; }
+.topbar .short, .topbar .tablet-only { display: none; }
+.submit-btn { display: inline-flex; align-items: center; gap: 6px; }
+.submit-btn svg { display: none; }
+.more-wrap { position: relative; }
+.more-menu { inset-inline-start: auto; inset-inline-end: 0; }
+.more-menu button.on { font-weight: 600; }
+@media (max-width: 1500px) {
+  .topbar .brand .hide-narrow { display: none; }
+  .submit-btn .full { display: none; }
+  .submit-btn .short { display: inline; }
+  .submit-btn svg { display: block; }
+  .design-name { width: 140px; }
+  .topbar:has(.ready-wrap) .design-name { width: 110px; }
+}
+@media (max-width: 1300px) {
+  .mat-pill .mat-name { display: none; }
+  .mat-pill { padding-inline-end: 8px; }
+}
+@media (max-width: 1000px) {
+  .topbar { gap: 6px; padding: 0 10px; }
+  .topbar .tablet-hide { display: none !important; }
+  .topbar .tablet-only { display: inline-flex; }
+  .dl-btn .full { display: none; }
+  .dl-btn .short { display: inline; }
+  .design-name, .topbar:has(.ready-wrap) .design-name { width: 96px; }
+  .topbar .sep { display: none; }
+}
+/* Quick build's bar also holds the Ready badge and sheet meter: the ⋯ menu takes over sooner */
+@media (max-width: 1400px) {
+  .topbar:has(.ready-wrap) .tablet-hide { display: none !important; }
+  .topbar:has(.ready-wrap) .tablet-only { display: inline-flex; }
+}
+@media (max-width: 1000px) {
+  .topbar:has(.ready-wrap) .sheet-meter { display: none; }
+  .topbar:has(.ready-wrap) .design-name { width: 72px; }
+}
