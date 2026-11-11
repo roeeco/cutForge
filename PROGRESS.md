@@ -1012,7 +1012,7 @@ Limitations
 - A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
 - Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
 
-## Milestone 46 — bent walls on curves (in progress)
+## Milestone 46 — bent walls on curves, matched walls ✅
 
 Part 1: curve runs and bent walls (`CURVED_WALLS.md` §3.1, §3.2, §3.4, §4.3, §6.2; `src/model/edges.ts` `curveRuns`, `src/model/bent.ts`, `src/model/trays.ts`, `src/model/ops.ts`, `src/views/three-geom.ts` `bentSlab`, `src/ui/TrayUI.tsx`, `src/model/validate.ts`)
 - **Runs.** `curveRuns` / `findRun`: open runs with their straight neighbours and whether they leave them tangentially, closed runs starting at the back; length and tightest radius.
@@ -1064,6 +1064,15 @@ Verified so far
 - `tests/matchedWalls.test.ts` (6): only parallel facing walls match; an off-centre peak on the front wall appears on the back wall at the same place along the box and height (not mirrored), and a raised corner lands on the follower's other end; an edit on the follower moves the leader's point, and a taller tray keeps them matched; *Own outline* keeps the shape and drops the link, a later leader edit no longer reaches it, and undo brings the link back; save/load keeps it; *Copy outline from* between perpendicular walls; facing walls' points are snap targets; a hand-grown wall follows a facing one at the leader's height.
 - New `tests/e2e/bentWalls.spec.ts` (3): Quick build's Round box with Shift (a circle, one closed bent wall with teeth, ✓, then *Add a lid* the gap wider); a Workshop rounded tray's curved joint changed on the tray card, and a divider drawn across a circle joined to its curved wall at both ends; a back wall made to follow the front wall's top, then *Own outline*.
 - Unit suite: 606 pass (the slow `regress/repro-degenerate-hole` case timed out once while two suites shared the machine; it passes alone in 28 s).
+
+Limitations
+- Bends are smooth only: no scores, liner scoring or living hinge yet (milestone 47). Plywood curves (and card or corrugated ones tighter than they bend plainly) are flagged by the export check until then, so a plywood round box is not *Ready to cut*.
+- A strip is not one net with its straight neighbours (milestone 48): a rounded tray's corners are separate pieces glued in line, and a closed strip's seam is fixed at the back left (a divider drawn exactly through it is not joined there).
+- A strip longer than the sheet is reported, not split (milestone 48).
+- Nothing grows from a bent wall (no arched lid yet, milestone 48), it takes no fold-over, and the "touching but not joined" check skips bent walls; their joints are made by their own rules.
+- A run meeting a straight edge at a sharp corner (auto curves can) gets no corner joint there.
+- In outline mode the matched wall's handles are not drawn on the other wall; its shape updates live instead.
+- Telescoping lids only (no lip lid); the lid sits a clearance above the walls.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

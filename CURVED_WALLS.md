@@ -339,8 +339,8 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - e2e: Box *Round* in Quick build
 - Trays still leave curves open. This milestone is useful alone: round trays, coasters, game boards.
 
-### Milestone 46: bent walls on curves (smooth bends, base joints, matched walls)
-*In progress (PROGRESS.md). Changed while building:*
+### Milestone 46: bent walls on curves (smooth bends, base joints, matched walls) ✅
+*Done (PROGRESS.md). Changed while building:*
 - *Developed length is worked out per flattened segment, from its chord and the turn at its ends (exact for arcs), at the neutral line `off + (1 − k)·t` in from the outline.*
 - *Facets carry their end points on the outer face and the inward direction there; `panelToWorld` interpolates between them, so neighbouring facets meet without a gap. A bent panel's `frame` is its middle facet (labels and anything still reading one frame land on the wall).*
 - *Glue edge is a new kind, `'wrap'`: the wall stands full height with its outer face flush with the base's edge, and the base is cut back by the wall's thickness under it. `'teeth'` is the other new kind; `'butt'` stands the wall on the base, glued.*
