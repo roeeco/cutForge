@@ -96,6 +96,12 @@ export type WallSketch = {
   /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
   corners?: Partial<Record<WallCorner, { dx: number; dy: number; curve?: CurveKind }>>;
   inserts?: WallInsert[];
+  /**
+   * Milestone 46: the wall whose top outline this one follows (a parallel wall
+   * facing it), projected through 3D; its top corners and top-edge points are
+   * derived from it (src/model/match.ts).
+   */
+  match?: string;
 };
 /**
  * Layer 1 of a panel's outline (POLYGONS_AND_CUTS.md §3). Root panels are

@@ -4,6 +4,7 @@
 // neighbouring shapes. The geometry being manipulated is excluded. The
 // tolerance comes from the view (a fixed number of screen pixels).
 // Snapping creates no relationship: it only adjusts the value being dragged.
+import { facingTargets } from './match';
 import type { Design, P2, V3 } from './types';
 import { detailCorners, detailInstances } from './geometry';
 
@@ -287,6 +288,8 @@ export function outlineTargets(d: Design, panelId: string, moving: P2): OutlineT
         if (na && nb && Math.hypot(b.x - a.x, b.y - a.y) > 0.5) out.edges.push([a, b]);
       }
   }
+  // a parallel wall facing this one (milestone 46): its top outline's points, projected onto this wall
+  for (const q of facingTargets(d, panelId)) if (!same(q)) out.corners.push(q);
   return out;
 }
 

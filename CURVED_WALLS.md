@@ -352,6 +352,8 @@ Each one keeps every existing test green and adds its own. Golden exports change
 - *A divider ends on a curved wall at its far face like on any wall; its end is joined on the facet it meets, through a view of the design in which the wall is planar there (`onFacet`), so the joint code is unchanged. Plywood gets a slide fit there.*
 - *Quick build's Round box keeps the circle/oval split by the drag's aspect (within 3 %), and its guard grows the footprint about its centre rather than refusing it. No faint ring on the stage: the card states the limit.*
 - *The telescoping lid is a tray with `lidOf` (its box's tray), its base re-derived on every solve: the box's outline grown by wall thickness + clearance, turned over, its underside a clearance above the walls. It is offered on every tray's card (round or not), in both modes; *Lip lid* is left for later.*
+- *Matched walls copy the top only: the top corners' heights (and a sideways offset only where the leader's corner has one, so walls of different lengths keep square sides) and the points on the top edge. Side points stay each wall's own. A follower's edit is written back to the leader and followed again, so the ops need no projection of their own arguments.*
+- *Matching is switched on from the wall card in 46 (*Match top with*), since growing a bent panel from a curved top edge comes with the arched lid (milestone 48). The other wall's handles are not drawn faintly in outline mode; its shape updates live instead. `curveBlocked` is unchanged until a bent panel can be joined to a top edge (48).*
 - *From milestone 45:* `curveRuns` in `edges.ts`; Quick build Box *Round · Rounded* with the radius guard (§6.5).
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`

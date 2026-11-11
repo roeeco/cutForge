@@ -133,6 +133,8 @@ function sketch(s: unknown, where: string) {
       if (k.round.rEnd !== undefined) num(k.round.rEnd, `${where}.round.rEnd`, { min: 0 });
     }
   } else if (k.kind === 'wall') {
+    // a matched wall's leader (milestone 46): a link to a board that is not there is dropped (solve keeps the shape)
+    if (k.match !== undefined && typeof k.match !== 'string') delete k.match;
     if (k.corners !== undefined) {
       if (!isObj(k.corners)) fail(`${where}.corners`, 'not an object');
       for (const c of Object.keys(k.corners)) {

@@ -4,6 +4,8 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
+import { canMatch, copyOutlineFrom, leaderOf, matchWall, ownOutline } from '../model/ops';
+import { followersOf } from '../model/match';
 import { convertToPoints, curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setCornerRadius, setPanelSize, setPanelYaw, setPointCurve, setPointRound, setRoundShape, updateDetail } from '../model/ops';
 import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
 import { bendOf, matOf } from '../model/materials';
@@ -212,6 +214,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <PanelHinge panelId={id} />
           </Gate>
           <TrayWallNote panelId={id} />
+          <Gate f="curves">
+            <MatchSection panelId={id} />
+          </Gate>
           <Gate f="foldover">
             <FoldOverSection panelId={id} />
           </Gate>
@@ -432,6 +437,65 @@ function RoundSection({ panelId }: { panelId: string }) {
       <button onClick={() => apply((x) => void convertToPoints(x, panelId))} title={t('round.toPointsNote')} data-testid="round-to-points">
         {t('round.toPoints')}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Matched walls (milestone 46, CURVED_WALLS.md §7.2): a wall's top outline can
+ * follow a parallel wall facing it (a stored link; *Own outline* drops it),
+ * or be copied once from any wall.
+ */
+function MatchSection({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'wall' || p.bent || !parentConnection(d, panelId)) return null;
+  const leader = leaderOf(d, panelId);
+  const follow = followersOf(d, panelId);
+  const walls = d.order.filter((x) => x !== panelId && d.panels[x]?.sketch.kind === 'wall' && !d.panels[x].bent && parentConnection(d, x));
+  const cands = walls.filter((x) => canMatch(d, panelId, x));
+  return (
+    <div className="subsection match" data-testid="match-section">
+      {leader ? (
+        <>
+          <p className="note" data-testid="match-follows">{t('match.follows', { wall: panelLabel(d, leader, t) })}</p>
+          <button onClick={() => apply((x) => void ownOutline(x, panelId))} title={t('match.ownNote')} data-testid="match-own">
+            {t('match.own')}
+          </button>
+        </>
+      ) : (
+        <>
+          {follow.length > 0 && <p className="note" data-testid="match-leads">{t('match.leads', { n: follow.length })}</p>}
+          {cands.length > 0 && !follow.length && (
+            <div className="field">
+              <label htmlFor={`match-${panelId}`}>{t('match.with')}</label>
+              <select id={`match-${panelId}`} value="" onChange={(e) => e.target.value && apply((x) => void matchWall(x, panelId, e.target.value))} data-testid="match-with">
+                <option value="">{t('match.choose')}</option>
+                {cands.map((x) => (
+                  <option key={x} value={x}>
+                    {panelLabel(d, x, t)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {walls.length > 0 && (
+            <div className="field">
+              <label htmlFor={`copy-${panelId}`}>{t('match.copy')}</label>
+              <select id={`copy-${panelId}`} value="" onChange={(e) => e.target.value && apply((x) => void copyOutlineFrom(x, panelId, e.target.value))} data-testid="match-copy">
+                <option value="">{t('match.choose')}</option>
+                {walls.map((x) => (
+                  <option key={x} value={x}>
+                    {panelLabel(d, x, t)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

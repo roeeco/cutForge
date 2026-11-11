@@ -1053,6 +1053,18 @@ Verified so far
 - In the browser (a script, Quick build): a Shift-drag with *Round* makes a circle whose bent wall rises as a ghost; ✓ and *Add a lid* show the hat-box lid on top.
 - Unit suite: 600 pass. Browser suite: 96 passed, 0 failed, 57 skipped.
 
+Part 4: matched walls (`CURVED_WALLS.md` §7.2; `src/model/match.ts`, `src/model/ops.ts`, `src/model/snap.ts`, `src/ui/Inspector.tsx` `MatchSection`)
+- **The link.** `WallSketch.match` names the leader. `reconcileMatches` (in `solveOnce`, once frames are placed) gives each follower the leader's top profile projected through 3D (`copyProfile`): its top corners' heights (their sideways offsets only where the leader's corners have one), their curve flags, and the points on its top edge (same ids, at the projected place). Its bottom corners and side points stay its own. A link to a wall that is gone, or no longer parallel, is dropped, keeping the shape.
+- **Editing either wall** edits the shared profile: the wall-outline ops (`setWallCorner`, `addWallInsert`, `moveWallInsert`, `deleteWallInsert`, `setPointCurve`) write a follower's edit back to its leader (`pushToLeader`), which it then follows again.
+- **Only parallel walls facing each other** (within 1°, apart across, their spans overlapping along them) can be matched (`canMatch`); a wall that leads cannot follow, and a follower cannot lead.
+- **The wall card** (Workshop, `match-section`): *Match top with* (`match-with`), *Copy outline from* (`match-copy`: once, from any wall; walls that are not parallel copy in their own coordinates scaled to the width), and on a follower what it follows (`match-follows`) and *Own outline* (`match-own`).
+- **Snapping.** A dragged outline point snaps to the top outline points of parallel walls facing it (`facingTargets` in `outlineTargets`), matched or not.
+
+Verified so far
+- `tests/matchedWalls.test.ts` (6): only parallel facing walls match; an off-centre peak on the front wall appears on the back wall at the same place along the box and height (not mirrored), and a raised corner lands on the follower's other end; an edit on the follower moves the leader's point, and a taller tray keeps them matched; *Own outline* keeps the shape and drops the link, a later leader edit no longer reaches it, and undo brings the link back; save/load keeps it; *Copy outline from* between perpendicular walls; facing walls' points are snap targets; a hand-grown wall follows a facing one at the leader's height.
+- New `tests/e2e/bentWalls.spec.ts` (3): Quick build's Round box with Shift (a circle, one closed bent wall with teeth, ✓, then *Add a lid* the gap wider); a Workshop rounded tray's curved joint changed on the tray card, and a divider drawn across a circle joined to its curved wall at both ends; a back wall made to follow the front wall's top, then *Own outline*.
+- Unit suite: 606 pass (the slow `regress/repro-degenerate-hole` case timed out once while two suites shared the machine; it passes alone in 28 s).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

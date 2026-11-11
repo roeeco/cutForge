@@ -7,6 +7,7 @@ import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayCurveKind, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
+import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { BENT_WEB, bendAlong, bentLift, facetsOf, onRun, reconcileInline } from './bent';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -234,6 +235,8 @@ function solveOnce(d: Design) {
       done.add(child.id);
     }
   }
+  // matched walls take their leader's top outline (milestone 46)
+  reconcileMatches(d);
   // bent walls meeting straight walls in line are glued end to end (milestone 46)
   reconcileInline(d);
   const guides = constructionSet(d);
@@ -1387,6 +1390,8 @@ export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off
     else delete s.corners;
     return false;
   }
+  // a matched wall's top is its leader's: written back there (milestone 46)
+  pushToLeader(d, wallId);
   solve(d);
   return true;
 }
@@ -1397,6 +1402,7 @@ export function addWallInsert(d: Design, wallId: string, edge: WallInsert['edge'
   if (!s) return null;
   const id = newId('i');
   s.inserts = [...(s.inserts ?? []), { id, edge, t: Math.max(0.01, Math.min(0.99, t)), off }];
+  pushToLeader(d, wallId);
   solve(d);
   return id;
 }
@@ -1407,6 +1413,7 @@ export function moveWallInsert(d: Design, wallId: string, insertId: string, patc
   if (!ins) return;
   if (patch.t !== undefined) ins.t = Math.max(0.01, Math.min(0.99, patch.t));
   if (patch.off !== undefined) ins.off = Math.round(patch.off * 100) / 100;
+  pushToLeader(d, wallId);
   solve(d);
 }
 
@@ -1415,6 +1422,7 @@ export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
   if (!s?.inserts) return;
   s.inserts = s.inserts.filter((x) => x.id !== insertId);
   if (!s.inserts.length) delete s.inserts;
+  pushToLeader(d, wallId);
   solve(d);
 }
 
@@ -1486,6 +1494,7 @@ export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: 
     if (on) ins.curve = 'auto';
     else delete ins.curve;
   }
+  if (s.kind === 'wall') pushToLeader(d, panelId);
   solve(d);
   return true;
 }
@@ -1927,3 +1936,29 @@ export function addRoundedRect(d: Design, x: number, z: number, w: number, h: nu
   solve(d);
   return id;
 }
+
+/** Make wall `id` follow `leader`'s top outline (milestone 46, CURVED_WALLS.md §7.2): parallel walls facing each other only. */
+export function matchWall(d: Design, id: string, leader: string): boolean {
+  if (!linkMatch(d, id, leader)) return false;
+  solve(d);
+  return true;
+}
+
+/** *Own outline*: a matched wall keeps its shape as its own and stops following. */
+export function ownOutline(d: Design, id: string): boolean {
+  if (!unlinkMatch(d, id)) return false;
+  solve(d);
+  return true;
+}
+
+/** *Copy outline from…*: give a wall another wall's top outline once (any two walls; no link). */
+export function copyOutlineFrom(d: Design, id: string, from: string): boolean {
+  const a = d.panels[id], b = d.panels[from];
+  if (!a || !b || a.sketch.kind !== 'wall' || b.sketch.kind !== 'wall' || a.bent || b.bent || id === from) return false;
+  copyProfile(d, from, id);
+  pushToLeader(d, id);
+  solve(d);
+  return true;
+}
+
+export { canMatch, leaderOf };
