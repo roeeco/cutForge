@@ -1,5 +1,6 @@
 // Milestone 11: a gable made by editing a wall's outline, and a roof grown from its sloped edge.
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
@@ -23,8 +24,9 @@ test('gable wall by outline editing, then a roof from its sloped edge', async ({
   });
   await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), front);
   await page.getByTestId('fit-view').click();
-  await page.waitForTimeout(300);
+  await settle(page);
   await page.getByTestId('edit-outline').click();
+  await settle(page);
 
   // "+" in the middle of the top edge adds a point; drag it up 30 mm
   const mid = await panelPt(page, front, 60, 50);

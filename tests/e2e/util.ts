@@ -53,3 +53,28 @@ export const QUICK_STATE = {
   cookies: [],
   origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'quick' }) }] })),
 };
+
+/**
+ * Wait until the 3D camera has stopped moving (after fit-view or setCamera): a projected point stays
+ * put over a few frames. Clicks at projected points made before that can miss (BUGFIX_PLAN U4).
+ */
+export async function settle(page: Page) {
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const cf = (window as any).__cutforge;
+        if (!cf?.projectWorld) return resolve(false);
+        const at = () => JSON.stringify(cf.projectWorld(0, 0, 0));
+        const first = at();
+        let n = 0;
+        const tick = () => {
+          if (at() !== first) return resolve(false);
+          if (++n >= 6) return resolve(true);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    undefined,
+    { polling: 50, timeout: 10_000 },
+  );
+}

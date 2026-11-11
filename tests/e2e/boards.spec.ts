@@ -1,6 +1,6 @@
 // Panels and dividers round (PANELS_AND_DIVIDERS.md): a material for each
 // board (milestone 36).
-import { drawBoard, setNum, shapeTool } from './util';
+import { drawBoard, settle, setNum, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -388,7 +388,7 @@ test('milestone 35: Ctrl-drag along an edge from a third to the middle grows a p
     return id;
   });
   await S(page, () => (window as any).__cutforge.setCamera([0, 220, 200], [0, 0, 0]));
-  await page.waitForTimeout(300);
+  await settle(page);
   // hover the panel so its edges can be picked, then Ctrl-drag along the front edge (e0) from ~40 to ~60 mm
   const mid = await proj(page, b, 60, 40);
   await page.mouse.move(mid.x, mid.y);
