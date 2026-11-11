@@ -11,7 +11,7 @@ import { panelNotches, panelOutline } from '../../src/model/geometry';
 import { buildPieces } from '../../src/model/pieces';
 import { flattenContour } from '../../src/geom/vec';
 import { validate } from '../../src/model/validate';
-import { selfCrossing } from './fuzz';
+import { selfCrossing } from '../bugs-model/fuzz';
 
 const edit = (d: any, f: () => void) => {
   f();
@@ -38,3 +38,19 @@ for (const other of [MATERIALS[0], MATERIALS[1], MATERIALS[2]])
     expect(bad).toEqual([]);
     for (const pc of buildPieces(d)) for (const c of pc.contours) if (c.role === 'outer') expect(selfCrossing(flattenContour(c.contour, 0.05))).toBeNull();
   });
+
+for (const n of [5, 6, 7, 8])
+  for (const other of [MATERIALS[0], MATERIALS[1], MATERIALS[2]])
+    it(`plywood ${n}-gon tray, one wall made ${other.id}`, () => {
+      const d = ops.createDesign(MATERIALS[3]);
+      const b = ops.addPolygonPanel(d, 0, 0, ops.regularPolygon(n, 70))!;
+      let t = '';
+      edit(d, () => (t = ops.addTray(d, b, 40)!));
+      const walls = trayWalls(d, t);
+      edit(d, () => void ops.setPanelMaterial(d, [walls[1]], other));
+      for (const w of trayWalls(d, t)) {
+        const p = d.panels[w];
+        expect(selfCrossing(panelOutline(p, panelNotches(d, p))), w).toBeNull();
+      }
+      for (const pc of buildPieces(d)) for (const c of pc.contours) if (c.role === 'outer') expect(selfCrossing(flattenContour(c.contour, 0.05))).toBeNull();
+    });

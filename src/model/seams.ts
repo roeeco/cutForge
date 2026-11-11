@@ -667,10 +667,39 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
  * the receiver, grown by c/2 (clearance once). The receiver's end is extended
  * past the corner by a web so the slots are closed holes.
  */
-function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
+/**
+ * How deep the joint on the edge next to each end of `eO` cuts into O (the
+ * other board's thickness; 0 for none, a fold or a butt): the bottom joint of
+ * a tray wall, at the corner where the wall's side edge meets it.
+ */
+function endJointDepths(d: Design, c: Connection, O: Panel, eO: string): [number, number] {
+  const nb = edgeNeighbours(O, eO);
+  if (!nb) return [0, 0];
+  const depth = (key: string) => {
+    let out = 0;
+    for (const x of Object.values(d.connections)) {
+      if (x.id === c.id || x.kind === 'fold' || x.kind === 'butt' || x.kind === 'lean') continue;
+      const other = x.a.panelId === O.id && (findEdge(O, x.a.edge)?.key === key) ? x.b.panelId : x.b.panelId === O.id && x.b.edge !== FACE && findEdge(O, x.b.edge)?.key === key ? x.a.panelId : null;
+      if (other && d.panels[other]) out = Math.max(out, tOf(d, other));
+    }
+    return out;
+  };
+  return [depth(nb[0].key), depth(nb[1].key)];
+}
+
+function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit0: FaceFit): ConnGeom {
   const mO = matOf(d, O.id), mR = matOf(d, R.id);
   const t = mO.thickness, cl = mR.clearance;
   const g = empty();
+  let fit = fit0;
+  // boards of another thickness (BUGFIX_PLAN B8): the corner's notches would meet the joint on the next
+  // edge (a wall's bottom fingers) at a different depth, and the outline would cross itself; they stop
+  // that joint's depth plus the web short of each end instead
+  if (Math.abs(mR.thickness - t) > 1e-6) {
+    const L = edgeLength(O, eO), [dA, dB] = endJointDepths(d, c, O, eO), web = minWeb(mO);
+    const s0 = dA > 0 ? Math.max(fit.s0, dA + web) : fit.s0, s1 = dB > 0 ? Math.min(fit.s1, L - dB - web) : fit.s1;
+    if (s1 - s0 >= 3 * Math.max(2, mO.kind === 'corrugated' ? minTabWidth(mO) : 2)) fit = { ...fit, s0, s1 };
+  }
   const len = fit.s1 - fit.s0;
   const n = tabCount(d, c, len, mO);
   const seg = len / (2 * n + 1);
