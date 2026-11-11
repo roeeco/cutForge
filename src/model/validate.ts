@@ -70,6 +70,8 @@ export function validate(d: Design): Issue[] {
     if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
     // a sketch whose edges cross (BUGFIX_PLAN B10: edits refuse this; older files may have one)
     if (crossesItself(sketchRing(p).map((e) => e.a))) issues.push({ key: 'val.selfCross', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // joints on opposite edges that leave less than the web between them (a narrow wall with corner joints both sides, BUGFIX_PLAN B13)
+    if (thinBetweenJoints(p, notches, min)) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     const band = jointBands(p, notches);
     for (const dt of p.details) {
       const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id)) ?? (cutNearJoint(band, dt, min) ? 'val.tooThin' : null);
@@ -148,6 +150,26 @@ export function webTo(poly: P2[], ring: P2[]): number {
       best = Math.min(best, segDistPoint(poly[i], ring[j], ring[(j + 1) % ring.length]), segDistPoint(ring[j], poly[i], poly[(i + 1) % poly.length]));
     }
   return best;
+}
+
+/**
+ * On a rectangular board (a plain rectangle, or a wall without moved corners or points), do the
+ * cut-backs of two opposite edges come closer than the web at any height? e1 and e3 run in opposite
+ * directions (e1 up from the bottom right, e3 down from the top left), as do e0 and e2.
+ */
+function thinBetweenJoints(p: Panel, notches: Record<string, { s0: number; s1: number; depth: number }[]>, min: number): boolean {
+  const plain = p.sketch.kind === 'wall' ? !p.sketch.corners && !p.sketch.inserts?.length : isRectSketch(p);
+  if (!plain || p.details.length) return false;
+  const cutBacks = (k: string) => (notches[k] ?? []).filter((x) => x.depth > 1e-6);
+  for (const [ka, kb, across, along] of [['e1', 'e3', p.w, p.h], ['e0', 'e2', p.h, p.w]] as const) {
+    for (const x of cutBacks(ka))
+      for (const y of cutBacks(kb)) {
+        // y's range measured the same way as x's
+        const y0 = along - y.s1, y1 = along - y.s0;
+        if (Math.min(x.s1, y1) - Math.max(x.s0, y0) > 1e-6 && across - x.depth - y.depth < min - 1e-6) return true;
+      }
+  }
+  return false;
 }
 
 /** Where each joint notch cuts back into the panel (a cut-back's rectangle along its edge), with that edge. */

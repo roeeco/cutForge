@@ -65,15 +65,32 @@ function segsCross(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
   return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) && ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
 }
 
+/** Does segment cd touch segment ab (an end on the other, or collinear overlap)? */
+function segsTouch(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
+  const o = (p: Vec2, q: Vec2, r: Vec2) => cross(sub(q, p), sub(r, p));
+  const on = (p: Vec2, q: Vec2, r: Vec2) => {
+    const l = dist(p, q);
+    if (l < 1e-9) return dist(p, r) < 1e-7;
+    return Math.abs(o(p, q, r)) / l < 1e-7 && dot(sub(r, p), sub(q, p)) >= -1e-9 && dot(sub(r, q), sub(p, q)) >= -1e-9;
+  };
+  return on(a, b, c) || on(a, b, d) || on(c, d, a) || on(c, d, b);
+}
+
+/** The offset touches or crosses itself (a touching ring is two rings meeting at a point: not cuttable as one). */
 function selfIntersects(c: Contour): boolean {
-  const pts = flattenContour(c, 0.005);
+  // points closer than 1e-5 mm are one point (a tiny join): neighbours meeting there are not a touch
+  const pts: Vec2[] = [];
+  for (const p of flattenContour(c, 0.005)) if (!pts.length || dist(p, pts[pts.length - 1]) > 1e-5) pts.push(p);
+  while (pts.length > 3 && dist(pts[0], pts[pts.length - 1]) <= 1e-5) pts.pop();
   const n = pts.length;
   if (n > 3000) return false; // too detailed to check exhaustively; segment checks still apply
   for (let i = 0; i < n; i++) {
     const a = pts[i], b = pts[(i + 1) % n];
     for (let j = i + 2; j < n; j++) {
       if (i === 0 && j === n - 1) continue;
-      if (segsCross(a, b, pts[j], pts[(j + 1) % n])) return true;
+      const p = pts[j], q = pts[(j + 1) % n];
+      if (Math.max(a.x, b.x) < Math.min(p.x, q.x) - 1e-7 || Math.max(p.x, q.x) < Math.min(a.x, b.x) - 1e-7 || Math.max(a.y, b.y) < Math.min(p.y, q.y) - 1e-7 || Math.max(p.y, q.y) < Math.min(a.y, b.y) - 1e-7) continue;
+      if (segsCross(a, b, p, q) || segsTouch(a, b, p, q)) return true;
     }
   }
   return false;
@@ -107,7 +124,7 @@ export function tidyContour(segs: Seg[]): Seg[] {
       if (s.k !== 'L' || next.k !== 'L') continue;
       const u = sub(s.b, s.a), v = sub(next.b, next.a);
       const lu = Math.hypot(u.x, u.y), lv = Math.hypot(v.x, v.y);
-      if (lu < EPS || lv < EPS || Math.abs(cross(u, v)) / (lu * lv) > 1e-9 || dot(u, v) <= 0) continue;
+      if (lu < EPS || lv < EPS || Math.abs(cross(u, v)) / (lu * lv) > 1e-6 || dot(u, v) <= 0) continue;
       out[i] = { k: 'L', a: s.a, b: next.b };
       out.splice((i + 1) % n, 1);
       if ((i + 1) % n === 0) i--;
