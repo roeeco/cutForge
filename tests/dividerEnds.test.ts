@@ -2,9 +2,10 @@
 // base; each end runs to the first board beyond where the line reached, passing (half-lapping) the
 // dividers it crosses; the ends are found again on every edit.
 import { describe, expect, it } from 'vitest';
-import { addDividerLine, addRootPanel, addTray, autoConnect, baseJointOf, createDesign, deletePanel, growPanel, movePlaced, rotatePlaced, solve } from '../src/model/ops';
+import { addDividerLine, addPolygonPanel, addRootPanel, addTray, regularPolygon, autoConnect, baseJointOf, createDesign, deletePanel, growPanel, movePlaced, rotatePlaced, solve } from '../src/model/ops';
 import { dividerSpanOf } from '../src/model/dividers';
 import { compartments } from '../src/easy/objects';
+import { panelEdges } from '../src/model/edges';
 import { MATERIALS } from '../src/model/materials';
 import { validate } from '../src/model/validate';
 import { parseProject, serializeProject } from '../src/model/serialize';
@@ -138,5 +139,64 @@ describe('a divider line finds its ends', () => {
     const a = edit(d, () => addDividerLine(d, base, { x: 10, y: 55 }, { x: 150, y: 55 }, 35))!;
     edit(d, () => deletePanel(d, base));
     expect(d.panels[a]).toBeUndefined();
+  });
+});
+
+describe('dividers at an angle', () => {
+  /** The extent of a slot along its board's x (where the divider passes along the wall). */
+  const slotWidths = (d: Design, cid: string, on: string) => (d.connections[cid].geom?.holes ?? []).filter((h) => h.panelId === on).map((h) => Math.max(...h.poly.map((q) => q.x)) - Math.min(...h.poly.map((q) => q.x)));
+  const ends = (d: Design, id: string, walls: string[]) => Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === id && walls.includes(c.b.panelId));
+
+  for (const deg of [45, 60])
+    it(`${deg}°: its slots in the walls are widened for the angle (t / sin α + t_wall · cot α + clearance)`, () => {
+      const { d, base, walls } = box();
+      const a = (deg * Math.PI) / 180;
+      const b = edit(d, () => addDividerLine(d, base, { x: 80 - 20 * Math.cos(a), y: 55 - 20 * Math.sin(a) }, { x: 80 + 20 * Math.cos(a), y: 55 + 20 * Math.sin(a) }, 35))!;
+      const t = PLY.thickness, cl = PLY.clearance;
+      const want = t / Math.sin(a) + t * Math.cos(a) / Math.sin(a) + cl;
+      const es = ends(d, b, walls);
+      expect(es.map((c) => c.kind)).toEqual(['tabslot', 'tabslot']);
+      for (const c of es) {
+        const ws = slotWidths(d, c.id, c.b.panelId);
+        expect(ws.length).toBeGreaterThan(0);
+        for (const w of ws) expect(w).toBeCloseTo(want, 6);
+      }
+      expect(validate(d)).toEqual([]);
+    });
+
+  it('45°: crossing a divider, both half-lap slots are widened by the same rule', () => {
+    const { d, base } = box();
+    const a = edit(d, () => addDividerLine(d, base, { x: 10, y: 55 }, { x: 150, y: 55 }, 35))!;
+    const b = edit(d, () => addDividerLine(d, base, { x: 50, y: 35 }, { x: 90, y: 75 }, 35))!;
+    const hl = joined(d, a, b);
+    expect(hl.map((c) => c.kind)).toEqual(['halflap']);
+    const t = PLY.thickness, cl = PLY.clearance, s = Math.SQRT1_2;
+    const want = t / s + t * 1 + cl;
+    for (const e of hl[0].geom!.edges) for (const n of e.notches) expect(n.s1 - n.s0).toBeCloseTo(want, 6);
+    expect(validate(d)).toEqual([]);
+  });
+
+  it('a hexagon box: a divider from one slanted wall to the opposite one is joined at both ends', () => {
+    const d = createDesign(PLY);
+    const base = edit(d, () => addPolygonPanel(d, 0, 0, regularPolygon(6, 80))!);
+    edit(d, () => addTray(d, base, 50));
+    // across the hexagon, 20 mm off its centre (through the centre it would end in two corners): it meets two walls at 60°
+    const xs = panelEdges(d.panels[base]).map((e) => e.a.x), ys = panelEdges(d.panels[base]).map((e) => e.a.y);
+    const c = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 + 20 };
+    const id = edit(d, () => addDividerLine(d, base, { x: c.x - 20, y: c.y }, { x: c.x + 20, y: c.y }, 30))!;
+    expect(id).toBeTruthy();
+    const ends2 = Object.values(d.connections).filter((x) => !x.grown && (x.a.panelId === id || x.b.panelId === id) && x.id !== baseJointOf(d, id)?.id);
+    expect(ends2.filter((x) => !x.broken)).toHaveLength(2);
+    expect(validate(d).filter((i) => i.pair)).toEqual([]);
+  });
+
+  it('a line meeting a board at less than 30° is refused: no laser-cut joint can hold it', () => {
+    const { d, base } = box();
+    edit(d, () => addDividerLine(d, base, { x: 10, y: 55 }, { x: 150, y: 55 }, 35));
+    const a = (20 * Math.PI) / 180;
+    // a short line above the first divider, heading down onto it at 20°
+    const n = d.order.length;
+    expect(addDividerLine(d, base, { x: 80, y: 70 }, { x: 80 + 20 * Math.cos(a), y: 70 + 20 * Math.sin(a) }, 35)).toBeNull();
+    expect(d.order.length).toBe(n);
   });
 });

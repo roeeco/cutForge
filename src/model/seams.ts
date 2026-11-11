@@ -220,25 +220,31 @@ function distToSeg(p: P2, a: P2, b: P2): number {
 
 export type CrossFit = { xA: number; xB: number; widthA: number; widthB: number; depthA: number; depthB: number };
 
-/** Two upright panels crossing each other in their interiors (dividers). */
+/**
+ * Two upright panels crossing each other in their interiors (dividers), square
+ * or at an angle α down to MIN_CORNER (milestone 44). Each slot clears the
+ * other board's slab where it passes obliquely through this one:
+ * t_other / sin α + t_own · |cot α| wide (at 90°: t_other, as before).
+ */
 export function crossFit(A: Panel, B: Panel, t: number, tB = t): CrossFit | null {
   const tA = t;
-  const nA = frameNormal(A.frame), nB = frameNormal(B.frame);
-  if (Math.abs(v3dot(nA, nB)) > PERP || v3dot(A.frame.v, B.frame.v) < 0.999) return null;
+  if (v3dot(A.frame.v, B.frame.v) < 0.999) return null;
   const mA = matDir(A.frame), mB = matDir(B.frame);
   const ka = v3dot(A.frame.u, mB), kb = v3dot(B.frame.u, mA);
-  if (Math.abs(ka) < 0.99 || Math.abs(kb) < 0.99) return null;
+  if (Math.abs(ka) < SIN_MIN || Math.abs(kb) < SIN_MIN) return null;
+  const cot = (k: number) => Math.sqrt(Math.max(0, 1 - k * k)) / Math.abs(k);
+  const widthA = tB / Math.abs(ka) + tA * cot(ka), widthB = tA / Math.abs(kb) + tB * cot(kb);
   const midA = v3add(A.frame.o, v3mul(mA, tA / 2)), midB = v3add(B.frame.o, v3mul(mB, tB / 2));
   const xA = v3dot(v3sub(midB, midA), mB) / ka; // where B's mid-plane crosses A
   const xB = v3dot(v3sub(midA, midB), mA) / kb;
-  const hA = tB / 2 + 0.5, hB = tA / 2 + 0.5;
+  const hA = widthA / 2 + 0.5, hB = widthB / 2 + 0.5;
   if (xA < hA || xA > A.w - hA || xB < hB || xB > B.w - hB) return null;
   // vertical overlap along the shared v axis
   const yA0 = v3dot(A.frame.o, A.frame.v), yB0 = v3dot(B.frame.o, A.frame.v);
   const lo = Math.max(yA0, yB0), hi = Math.min(yA0 + A.h, yB0 + B.h);
   if (hi - lo < 2) return null;
   const mid = (lo + hi) / 2;
-  return { xA, xB, widthA: tB, widthB: tA, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
+  return { xA, xB, widthA, widthB, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
 }
 
 /** Normalise notches on one edge: cuts win over protrusions where they overlap. */

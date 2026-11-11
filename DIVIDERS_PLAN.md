@@ -43,9 +43,11 @@
    - **Workshop:** gains the same **Divider** tool (`D`) on the rail. Its *Standing board* never turns into a divider: this **reverses milestone 42 decision 4**, so update that DECISIONS.md entry rather than adding one.
 5. **A line that can't make a divider is refused, never swapped.** No board to reach on either side means a red ghost with the reason, and ✓ disabled.
    - One end that reaches nothing (an open tray side) stops at the base's edge, unjoined. That's allowed.
-6. **Shallow angles.**
-   - **Ends:** tabs in slots down to 30° (`MIN_CORNER`, as today); below that, glue (card, corrugated) or a slide fit, with the reason.
-   - **Crossings:** half-laps down to 30°. A line crossing an older divider at less than 30° becomes **two dividers** meeting it as a T from each side, in one undo step; the ghost says so.
+6. **Shallow angles: 30° is the floor.**
+   - **Ends:** tabs in slots down to 30° (`MIN_CORNER`, as today).
+   - **Crossings:** half-laps down to 30°.
+   - **Below 30°: the line is refused with the reason.** *Changed during implementation:* the plan first said a shallow crossing would become two T dividers. But the edge-on-face joint (`faceFit`) has the same 30° floor, so those Ts couldn't be joined either. Shift's 30° steps never go below it; only Alt (free) can.
+   - A divider *turned* below 30° after it was made keeps its ends, unjoined there; the export check names it.
 7. **The old *click a wall, Shift-click the opposite wall, + Divider*** stays as a shortcut. It makes a divider through the new model, spanning both walls.
 
 ## Model (`src/model/types.ts`, schema 10)

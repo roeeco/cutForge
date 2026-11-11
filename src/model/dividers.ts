@@ -216,6 +216,8 @@ export type DividerSpan = {
   ends: [DividerEnd, DividerEnd];
   /** Dividers it crosses (half-laps). */
   crosses: string[];
+  /** An end meets its board at less than MIN_CROSS: no laser-cut joint holds it there. */
+  shallow: boolean;
 };
 
 /**
@@ -236,7 +238,9 @@ export function dividerSpan(d: Design, baseId: string, rec: DividerRec, t: numbe
     .map((f) => ({ f, r: clipLine(o, dir, f.quad) }))
     .filter((x): x is { f: Footprint; r: [number, number] } => !!x.r);
   const sinMin = Math.sin(rad(MIN_CROSS)) - 1e-6;
-  const crossable = (f: Footprint) => f.divider && Math.abs(dir.x * f.dir.y - dir.y * f.dir.x) >= sinMin;
+  const steep = (f: Footprint) => Math.abs(dir.x * f.dir.y - dir.y * f.dir.x) >= sinMin;
+  const crossable = (f: Footprint) => f.divider && steep(f);
+  let shallow = false;
   const crosses: string[] = [];
   // a board its anchor lies in: a divider it crosses there, or (a wall, a shallow crossing) no place for it
   for (const { f, r } of feet) {
@@ -258,6 +262,7 @@ export function dividerSpan(d: Design, baseId: string, rec: DividerRec, t: numbe
         if (!crosses.includes(x.f.id)) crosses.push(x.f.id);
         continue;
       }
+      if (!steep(x.f)) shallow = true;
       return { at: x.exit, board: x.f.id };
     }
     return { at: limit, board: null };
@@ -265,7 +270,7 @@ export function dividerSpan(d: Design, baseId: string, rec: DividerRec, t: numbe
   const hi = end(1), lo = end(-1);
   const t0 = -lo.at, t1 = hi.at;
   if (t1 - t0 < MIN_DIVIDER) return null;
-  return { t0, t1, o, dir, ends: [lo, hi], crosses };
+  return { t0, t1, o, dir, ends: [lo, hi], crosses, shallow };
 }
 
 /** Change a board's width, keeping its outline (a rectangle stays one; an edited outline stretches along x). */

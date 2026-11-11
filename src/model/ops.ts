@@ -643,7 +643,9 @@ export function addDividerRec(d: Design, baseId: string, rec: DividerRec, height
   if (!base) return null;
   const t = tOf(d, baseId);
   const before = new Set(d.order.filter((x) => isDivider(d.panels[x]) && d.panels[x].place?.host === baseId));
-  if (!dividerSpan(d, baseId, rec, t, side, before)) return null;
+  // a divider is made only where it can be joined: not meeting a board at less than 30° (milestone 44)
+  const sp = dividerSpan(d, baseId, rec, t, side, before);
+  if (!sp || sp.shallow) return null;
   const nets = netState(d);
   const id = newId('p');
   const h = Math.max(MIN_PANEL, height);
