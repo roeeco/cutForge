@@ -14,6 +14,7 @@ import { joinClassFromLink } from './easy/mode';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
+import { EditorBoundary } from './ui/ErrorBoundary';
 
 export function App() {
   const t = useT();
@@ -49,10 +50,12 @@ export function App() {
     <div className="app">
       <TopBar />
       <div className="main">
-        <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
-        <Toolbar />
-        <Inspector />
-        {view === '3d' && <MissionPanel />}
+        <EditorBoundary>
+          <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+          <Toolbar />
+          <Inspector />
+          {view === '3d' && <MissionPanel />}
+        </EditorBoundary>
         {!needsMaterial && (
           <Gate f="hints">
             <Hints />

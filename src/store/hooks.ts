@@ -7,6 +7,8 @@ import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
 import { detailSel, selectedDetailIds } from './store';
+import { validate } from '../model/validate';
+import { isBad, rememberGood } from './goodDesign';
 
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
@@ -20,6 +22,7 @@ export function useAutosave(onLoaded: () => void) {
         if (raw && !cancelled) {
           const d = migrateDesign(raw);
           useStore.getState().replaceDesign(d, false);
+          rememberGood(d);
         }
       } catch {
         /* no saved design or storage blocked: start fresh */
@@ -33,8 +36,19 @@ export function useAutosave(onLoaded: () => void) {
         if (timer) clearTimeout(timer);
         useStore.getState().set({ saveState: 'saving' });
         timer = setTimeout(async () => {
+          timer = undefined;
+          const d = useStore.getState().design;
+          // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {
-            await saveLocal(useStore.getState().design);
+            if (isBad(d)) throw new Error('not drawable');
+            validate(d);
+          } catch {
+            useStore.getState().set({ saveState: 'failed' });
+            return;
+          }
+          rememberGood(d);
+          try {
+            await saveLocal(d);
             useStore.getState().set({ saveState: 'saved' });
           } catch {
             useStore.getState().set({ saveState: 'failed' });
@@ -44,6 +58,7 @@ export function useAutosave(onLoaded: () => void) {
     })();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
       unsub();
     };
   }, []);

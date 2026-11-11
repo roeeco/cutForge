@@ -395,6 +395,10 @@ export const he: Record<MsgKey, string> = {
   'hint.step': '{n} מתוך {total}',
 
   'dlg.newConfirm': 'להתחיל עיצוב חדש? שמרו קודם את הפרויקט אם תרצו לשמור את הנוכחי.',
+  'crash.title': 'משהו השתבש',
+  'crash.body': 'העורך לא הצליח להציג את העיצוב הזה. בטלו את הצעד האחרון, או חזרו לגרסה האחרונה שעבדה. שום דבר שבור לא נשמר.',
+  'crash.undo': 'ביטול',
+  'crash.reload': 'טעינת הגרסה התקינה האחרונה',
   'dlg.openFailed': 'לא ניתן לפתוח את הקובץ: {reason}',
   'err.notProject': 'זה לא קובץ פרויקט של CutForge',
   'err.newerVersion': 'הוא נוצר בגרסה חדשה יותר של CutForge',

@@ -393,6 +393,10 @@ export const en = {
   'hint.step': '{n} of {total}',
 
   'dlg.newConfirm': 'Start a new design? Save your project first if you want to keep this one.',
+  'crash.title': 'Something went wrong',
+  'crash.body': 'The editor could not show this design. Undo the last step, or go back to the last version that worked. Nothing broken is saved.',
+  'crash.undo': 'Undo',
+  'crash.reload': 'Reload the last good version',
   'dlg.openFailed': 'This file could not be opened: {reason}',
   'err.notProject': 'it is not a CutForge project file',
   'err.newerVersion': 'it was made by a newer version of CutForge',

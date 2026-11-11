@@ -685,3 +685,9 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .op-ico.cut { color: #b4232a; }
 .op-ico.add { color: #2e8b57; }
 .op-ico.score { color: #2f6feb; }
+
+/* the editor's safety net (BUGFIX_PLAN B4) */
+.crash { position: absolute; inset-block-start: 30%; inset-inline: 0; margin-inline: auto; max-width: 420px; padding: 20px 24px; z-index: 50; }
+.crash h2 { margin: 0 0 8px; font-size: 18px; }
+.crash p { margin: 0 0 16px; line-height: 1.45; }
+.crash-actions { display: flex; gap: 8px; flex-wrap: wrap; }
