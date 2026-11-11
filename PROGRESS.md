@@ -1066,6 +1066,8 @@ Verified so far
 - Unit suite: 606 pass (the slow `regress/repro-degenerate-hole` case timed out once while two suites shared the machine; it passes alone in 28 s).
 - Full browser suite (`--grep-invert classroom`): 99 passed, 0 failed, 57 skipped (the `SHOTS`-only screenshot specs and the switched-off tour spec). Golden exports unchanged throughout.
 
+Next: milestones 47 and 48. Handover notes (where 46's pieces are, a suggested route for each, practical notes) are in `CURVED_WALLS.md` §8a.
+
 Limitations
 - Bends are smooth only: no scores, liner scoring or living hinge yet (milestone 47). Plywood curves (and card or corrugated ones tighter than they bend plainly) are flagged by the export check until then, so a plywood round box is not *Ready to cut*.
 - A strip is not one net with its straight neighbours (milestone 48): a rounded tray's corners are separate pieces glued in line, and a closed strip's seam is fixed at the back left (a divider drawn exactly through it is not joined there).
