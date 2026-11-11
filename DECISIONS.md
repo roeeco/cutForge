@@ -234,6 +234,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Butt corners are kept on every material**, as a plain cut-back of one wall by the other's thickness with no clearance (a slide corner with clearance 0).
 - **A cut into a joint's band is reported, not prevented** (Workshop): the outline is still made correctly (perhaps in parts) and `val.tooThin` names the cut.
 - **A divider that would not reach both walls is refused** rather than built as a standing board automatically; Quick build's divider line already falls back to a standing board.
+- **A piece in the sheet margin is a blocking issue** (`val.offSheet`, Fix: repack), not a note: a laser bed's margin is where the sheet is held. A piece is checked as a whole net, and turned only where the grain allows; one that fits only turned says so (`val.tooBigGrain`), and its Fix allows turning for the whole design.
+- **The too-big Fix shrinks uniformly** (the board, its tray height, what stands on it), so a box keeps its proportions.
+- **A cut-out drawing with outlines inside its outline is a stencil** (`val.stencilShape`, Fix: engrave), as cut-through text with closed letters is.
+- **A teacher batch cuts with the first selected student's material settings** when the materials are the same kind and thickness; the batch card shows the kerf.
 
 ## The first-use tour (see `TOUR_PLAN.md`, milestone 43)
 - **Workshop only.** Quick build has no Board tool: launching the tour switches the app to the Workshop, and the first card says so. When a class locks the mode to Quick build the welcome screen and the project menu do not offer it.

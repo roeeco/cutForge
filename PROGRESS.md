@@ -860,6 +860,18 @@ Verified: each repro (B6 also in 6 mm ply, B8 on 4–8-gons in card, corr-1.6 an
 
 Verified: the repros in `tests/regress/`; pipeline fuzz (`FUZZ_N=300`): pieces refused compensation 158 → 25, and no compensated outline moves the wrong way; offset fuzz (3000 shapes): every result at |d|, fewer refusals (357 → 340); goldens: `hand-ply-box-compensated` now compensates a text cut it used to leave nominal, `v6-card-gable` lost one micro segment (both regenerated, the v6 file itself unchanged). Still refused (the export names the piece): spikes and slivers narrower than the kerf (a corner turning back more than ~160°), nubs under the kerf, and a few offsets that cross at a neck narrower than the kerf; the laser cannot cut these as drawn.
 
+## Bug-fix pass — phase 5: sheets and Quick build ✅
+
+- **B15** The sheet check is per piece (its whole net), inside the margin, turning only where the grain allows: a piece that fits only turned is `val.tooBigGrain` (Fix: allow turning), one too big either way `val.tooBig` (Fix: shrink its root uniformly, with the tray height, divider offsets and boards placed on it, until the net fits). Every Fix returns true only when its issue is gone.
+- **B16** A piece in the sheet's margin is `val.offSheet`; the packer's fallback for a piece that fits nowhere starts on sheet 0, so there is no empty first sheet.
+- **B17** A shape's own outlines are not checked against each other (array copies still are); a cut-out path shape with nested outlines is `val.stencilShape` (Fix: engrave).
+- **B18** The adaptive grow trims a ghost's sides too, where boards beside it cross them (a lid on a polygon box), keeps the lower trim in its end columns and at bends, and stays a clearance away from boards it only touches at a corner.
+- **B19** A divider line's plan never shows a board lower than `MIN_PANEL`, which is what ✓ makes.
+- **B20** In a teacher batch, each design's working material is taken as the first's, so calibrated materials share sheets; the batch card shows the kerf used.
+- **B21** Batch labels are scaled to fit their piece both ways, or left out below 1 mm.
+
+Verified: the repros in `tests/regress/` (B15 rewritten for the new issue keys; B16 with a 2000 × 60 board on sheet 0 and one export sheet; B17 with a cut "O" still `val.stencil`, an engraved smile clean and overlapping array copies still reported; B18 on 5–8-gon boxes in all four materials; B21 new, `tests/regress/batch-labels.test.ts`); Quick build fuzz (`tests/bugs-output/quick.test.ts`): no Fix reports success with its issue still there (was 47 `offSheet`, 3 `shapesOverlap`), no standing plan of height 0 (was 12); batch fuzz clean; `tests/adapt.test.ts` (the gable under a sloped roof still meets and joins the roof). Still open: the Quick build fuzz's `val.tooBig` Fix can bring up other issues on the shrunk box (32 of 45, e.g. an unjoined overlap); it existed before this pass (31) and is listed for a later look.
+
 ## Milestone 42 — the Board tool in one drag, with a perpendicular toggle ✅
 
 Implemented (`BOARD_TOOL_PLAN.md`; `src/views/board.ts`, `src/views/panelTool.tsx`, `src/views/View3D.tsx`, `src/ui/Toolbar.tsx`, `src/ui/PlacedUI.tsx`, `flipPlacedSide` in `src/model/ops.ts`)
