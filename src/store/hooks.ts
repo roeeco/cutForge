@@ -121,9 +121,12 @@ export function useKeyboard() {
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
       } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
-        // P again with the Board tool: the perpendicular button (milestone 42)
+        // P chooses Board; P again switches between Board and Standing board
         if (tool === 'panel' && s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
-        else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
+        else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') {
+          if (tool === 'panel') s.setBoardPose('flat');
+          s.setTool(tool);
+        }
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

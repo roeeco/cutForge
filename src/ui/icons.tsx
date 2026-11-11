@@ -11,7 +11,7 @@ const P: Record<string, ReactElement> = {
       <path d="M14.5 15.5v2" />
     </>
   ),
-  // a board standing on a base line (the Board tool's perpendicular button, milestone 42)
+  // a board standing on a base line (the Standing board tool's button)
   panelStanding: (
     <>
       <path d="M3 20h18" />

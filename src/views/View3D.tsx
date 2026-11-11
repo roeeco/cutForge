@@ -481,7 +481,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
 
   /**
    * The Board tool (milestone 42): pressing on the floor or a face starts the
-   * board there at once, flat or standing as the perpendicular button says; a
+   * board there at once, flat or standing as the rail's Board / Standing board button chose; a
    * standing line on a box's base is a divider line.
    */
   const panelDown = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, pt: V3) => {

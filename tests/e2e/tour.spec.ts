@@ -83,7 +83,7 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   await expect(page.getByTestId('tour-hand')).toBeVisible();
   await ringOn(page, await world(page, 0, 0, 0));
   await drag(page, await world(page, -60, 0, 40), await world(page, 60, 0, -40));
-  // 3 the perpendicular button (explain only)
+  // 3 the Standing board button (explain only)
   await atStep(page, 'perpendicular');
   await ringOn(page, page.getByTestId('tool-panel-standing'));
   await page.getByTestId('tour-next').click();
@@ -140,10 +140,8 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   await atStep(page, 'plywood');
   await page.getByTestId('material-pill').click();
   await page.getByTestId('drawer-mat-ply-3').click();
-  // 10 a divider: the Board tool, perpendicular on, a line across the box's floor from wall to wall
+  // 10 a divider: the Standing board tool, a line across the box's floor from wall to wall
   await atStep(page, 'divider');
-  await ringOn(page, page.getByTestId('tool-panel'));
-  await page.getByTestId('tool-panel').click();
   await ringOn(page, page.getByTestId('tool-panel-standing'));
   await page.getByTestId('tool-panel-standing').click();
   await page.waitForTimeout(300);

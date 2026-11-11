@@ -127,8 +127,6 @@ export type ViewPrefs = {
   modeLocked?: boolean;
   /** The missions the class offers (milestone 40); absent: all. */
   missions?: string[];
-  /** The Board tool draws flat or standing (perpendicular) boards (milestone 42); absent: flat. */
-  boardPose?: 'flat' | 'standing';
 };
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
@@ -211,7 +209,7 @@ type State = {
   extrude: { baseId: string; height: number } | null;
   /** The Board tool's ghost while drawing on the floor or a face (milestones 29, 42); release makes it. */
   panelGhost: PanelGhost | null;
-  /** The Board tool's pose for the next board (the perpendicular button, kept in `viewPrefs.boardPose`), and the height a standing board starts at (the last one used). */
+  /** The Board tool's pose for the next board (the Board or Standing board button on the rail), and the height a standing board starts at (the last one used). */
   panelPose: 'flat' | 'standing';
   standHeight: number;
   /**
@@ -264,7 +262,7 @@ type State = {
   setGrow: (g: Partial<GrowOptions>) => void;
   set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
-  /** The Board tool's perpendicular button: flat or standing boards, remembered with the view prefs (milestone 42). */
+  /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
   /** The first-use tour (milestone 43), or null. */
   tour: TourState | null;
@@ -342,7 +340,7 @@ export const useStore = create<State>()((set, get) => ({
   selVertex: null,
   extrude: null,
   panelGhost: null,
-  panelPose: initialPrefs().boardPose === 'standing' ? 'standing' : 'flat',
+  panelPose: 'flat',
   standHeight: 40,
   pending: null,
   clipboard: null,
@@ -540,10 +538,7 @@ export const useStore = create<State>()((set, get) => ({
     }
     set({ viewPrefs: next });
   },
-  setBoardPose: (pose) => {
-    get().setPrefs({ boardPose: pose });
-    set({ panelPose: pose });
-  },
+  setBoardPose: (pose) => set({ panelPose: pose }),
 }));
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */

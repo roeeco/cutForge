@@ -18,17 +18,13 @@ export const WORKSHOP_STATE = {
 };
 
 /**
- * The Board tool in one drag (milestone 42): choose the tool, set the
- * perpendicular button that slides out beside it, then drag from one screen
- * point to the other; release makes the board.
+ * The Board tool in one drag (milestone 42): choose Board or Standing board
+ * on the rail, then drag from one screen point to the other; release makes the board.
  */
 export async function drawBoard(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, opts: { standing?: boolean; steps?: number } = {}) {
-  const tool = page.getByTestId('tool-panel');
+  const tool = page.getByTestId(opts.standing ? 'tool-panel-standing' : 'tool-panel');
   if ((await tool.getAttribute('aria-pressed')) !== 'true') await tool.click();
-  const fly = page.getByTestId('tool-panel-standing');
-  await expect(fly).toBeVisible();
-  if (((await fly.getAttribute('aria-pressed')) === 'true') !== !!opts.standing) await fly.click();
-  await expect(fly).toHaveAttribute('aria-pressed', String(!!opts.standing));
+  await expect(tool).toHaveAttribute('aria-pressed', 'true');
   const n = opts.steps ?? 8;
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();

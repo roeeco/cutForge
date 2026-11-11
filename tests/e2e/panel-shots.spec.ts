@@ -36,7 +36,8 @@ for (const lang of ['en', 'he']) {
     await page.waitForTimeout(400);
     // milestones 29, 42: a flat board on a wall's inner face, as a ghost while it is drawn (release makes it)
     await page.getByTestId('tool-panel').click();
-    await shot(page, lang, '42-rail-flyout-out');
+    await page.waitForTimeout(300); // the rail button's colour fades in
+    await shot(page, lang, '42-rail-board-on');
     const back = walls[2];
     const a = await proj(page, back, 30, 12), b = await proj(page, back, 80, 36);
     await page.mouse.move(a.x, a.y);
@@ -45,12 +46,12 @@ for (const lang of ['en', 'he']) {
     await page.waitForTimeout(250);
     await shot(page, lang, '29-flat-on-wall-ghost');
     await page.mouse.up();
-    // a standing partition from wall to wall (seen from above, so the line is drawn on the base): perpendicular on, it is a divider
+    // a standing partition from wall to wall (seen from above, so the line is drawn on the base): with Standing board, it is a divider
     await S(page, () => (window as any).__cutforge.setCamera([0, 320, 110], [0, 0, 0]));
     await page.waitForTimeout(300);
-    await page.getByTestId('tool-panel').click();
     await page.getByTestId('tool-panel-standing').click();
-    await shot(page, lang, '42-rail-flyout-pressed');
+    await page.waitForTimeout(300); // the rail button's colour fades in
+    await shot(page, lang, '42-rail-standing-on');
     const c = await proj(page, base, 3.8, 30), e = await proj(page, base, 116.2, 30);
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();

@@ -125,7 +125,7 @@ describe('the Board tool on release', () => {
     st.replaceDesign(ply());
     st.setTool('panel');
     st.setBoardPose('standing');
-    expect(useStore.getState().viewPrefs.boardPose).toBe('standing');
+    expect(useStore.getState().panelPose).toBe('standing');
     st.setBoardPose('flat');
     const p0 = useStore.getState().past.length;
     st.set({ panelGhost: ghost({ a: { x: 0, y: 0 }, b: { x: 80, y: 50 } }) });

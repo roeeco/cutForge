@@ -1,7 +1,7 @@
 // The Board tool on any face, as a ghost while drawing (milestones 29, 42),
 // and the floating confirm bar every ghost uses (milestone 30). The tool draws
 // on the floor or on the face under the pointer: a rectangle lying flat on
-// it, or (the perpendicular button) a line with a board standing on it at the
+// it, or (the Standing board button) a line with a board standing on it at the
 // last height used. Releasing the drag makes it (one undo step), selects it
 // and goes back to Select. Quick build's Divider draws the same ghost and
 // waits for ✓ (Enter) or ✕ (Esc).

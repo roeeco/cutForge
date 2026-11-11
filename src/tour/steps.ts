@@ -163,8 +163,11 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: dom('tool-panel'),
     title: 'tour.tool.title',
     body: 'tour.tool.body',
-    done: (s) => s.tool === 'panel',
-    skipUi: (s) => s.setTool('panel'),
+    done: (s) => s.tool === 'panel' && s.panelPose === 'flat',
+    skipUi: (s) => {
+      s.setBoardPose('flat');
+      s.setTool('panel');
+    },
   },
   {
     id: 'base',
@@ -179,8 +182,6 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: dom('tool-panel-standing'),
     title: 'tour.perpendicular.title',
     body: 'tour.perpendicular.body',
-    // the button only shows while the tool is active
-    prepare: (s) => s.tool !== 'panel' && s.setTool('panel'),
     next: true,
   },
   {
@@ -274,7 +275,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'divider',
-    anchor: (s) => (s.tool !== 'panel' ? dom('tool-panel') : s.panelPose !== 'standing' ? dom('tool-panel-standing') : { stage: boxFloor }),
+    anchor: (s) => (s.tool === 'panel' && s.panelPose === 'standing' ? { stage: boxFloor } : dom('tool-panel-standing')),
     title: 'tour.divider.title',
     body: 'tour.divider.body',
     // the lid is left off the stage, and the camera looks in from higher up, so the box's floor can be reached
