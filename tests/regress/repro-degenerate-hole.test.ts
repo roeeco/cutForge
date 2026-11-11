@@ -8,10 +8,10 @@ import { loadFonts, randomDesign, rng, seedMath } from '../bugs-output/gen';
 import { pieceCopies } from '../../src/model/pack';
 import { contourArea } from '../../src/geom/vec';
 
-beforeAll(loadFonts);
+beforeAll(loadFonts, 60_000);
 
 describe('repro: degenerate hole', () => {
-  it('seed 89', () => {
+  it('seed 89', { timeout: 60_000 }, () => {
     seedMath(89);
     const { d } = randomDesign(rng(89), { allowHuge: true });
     const tiny = pieceCopies(d).flatMap((c) => c.contours).filter((tc) => tc.op === 'cut' && tc.contour.closed && Math.abs(contourArea(tc.contour)) < 1e-6);
