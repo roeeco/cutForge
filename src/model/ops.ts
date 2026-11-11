@@ -572,7 +572,7 @@ function dividerFallBack(d: Design, panelId: string, nets?: string) {
 export type FacePick = { panelId: string; side: 1 | -1; point: [number, number, number] };
 export type BetweenPlan =
   | { ok: true; baseId: string; edge: string; offset: number; height: number }
-  | { ok: false; reason: 'notParallel' | 'notFacing' | 'notSameBase' | 'noEdge' | 'tooClose' };
+  | { ok: false; reason: 'notParallel' | 'notFacing' | 'notSameBase' | 'noEdge' | 'tooClose' | 'tooShort' };
 
 /** Gap between a divider's top and the lower of the two walls it is made between (mm). */
 export const DIVIDER_GAP = 5;
@@ -608,16 +608,19 @@ export function planDividerBetween(d: Design, a: FacePick, b: FacePick): Between
     const r = [b.point[0] - o[0], b.point[1] - o[1], b.point[2] - o[2]];
     return { x: r[0] * base.frame.u[0] + r[1] * base.frame.u[1] + r[2] * base.frame.u[2], y: r[0] * base.frame.v[0] + r[1] * base.frame.v[1] + r[2] * base.frame.v[2] };
   })();
-  let best: { key: string; off: number } | null = null;
+  let best: { key: string; off: number; len: number } | null = null;
   for (const e of panelEdgesOf(base)) {
     const dir = segDir(e);
     if (Math.abs(dir.x * nl.x + dir.y * nl.y) / ll < Math.cos(Math.PI / 180)) continue;
     const inw = { x: -dir.y, y: dir.x };
     const off = (q.x - e.a.x) * inw.x + (q.y - e.a.y) * inw.y - t / 2;
     if (off <= 0) continue;
-    if (!best || off < best.off) best = { key: e.key, off };
+    if (!best || off < best.off) best = { key: e.key, off, len: segLength(e) };
   }
   if (!best) return { ok: false, reason: 'noEdge' };
+  // the divider is as long as that edge: one shorter than the gap (an octagon's side) would reach neither wall (BUGFIX_PLAN B11)
+  const gap = ab[0] * nA[0] + ab[1] * nA[1] + ab[2] * nA[2];
+  if (best.len < gap - 1) return { ok: false, reason: 'tooShort' };
   if (best.off < 1) return { ok: false, reason: 'tooClose' };
   // the lower wall's top, above the base's top face
   const top = (p: Panel) => {

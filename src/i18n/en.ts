@@ -127,6 +127,7 @@ export const en = {
   'div.why.notSameBase': "These walls do not stand on the same base.",
   'div.why.noEdge': "No base edge runs between these faces, so a divider cannot stand there.",
   'div.why.tooClose': "There is no room for a divider here.",
+  'div.why.tooShort': "The base edge a divider here would stand on is shorter than the gap between these walls, so it would not reach them. Draw a standing board from wall to wall instead.",
   'div.pickHint': "Shift-click the wall opposite to add a divider between them.",
   'div.slide': "Drag to move the divider",
   'div.compartment': "Compartment",
