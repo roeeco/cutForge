@@ -35,3 +35,15 @@ it('control: 9 fingers is fine', () => {
   edit(d, () => ops.setConnection(d, corner.id, { fingers: 9 }));
   expect(maxOverlap(d, [96, 0, -4], [101, 4, 1], 0.1)).toBe(1);
 });
+
+it('6 mm plywood: 9 fingers asked on a 40 mm corner are clamped so fingers stay 6 mm wide', () => {
+  const PLY6 = { ...MATERIALS[3], id: 'ply-6', thickness: 6 };
+  const d = ops.createDesign(PLY6);
+  const b = ops.addRootPanel(d, 0, 0, 120, 80);
+  edit(d, () => void ops.addTray(d, b, 40));
+  const corner = Object.values(d.connections).find((x) => !x.grown)!;
+  edit(d, () => ops.setConnection(d, corner.id, { fingers: 9 }));
+  expect(d.connections[corner.id].broken).toBe(false);
+  expect(validate(d)).toEqual([]);
+  expect(maxOverlap(d, [114, 0, -8], [121, 7, 1], 0.2)).toBe(1);
+});

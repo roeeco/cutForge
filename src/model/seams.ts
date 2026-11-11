@@ -308,9 +308,20 @@ export function autoFlap(m: MaterialProfile): number {
   return m.kind === 'card' ? 10 : m.kind === 'corrugated' ? Math.max(15, 4 * m.thickness) : 12;
 }
 
-/** Odd finger count for a seam: explicit or automatic (target ≈ max(3t, 10 mm)). */
+/**
+ * The most fingers a seam of this length takes: the largest odd n whose
+ * fingers are at least as wide as the boards are thick (narrower fingers make
+ * the boards overlap at the corner, BUGFIX_PLAN B6). At least 3.
+ */
+export function maxFingers(length: number, t: number): number {
+  let n = Math.floor(length / Math.max(t, 1e-6) + 1e-9);
+  if (n % 2 === 0) n -= 1;
+  return Math.max(3, n);
+}
+
+/** Odd finger count for a seam: explicit (up to `maxFingers`) or automatic (target ≈ max(3t, 10 mm)). */
 export function fingerCountFor(c: Pick<Connection, 'fingers'>, length: number, t: number): number {
-  if (c.fingers && c.fingers >= 3) return c.fingers % 2 ? c.fingers : c.fingers + 1;
+  if (c.fingers && c.fingers >= 3) return Math.min(c.fingers % 2 ? c.fingers : c.fingers + 1, maxFingers(length, t));
   const target = Math.max(3 * t, 10);
   let n = Math.max(3, Math.round(length / target));
   if (n % 2 === 0) n += n * target < length ? 1 : -1;
