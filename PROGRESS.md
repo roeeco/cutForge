@@ -852,6 +852,14 @@ Verified: `npm run typecheck && npm test`; every phase 1–2 repro passes; model
 
 Verified: each repro (B6 also in 6 mm ply, B8 on 4–8-gons in card, corr-1.6 and corr-4, B9 also for a 0.5 mm web and a clean control, B11 on 8- and 12-gons and a rectangle control) in `tests/regress/`; volumetric overlap fuzz `OV_N=200` plus the default 30: no overlapping solids; model fuzz `FUZZ_N=200`: `pieces:outerSelfCross` and the notch-related `outline:selfCross` classes gone; `FUZZ_PLAUSIBLE=1 FUZZ_N=200`: no self-crossing outline; `tests/autoseam.test.ts` (500 Quick build sequences) still has nothing blocking; golden exports unchanged.
 
+## Bug-fix pass — phase 4: kerf compensation and outline hygiene ✅
+
+- **B12** Piece outlines drop points closer than 1e-4 mm; `offsetContour` tidies its input (micro segments, collinear lines), removes a short line whose two corners are both trimmed when it collapses, and tapers a jog under the kerf between parallel lines, instead of refusing. Folded walls on sloped edges (3–7-gon card and corrugated boxes, the Dice tray mission) export compensated.
+- **B13** The offset's self-intersection check counts touching and collinear overlaps; `val.sliver` reports a rectangular board whose opposite joints leave less than the web between them.
+- **B14** Rings and holes of no area (|area| < 1e-6 mm²) are dropped in `ownOutline` and the piece contours.
+
+Verified: the repros in `tests/regress/`; pipeline fuzz (`FUZZ_N=300`): pieces refused compensation 158 → 25, and no compensated outline moves the wrong way; offset fuzz (3000 shapes): every result at |d|, fewer refusals (357 → 340); goldens: `hand-ply-box-compensated` now compensates a text cut it used to leave nominal, `v6-card-gable` lost one micro segment (both regenerated, the v6 file itself unchanged). Still refused (the export names the piece): spikes and slivers narrower than the kerf (a corner turning back more than ~160°), nubs under the kerf, and a few offsets that cross at a neck narrower than the kerf; the laser cannot cut these as drawn.
+
 ## Milestone 42 — the Board tool in one drag, with a perpendicular toggle ✅
 
 Implemented (`BOARD_TOOL_PLAN.md`; `src/views/board.ts`, `src/views/panelTool.tsx`, `src/views/View3D.tsx`, `src/ui/Toolbar.tsx`, `src/ui/PlacedUI.tsx`, `flipPlacedSide` in `src/model/ops.ts`)
