@@ -1075,7 +1075,11 @@ export function seamStillFits(d: Design, c: Connection): boolean {
   const type = seamTypeOf(c);
   const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${baseKey(r.edge)}`;
   const have = [key(c.a), key(c.b)].sort().join();
-  return seamsBetween(d, A, B).some((s) => s.type === type && [key(s.a), key(s.b)].sort().join() === have);
+  // findOpenSeams looks from the earlier panel (design order); the joint's a may be the other one, and
+  // what seamsBetween finds depends on the order: look both ways, or a seam found one way is removed
+  // and found again on every edit (BUGFIX_PLAN B23)
+  const [P, Q] = d.order.indexOf(A.id) <= d.order.indexOf(B.id) ? [A, B] : [B, A];
+  return [...seamsBetween(d, P, Q), ...seamsBetween(d, Q, P)].some((s) => s.type === type && [key(s.a), key(s.b)].sort().join() === have);
 }
 
 /** Key of a seam: its two panels and edges. */

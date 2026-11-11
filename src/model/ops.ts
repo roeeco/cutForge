@@ -523,8 +523,23 @@ export function autoConnect(d: Design) {
     const s = findOpenSeams(d).find((x) => !skip.has(pairKey(x.a.panelId, x.b.panelId)) && !tried.has(seamKey(x)));
     if (!s) break;
     tried.add(seamKey(s));
-    connectSeam(d, s);
+    const cid = connectSeam(d, s);
+    // a seam that cannot be made (broken as soon as it is joined, e.g. a corner another joint already holds)
+    // is not kept: it would be removed and found again on every edit (BUGFIX_PLAN B23)
+    const c = cid ? d.connections[cid] : undefined;
+    if (c?.broken && !c.thin) {
+      delete d.connections[c.id];
+      solve(d);
+    }
   }
+  // and none left broken by a seam joined after it: the next run would remove it again
+  let late = false;
+  for (const c of Object.values(d.connections))
+    if (c.auto !== false && !c.grown && c.broken && !c.thin) {
+      delete d.connections[c.id];
+      late = true;
+    }
+  if (late) solve(d);
 }
 
 /** Connect every open seam of a panel with default kinds (or `cornerKind` on corners, where allowed). */
