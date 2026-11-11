@@ -1051,7 +1051,7 @@ Verified so far
 - `tests/bentWalls.test.ts` (+4, 21): Round boxes (a circle, an oval whose ends reach the material's radius, a small plywood circle made 60 across and clear of `val.bendTight`); Rounded boxes (plywood corners raised to 30 with eight walls; card at 15, export check clean); a corrugated round box's lid (centred, its rim's inner face the clearance outside the box wall's outer face, above the box, following it when the box grows, clean); a card rounded box's lid (sides and corner radii grown by the gap).
 - The Quick build fuzzer draws Round and Rounded footprints too.
 - In the browser (a script, Quick build): a Shift-drag with *Round* makes a circle whose bent wall rises as a ghost; ✓ and *Add a lid* show the hat-box lid on top.
-- Unit suite: 600 pass.
+- Unit suite: 600 pass. Browser suite: 96 passed, 0 failed, 57 skipped.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
