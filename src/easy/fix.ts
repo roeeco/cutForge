@@ -53,7 +53,7 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
+const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -65,7 +65,8 @@ export function fixIssue(d: Design, i: Issue): boolean {
       // move the shape inside, away from the edge, the joints and the other cut-outs
       // done only when the shape is clear of its problem
       return i.target.kind === 'detail' && fitShape(d, i.target.id) && !sheetIssueFor(d, i);
-    case 'val.stencil': {
+    case 'val.stencil':
+    case 'val.stencilShape': {
       const f = i.target.kind === 'detail' ? findDetail(d, i.target.id) : null;
       if (!f) return false;
       f.detail.op = 'engrave';

@@ -314,7 +314,7 @@ function shapeIssues(d: Design): Issue[] {
   for (const id of d.order) {
     const p = d.panels[id];
     if (!p) continue;
-    const cuts: { id: string; poly: Poly; bb: [number, number, number, number] }[] = [];
+    const cuts: { id: string; inst: number; poly: Poly; bb: [number, number, number, number] }[] = [];
     for (const dt of p.details) {
       if (dt.shape === 'text' && dt.text) {
         const tb = textBox(dt);
@@ -325,17 +325,23 @@ function shapeIssues(d: Design): Issue[] {
         continue; // letters are allowed to touch each other
       }
       if (dt.op !== 'cut' || isOutlineShape(p, dt.id)) continue;
-      for (const inst of detailInstances(dt))
+      // a cut-out path (a sticker, an imported drawing) with outlines inside its outlines: those islands fall out
+      if (dt.shape === 'path' && dt.path && dt.path.polys.some((a, i) => dt.path!.polys.some((b, j) => i !== j && a.length && b.length >= 3 && pointInPolygon(a[0], b))))
+        out.push({ key: 'val.stencilShape', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
+      detailInstances(dt).forEach((inst, k) => {
         for (const c of shapeContours(inst)) {
           const pts = flattenContour(c, 0.05);
           const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-          cuts.push({ id: dt.id, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+          cuts.push({ id: dt.id, inst: k, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
         }
+      });
     }
     const flagged = new Set<string>();
     for (let i = 0; i < cuts.length; i++)
       for (let j = i + 1; j < cuts.length; j++) {
         const a = cuts[i], b = cuts[j];
+        // one shape's own outlines (a sticker's eyes inside its face) are not two shapes overlapping (BUGFIX_PLAN B17)
+        if (a.id === b.id && a.inst === b.inst) continue;
         if (a.bb[0] > b.bb[2] + 1e-6 || b.bb[0] > a.bb[2] + 1e-6 || a.bb[1] > b.bb[3] + 1e-6 || b.bb[1] > a.bb[3] + 1e-6) continue;
         const touching = overlapArea(a.poly, b.poly) > 1e-4;
         const key = `${a.id}|${b.id}`;

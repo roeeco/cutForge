@@ -369,6 +369,7 @@ export const en = {
   'val.tooThin': 'A shape on panel {panel} leaves material thinner than {min} mm.',
   'val.textFailed': "Text on panel {panel} could not be turned into outlines {chars}. Check the font is loaded or choose another font.",
   'val.stencil': "Cut-through text on panel {panel} has letters with closed middles; those middles will fall out. Engrave it instead, or use letters without closed middles.",
+  'val.stencilShape': "A cut-out shape on panel {panel} has outlines inside its outline; the parts between them will fall out. Engrave it instead.",
   'val.shapesOverlap': "Two cut-out shapes on panel {panel} overlap or touch: the laser would cut the same line twice or leave a loose sliver.",
   'val.offSheet': "Piece {panel} (copy {copy}) is partly outside its sheet or in the sheet's margin.",
   'val.piecesOverlap': "Pieces {a} and {b} overlap on the sheet.",
