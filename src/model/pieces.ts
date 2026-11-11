@@ -2,13 +2,14 @@
 // flat net (unfolded about their fold lines); everything else is separate.
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
-import type { Design, P2, Panel } from './types';
+import type { Connection, Design, P2, Panel } from './types';
 import type { EdgeArg } from './edges';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, flattenContour, IDENTITY, pointInPolygon, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { holeCuts, ownOutline } from './outline';
 import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
+import { findEdge } from './edges';
 import { cornerDepths, cornerFit } from './seams';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
@@ -43,11 +44,24 @@ export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeA
 /** A fold in a net: the panel that stays (`parent`) and the one folded off it (`child`). Grown folds, and tray corners made folds (milestone 35). */
 export type NetFold = { id: string; parent: string; child: string; xf: (d: Design) => Xform2 | null };
 
+/**
+ * A fold connection that still folds: both panels exist, both edges exist and
+ * the connection is not broken. A fold whose parent edge went (a cut across
+ * it, a deleted point) does not fold: its child is cut as a net of its own
+ * and shown as broken (BUGFIX_PLAN B1).
+ */
+export function foldHolds(d: Design, c: Connection): boolean {
+  if (c.kind !== 'fold' || c.broken) return false;
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return false;
+  return !!findEdge(A, c.a.edge) && !!findEdge(B, c.b.edge);
+}
+
 /** Every fold joining two panels into one net. */
 export function netFolds(d: Design): NetFold[] {
   const out: NetFold[] = [];
   for (const c of Object.values(d.connections)) {
-    if (c.kind !== 'fold' || !d.panels[c.a.panelId] || !d.panels[c.b.panelId]) continue;
+    if (!foldHolds(d, c)) continue;
     if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
     else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
@@ -94,10 +108,7 @@ export function netGroups(d: Design): NetPanel[][] {
   const groups: NetPanel[][] = [];
   // construction guides are never cut (milestone 28)
   const guides = constructionSet(d);
-  for (const id of d.order) {
-    if (!d.panels[id] || inNet.has(id) || guides.has(id)) continue;
-    // a fold child is reached from its parent
-    if (folds.some((f) => f.child === id)) continue;
+  const grow = (id: string) => {
     const group: NetPanel[] = [{ panelId: id, xf: IDENTITY }];
     inNet.add(id);
     for (let i = 0; i < group.length; i++) {
@@ -111,7 +122,11 @@ export function netGroups(d: Design): NetPanel[][] {
       }
     }
     groups.push(group);
-  }
+  };
+  // a fold child is reached from its parent
+  for (const id of d.order) if (d.panels[id] && !inNet.has(id) && !guides.has(id) && !folds.some((f) => f.child === id)) grow(id);
+  // a fold child its parent could not unfold (or one in a fold cycle) is cut on its own, never lost
+  for (const id of d.order) if (d.panels[id] && !inNet.has(id) && !guides.has(id)) grow(id);
   return groups;
 }
 
@@ -133,7 +148,7 @@ export function panelPiece(d: Design, panelId: string): Piece {
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => c.kind === 'fold' && (c.grown || c.hingeOf));
+  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];
