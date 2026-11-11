@@ -11,7 +11,7 @@ async function start(page: Page, material: string, w: number, h: number) {
   await page.goto('/');
   await page.getByTestId(`mat-${material}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   // a base panel of exact size (drawing by mouse is covered by the vertical-slice test)
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   await drawBoard(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, { x: box.x + box.width / 2 + 100, y: box.y + box.height / 2 + 40 });

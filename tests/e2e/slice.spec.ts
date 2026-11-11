@@ -28,7 +28,7 @@ test('vertical slice', async ({ page }) => {
   await page.getByTestId('mat-ply-3').click();
 
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
 
   // draw a panel on the floor grid
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;

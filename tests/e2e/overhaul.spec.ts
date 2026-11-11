@@ -18,7 +18,7 @@ test('start screen, drawer, stage widgets, seam pills and folding', async ({ pag
   await page.getByTestId('tpl-organiser').check();
   await expect(page.getByTestId('tpl-organiser').locator('img')).toHaveAttribute('src', /^data:image\/png/);
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   let d = await design(page);
   expect(d.material.id).toBe('corr-1.6');
   expect(d.template.id).toBe('organiser');

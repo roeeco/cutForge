@@ -8,7 +8,7 @@ test('works offline after load', async ({ page, context }) => {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   await context.setOffline(true);
   page.on('request', (r) => requests.push(r.url()));
 

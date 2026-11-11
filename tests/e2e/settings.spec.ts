@@ -10,7 +10,7 @@ async function start(page: Page, mat: string, template?: string) {
   await page.getByTestId(`mat-${mat}`).click();
   if (template) await page.getByTestId(`tpl-${template}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
 }
 
 const scrolls = (page: Page) => S<boolean>(page, () => {
@@ -41,7 +41,7 @@ test.describe('milestone 27: the settings card on a Chromebook (1366 × 768)', (
     await expect(page.getByTestId('settings-snap')).toBeVisible();
     await page.getByTestId('settings-snap').click();
     await page.reload();
-    await page.getByTestId('hints-dismiss').click({ timeout: 2000 }).catch(() => {});
+    await page.getByTestId('tour-nudge-dismiss').click({ timeout: 2000 }).catch(() => {});
     await expect(page.getByTestId('settings-head-snapping')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('settings-snap')).toHaveAttribute('aria-pressed', 'false');
     // the closed summary follows the setting

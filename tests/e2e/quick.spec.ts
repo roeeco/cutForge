@@ -17,7 +17,7 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
   await expect(page.getByTestId('mode-quick')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByTestId('hints')).toHaveCount(0);
+  await expect(page.getByTestId('tour-nudge')).toHaveCount(0);
   await expect(page.getByTestId('quick-guide')).toBeVisible();
   for (const a of ['box', 'wall', 'divider', 'hole', 'text']) await expect(page.getByTestId(`quick-${a}`)).toBeVisible();
   await expect(page.getByTestId('tool-panel')).toHaveCount(0);
@@ -192,7 +192,7 @@ test.describe('Workshop', () => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
-    await page.getByTestId('hints-dismiss').click();
+    await page.getByTestId('tour-nudge-dismiss').click();
     const base = await S<string>(page, () => {
       const cf = (window as any).__cutforge;
       let b = '';
@@ -251,7 +251,7 @@ test.describe('Workshop to Quick build', () => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
-    await page.getByTestId('hints-dismiss').click();
+    await page.getByTestId('tour-nudge-dismiss').click();
     const p = await S<string>(page, () => {
       const cf = (window as any).__cutforge;
       let id = '';

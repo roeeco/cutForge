@@ -7,7 +7,7 @@ async function setup(page: Page, lang: string, mat: string) {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   await S(page, (l: string) => (window as any).__cutforge.store.getState().setLang(l), lang);
 }
 const shot = (page: Page, lang: string, name: string) => page.screenshot({ path: `${OUT}/${lang}-${name}.png` });

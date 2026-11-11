@@ -11,7 +11,7 @@ async function start(page: Page, w: number, h: number) {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   await drawBoard(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, { x: box.x + box.width / 2 + 100, y: box.y + box.height / 2 + 40 });
   await setNum(page, 'panel-w', String(w));
