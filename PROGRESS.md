@@ -881,6 +881,19 @@ Verified: the repros in `tests/regress/` (B15 rewritten for the new issue keys; 
 
 Verified: the repros in `tests/regress/` (B25's written for the fix: five material switches and a construction base); model fuzz `FUZZ_N=600`: no dangling host (new invariant); `FUZZ_N=300 FUZZ_FROM=301`: no solve-twice or round-trip differences; `FUZZ_AUTOIDEM=1 FUZZ_N=300`: `idem:autoConnect` 15 → 10. Still open: those 10 involve walls split by through-cuts next to leaning panels, where a seam is joined and then dropped on the next run; and the fuzz classes `flat:autoTrayOverlapsOther` (a tray's flat-net fix cannot clear an overlap with a board that is not one of its walls; reported by validate), `joint:holeOutside` (a corner's tab slot lands outside a much-cut wall; reported) and `ref:edgeGoneNotBroken` (a grown fold kept on an edge a cut removed is not flagged broken, though B1 keeps it from folding), all present before this pass.
 
+## Bug-fix pass — phases 7–8: UI, tests and final check ✅
+
+- **U1** The top bar fits from 768 px up in both modes and languages: buttons never wrap; below 1500 px *Submit to class* becomes an icon and *Submit* and the brand name hides; the material pill shows only its swatch below 1300 px (1500 px in Quick build); below 1000 px (1380 px in Quick build, which also holds the Ready badge) Submit, the mode switch and the language move into a ⋯ menu (`top-more`) and Download shortens. Download, Undo and Redo always stay on the bar.
+- **U2** The contact shadow is removed (drei's one-frame capture drew it away from the boxes).
+- **U3** Replaced by milestones 42–43.
+- **U4** The two flaky specs waited a fixed 300 ms after moving the camera; a shared `settle()` (`tests/e2e/util.ts`) waits until the camera stops.
+- **Clean-up** Every repro is in `tests/regress/`; the fuzzers are in `tests/fuzz/`, part of `npm test` at small counts (`FUZZ_N` and the other variables in each file run them longer; `STRICT=1` on the Quick build fuzzer also reports the known open class). `vitest.bugs.config.ts`, `test:bugs` and the `exclude` are gone.
+- Found by the full e2e run and fixed: Quick build hid Submit at exactly 1400 px; B18's side trims cut a leaning panel's sides back from the side walls that hold it.
+
+Verified: `npm run typecheck && npm test` (543 passed, 7 skipped: ezdxf not installed, and the replay tool); full e2e (`npm run e2e`, with the Worker): 95 passed, 50 skipped (`SHOTS`), and the two failures found were fixed and their specs re-run green; `topbar.spec.ts` 20/20; `--repeat-each=10` on the two flaky specs: 20/20. Fresh-seed fuzz, cut short at the owner's request: model `FUZZ_N=1200`: no crash, no dangling host, no solve or round-trip difference; overlap `OV_N=300`: one design with overlapping solids (not triaged); load `HUGE=1 FUZZ_N=1000`: clean. The pipeline, Quick build, template, offset, batch, degenerate and kerf fuzzers were not re-run at large counts here (they ran clean, apart from the classes listed in the phase sections, during their phases).
+
+Left open: Quick build's tooBig Fix can bring up other issues on the shrunk box; 10 in 300 designs where automatic joining churns (walls split by through-cuts); the model fuzz classes `flat:autoTrayOverlapsOther`, `joint:holeOutside`, `ref:edgeGoneNotBroken`, `outline:selfCross:wallCorners` and, at seed 2369, `pieces:outerSelfCross`; one overlap-fuzz design.
+
 ## Milestone 42 — the Board tool in one drag, with a perpendicular toggle ✅
 
 Implemented (`BOARD_TOOL_PLAN.md`; `src/views/board.ts`, `src/views/panelTool.tsx`, `src/views/View3D.tsx`, `src/ui/Toolbar.tsx`, `src/ui/PlacedUI.tsx`, `flipPlacedSide` in `src/model/ops.ts`)
