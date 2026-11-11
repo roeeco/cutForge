@@ -223,3 +223,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Workshop's rail groups the shapes** (rectangle, rounded rectangle, circle) under one *Shapes* button, as Quick build's Hole; the four operations live on the shape card, shown only while a shape tool (Shapes, Polygon, Text) is in use, as pictures of what they do to the board with a name and a line of description. The colours stay on the cut plan and on the icons as a hint.
 - **Quick build's joints are changeable**: the settings card's *Wall to base* and *Corners* lists are shown, and a joint's label menu works in both modes.
 - **The joints view labels only the selected panel's joints**; with nothing selected it labels none (and says to select one).
+
+## Bug-fix pass (BUGFIX_PLAN.md)
+
+- **A fold that cannot fold is not folded.** When a fold's parent edge (or child edge) no longer exists, or the joint is broken, its child is cut as a separate piece and the joint is shown as broken, rather than the net being guessed.
+- **Damaged files are refused, not repaired.** Only what is clearly safe is dropped on load: sheet placements and quantities that are malformed, joints naming a board that is not in the file, trays whose base is gone, derived data (joint geometry of a broken joint, wall extensions, net fixes). Any other wrong field refuses the whole file with "it is damaged". Sizes and coordinates must be finite and within 100 000 mm.
+- **Autosave keeps the last good design.** A design that fails to validate or that the editor cannot draw is not saved; the error card can go back to the last one that was.
+- **Fragments of a piece are `<key>@n`** (schema 9); wall-set members keep `<wall>~n`.

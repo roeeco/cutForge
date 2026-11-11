@@ -830,6 +830,17 @@ Verified: `tests/locktabs.test.ts` (the options per material; on plywood, corrug
 
 Verified: `tests/e2e/quick.spec.ts` (a new browser opens in the Workshop; Quick build's joints view labels nothing until a wall is selected, then exactly its joints, and its menu changes a joint; Quick build's settings card shows the joint lists), every spec drawing shapes uses the Shapes card (`shapeTool`, `opPick` in `tests/e2e/util.ts`), and Quick build specs set Quick build explicitly (`QUICK_STATE`).
 
+## Bug-fix pass (BUGFIX_PLAN.md) — phases 1–2: crashes and piece identity ✅
+
+Fixed (each with its repro moved to `tests/regress/`):
+- **B1** A fold whose parent or child edge is gone, or which is broken, no longer folds (`foldHolds` in `pieces.ts`): its child is cut as a net of its own and the joint still reads *broken*. `netGroups` also never drops a fold child its parent could not unfold.
+- **B2** `safeUnion([])` and a difference of nothing return `[]`; a panel its own cut removes completely is reported `val.removed` (worded for any cut) instead of crashing.
+- **B3** Project files and class submissions are checked before `solve` (`src/model/check.ts`): types, finite numbers within 100 000 mm, sketches, shapes, frames, placements, joints, trays and their references; dangling placements, joints to missing boards and trays without a base are dropped; anything else, any throw from `solve`, or a frame that blows up while solving is refused as `ProjectError('damaged')` (new `err.damaged` message). Contact sampling skips non-finite edges and caps its steps; SVG import drops non-finite shapes; the open-file alert never shows a raw error; the teacher batch names and leaves out submissions it cannot load (`teach.skipped`).
+- **B4** An error boundary around the stage, rail and inspector (`src/ui/ErrorBoundary.tsx`) shows *Something went wrong* with Undo and *Reload the last good version*. Autosave saves only designs that validate without throwing and that the editor drew, and clears its timer on unmount.
+- **B5** Fragment keys are `<key>@n` (`src/model/keys.ts`), never `<key>~n`, which wall-set members use; placement keys are split on their last `#`. `SCHEMA_VERSION` 9 moves v8 fragment placements to the new keys, keeping manual ones.
+
+Verified: `npm run typecheck && npm test`; every phase 1–2 repro passes; model fuzz `FUZZ_N=600`: no `no edge` errors; load fuzz `FUZZ_N=300`, and `HUGE=1 FUZZ_N=1000` at seeds 1000, 3000, 6000 and 9000: no non-`ProjectError` throw, no NaN export, no hang (the corpus of goldens, templates, missions and 200 random designs all still load); pipeline fuzz `FUZZ_N=200`: copies equal placements for every design; `worker/api.test.ts` refuses two damaged submissions with 400; e2e `tests/e2e/crash.spec.ts` forces a render throw, recovers with Undo and with *Reload the last good version*, and a reload after a crash opens the last good design. `tests/outline.test.ts` and `tests/through.test.ts` asserted the old `~n` fragment keys and now assert `@n`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
