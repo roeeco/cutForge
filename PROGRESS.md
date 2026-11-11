@@ -968,7 +968,7 @@ Verified
 - **Browser:**
   - New `tests/e2e/dividers.spec.ts`: a line across, a T and a crossing, each ✓; Shift at 30° and the next square to it; a line in a wall refused with ✓ greyed; the card's ‹ ›; Quick build's Standing board button and `D D`.
   - Updated `boards`, `quick`, `joints`, `refine`: they now use the Divider tool, *Clear behind*, and divider records.
-  - Full app suite (`--grep-invert classroom`): running when this was committed; its result follows in the next commit.
+  - Full app suite (`npx playwright test -c pw-app.config.ts --grep-invert classroom`): 94 passed, 0 failed, 57 skipped (the screenshot specs, which run only with `SHOTS=1`, and `tour.spec.ts`, which the tour's own switch skips while it is not offered). The classroom specs need the Worker and were not run here.
 
 Limitations
 - A divider line ending exactly in a corner where two walls meet stops at the first wall and collides with the second; the export check names it.
