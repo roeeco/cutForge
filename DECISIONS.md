@@ -230,3 +230,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Damaged files are refused, not repaired.** Only what is clearly safe is dropped on load: sheet placements and quantities that are malformed, joints naming a board that is not in the file, trays whose base is gone, derived data (joint geometry of a broken joint, wall extensions, net fixes). Any other wrong field refuses the whole file with "it is damaged". Sizes and coordinates must be finite and within 100 000 mm.
 - **Autosave keeps the last good design.** A design that fails to validate or that the editor cannot draw is not saved; the error card can go back to the last one that was.
 - **Fragments of a piece are `<key>@n`** (schema 9); wall-set members keep `<wall>~n`.
+- **Finger counts are clamped where they are used**, not rewritten in the file: a seam takes at most `maxFingers` (fingers at least as wide as the thicker board). A longer seam gets the asked-for count back.
+- **Butt corners are kept on every material**, as a plain cut-back of one wall by the other's thickness with no clearance (a slide corner with clearance 0).
+- **A cut into a joint's band is reported, not prevented** (Workshop): the outline is still made correctly (perhaps in parts) and `val.tooThin` names the cut.
+- **A divider that would not reach both walls is refused** rather than built as a standing board automatically; Quick build's divider line already falls back to a standing board.

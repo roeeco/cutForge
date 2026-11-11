@@ -841,6 +841,17 @@ Fixed (each with its repro moved to `tests/regress/`):
 
 Verified: `npm run typecheck && npm test`; every phase 1–2 repro passes; model fuzz `FUZZ_N=600`: no `no edge` errors; load fuzz `FUZZ_N=300`, and `HUGE=1 FUZZ_N=1000` at seeds 1000, 3000, 6000 and 9000: no non-`ProjectError` throw, no NaN export, no hang (the corpus of goldens, templates, missions and 200 random designs all still load); pipeline fuzz `FUZZ_N=200`: copies equal placements for every design; `worker/api.test.ts` refuses two damaged submissions with 400; e2e `tests/e2e/crash.spec.ts` forces a render throw, recovers with Undo and with *Reload the last good version*, and a reload after a crash opens the last good design. `tests/outline.test.ts` and `tests/through.test.ts` asserted the old `~n` fragment keys and now assert `@n`.
 
+## Bug-fix pass — phase 3: joint geometry that mis-cut ✅
+
+- **B6** An explicit finger count is clamped to `maxFingers` (the largest odd n with fingers at least as wide as the thicker board), where it is used; the Fingers stepper's max follows.
+- **B7** A butt corner cuts the owner wall back by the other wall's thickness (the slide corner's cut-back, no clearance).
+- **B8** On a corner between boards of different thickness, the corner tabs keep the next edge's joint depth plus the web clear at each end.
+- **B9** A notched outline that would cross itself is built as a boolean instead (`panelOutlines`, possibly in parts); `val.tooThin` flags a cut that comes into a joint's cut-back band, or within the web of it, without crossing that edge.
+- **B10** `setWallCorner` and `setEdgeLength` refuse outlines that cross themselves (the corner drag stops at the last valid place); `val.selfCross` reports any sketch that does.
+- **B11** *+ Divider* is refused (`div.why.tooShort`) where the base edge it would grow from is shorter than the wall-to-wall gap.
+
+Verified: each repro (B6 also in 6 mm ply, B8 on 4–8-gons in card, corr-1.6 and corr-4, B9 also for a 0.5 mm web and a clean control, B11 on 8- and 12-gons and a rectangle control) in `tests/regress/`; volumetric overlap fuzz `OV_N=200` plus the default 30: no overlapping solids; model fuzz `FUZZ_N=200`: `pieces:outerSelfCross` and the notch-related `outline:selfCross` classes gone; `FUZZ_PLAUSIBLE=1 FUZZ_N=200`: no self-crossing outline; `tests/autoseam.test.ts` (500 Quick build sequences) still has nothing blocking; golden exports unchanged.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
