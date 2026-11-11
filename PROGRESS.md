@@ -1005,6 +1005,7 @@ Verified
 - **Browser:**
   - New `tests/e2e/round.spec.ts`: a circle dragged in Round mode, made an oval 60 deep with ends of 20 (side radius 45, the tight-bend note), converted to points; Rounded mode at 12, all corners to 20, one corner back to a corner and rounded again at 8 in *Edit outline*, plywood's bend limits in the drawer (30) edited to 24. Passed three runs in a row, after it waits for the end-radius field to follow a new depth.
   - `polygon`, `trays`, `gizmo` specs pass.
+  - Full app suite (`--grep-invert classroom`): 96 passed, 0 failed, 57 skipped (the `SHOTS`-only screenshot specs and the switched-off tour spec).
 
 Limitations
 - Tray walls stand on straight edges only: curves are left open until walls bend (milestone 46). Quick build's *Round* Box comes with them.
