@@ -8,13 +8,15 @@ import { Icon } from '../ui/icons';
 import { Segmented, Stepper } from '../ui/NumField';
 import { STICKERS } from './stickers';
 
-export type QuickAction = 'box' | 'wall' | 'divider' | 'hole' | 'text';
+export type QuickAction = 'box' | 'wall' | 'divider' | 'standing' | 'hole' | 'text';
 
-/** The five actions: the tool each one runs and what it draws with. */
+/** The actions: the tool each one runs and what it draws with. */
 export const QUICK_ACTIONS: { id: QuickAction; key: MsgKey; icon: string; tools: Tool[] }[] = [
   { id: 'box', key: 'quick.box', icon: 'box', tools: ['box'] },
   { id: 'wall', key: 'quick.wall', icon: 'wall', tools: ['wall'] },
   { id: 'divider', key: 'quick.divider', icon: 'divider', tools: ['divider'] },
+  // a board standing on any face, as Workshop's Standing board (milestone 44: the Divider makes dividers only)
+  { id: 'standing', key: 'tool.panelStanding', icon: 'panelStanding', tools: ['panel'] },
   { id: 'hole', key: 'quick.hole', icon: 'hole', tools: ['circle', 'rect', 'roundrect'] },
   { id: 'text', key: 'quick.textStickers', icon: 'text', tools: ['text', 'sticker'] },
 ];
@@ -28,9 +30,13 @@ export function startAction(a: QuickAction) {
   const def = QUICK_ACTIONS.find((x) => x.id === a)!;
   // the last kind of hole (or text or sticker) chosen stays
   const tool = def.tools.includes(st.tool) ? st.tool : def.tools.includes(st.quickLast[a] as Tool) ? (st.quickLast[a] as Tool) : def.tools[0];
+  if (a === 'standing') st.setBoardPose('standing');
   st.setTool(tool);
   st.setShapeOp(a === 'hole' ? 'cut' : 'engrave');
 }
+
+/** The key shown for an action ('D D': Standing board is Divider's key pressed again). */
+const keyOf = (a: QuickAction) => (a === 'standing' ? 'D D' : Object.keys(QUICK_KEYS).find((k) => QUICK_KEYS[k] === a)!.toUpperCase());
 
 export function QuickRail() {
   const t = useT();
@@ -54,7 +60,7 @@ export function QuickRail() {
               <Icon name={a.icon} />
               <span className="tip" aria-hidden>
                 {t(a.key)}
-                <kbd>{Object.keys(QUICK_KEYS).find((k) => QUICK_KEYS[k] === a.id)!.toUpperCase()}</kbd>
+                <kbd>{keyOf(a.id)}</kbd>
               </span>
             </button>
           );
@@ -99,6 +105,7 @@ function ActionCard() {
     );
   else if (a.id === 'wall') body = <p className="note">{t('quick.wallHelp')}</p>;
   else if (a.id === 'divider') body = <p className="note">{t('quick.dividerHelp')}</p>;
+  else if (a.id === 'standing') body = <p className="note">{t('quick.standingHelp')}</p>;
   else if (a.id === 'hole')
     body = (
       <>

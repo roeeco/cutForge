@@ -923,6 +923,59 @@ Verified
 - `tests/e2e/tour.spec.ts`: **English, every step by hand** (the mouse on the stage, the `__cutforge` projection helpers for points): each card in turn with the ring around its anchor (the Board button, the floor point, the perpendicular button, Extrude walls and its ✓, the grow ✓, the material pill and the card material, the joints button, the *Corners* list, the Board tool again, the Shapes button and *Circle*, the shape's ✓, *Download for laser*), the steps advancing by themselves, and a final design with a tray, a lid, a divider and a cut-out on the front wall; **Hebrew**: the card sits left of the rail in RTL, *Skip step* through to the end makes the same box; *End tour* at step 4 keeps the design, the menu's *Take the tour* asks first (and No keeps the design), and the welcome screen after *New design* shows the footer link instead of the card; a first-time *Start* shows the *New here?* note, which opens the tour; a class locking Quick build gets no tour; at 1366 × 768 and 1280 × 800, in both languages, no card leaves the window or covers *Download for laser* or the rail. Screenshots of every card in English and Hebrew (and the welcome screen) in `docs/tour-shots/` (`SHOTS=1`).
 - Every spec that dismissed the tips dismisses the *New here?* note instead (`tour-nudge-dismiss`).
 
+## Milestone 44 — dividers that find their own ends ✅
+
+Implemented (`DIVIDERS_PLAN.md`; `src/model/dividers.ts`, `src/model/ops.ts`, `src/model/seams.ts` `crossFit`, `src/model/serialize.ts`, `src/easy/recipes.ts`, `src/easy/objects.ts`, `src/model/arrange.ts`, `src/views/panelTool.tsx`, `src/views/View3D.tsx`, `src/ui/PlacedUI.tsx`, `src/ui/Toolbar.tsx`, `src/easy/QuickRail.tsx`)
+- **The model.** A divider is a standing board on its base with `Panel.divider` (`{ at, rot, reach }`: what was drawn).
+  - `reconcileDividers` (in `solveOnce`, after inside-corner extensions) finds each end, in creation order: the far face of the first board beyond its reach. Dividers wholly within the reach are crossed; walls and shallow crossings stop it; with no board, the base's edge.
+  - Footprints come from the model in base coordinates (`footprints`: walls via `spanFrame`, placed boards via `placeFrame`).
+  - `addDivider` (edge, position: templates and older callers), `addDividerRec`, `addDividerLine`, `dividerFromLine`, and `baseJointOf` (a board's joint with what it stands on).
+- **Schema 10** migrates grown dividers in place: same id, order, sketch (a wall outline becomes a point outline), height, shapes and base-joint settings.
+- **Angles.**
+  - `crossFit` accepts crossings down to 30°, with slots t_other / sin α + t_own · |cot α|.
+  - Lines meeting a board under 30° are refused (`DividerSpan.shallow`, reason `shallow`).
+  - `planDividerRec` gives the other reasons: `offBase`, `inBoard`, `short`.
+- **Drawing.**
+  - `dividerGrid` (the first divider's direction, else the box's longest edge), `snapDividerAngle` and `snapDividerLine`: grid by default, Shift 30° steps from the box's axis, Alt free. Position snaps to equal compartments, the compartment's middle, or in line with a parallel divider.
+  - The ghost (`dividerGhost`) shows the divider at its derived length, with marks (`div-mark-board`, `-edge`, `-cross`), the compartment note (`divider-live`, `divider-makes` with `data-kind` divider or refused) and a greyed ✓ when refused.
+- **Rails.**
+  - Workshop gains *Divider* (`tool-divider`, `D`); Board's Standing board never makes a divider.
+  - Quick build gains *Standing board* (`quick-standing`) just below *Divider*; `D` again switches between them.
+- **After it is made.**
+  - Gizmo moves and turns (`movePlaced`, `rotatePlaced`) and the slide arrow (`setDividerOffset`, now a position along its normal) edit the drawn line.
+  - Its card (`divider-section`): *Clear behind* (`div-behind`), *Angle* (`div-angle`), *Ends* with ‹ › (`div-end-k-less` / `-more`: `stepDividerEnd`). Width is read-only, and the flat/standing switch is hidden.
+  - Deleting a base deletes its dividers; laying one flat makes it a plain board.
+- **Rows and compartments.**
+  - `dividerRow` / `rowAt` / `rowGaps` drive the slide arrow's snapping and labels and *Equal compartments*.
+  - `compartments` are polygon regions: the base's outline less every standing board's footprint.
+- **Divider tests.** The six places that guessed "is this a divider" from a grow offset now read `Panel.divider`: names, the tour, the slide arrow, Quick build's size fix, compartments, equal spacing.
+- **Fixes found on the way.**
+  - `renamePanel` and template id renaming now keep placed boards' hosts (renamed bases dropped them to the floor).
+  - + Divider between two faces no longer needs a base edge running its way: octagon and 12-gon trays get dividers joined at both ends (the old `tooShort` refusal, BUGFIX_PLAN B11, is gone; the strings `div.why.noEdge` / `tooShort` with it).
+- **Text.** English and Hebrew strings for the tool, reasons, marks and card. The tour's divider step teaches the Divider tool. README, DECISIONS (*Dividers find their own ends*, plus the replaced entries) and DIVIDERS_PLAN (decision 6: 30° is the floor) are updated.
+
+Verified
+- **Golden exports:** all 32 cases are byte-identical, including the v5 fixtures, and the v7 divider-set file re-opens to an identical export through the new migration. A check before building showed dividers as standing boards export the organiser template identically in every material.
+- **`tests/dividerEnds.test.ts` (20 tests):**
+  - Basics: a short line runs wall to wall and is joined to both and to the base, in plywood, card and corrugated 4 mm.
+  - Ends: a T in one compartment; a crossing (half-lap, on to the next wall, 4 compartments); moving the T's board stretches it; deleting it runs the T on; turning finds both ends; a line off the base or too short makes nothing; an open tray side ends at the base's edge.
+  - Lifecycle: save/load keeps record and ends; deleting the base deletes its dividers.
+  - Angles: end slots at 45° and 60° and half-lap slots at 45° equal the formula to 1e-6, with a clean export check; a hexagon box's divider meets two walls at 60° and is joined at both ends; a 20° meeting is refused.
+  - Drawing: the grid snaps (along/across the box, the first divider's 30° direction for the next, Shift back to the box's axes, Alt free); position snaps to the middle and in line with a parallel divider.
+  - Card: ‹ › turns a T into a crossing and back.
+- **Updated existing tests** (they read the old representation; each keeps what it guards): `dividers`, `arrange`, `jointdefaults`, `joints`, `locktabs`, `missions`, `quickrecipes`, `board`, `tour`, `autoseam` (an overlapping second divider is now refused; the collision check uses a grown board), the regressions (octagon now ok and joined at both ends; the lean regression uses a panel grown in from the edge), and the Quick build fuzzer (a divider plan makes a divider, a refused one makes nothing).
+- **Unit suite:** `npx vitest run`, all pass (the optional Python reader check skipped, no `ezdxf`); `npm run typecheck` clean.
+- **Browser:**
+  - New `tests/e2e/dividers.spec.ts`: a line across, a T and a crossing, each ✓; Shift at 30° and the next square to it; a line in a wall refused with ✓ greyed; the card's ‹ ›; Quick build's Standing board button and `D D`.
+  - Updated `boards`, `quick`, `joints`, `refine`: they now use the Divider tool, *Clear behind*, and divider records.
+  - Full app suite (`--grep-invert classroom`): running when this was committed; its result follows in the next commit.
+
+Limitations
+- A divider line ending exactly in a corner where two walls meet stops at the first wall and collides with the second; the export check names it.
+- A divider turned under 30° after it was made keeps its ends there, unjoined; the export check names it.
+- A ghost's ✓ bar can sit under the right-hand card when the box is far right in the view (Enter still works); this is how every ghost bar is placed.
+- Round and curved boxes are milestones 45–48 (`CURVED_WALLS.md`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

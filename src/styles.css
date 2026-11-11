@@ -782,3 +782,14 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .mat-pill .mat-name { display: none; }
   .topbar:has(.ready-wrap) .mat-pill { padding-inline-end: 8px; }
 }
+
+/* Dividers (milestone 44): what each end of a divider ghost meets, and a refused line */
+.div-mark { pointer-events: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; font-size: 11px; line-height: 1; background: white; color: #0b4f4a; border: 2px solid #0b4f4a; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.div-mark.edge { color: #6b7280; border-style: dashed; border-color: #6b7280; }
+.div-mark.cross { color: #8a5a00; border-color: #e0a21b; }
+.w-dim.ghost.refused, .ghost-bar .note.refused { color: var(--danger); background: var(--danger-soft); }
+.div-ends { display: grid; gap: 4px; margin: 6px 0; }
+.div-ends .label { font-size: 12px; color: var(--muted, #6b7280); }
+.div-end { display: flex; align-items: center; gap: 6px; }
+.div-end span { flex: 1; font-size: 13px; }
+.div-end button { min-width: 28px; font-size: 16px; }

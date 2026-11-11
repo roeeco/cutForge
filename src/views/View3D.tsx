@@ -28,14 +28,13 @@ import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
 import { snapLineEnd, ConfirmBar, FaceHover, PanelGhostView, PendingBar, confirmPanelGhost, dividerGhost, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
-import { drawsDivider } from './board';
 import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
 import { commonPlane } from '../model/arrange';
 import { FLOOR_FRAME, faceOut } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
-import { dividerAxes, dividerRow, snapDividerOffset } from '../model/dividers';
+import { dividerAxes, dividerRow, snapDividerLine, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
 import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
@@ -69,7 +68,7 @@ type Drag =
   | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
   | { kind: 'panel-move'; id: string; ids?: string[]; start: V3; plane: THREE.Plane }
   /** The Board tool (or Quick build's Divider) drawing its ghost on a face (milestones 29, 42). */
-  | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets }
+  | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets; a0: P2 }
   /** A placed panel dragged in its host's plane. */
   | { kind: 'placed-move'; id: string; plane: THREE.Plane; H: Frame; start: P2 }
   | { kind: 'content-move'; id: string; plane: THREE.Plane; H: Frame; start: P2; at: P2 };
@@ -198,7 +197,15 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         const p = ray(ev.clientX, ev.clientY, g.plane);
         const cur = st.panelGhost;
         if (!p || !cur) return;
-        // standing boards and dividers keep level and parallel; flat ones are drawn square to the face anyway
+        if (cur.divider && cur.host) {
+          // a divider (milestone 44): along or across the grid; Shift: 30° steps; Alt: any angle. Its position snaps in its row.
+          const mode = ev.altKey ? 'free' : ev.shiftKey ? 'steps30' : 'grid';
+          const ln = snapDividerLine(st.design, cur.host, g.a0, toLocal(g.H, p), mode, tolAt(p));
+          st.set({ panelGhost: { ...cur, a: ln.a, b: ln.b } });
+          setLabel({ text: fmtNum(Math.hypot(ln.b.x - ln.a.x, ln.b.y - ln.a.y)), x: ev.clientX, y: ev.clientY });
+          return;
+        }
+        // standing boards keep level and parallel; flat ones are drawn square to the face anyway
         const q = cur.pose === 'standing' ? snapLineEnd(st.design, cur.host, g.targets, cur.a, toLocal(g.H, p), tolAt(p), ev) : snapGhostPoint(g.targets, toLocal(g.H, p), tolAt(p), ev).p;
         st.set({ panelGhost: { ...cur, b: q } });
         const w = Math.abs(q.x - cur.a.x), h = Math.abs(q.y - cur.a.y);
@@ -293,11 +300,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         if (!cur) return;
         if (st.tool === 'panel') {
           // the Board tool (milestone 42): release makes the board (a click or a short drag makes nothing, the tool stays)
-          if (cur.divider ? dividerGhost(st.design, cur) : ghostPlace(cur)) confirmPanelGhost();
+          if (ghostPlace(cur)) confirmPanelGhost();
           else st.set({ panelGhost: null });
           return;
         }
-        // Quick build's Divider: a line too short is dropped; otherwise it waits for ✓ or ✕
+        // the Divider tool: a line too short is dropped; otherwise it waits for ✓ or ✕
         st.set({ panelGhost: (cur.divider ? dividerGhost(st.design, cur) : ghostPlace(cur)) ? { ...cur, drawing: false } : null });
         return;
       }
@@ -487,7 +494,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const panelDown = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, pt: V3) => {
     if (e.button !== 0) return;
     setFloorHover(null);
-    startGhost(e, host, face, pt, drawsDivider(design, useStore.getState().panelPose, host, face));
+    // the Board tool makes boards only: dividers have their own tool (milestone 44)
+    startGhost(e, host, face, pt, false);
   };
 
   /** The Board tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
@@ -498,7 +506,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     const q = snapGhostPoint(targets, toLocal(hf.H, point), tolAt(point), e.nativeEvent).p;
     const st = useStore.getState();
     st.set({ panelGhost: { host, face, pose: divider ? 'standing' : st.panelPose, a: q, b: q, height: st.standHeight, side: 1, drawing: true, ...(divider ? { divider: true } : {}) } });
-    begin(e, { kind: 'ghost-draw', plane: hf.plane, H: hf.H, targets });
+    begin(e, { kind: 'ghost-draw', plane: hf.plane, H: hf.H, targets, a0: q });
   };
 
   const { camera, gl, invalidate, scene } = useThree();

@@ -93,8 +93,12 @@ describe('Divider', () => {
     // across the middle, its ends a little short of the walls (they snap)
     const r = dividerLine(a, base, { x: 60, y: 8 }, { x: 60, y: 84 });
     expect(r?.kind).toBe('divider');
-    addDividerFor(b, front, back);
-    expect(canon(a)).toBe(canon(b));
+    const id = addDividerFor(b, front, back)!;
+    // the same board (milestone 44: each remembers the line it was drawn as, so the records differ), joined the same way
+    expect(a.panels[r!.id].place).toEqual(b.panels[id].place);
+    expect(a.panels[r!.id].w).toBeCloseTo(b.panels[id].w, 9);
+    const kinds = (x: typeof a, p: string) => Object.values(x.connections).filter((c) => c.a.panelId === p || c.b.panelId === p).map((c) => c.kind).sort();
+    expect(kinds(a, r!.id)).toEqual(kinds(b, id));
   });
 
   it('off-centre, the divider stands at the line', () => {
@@ -111,11 +115,13 @@ describe('Divider', () => {
     if (plan?.kind === 'divider' && plan.gaps) expect(plan.gaps[0] + plan.gaps[1] + t).toBeCloseTo(120 - 2 * t, 0);
   });
 
-  it('a line that stops short is a panel standing on the base', () => {
+  it('a line that stops short still makes a divider, running on to the walls (milestone 44)', () => {
     const { d, base } = box();
     const r = dividerLine(d, base, { x: 60, y: 8 }, { x: 60, y: 40 })!;
-    expect(r.kind).toBe('standing');
-    expect(d.panels[r.id].place).toMatchObject({ host: base, face: 1, pose: 'standing' });
+    expect(r.kind).toBe('divider');
+    expect(d.panels[r.id].divider).toBeTruthy();
+    // across the whole box: its ends are on the front and back walls
+    expect(d.panels[r.id].w).toBeCloseTo(d.panels[base].h, 6);
   });
 });
 

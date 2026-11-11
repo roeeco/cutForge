@@ -5,7 +5,7 @@ import { addDividerFor, addPlacedPanel, addRootPanel, createDesign, flipPlacedSi
 import { MATERIALS, tOf } from '../src/model/materials';
 import { matDir, toWorld } from '../src/model/frame';
 import { boxRecipe } from '../src/easy/recipes';
-import { boardFromGhost, drawsDivider, ghostPlace } from '../src/views/board';
+import { boardFromGhost, ghostPlace } from '../src/views/board';
 import type { Design, V3 } from '../src/model/types';
 
 const ply = () => {
@@ -93,7 +93,6 @@ describe('the Board tool on release', () => {
   it('perpendicular on a plain board: a board standing on the line, at the height given', () => {
     const d = ply();
     const host = addRootPanel(d, -60, 40, 120, 80);
-    expect(drawsDivider(d, 'standing', host, 1)).toBe(false);
     const r = boardFromGhost(d, ghost({ host, pose: 'standing', a: { x: 10, y: 20 }, b: { x: 70, y: 20 }, height: 40 }))!;
     expect(r.kind).toBe('standing');
     expect(d.panels[r.id].place).toMatchObject({ host, face: 1, x: 10, y: 20, rot: 0, pose: 'standing', side: 1 });
@@ -101,22 +100,25 @@ describe('the Board tool on release', () => {
     expect(ghostPlace(ghost({ host, pose: 'standing', a: { x: 10, y: 20 }, b: { x: 70, y: 20 } }))?.w).toBe(60);
   });
 
-  it('perpendicular on a box’s base: wall to wall is the divider + Divider makes; a line that stops short stands on the base', () => {
+  it('on a box’s base (milestone 44): the Divider’s line makes the divider + Divider makes, even when it stops short; the Board tool makes a standing board', () => {
     const d = ply();
     const base = boxRecipe(d, { kind: 'rect', x0: -60, z0: -45, x1: 60, z1: 45 }, 45)!.baseId;
-    // only a standing line on the base's inner face is a divider line
-    expect(drawsDivider(d, 'standing', base, 1)).toBe(true);
-    expect(drawsDivider(d, 'flat', base, 1)).toBe(false);
-    expect(drawsDivider(d, 'standing', base, -1)).toBe(false);
-    expect(drawsDivider(d, 'standing', null, 1)).toBe(false);
-    const a = copy(d), b = copy(d);
+    const a = copy(d), b = copy(d), c = copy(d);
     const r = boardFromGhost(a, ghost({ host: base, pose: 'standing', divider: true, a: { x: 60, y: 8 }, b: { x: 60, y: 84 } }));
     expect(r?.kind).toBe('divider');
-    addDividerFor(b, wallOn(b, base, 'e0'), wallOn(b, base, 'e2'));
-    expect(canon(a)).toBe(canon(b));
-    const s = boardFromGhost(d, ghost({ host: base, pose: 'standing', divider: true, a: { x: 60, y: 8 }, b: { x: 60, y: 40 } }))!;
-    expect(s.kind).toBe('standing');
-    expect(d.panels[s.id].place).toMatchObject({ host: base, face: 1, pose: 'standing' });
+    const id2 = addDividerFor(b, wallOn(b, base, 'e0'), wallOn(b, base, 'e2'))!;
+    // the same board in the same place: its ends find the same walls
+    expect(a.panels[r!.id].place).toEqual(b.panels[id2].place);
+    expect(a.panels[r!.id].w).toBeCloseTo(b.panels[id2].w, 9);
+    // a line that stops short still runs on to the walls
+    const s = boardFromGhost(c, ghost({ host: base, pose: 'standing', divider: true, a: { x: 60, y: 8 }, b: { x: 60, y: 40 } }))!;
+    expect(s.kind).toBe('divider');
+    expect(c.panels[s.id].place).toEqual(a.panels[r!.id].place);
+    // the Board tool's standing line on the same base: a standing board, never a divider
+    const t = boardFromGhost(d, ghost({ host: base, pose: 'standing', a: { x: 60, y: 8 }, b: { x: 60, y: 40 } }))!;
+    expect(t.kind).toBe('standing');
+    expect(d.panels[t.id].divider).toBeUndefined();
+    expect(d.panels[t.id].place).toMatchObject({ host: base, face: 1, pose: 'standing' });
   });
 
   it('through the store: release makes the board in one undo step, selects it and goes back to Select', async () => {

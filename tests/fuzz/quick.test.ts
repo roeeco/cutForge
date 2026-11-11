@@ -107,9 +107,10 @@ function session(seed: number, fails: Fail[], stats: Record<string, number>) {
       const plan = tryRun('planDividerLine throws', () => planDividerLine(d, b, a, c, fh));
       const made = tryRun('dividerLine throws', () => dividerLine(d, b, a, c, fh));
       log.push(`divider(${b},${JSON.stringify(a)},${JSON.stringify(c)},${fh.toFixed(2)}) plan=${plan?.kind ?? null} made=${made?.kind ?? null}`);
-      if (plan && !made) fail('divider plan shown but nothing made', `${plan.kind}`);
-      if (plan && made && plan.kind !== made.kind) fail('divider plan kind differs from made', `${plan.kind} vs ${made.kind}`);
-      if (plan && plan.kind === 'standing' && (!Number.isFinite(plan.height) || plan.height < 5)) fail('standing plan height', `${plan.height}`);
+      // milestone 44: a plan shows a divider (then ✓ makes one) or why not (then nothing is made)
+      if (plan?.kind === 'divider' && !made) fail('divider plan shown but nothing made', `${plan.kind}`);
+      if (plan?.kind === 'refused' && made) fail('refused plan made something', plan.why);
+      if (plan?.kind === 'divider' && (!Number.isFinite(plan.height) || plan.height < 5)) fail('divider plan height', `${plan.height}`);
     }
     const note = tryRun('quickGuard throws', () => quickGuard(base, d));
     if (note === undefined) return;

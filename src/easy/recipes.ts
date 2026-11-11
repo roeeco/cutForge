@@ -1,8 +1,9 @@
 // Quick build's five actions as recipes over the existing ops (milestone 38).
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
-import type { Design, DetailOp, DetailShape, P2, V3 } from '../model/types';
-import { addDetail, addDividerBetween, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, DIVIDER_GAP, MIN_PANEL, parentConnection, planDividerBetween, regularPolygon, type BetweenPlan, type FacePick } from '../model/ops';
+import type { Design, DetailOp, DetailShape, DividerRec, P2, V3 } from '../model/types';
+import { addDetail, addDividerRec, addPathShape, addPolygonPanel, addRootPanel, addText, addTray, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon } from '../model/ops';
+import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
 import { tOf } from '../model/materials';
 import { effectiveGrow, growWith } from '../views/ghost';
@@ -68,55 +69,11 @@ export function standingOn(d: Design, baseId: string): string[] {
   return out;
 }
 
-function standFaces(d: Design, baseId: string): StandFace[] {
-  const base = d.panels[baseId];
-  const u = base.frame.u, v = base.frame.v;
-  const faces: StandFace[] = [];
-  for (const id of standingOn(d, baseId)) {
-    const p = d.panels[id];
-    const m = matDir(p.frame), t = tOf(d, id);
-    for (const side of [1, -1] as const) {
-      const z = side === 1 ? t : 0;
-      const p0 = toLocal(base.frame, toWorld(p.frame, 0, 0, z)), p1 = toLocal(base.frame, toWorld(p.frame, p.w, 0, z));
-      const n = { x: (m[0] * u[0] + m[1] * u[1] + m[2] * u[2]) * side, y: (m[0] * v[0] + m[1] * v[1] + m[2] * v[2]) * side };
-      const l = Math.hypot(n.x, n.y);
-      if (l < 0.9) continue;
-      faces.push({ panelId: id, side, p0: { x: p0.x, y: p0.y }, p1: { x: p1.x, y: p1.y }, n: { x: n.x / l, y: n.y / l } });
-    }
-  }
-  return faces;
-}
 
 const dot = (a: P2, b: P2) => a.x * b.x + a.y * b.y;
 const sub = (a: P2, b: P2): P2 => ({ x: a.x - b.x, y: a.y - b.y });
 
-/** Where the ray from `from` through `to` meets a face facing back at it, near `to` (within DIVIDER_SNAP). */
-function snapEnd(faces: StandFace[], from: P2, to: P2): { face: StandFace; at: P2 } | null {
-  const L = Math.hypot(to.x - from.x, to.y - from.y);
-  if (L < 1e-6) return null;
-  const dir = { x: (to.x - from.x) / L, y: (to.y - from.y) / L };
-  let best: { face: StandFace; at: P2; err: number } | null = null;
-  for (const f of faces) {
-    const dn = dot(dir, f.n);
-    if (dn > -0.5) continue;
-    const s = dot(sub(f.p0, from), f.n) / dn;
-    if (s <= 1e-6) continue;
-    const at = { x: from.x + dir.x * s, y: from.y + dir.y * s };
-    const seg = sub(f.p1, f.p0), sl = Math.hypot(seg.x, seg.y);
-    const k = dot(sub(at, f.p0), seg) / (sl || 1);
-    if (k < -1 || k > sl + 1) continue;
-    const err = Math.abs(s - L);
-    if (err <= DIVIDER_SNAP && (!best || err < best.err)) best = { face: f, at, err };
-  }
-  return best ? { face: best.face, at: best.at } : null;
-}
 
-/** The point of a face nearest `q` (base-local), as a world point just above the base's top face. */
-function onFace(d: Design, baseId: string, f: StandFace, q: P2): V3 {
-  const k = dot(sub(q, f.p0), f.n);
-  const at = { x: q.x - f.n.x * k, y: q.y - f.n.y * k };
-  return toWorld(d.panels[baseId].frame, at.x, at.y, tOf(d, baseId) + 1);
-}
 
 /** The tallest a divider may stand on the base: the lowest wall's top, less the gap (null without walls). */
 function dividerHeight(d: Design, baseId: string): number | null {
@@ -137,70 +94,34 @@ function dividerHeight(d: Design, baseId: string): number | null {
 }
 
 export type DividerLinePlan =
-  | { kind: 'divider'; a: P2; b: P2; picks: [FacePick, FacePick]; plan: Extract<BetweenPlan, { ok: true }>; gaps: [number, number] | null }
-  | { kind: 'standing'; a: P2; b: P2; height: number };
+  | { kind: 'divider'; a: P2; b: P2; rec: DividerRec; span: DividerSpan; height: number; gaps: [number, number] | null }
+  | { kind: 'refused'; a: P2; b: P2; why: DividerWhy };
 
 /**
- * What a line drawn on a base (base-local, on its top face) makes: from wall
- * to wall across facing, parallel walls, a divider (`addDividerBetween` at the
- * line's position, its ends snapped to the walls' inner faces); otherwise a
- * panel placed standing on the base along the line. Null when too short.
+ * What a line drawn on a base (base-local, on its top face) makes (milestone
+ * 44): always a divider along it, whose ends run to the boards beyond where it
+ * reached, crossing the dividers it passes; or, when none can stand there, the
+ * reason. Null while the line is too short to say.
  */
 export function planDividerLine(d: Design, baseId: string, a: P2, b: P2, fallbackHeight = 40): DividerLinePlan | null {
   const base = d.panels[baseId];
-  if (!base) return null;
-  const faces = standFaces(d, baseId);
-  const ea = snapEnd(faces, b, a), eb = snapEnd(faces, a, b);
-  const A = ea?.at ?? a, B = eb?.at ?? b;
-  if (Math.hypot(B.x - A.x, B.y - A.y) < MIN_PANEL) return null;
-  if (ea && eb && ea.face.panelId !== eb.face.panelId) {
-    // the divider stands at the line's middle (along the walls)
-    const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-    const picks: [FacePick, FacePick] = [
-      { panelId: ea.face.panelId, side: ea.face.side, point: onFace(d, baseId, ea.face, mid) },
-      { panelId: eb.face.panelId, side: eb.face.side, point: onFace(d, baseId, eb.face, mid) },
-    ];
-    const plan = planDividerBetween(d, picks[0], picks[1]);
-    if (plan.ok && plan.baseId === baseId) return { kind: 'divider', a: A, b: B, picks, plan, gaps: compartmentGaps(faces, A, B, tOf(d, baseId), [ea.face.panelId, eb.face.panelId]) };
-  }
-  // what the ghost shows is what ✓ makes: never lower than a board can be (BUGFIX_PLAN B19)
-  return { kind: 'standing', a: A, b: B, height: Math.max(MIN_PANEL, dividerHeight(d, baseId) ?? fallbackHeight) };
+  if (!base || Math.hypot(b.x - a.x, b.y - a.y) < MIN_PANEL) return null;
+  const rec = dividerFromLine(a, b);
+  const t = tOf(d, baseId);
+  const plan = planDividerRec(d, baseId, rec, t);
+  if (!plan.ok) return { kind: 'refused', a, b, why: plan.why };
+  const row = rowAt(d, baseId, rec.at, rec.rot, t);
+  // as tall as the walls allow; what the ghost shows is what ✓ makes (BUGFIX_PLAN B19)
+  const height = Math.max(MIN_PANEL, dividerHeight(d, baseId) ?? fallbackHeight);
+  return { kind: 'divider', a, b, rec, span: plan.span, height, gaps: row ? rowGaps(row) : null };
 }
 
-/** The clear sizes on either side of a divider along the line A→B: to the nearest parallel faces it runs between. */
-function compartmentGaps(faces: StandFace[], A: P2, B: P2, t: number, ends: string[]): [number, number] | null {
-  const L = Math.hypot(B.x - A.x, B.y - A.y);
-  if (L < 1e-6) return null;
-  const dir = { x: (B.x - A.x) / L, y: (B.y - A.y) / L }, nd = { x: -dir.y, y: dir.x };
-  const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-  let lo = Infinity, hi = Infinity;
-  for (const f of faces) {
-    if (ends.includes(f.panelId) || Math.abs(dot(f.n, nd)) < 0.99) continue;
-    // the face must span the divider's middle along its length
-    const s0 = dot(sub(f.p0, mid), dir), s1 = dot(sub(f.p1, mid), dir);
-    if (Math.min(s0, s1) > 1 || Math.max(s0, s1) < -1) continue;
-    const off = dot(sub(f.p0, mid), nd);
-    // a face looking back at the divider bounds its compartment
-    if (off > 0 && dot(f.n, nd) < 0) hi = Math.min(hi, off - t / 2);
-    if (off < 0 && dot(f.n, nd) > 0) lo = Math.min(lo, -off - t / 2);
-  }
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
-  // in the base's own order: the compartment nearer its x (or y) = 0 first
-  const g: [number, number] = [Math.round(lo * 10) / 10, Math.round(hi * 10) / 10];
-  return nd.x + nd.y < 0 ? [g[1], g[0]] : g;
-}
-
-/** Make what `planDividerLine` describes: the divider or the standing panel. */
-export function dividerLine(d: Design, baseId: string, a: P2, b: P2, fallbackHeight = 40): { kind: 'divider' | 'standing'; id: string } | null {
+/** Make what `planDividerLine` describes: the divider (null when it is refused). */
+export function dividerLine(d: Design, baseId: string, a: P2, b: P2, fallbackHeight = 40): { kind: 'divider'; id: string } | null {
   const plan = planDividerLine(d, baseId, a, b, fallbackHeight);
-  if (!plan) return null;
-  if (plan.kind === 'divider') {
-    const id = addDividerBetween(d, plan.picks[0], plan.picks[1]);
-    return id ? { kind: 'divider', id } : null;
-  }
-  const rot = (Math.atan2(plan.b.y - plan.a.y, plan.b.x - plan.a.x) * 180) / Math.PI;
-  const id = addPlacedPanel(d, { host: baseId, face: 1, x: plan.a.x, y: plan.a.y, rot, pose: 'standing', side: 1 }, Math.hypot(plan.b.x - plan.a.x, plan.b.y - plan.a.y), plan.height);
-  return id ? { kind: 'standing', id } : null;
+  if (plan?.kind !== 'divider') return null;
+  const id = addDividerRec(d, baseId, plan.rec, plan.height);
+  return id ? { kind: 'divider', id } : null;
 }
 
 /** Is this panel a base a divider line can be drawn on (something stands on it)? */

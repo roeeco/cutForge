@@ -3,7 +3,7 @@
 // dividers it crosses; the ends are found again on every edit.
 import { describe, expect, it } from 'vitest';
 import { addDividerLine, addPolygonPanel, addRootPanel, addTray, regularPolygon, autoConnect, baseJointOf, createDesign, deletePanel, growPanel, movePlaced, rotatePlaced, solve } from '../src/model/ops';
-import { dividerSpanOf } from '../src/model/dividers';
+import { dividerEnds, dividerGrid, dividerSpanOf, snapDividerLine, stepDividerEnd } from '../src/model/dividers';
 import { compartments } from '../src/easy/objects';
 import { panelEdges } from '../src/model/edges';
 import { MATERIALS } from '../src/model/materials';
@@ -198,5 +198,72 @@ describe('dividers at an angle', () => {
     const n = d.order.length;
     expect(addDividerLine(d, base, { x: 80, y: 70 }, { x: 80 + 20 * Math.cos(a), y: 70 + 20 * Math.sin(a) }, 35)).toBeNull();
     expect(d.order.length).toBe(n);
+  });
+});
+
+describe('drawing a divider: a regular grid, Shift for 30° steps, Alt for any angle', () => {
+  const ang = (l: { a: { x: number; y: number }; b: { x: number; y: number } }) => (Math.atan2(l.b.y - l.a.y, l.b.x - l.a.x) * 180) / Math.PI;
+
+  it('with no divider yet, the line snaps along or across the box', () => {
+    const { d, base } = box();
+    expect(dividerGrid(d, base)).toEqual({ grid: 0, box: 0 });
+    // drawn 10° off: along the box; 80°: across it
+    expect(ang(snapDividerLine(d, base, { x: 40, y: 40 }, { x: 40 + 40 * Math.cos(0.17), y: 40 + 40 * Math.sin(0.17) }, 'grid', 0))).toBeCloseTo(0, 9);
+    expect(ang(snapDividerLine(d, base, { x: 40, y: 20 }, { x: 40 + 40 * Math.cos(1.4), y: 20 + 40 * Math.sin(1.4) }, 'grid', 0))).toBeCloseTo(90, 9);
+  });
+
+  it('the first divider sets the grid: the next ones follow it, even at 30°', () => {
+    const { d, base } = box();
+    const a30 = Math.PI / 6;
+    // the first one with Shift: 30° steps from the box's axis
+    const l1 = snapDividerLine(d, base, { x: 60, y: 30 }, { x: 60 + 50 * Math.cos(0.55), y: 30 + 50 * Math.sin(0.55) }, 'steps30', 0);
+    expect(ang(l1)).toBeCloseTo(30, 9);
+    edit(d, () => addDividerLine(d, base, l1.a, l1.b, 35));
+    expect(dividerGrid(d, base).grid).toBeCloseTo(30, 9);
+    // the next one, drawn about square to it, snaps square to it (120°)
+    const l2 = snapDividerLine(d, base, { x: 100, y: 30 }, { x: 100 + 40 * Math.cos(a30 + 1.5), y: 30 + 40 * Math.sin(a30 + 1.5) }, 'grid', 0);
+    expect(ang(l2)).toBeCloseTo(120, 9);
+    // Shift overrides it: back onto the box's axes
+    const l3 = snapDividerLine(d, base, { x: 30, y: 80 }, { x: 70, y: 82 }, 'steps30', 0);
+    expect(ang(l3)).toBeCloseTo(0, 9);
+    // Alt: as drawn
+    const l4 = snapDividerLine(d, base, { x: 30, y: 80 }, { x: 70, y: 87 }, 'free', 0);
+    expect(ang(l4)).toBeCloseTo((Math.atan2(7, 40) * 180) / Math.PI, 9);
+  });
+
+  it('its position snaps to the middle of its compartment and in line with a parallel divider', () => {
+    const { d, base } = box();
+    const t = PLY.thickness;
+    // 3 mm off the middle of the box (inside 3 … 107), within reach: it lands on the middle
+    const l = snapDividerLine(d, base, { x: 30, y: 58 }, { x: 120, y: 58 }, 'grid', 5);
+    expect(l.a.y).toBeCloseTo(55, 6);
+    // a divider across the box splits it; a short one in the left part lines up with a parallel one in the right part
+    edit(d, () => addDividerLine(d, base, { x: 80, y: 10 }, { x: 80, y: 100 }, 35));
+    edit(d, () => addDividerLine(d, base, { x: 100, y: 40 }, { x: 140, y: 40 }, 35));
+    const m = snapDividerLine(d, base, { x: 20, y: 42 }, { x: 60, y: 42 }, 'grid', 3);
+    expect(m.a.y).toBeCloseTo(40, 6);
+    void t;
+  });
+});
+
+describe('a divider’s ends on its card', () => {
+  it('‹ › stop an end a board sooner or let it reach a board further', () => {
+    const { d, base, walls } = box();
+    const [, , back] = walls;
+    const a = edit(d, () => addDividerLine(d, base, { x: 10, y: 55 }, { x: 150, y: 55 }, 35))!;
+    const b = edit(d, () => addDividerLine(d, base, { x: 80, y: 70 }, { x: 80, y: 95 }, 35))!;
+    const ends = dividerEnds(d, b)!;
+    // its low end meets the first divider (it could reach past it); its high end the back wall (it cannot)
+    const lowEnd = ends.findIndex((e) => e.board === a) as 0 | 1;
+    expect(ends[lowEnd]).toEqual({ board: a, less: false, more: true });
+    expect(ends[1 - lowEnd]).toEqual({ board: back, less: false, more: false });
+    edit(d, () => stepDividerEnd(d, b, lowEnd, 1));
+    expect(dividerSpanOf(d, b)!.crosses).toEqual([a]);
+    expect(joined(d, a, b).map((c) => c.kind)).toEqual(['halflap']);
+    const after = dividerEnds(d, b)!;
+    expect(after[lowEnd].less).toBe(true);
+    edit(d, () => stepDividerEnd(d, b, lowEnd, -1));
+    expect(dividerEnds(d, b)![lowEnd].board).toBe(a);
+    expect(joined(d, a, b).map((c) => c.kind)).toEqual(['tabslot']);
   });
 });

@@ -1,12 +1,11 @@
 // The Board tool's result (milestone 42), without the stage: what a ghost
 // drawn on the floor or a face makes when the drag is released. Flat, a
-// rectangle lying on it; standing, a board along the line; a standing line on
-// a box's base becomes a divider from wall to wall (milestone 38), or a
-// standing board when it does not run from wall to wall.
+// rectangle lying on it; standing, a board along the line. A Divider tool
+// ghost makes a divider (milestone 44); the Board tool never does.
 import type { Design, PanelPlace } from '../model/types';
 import type { PanelGhost } from '../store/store';
 import { addPlacedPanel, addRootPanel, MIN_PANEL, solve } from '../model/ops';
-import { dividerLine, isBoxBase } from '../easy/recipes';
+import { dividerLine } from '../easy/recipes';
 
 /** The panel a ghost stands for: its place on the host and its size (null while too small). */
 export function ghostPlace(g: PanelGhost): { place: PanelPlace; w: number; h: number } | null {
@@ -22,11 +21,6 @@ export function ghostPlace(g: PanelGhost): { place: PanelPlace; w: number; h: nu
   return { place: { host: g.host, face: g.face, x: g.a.x, y: g.a.y, rot, pose: 'standing', side: g.side }, w, h: Math.max(MIN_PANEL, g.height) };
 }
 
-/** Does a standing line pressed here become a divider line: on a box's base, on its inner (material) face? */
-export function drawsDivider(d: Design, pose: 'flat' | 'standing', host: string | null, face: 1 | -1): boolean {
-  return pose === 'standing' && host !== null && face === 1 && isBoxBase(d, host);
-}
-
 /**
  * Make what a released ghost stands for (the Board tool, milestone 42): a
  * floor board, a board flat or standing on a face, or (a divider line) a
@@ -35,7 +29,7 @@ export function drawsDivider(d: Design, pose: 'flat' | 'standing', host: string 
 export function boardFromGhost(d: Design, g: PanelGhost): { kind: 'flat' | 'standing' | 'divider'; id: string } | null {
   if (g.divider && g.host) {
     const r = dividerLine(d, g.host, g.a, g.b, g.height);
-    return r ? { kind: r.kind, id: r.id } : null;
+    return r ? { kind: 'divider', id: r.id } : null;
   }
   const gp = ghostPlace(g);
   if (!gp) return null;

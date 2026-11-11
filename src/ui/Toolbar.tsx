@@ -15,6 +15,7 @@ const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolea
   { id: 'roundrect', key: 'tool.roundrect', icon: 'roundrect', kbd: 'U' },
   { id: 'circle', key: 'tool.circle', icon: 'circle', kbd: 'C' },
   { id: 'polygon', key: 'tool.polygon', icon: 'polygon', kbd: 'G', only3d: true },
+  { id: 'divider', key: 'tool.divider', icon: 'divider', kbd: 'D', only3d: true },
   { id: 'text', key: 'tool.text', icon: 'text', kbd: 'T' },
 ];
 
@@ -111,6 +112,8 @@ function WorkshopRail() {
         {/* the Board tool, flat or standing: two buttons */}
         {view === '3d' && boardBtn('flat')}
         {view === '3d' && boardBtn('standing')}
+        {/* dividers: a line drawn in a box (milestone 44) */}
+        {view === '3d' && railBtn('divider', 'tool.divider', 'divider', 'D')}
         {/* rectangle, rounded rectangle and circle: one button, the card chooses */}
         <button className={inShapes ? 'on' : ''} aria-pressed={inShapes} aria-label={t('tool.shapes')} onClick={() => setTool(inShapes ? 'select' : shapeIcon)} data-testid="tool-shapes">
           <Icon name={shapeIcon === 'rect' ? 'shapes' : shapeIcon} />

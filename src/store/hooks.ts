@@ -118,6 +118,8 @@ export function useKeyboard() {
         // Quick build's actions (milestone 37)
         const a = QUICK_KEYS[e.key.toLowerCase()];
         if (a === 'select') s.setTool('select');
+        // D again: Divider and Standing board take turns (milestone 44)
+        else if (a === 'divider' && s.view === '3d' && s.tool === 'divider') startAction('standing');
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
       } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];

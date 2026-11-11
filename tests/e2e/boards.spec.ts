@@ -474,7 +474,7 @@ test.describe('the Board tool, joints view and grow bar (follow-ups, milestone 4
     standing = (await design(page)).panels[sid];
     expect(standing.h).toBe(25);
     expect(standing.place).toMatchObject({ host: board, pose: 'standing' });
-    // 4. on a tray's base, a line from wall to wall with Standing board: a divider joined at both ends; the note shows while drawing
+    // 4. on a tray's base, a line with the Divider tool (milestone 44: Standing board makes boards only): a divider joined at both ends; the note shows while drawing
     const tray = await S<{ base: string; walls: string[] }>(page, () => {
       const cf = (window as any).__cutforge;
       let out: any;
@@ -487,20 +487,25 @@ test.describe('the Board tool, joints view and grow bar (follow-ups, milestone 4
       return out;
     });
     await page.waitForTimeout(200);
-    await fly.click();
-    await expect(fly).toHaveAttribute('aria-pressed', 'true');
-    const a = await proj(page, tray.base, 60, 6), b = await proj(page, tray.base, 60, 74);
+    await page.getByTestId('tool-divider').click();
+    await expect(page.getByTestId('tool-divider')).toHaveAttribute('aria-pressed', 'true');
+    const a = await proj(page, tray.base, 60, 20), b = await proj(page, tray.base, 60, 60);
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
     await page.mouse.move(b.x, b.y, { steps: 4 });
     await expect(page.getByTestId('divider-live')).toHaveAttribute('data-kind', 'divider');
     await page.mouse.up();
+    // it waits for ✓, showing what its ends meet
+    await expect(page.getByTestId('div-mark-board')).toHaveCount(2);
+    // ✓ (Enter: this tray is far right, where the card covers the bar)
+    await page.keyboard.press('Enter');
     d = await design(page);
     const div = (await st()).sel.id as string;
-    const grownFrom = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === div) as any;
-    expect(grownFrom.a.panelId).toBe(tray.base);
-    const ends = Object.values(d.connections).filter((c: any) => !c.grown && (c.a.panelId === div || c.b.panelId === div)) as any[];
+    expect(d.panels[div].divider).toBeTruthy();
+    expect(d.panels[div].place.host).toBe(tray.base);
+    // its ends, not its joint with the base
+    const ends = Object.values(d.connections).filter((c: any) => !c.grown && (c.a.panelId === div || c.b.panelId === div) && c.a.panelId !== tray.base && c.b.panelId !== tray.base) as any[];
     expect(ends).toHaveLength(2);
     for (const c of ends) expect(tray.walls).toContain(c.a.panelId === div ? c.b.panelId : c.a.panelId);
     expect(ends.every((c) => !c.broken)).toBe(true);

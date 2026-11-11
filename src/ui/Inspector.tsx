@@ -20,7 +20,7 @@ import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { BoardMaterial } from './BoardMaterial';
 import { MultiPanel } from './MultiPanel';
-import { PlacedSection, placedWhere } from './PlacedUI';
+import { DividerSection, PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 import { Gate } from '../easy/Gate';
@@ -193,10 +193,16 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
-          <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+          {p.divider ? (
+            // a divider's length comes from its ends (milestone 44)
+            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} disabled onCommit={() => undefined} testId="panel-w" />
+          ) : (
+            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+          )}
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
-          {!parent && (
+          {p.divider && <DividerSection panelId={id} />}
+          {!parent && !p.divider && (
             <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
           )}
           <Gate f="hinge">
