@@ -19,7 +19,8 @@ import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
-import { netOverlaps, pieceRoot } from './pieces';
+import { netOverlaps, pieceKeyOf, pieceRoot } from './pieces';
+import { bendCheck } from './bent';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
@@ -80,7 +81,7 @@ export function validate(d: Design): Issue[] {
       if (!inside || webTo(h, outline) < min - 1e-6) issues.push({ key: 'val.slotEdge', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
   }
-  issues.push(...foldOverIssues(d));
+  issues.push(...foldOverIssues(d), ...bendIssues(d));
   for (const c of Object.values(d.connections)) {
     if (guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
     if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });
@@ -223,6 +224,32 @@ function fragmentsAfterThrough(d: Design, id: string): number {
 }
 
 /** Fold-over rules (foldform's, plus webs, collisions and flute direction). */
+/**
+ * Bent walls (milestone 46): a curve tighter than the material bends at all,
+ * or tighter than it bends on its own (it needs a pattern: scores, liner
+ * scoring, a living hinge; CURVED_WALLS.md milestone 47); corrugated with its
+ * flutes round the wall instead of up it.
+ */
+function bendIssues(d: Design): Issue[] {
+  const out: Issue[] = [];
+  for (const id of d.order) {
+    const p = d.panels[id];
+    const b = p && bendCheck(d, id);
+    if (!p || !b) continue;
+    const m = matOf(d, id);
+    const vars = { panel: p.name, r: Math.round(b.minR * 10) / 10, min: Math.round(b.patternR * 10) / 10, smooth: Math.round(b.smoothR * 10) / 10 };
+    const target: IssueTarget = { kind: 'panel', id };
+    if (b.impossible) out.push({ key: 'val.bendTight', vars, target });
+    else if (b.tight) out.push({ key: m.kind === 'plywood' ? 'val.bendHinge' : 'val.bendPattern', vars, target });
+    if (m.kind === 'corrugated' && m.grain !== 'none') {
+      const pl = Object.entries(d.placements).find(([k]) => k.startsWith(`${pieceKeyOf(d, id)}#`))?.[1];
+      // a strip lies with its height along the sheet's y unless turned: flutes along y run up the wall
+      if (pl && (pl.rot === 90) === (m.grain === 'y')) out.push({ key: 'val.fluteBend', vars, target });
+    }
+  }
+  return out;
+}
+
 function foldOverIssues(d: Design): Issue[] {
   const out: Issue[] = [];
   const fos = allFoldOvers(d);

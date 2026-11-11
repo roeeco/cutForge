@@ -102,6 +102,10 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // new (milestone 45): nothing to convert. The version keeps older editors
   // from opening a file whose round outlines they would read wrongly.
   10: (d) => d,
+  // v11 -> v12: walls bent along curved edges (milestone 46): new joint kinds
+  // ('teeth', 'wrap'), a tray's `curveKind`, matched walls (`WallSketch.match`);
+  // nothing to convert. The version keeps older editors from misreading them.
+  11: (d) => d,
 };
 
 function migrateDividers(d: any): any {
@@ -146,7 +150,8 @@ function migrateDividers(d: any): any {
 
 export function serializeProject(d: Design): string {
   const f: ProjectFile = { format: PROJECT_FORMAT, schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), design: d };
-  return JSON.stringify(f, null, 1);
+  // bent walls' facets are derived (milestone 46): never saved
+  return JSON.stringify(f, (k, v) => (k === 'bent' ? undefined : v), 1);
 }
 
 export function migrateDesign(raw: any): Design {

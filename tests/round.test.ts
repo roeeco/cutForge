@@ -161,16 +161,18 @@ describe('rounded corners', () => {
     expect(d.panels[w].w).toBeCloseTo(85, 9);
   });
 
-  it('a tray on a rounded rectangle stands walls on its straight sides only; a circle gets none yet (curved walls: milestone 46)', () => {
+  it('a tray on a rounded rectangle stands walls on its straight sides and bent walls on its corners; a circle gets one bent wall (milestone 46)', () => {
     const d = createDesign(CORR16);
     const rr = addRoundedRect(d, 0, 0, 120, 80, 15)!;
     addTray(d, rr, 40);
     autoConnect(d);
     const walls = (id: string) => Object.values(d.connections).filter((c) => c.grown && c.a.panelId === id);
-    expect(walls(rr)).toHaveLength(4);
+    expect(walls(rr)).toHaveLength(8);
+    expect(walls(rr).filter((x) => d.panels[x.b.panelId].bent)).toHaveLength(4);
     const c = addRoundPanel(d, 300, 0, 80, 80, { shape: 'circle' })!;
     addTray(d, c, 40);
-    expect(walls(c)).toHaveLength(0);
+    expect(walls(c)).toHaveLength(1);
+    expect(d.panels[walls(c)[0].b.panelId].bent?.closed).toBe(true);
   });
 });
 

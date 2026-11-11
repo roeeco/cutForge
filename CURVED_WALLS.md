@@ -340,6 +340,14 @@ Each one keeps every existing test green and adds its own. Golden exports change
 - Trays still leave curves open. This milestone is useful alone: round trays, coasters, game boards.
 
 ### Milestone 46: bent walls on curves (smooth bends, base joints, matched walls)
+*In progress (PROGRESS.md). Changed while building:*
+- *Developed length is worked out per flattened segment, from its chord and the turn at its ends (exact for arcs), at the neutral line `off + (1 − k)·t` in from the outline.*
+- *Facets carry their end points on the outer face and the inward direction there; `panelToWorld` interpolates between them, so neighbouring facets meet without a gap. A bent panel's `frame` is its middle facet (labels and anything still reading one frame land on the wall).*
+- *Glue edge is a new kind, `'wrap'`: the wall stands full height with its outer face flush with the base's edge, and the base is cut back by the wall's thickness under it. `'teeth'` is the other new kind; `'butt'` stands the wall on the base, glued.*
+- *A tray's bent walls have their own joint (`Tray.curveKind`, the tray card's "Curved walls"); by default the counterpart of the straight walls' joint, so both stand in line (fold or glue → teeth, finger → wrap, tab-and-slot → tab-and-slot), and on a round base the material's default.*
+- *In-line seams (a bent wall meeting a straight wall at a tangent point) are connections `<wall>|s` / `<wall>|e`, kept by `reconcileInline`: a glue flap behind the straight wall (card, corrugated) or edge to edge (plywood). A closed strip's closing flap belongs to its base joint's geometry.*
+- *Bent tab-and-slot walls stand 0.05 mm further in than straight ones: the flattened curve's chords lie inside the arc.*
+- *Schema 12 (new joint kinds).*
 - *From milestone 45:* `curveRuns` in `edges.ts`; Quick build Box *Round · Rounded* with the radius guard (§6.5).
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`

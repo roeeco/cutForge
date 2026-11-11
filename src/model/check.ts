@@ -31,7 +31,7 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'teeth', 'wrap', 'butt'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;
 const TAB_LOCKS = ['flush', 'through', 'snap', 'bolt'] as const;
@@ -182,6 +182,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
       if (f.lockDepth !== null) num(f.lockDepth, `${w}.lockDepth`, { min: 0 });
     });
   }
+  // derived: solve re-makes it (milestone 46)
+  delete x.bent;
   if (x.ext !== undefined) {
     if (!isObj(x.ext)) delete x.ext; // derived: solve re-makes it
     else if (!Number.isFinite(x.ext.s) || !Number.isFinite(x.ext.e)) delete x.ext;
@@ -283,6 +285,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   num(x.height, `${where}.height`, { min: 0 });
   oneOf(x.wallKind, CONNECTION_KINDS, `${where}.wallKind`);
   oneOf(x.cornerKind, CONNECTION_KINDS, `${where}.cornerKind`);
+  if (x.curveKind !== undefined) oneOf(x.curveKind, CONNECTION_KINDS, `${where}.curveKind`);
   arr(x.openEdges, `${where}.openEdges`).forEach((e, i) => str(e, `${where}.openEdges[${i}]`));
   if (x.tabLen !== undefined) oneOf(x.tabLen, TAB_LOCKS, `${where}.tabLen`);
   if (x.flat !== undefined) oneOf(x.flat, ['auto', 'off'] as const, `${where}.flat`);

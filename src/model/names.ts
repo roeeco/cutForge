@@ -6,7 +6,7 @@
 // renames parts and old projects get role names too.
 import type { Design } from './types';
 import { defaultOffset } from './ops';
-import { isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
+import { curveRuns, isRectSketch, isRunKey, panelEdges, rectEdgeIndex, segLength } from './edges';
 import type { MsgKey } from '../i18n';
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string;
@@ -37,6 +37,8 @@ function templateRole(t: T, id: string): string | null {
  */
 export function edgeLabel(d: Design, panelId: string, key: string, t: T): string {
   const p = d.panels[panelId];
+  // a curve run (milestone 46): numbered among the base's runs
+  if (p && isRunKey(key)) return t('edge.curveN', { n: curveRuns(p).findIndex((r) => r.key === key) + 1 });
   const m = /^(e[0-3])(?:#(\d+))?$/.exec(key);
   const i = m ? rectEdgeIndex(m[1]) : null;
   if (p && i !== null && isRectSketch(p)) {
@@ -67,6 +69,8 @@ export function panelLabel(d: Design, id: string, t: T): string {
     const divs = d.order.filter((x) => conns.some((c) => c.grown && c.b.panelId === x && isDivider(c)));
     return t('part.divider', { n: divs.indexOf(id) + 1 });
   }
+  // a wall bent along a curve (milestone 46): numbered among its base's curves
+  if (isRunKey(parentC.a.edge) && d.panels[parentC.a.panelId]) return t('part.curvedWall', { n: curveRuns(d.panels[parentC.a.panelId]).findIndex((r) => r.key === parentC.a.edge) + 1 });
   const parentIsRoot = !conns.some((c) => c.grown && c.b.panelId === parentC.a.panelId);
   const side = parentIsRoot && isRectSketch(d.panels[parentC.a.panelId]) ? rectEdgeIndex(parentC.a.edge) : null;
   if (side !== null && Math.abs(parentC.angle - 90) < 1e-6) return t('part.wallSide', { side: t(SIDE[side]) });

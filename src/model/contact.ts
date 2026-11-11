@@ -156,7 +156,8 @@ const pair = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
 export function panelContacts(d: Design, all = false): Contact[] {
   // construction guides touch nothing; a flat placed panel lies on its host by design (milestone 28)
   const guides = constructionSet(d);
-  const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
+  // a bent wall (milestone 46) is not one slab: its joints are made by its own rules (src/model/bent.ts)
+  const ids = d.order.filter((id) => d.panels[id] && !guides.has(id) && !d.panels[id].bent);
   const joined = all ? new Set<string>() : new Set(Object.values(d.connections).map((c) => pair(c.a.panelId, c.b.panelId)));
   for (const id of ids) {
     const h = d.panels[id].place;

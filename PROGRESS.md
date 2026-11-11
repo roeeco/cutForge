@@ -1012,6 +1012,21 @@ Limitations
 - A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
 - Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
 
+## Milestone 46 — bent walls on curves (in progress)
+
+Part 1: curve runs and bent walls (`CURVED_WALLS.md` §3.1, §3.2, §3.4, §4.3, §6.2; `src/model/edges.ts` `curveRuns`, `src/model/bent.ts`, `src/model/trays.ts`, `src/model/ops.ts`, `src/views/three-geom.ts` `bentSlab`, `src/ui/TrayUI.tsx`, `src/model/validate.ts`)
+- **Runs.** `curveRuns` / `findRun`: open runs with their straight neighbours and whether they leave them tangentially, closed runs starting at the back; length and tightest radius.
+- **Bent walls.** `reconcileTrays` stands one wall per run; `solveOnce` bends it (`bendAlong`): w is the developed length at the neutral line, `Panel.bent` holds its facets (derived, stripped on save and on load). `facetsOf`, `panelToWorld`, `panelToLocal`, `panelMatDir`, `runPoint`.
+- **Joints.** New kinds `'teeth'` and `'wrap'`; `curvedKinds`, `curvedFor`, `trayCurveKind`, `Tray.curveKind` (the tray card's *Curved walls*, `tray-curve-kind`). `bentGeom`: tapered teeth with scores and folded 3D flaps on the base, tabs with slots following the curve, the base cut back under a wrapping wall, a closing flap on a closed strip. `reconcileInline` / `inlineGeom`: in-line seams at tangent points.
+- **3D.** `bentSlab` slices a bent wall's outline at its facets and lays both faces and the sides along them (no seams between facets); flaps on a bent wall too. Shapes' lines and hit areas follow the wall (`bentWarp`). Bent walls offer no Grow edges.
+- **Checks.** `val.bendTight`, `val.bendHinge`, `val.bendPattern`, `val.fluteBend` (`bendCheck`).
+- **Schema 12.** Names: *Curved wall n*, *curve n*. English and Hebrew strings.
+
+Verified so far
+- `tests/bentWalls.test.ts` (10): runs of a rounded rectangle, a circle and a stadium; a corrugated-1.6 round box R 40 (one closed wall 2π(R − t + k·t) at its outer face, the outer face on the circle at every facet, tabs and slots matching and inside the base with their web, a closing flap, the export check clean); a card circle's tapered teeth and their 3D flaps; a plywood circle wrapping its base (full height, base cut back, length at the neutral line, exported as arcs of R − t); save/load; `panelToLocal` inverting `panelToWorld`; a card rounded tray (straight folds, teeth corners, in-line glue flaps meeting at the tangent points, clean); the tray's curved joint and an unjoined in-line seam staying unjoined; a plywood rounded box (wrap, fingers on the straight walls, `val.bendHinge` on each corner, `val.bendTight` at R 15).
+- Updated `round.test.ts`: trays on rounded rectangles and circles now stand bent walls.
+- Golden exports unchanged. Unit suite: 589 pass.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

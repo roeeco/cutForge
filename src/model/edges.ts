@@ -327,3 +327,120 @@ export function isRectSketch(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): b
   const r = rectSketch(p.w, p.h) as Extract<Sketch, { kind: 'poly' }>;
   return s.pts.length === 4 && !s.pts.some((q) => q.curve) && s.pts.every((q, i) => q.x === r.pts[i].x && q.y === r.pts[i].y) && s.edgeIds.every((k, i) => k === `e${i}`);
 }
+
+// ---------------------------------------------------------------------------
+// Curve runs (milestone 46, CURVED_WALLS.md §3.1): the maximal chains of
+// curve segments (`~`) between straight edges or sharp corners. A bent wall
+// stands on a run, named by the run's key: its first segment's key without the
+// segment number (`e2^~` for a rounded corner's arc, `e2~` for an auto curve).
+// A closed run (a circle, an oval) is named by the smallest of its segments'
+// prefixes and starts at the back of the outline (its point furthest along
+// local y), where its closing seam is.
+
+/** A run of curve segments: `prev` / `next` are the straight edges either side (absent on a closed run). */
+export type CurveRun = {
+  key: string;
+  segs: EdgeSeg[];
+  closed: boolean;
+  prev?: string;
+  next?: string;
+  /** The run leaves its neighbour edge without a corner (a rounded corner always does). */
+  tanStart: boolean;
+  tanEnd: boolean;
+  /** Length along the outline. */
+  length: number;
+  /** Tightest radius along the run (mm), from its flattened segments. */
+  minR: number;
+};
+
+/** A run key ends in `~` (a segment key ends in `~<n>`). */
+export const isRunKey = (key: string) => /~$/.test(key);
+/** The run prefix of a curve segment key: `e1^~3` → `e1^~`. */
+export const runPrefix = (key: string) => key.replace(/~\d+(#\d+)?$/, '~');
+
+const turnOf = (a: EdgeSeg, b: EdgeSeg) => {
+  const da = segDir(a), db = segDir(b);
+  return Math.atan2(da.x * db.y - da.y * db.x, da.x * db.x + da.y * db.y);
+};
+
+/** The curve runs of a panel's outline (all its rings). */
+export function curveRuns(p: Edged): CurveRun[] {
+  const out: CurveRun[] = [];
+  for (const ring of ownRings(p)) out.push(...ringRuns(ring));
+  return out;
+}
+
+function ringRuns(ring: EdgeSeg[]): CurveRun[] {
+  const n = ring.length;
+  const cv = ring.map((e) => isCurveKey(e.key));
+  if (!cv.some(Boolean) || n < 2) return [];
+  // turn at the start of each segment (from the one before it)
+  const turn = ring.map((e, i) => turnOf(ring[(i + n - 1) % n], e));
+  // a junction between curve segments of different curves breaks the run when it turns far more than the segments around it
+  const brk = ring.map((e, i) => {
+    const pv = ring[(i + n - 1) % n];
+    if (!cv[i] || !cv[(i + n - 1) % n]) return true;
+    if (Math.hypot(pv.b.x - e.a.x, pv.b.y - e.a.y) > 1e-6) return true;
+    if (runPrefix(pv.key) === runPrefix(e.key)) return false;
+    const inner = Math.max(Math.abs(turn[(i + n - 1) % n]), Math.abs(turn[(i + 1) % n]));
+    return Math.abs(turn[i]) > 1.5 * inner + 1e-3;
+  });
+  const runs: CurveRun[] = [];
+  const make = (idx: number[], closed: boolean): CurveRun => {
+    const segs = idx.map((i) => ring[i]);
+    let minR = Infinity;
+    for (let j = 1; j < segs.length; j++) {
+      const th = Math.abs(turnOf(segs[j - 1], segs[j]));
+      if (th < 1e-9) continue;
+      const c = (segLength(segs[j - 1]) + segLength(segs[j])) / 2;
+      minR = Math.min(minR, c / (2 * Math.sin(th / 2)));
+    }
+    const length = segs.reduce((s, e) => s + segLength(e), 0);
+    if (closed) {
+      const key = [...new Set(segs.map((e) => runPrefix(e.key)))].sort()[0];
+      return { key, segs, closed, tanStart: true, tanEnd: true, length, minR };
+    }
+    const first = idx[0], last = idx[idx.length - 1];
+    const pv = ring[(first + n - 1) % n], nx = ring[(last + 1) % n];
+    const innerS = segs.length > 1 ? Math.abs(turnOf(segs[0], segs[1])) : 0, innerE = segs.length > 1 ? Math.abs(turnOf(segs[segs.length - 2], segs[segs.length - 1])) : 0;
+    const joinedS = Math.hypot(pv.b.x - segs[0].a.x, pv.b.y - segs[0].a.y) < 1e-6, joinedE = Math.hypot(nx.a.x - segs[segs.length - 1].b.x, nx.a.y - segs[segs.length - 1].b.y) < 1e-6;
+    return {
+      key: runPrefix(segs[0].key),
+      segs,
+      closed,
+      ...(cv[(first + n - 1) % n] ? {} : { prev: pv.key }),
+      ...(cv[(last + 1) % n] ? {} : { next: nx.key }),
+      tanStart: joinedS && Math.abs(turn[first]) <= 0.75 * innerS + 1e-3,
+      tanEnd: joinedE && Math.abs(turn[(last + 1) % n]) <= 0.75 * innerE + 1e-3,
+      length,
+      minR,
+    };
+  };
+  if (!brk.some(Boolean)) {
+    // one closed run: start at the back (largest y; then smallest x)
+    let s = 0;
+    for (let i = 1; i < n; i++) {
+      const q = ring[i].a, b = ring[s].a;
+      if (q.y > b.y + 1e-9 || (Math.abs(q.y - b.y) <= 1e-9 && q.x < b.x)) s = i;
+    }
+    return [make(Array.from({ length: n }, (_, j) => (s + j) % n), true)];
+  }
+  // start at a break, then cut the ring at every break
+  const s = brk.findIndex(Boolean);
+  let cur: number[] = [];
+  for (let j = 0; j < n; j++) {
+    const i = (s + j) % n;
+    if (brk[i] && cur.length) {
+      runs.push(make(cur, false));
+      cur = [];
+    }
+    if (cv[i]) cur.push(i);
+  }
+  if (cur.length) runs.push(make(cur, false));
+  return runs;
+}
+
+/** A run by key. */
+export function findRun(p: Edged, key: string): CurveRun | undefined {
+  return curveRuns(p).find((r) => r.key === key);
+}

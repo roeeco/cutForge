@@ -5,12 +5,13 @@ import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
-import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import { insideCornerExtensions, reconcileTrays, trayCurveKind, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import { BENT_WEB, bendAlong, bentLift, facetsOf, onRun, reconcileInline } from './bent';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
 import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
-import { DEFAULT_MATERIAL, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
+import { DEFAULT_MATERIAL, bendOf, connectionsFor, curvedFor, curvedKinds, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
@@ -20,7 +21,7 @@ import { defaultEnd, MIN_END, roundPts } from './round';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
-import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
+import { FACE, edgeNeighbours, edgePieces, ek, findEdge, findRun, isRunKey, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
 const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -57,7 +58,7 @@ export function parentConnection(d: Design, panelId: string): Connection | undef
 }
 
 export function seatingOf(kind: ConnectionKind): Seating {
-  return kind === 'finger' ? 'overlap' : 'onTop';
+  return kind === 'finger' || kind === 'wrap' ? 'overlap' : 'onTop';
 }
 
 /**
@@ -110,6 +111,7 @@ function fitTrayKinds(d: Design) {
     const def = trayKinds(m);
     if (!walls.includes(tray.wallKind)) tray.wallKind = designKind(d, 'base', walls, m.kind) ?? (walls.includes(def.wallKind) ? def.wallKind : walls[0]);
     if (!corners.includes(tray.cornerKind)) tray.cornerKind = designKind(d, 'corner', corners, m.kind) ?? (corners.includes(def.cornerKind) ? def.cornerKind : corners[0]);
+    if (tray.curveKind && !curvedKinds(m).includes(tray.curveKind)) delete tray.curveKind;
   }
 }
 
@@ -158,6 +160,11 @@ function solveOnce(d: Design) {
   );
   // dividers find their ends on the boards around them (milestone 44)
   reconcileDividers(d);
+  // bent walls are bent again below (milestone 46)
+  for (const id of d.order) {
+    const pc = d.panels[id]?.bent && parentConnection(d, id);
+    if (d.panels[id]?.bent && (!pc || !onRun(pc))) delete d.panels[id].bent;
+  }
   // placed panels (milestone 28) follow their host: hosts first, in the same pass as grown panels (a host may be grown)
   const placed = d.order.filter((id) => d.panels[id]?.place && !parentConnection(d, id));
   const derive = (id: string) => {
@@ -188,6 +195,24 @@ function solveOnce(d: Design) {
       const parent = d.panels[c.a.panelId], child = d.panels[c.b.panelId];
       if (!parent || !child) continue;
       done.add(child.id);
+      // a wall on a curve run is bent along it (milestone 46)
+      if (onRun(c)) {
+        const run = findRun(parent, c.a.edge);
+        if (!run) continue;
+        const ok = pairKinds(d, c);
+        fitKind(c, ok, c.trayId && d.trays[c.trayId] ? trayCurveKind(d, d.trays[c.trayId]) : curvedFor(c.pref, matOf(d, child.id)));
+        c.angle = 90;
+        c.dir = 'up';
+        // tabs: a little further in than on a straight edge, as the flattened curve's chords cut inside the arc
+        c.offset = defaultOffset(d, c.kind, parent.id) + (c.kind === 'tabslot' ? BENT_WEB : 0);
+        const m = matOf(d, child.id);
+        child.bent = bendAlong(parent, run, c.offset, m.thickness, bendOf(m).k, bentLift(c.kind, tOf(d, parent.id)));
+        const fs = facetsOf(child);
+        child.w = fs[fs.length - 1].s1;
+        child.frame = (fs.find((f) => f.s1 >= child.w / 2) ?? fs[0]).frame;
+        child.h = Math.max(child.h, MIN_PANEL);
+        continue;
+      }
       // the parent edge is gone (a vertex was deleted): keep the panel where it was, flagged
       if (!findEdge(parent, c.a.edge)) continue;
       const ok = pairKinds(d, c);
@@ -206,6 +231,8 @@ function solveOnce(d: Design) {
       done.add(child.id);
     }
   }
+  // bent walls meeting straight walls in line are glued end to end (milestone 46)
+  reconcileInline(d);
   const guides = constructionSet(d);
   for (const c of Object.values(d.connections)) {
     // construction panels are never joined: their connections carry no joint
@@ -303,9 +330,11 @@ function makeTrayWall(d: Design, tray: Tray, edge: string) {
   const base = d.panels[tray.baseId];
   if (!base) return;
   const id = `${tray.id}/${edge}`, cid = `${tray.id}/c/${edge}`;
-  const kind = tray.wallKind;
+  // a curve run's wall is bent along it, with a joint that works on a curve (milestone 46)
+  const run = isRunKey(edge) ? findRun(base, edge) : undefined;
+  const kind = run ? trayCurveKind(d, tray) : tray.wallKind;
   if (!d.panels[id]) {
-    d.panels[id] = { id, name: `${d.order.length + 1}`, w: edgeLength(base, edge), h: Math.max(MIN_PANEL, wallHeight(d, kind, tray.height, base.id)), sketch: { kind: 'wall' }, frame: base.frame, details: [], ...(base.material ? { material: base.material } : {}) };
+    d.panels[id] = { id, name: `${d.order.length + 1}`, w: run ? run.length : edgeLength(base, edge), h: Math.max(MIN_PANEL, wallHeight(d, kind, tray.height, base.id)), sketch: { kind: 'wall' }, frame: base.frame, details: [], ...(base.material ? { material: base.material } : {}) };
     d.order.push(id);
     d.pieces[id] = { quantity: 1 };
   }
@@ -352,7 +381,7 @@ export function setTrayHeight(d: Design, trayId: string, height: number) {
 }
 
 /** Change a tray's wall-to-base or corner joint (or its tab length) for all its walls and corners. */
-export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'tabLen'>>) {
+export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'tabLen' | 'curveKind'>>) {
   const tray = d.trays?.[trayId];
   if (!tray) return;
   Object.assign(tray, patch);
@@ -362,7 +391,13 @@ export function setTrayKinds(d: Design, trayId: string, patch: Partial<Pick<Tray
   }
   for (const c of Object.values(d.connections)) {
     if (c.trayId !== trayId) continue;
-    if (c.grown && patch.wallKind) {
+    if (onRun(c)) {
+      // bent walls follow the tray's curved joint (or the straight one's counterpart)
+      if (patch.wallKind || patch.curveKind) {
+        c.kind = c.pref = trayCurveKind(d, tray);
+        c.offset = defaultOffset(d, c.kind, c.a.panelId);
+      }
+    } else if (c.grown && patch.wallKind) {
       c.kind = c.pref = patch.wallKind;
       c.offset = defaultOffset(d, patch.wallKind, c.a.panelId);
     } else if (!c.grown && patch.cornerKind && pairKinds(d, c).includes(patch.cornerKind)) c.kind = c.pref = patch.cornerKind;

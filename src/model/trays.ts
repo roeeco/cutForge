@@ -5,8 +5,8 @@
 // except edges in `openEdges` and edges shorter than 5 mm. Deleting a tray
 // wall opens its edge; "Wall it" closes it again.
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
-import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
-import { matOf, minWeb, tOf } from './materials';
+import { curveRuns, isCurveKey, isRunKey, panelEdges, segDir, segLength, findEdge } from './edges';
+import { curvedFor, curvedKinds, matOf, minWeb, tOf } from './materials';
 import { removePanelRecord } from './place';
 
 export const MIN_EDGE = 5;
@@ -33,7 +33,21 @@ export function trayWalls(d: Design, trayId: string): string[] {
 
 /** Wall height for a tray of outer height H: walls standing on the base lose its thickness. */
 export function wallHeight(d: Design, kind: ConnectionKind, H: number, baseId?: string): number {
-  return kind === 'finger' ? H : H - (baseId ? tOf(d, baseId) : d.material.thickness);
+  return kind === 'finger' || kind === 'wrap' ? H : H - (baseId ? tOf(d, baseId) : d.material.thickness);
+}
+
+/**
+ * The joint a tray's bent walls (on curve runs) have with its base (milestone
+ * 46): the tray's own choice, else the one that stands them in line with its
+ * straight walls, else (a round base) the material's default.
+ */
+export function trayCurveKind(d: Design, tray: Tray): ConnectionKind {
+  const m = matOf(d, tray.baseId);
+  const ok = curvedKinds(m);
+  if (tray.curveKind && ok.includes(tray.curveKind)) return tray.curveKind;
+  const base = d.panels[tray.baseId];
+  const straight = !!base && panelEdges(base).some((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key) && !tray.openEdges.includes(e.key));
+  return straight ? curvedFor(tray.wallKind, m) : ok[0];
 }
 
 /** Base edges too short for a wall (left open, and named on the tray card). */
@@ -61,14 +75,17 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
       continue;
     }
     const edges = panelEdges(base).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key));
-    const keys = new Set(edges.map((e) => e.key));
+    // curve runs get one bent wall each (milestone 46)
+    const runs = curveRuns(base).filter((r) => r.length >= MIN_EDGE);
+    const keys = new Set([...edges.map((e) => e.key), ...runs.map((r) => r.key)]);
     for (const e of edges) if (!tray.openEdges.includes(e.key) && !walled(d, base, e.key)) make(d, tray, e.key);
+    for (const r of runs) if (!tray.openEdges.includes(r.key) && !walled(d, base, r.key)) make(d, tray, r.key);
     // walls whose edge is gone
     for (const c of Object.values(d.connections)) {
       if (!c.grown || c.trayId !== tray.id || c.a.panelId !== base.id) continue;
       const w = d.panels[c.b.panelId];
       if (!w) continue;
-      const e = findEdge(base, c.a.edge);
+      const e = isRunKey(c.a.edge) ? { key: c.a.edge } : findEdge(base, c.a.edge);
       if (e && keys.has(e.key)) {
         w.broken = false;
         if (!w.customHeight) w.h = Math.max(MIN_EDGE, wallHeight(d, c.kind, tray.height, base.id));

@@ -17,7 +17,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
-import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
+import { bentWarp, contourLinePoints, contourShapeGeometry, densify, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
 import { matOf, tOf } from '../model/materials';
@@ -873,7 +873,9 @@ function PanelObject(props: {
     return [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.88, metalness: 0 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.92, metalness: 0 })];
   }, [d.material, d.materials, p.material, props.index, lift]);
   useEffect(() => () => mats.forEach((x) => x.dispose()), [mats]);
-  const free = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
+  // nothing grows from a bent wall's edges (milestone 46): a curved crease cannot fold
+  const free = p.bent ? [] : panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, p.id, e.key, MIN_PANEL));
+  const warp = useMemo(() => bentWarp(p), [p]);
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh
@@ -911,9 +913,9 @@ function PanelObject(props: {
           <group key={dt.id}>
             {detailContours(dt).map((c, i) => (
               <group key={i}>
-                <DetailLines c={c} zs={[z0 - 0.15, z1 + 0.15]} color={color} />
-                {!props.inert && <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} />}
-                {!props.inert && <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} />}
+                <DetailLines c={c} zs={[z0 - 0.15, z1 + 0.15]} color={color} warp={warp} />
+                {!props.inert && <DetailHit c={c} z={z1 + 0.3} onDown={props.onDetailDown(dt.id)} warp={warp} />}
+                {!props.inert && <DetailHit c={c} z={z0 - 0.3} onDown={props.onDetailDown(dt.id)} warp={warp} />}
               </group>
             ))}
           </group>
@@ -1304,10 +1306,16 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
   );
 }
 
-function DetailLines({ c, zs, color }: { c: ReturnType<typeof detailContour>; zs: number[]; color: string }) {
+type Warp = ReturnType<typeof bentWarp>;
+function DetailLines({ c, zs, color, warp }: { c: ReturnType<typeof detailContour>; zs: number[]; color: string; warp?: Warp }) {
   const lines = useMemo(
-    () => zs.map((z) => new THREE.Line(new THREE.BufferGeometry().setFromPoints(contourLinePoints(c, z)), new THREE.LineBasicMaterial({ color }))),
-    [c, color, zs[0], zs[1]],
+    () =>
+      zs.map((z) => {
+        // on a bent wall (milestone 46) the lines follow its facets
+        const pts = warp ? densify(contourLinePoints(c, z)).map((q) => warp(q.x, q.y, q.z)) : contourLinePoints(c, z);
+        return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color }));
+      }),
+    [c, color, zs[0], zs[1], warp],
   );
   useEffect(() => () => lines.forEach((l) => (l.geometry.dispose(), (l.material as THREE.Material).dispose())), [lines]);
   return (
@@ -1363,8 +1371,16 @@ function ThroughLinks({ p, hit, z0, z1 }: { p: Panel; hit: ThroughHit; z0: numbe
   );
 }
 
-function DetailHit({ c, z, onDown }: { c: ReturnType<typeof detailContour>; z: number; onDown: (e: ThreeEvent<PointerEvent>) => void }) {
-  const g = useMemo(() => contourShapeGeometry(c), [c]);
+function DetailHit({ c, z, onDown, warp }: { c: ReturnType<typeof detailContour>; z: number; onDown: (e: ThreeEvent<PointerEvent>) => void; warp?: Warp }) {
+  const g = useMemo(() => {
+    const sg = contourShapeGeometry(c);
+    if (!warp) return sg;
+    const pos = sg.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, ...warp(pos.getX(i), pos.getY(i), z).toArray());
+    pos.needsUpdate = true;
+    return sg;
+  }, [c, warp, z]);
+  if (warp) z = 0;
   useEffect(() => () => g.dispose(), [g]);
   return (
     <mesh geometry={g} position={[0, 0, z]} onPointerDown={onDown} visible={false}>

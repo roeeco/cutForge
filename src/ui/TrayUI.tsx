@@ -13,9 +13,9 @@ import { panelLabel } from '../model/names';
 import { fmtNum } from '../i18n';
 import { useMemo } from 'react';
 import type { Tray, TrayFix } from '../model/types';
-import { shortEdges, trayOf, MIN_EDGE } from '../model/trays';
-import { isCurveKey, panelEdges, segLength } from '../model/edges';
-import { connectionsFor, matOf, tOf } from '../model/materials';
+import { shortEdges, trayCurveKind, trayOf, MIN_EDGE } from '../model/trays';
+import { curveRuns, isCurveKey, panelEdges, segLength } from '../model/edges';
+import { connectionsFor, curvedKinds, matOf, tOf } from '../model/materials';
 import { boltCount, seamKinds, tabLocks } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind, TabLock } from '../model/types';
@@ -75,13 +75,32 @@ export function TraySection({ panelId }: { panelId: string }) {
   const wallKinds = connectionsFor(bm, 90).filter((k) => k !== 'butt');
   const cornerKinds = seamKinds(bm, 'corner');
   const short = shortEdges(d, tray);
-  const open = tray.openEdges.filter((k) => panelEdges(d.panels[panelId]).some((e) => e.key === k));
+  // curve runs carry bent walls (milestone 46)
+  const runs = curveRuns(d.panels[panelId]).filter((r) => r.length >= MIN_EDGE);
+  const straight = panelEdges(d.panels[panelId]).some((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key));
+  const open = tray.openEdges.filter((k) => panelEdges(d.panels[panelId]).some((e) => e.key === k) || runs.some((r) => r.key === k));
   return (
     <div className="subsection tray-card" data-testid="tray-card">
       <h4>{t('tray.title')}</h4>
       <NumField label={t('tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
       <FlatNote baseId={panelId} height={tray.height} tray={tray} />
       <Gate f="tray.joints">
+      {runs.length > 0 && (
+        <>
+          <div className="field">
+            <label htmlFor="tray-curve-kind">{t('tray.curveJoint')}</label>
+            <select id="tray-curve-kind" value={trayCurveKind(d, tray)} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { curveKind: e.target.value as ConnectionKind }))} data-testid="tray-curve-kind">
+              {curvedKinds(bm).map((k) => (
+                <option key={k} value={k}>
+                  {t(`conn.${k}` as 'conn.fold')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="note" data-testid="tray-curve-why">{t('tray.curveWhy')}</p>
+        </>
+      )}
+      {straight && (<>
       <div className="field">
         <label htmlFor="tray-wall-kind">{t('tray.wallJoint')}</label>
         <select id="tray-wall-kind" value={tray.wallKind} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { wallKind: e.target.value as ConnectionKind }))} data-testid="tray-wall-kind">
@@ -114,13 +133,14 @@ export function TraySection({ panelId }: { panelId: string }) {
           </select>
         </div>
       )}
+      </>)}
       {tray.cornerKind === 'tabslot' && tray.tabLen === 'bolt' && (
         <p className="note" data-testid="tray-bolts">
           {t('tray.boltNote', { n: Object.values(d.connections).filter((c) => c.trayId === tray.id).reduce((n, c) => n + boltCount(c), 0) })}
         </p>
       )}
       </Gate>
-      {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
+      {straight && tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
         <div className="tray-open" data-testid="tray-open">

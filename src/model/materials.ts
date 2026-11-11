@@ -148,3 +148,28 @@ export function bendDefaults(kind: MaterialKind, t: number): BendLimits {
 export function bendOf(m: MaterialProfile): BendLimits {
   return m.bend ?? bendDefaults(m.kind, m.thickness);
 }
+
+// ---------------------------------------------------------------------------
+// Joints of a wall bent along a curved base edge (milestone 46, CURVED_WALLS.md
+// §2.1, §3.4). A curved crease cannot fold with one side flat, and fingers
+// cannot be cut along a curve: a bent wall is glued with teeth, held by tabs
+// in slots that follow the curve, or wraps round the base (glued to its edge).
+
+/** Joint kinds a bent wall may have with its base, the material's default first. */
+export function curvedKinds(m: MaterialProfile): ConnectionKind[] {
+  if (m.kind === 'plywood') return ['wrap', 'tabslot', 'butt'];
+  if (m.kind === 'corrugated') return ['tabslot', 'teeth', 'wrap', 'butt'];
+  return ['teeth', 'wrap', 'butt'];
+}
+
+/**
+ * The bent walls' joint for a tray whose straight walls have `wallKind`: the
+ * one that keeps the wall where a straight wall of that kind stands (its outer
+ * face flush with the base's edge, or a web in for tabs), so they meet in line.
+ * With no straight walls (a round base), the material's own default.
+ */
+export function curvedFor(wallKind: ConnectionKind | undefined, m: MaterialProfile): ConnectionKind {
+  const ok = curvedKinds(m);
+  const want: ConnectionKind | undefined = wallKind === 'fold' || wallKind === 'glue' ? (m.kind === 'plywood' ? 'wrap' : 'teeth') : wallKind === 'finger' ? 'wrap' : wallKind === 'slide' ? 'butt' : wallKind;
+  return want && ok.includes(want) ? want : ok[0];
+}

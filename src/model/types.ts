@@ -140,6 +140,38 @@ export type Panel = {
    * `place.x/y` and `w` are derived; this record is what the student drew.
    */
   divider?: DividerRec;
+  /**
+   * Derived (milestone 46, re-made by `solve`): a wall standing on a curve run
+   * of its base is bent along it. Its outline, shapes and joints stay in flat
+   * (s, y) coordinates; `facets` place it in 3D (src/model/bent.ts), and
+   * `frame` is the facet at its middle. Never saved.
+   */
+  bent?: Bent;
+};
+
+/**
+ * One planar facet of a bent panel: its flat x range [s0, s1] and where that
+ * part lies. A bent panel's facets also carry the outer-face points at their
+ * ends (`a`, `b`, at y = 0) and the inward directions there (`ma`, `mb`), so
+ * neighbouring facets meet without a gap.
+ */
+export type Facet = { s0: number; s1: number; frame: Frame; a?: V3; b?: V3; ma?: V3; mb?: V3 };
+/**
+ * A bent wall (milestone 46): its run on the base, its facets, and how its
+ * flat x maps onto the base outline (`pts`: developed length s at each run
+ * vertex, the vertex on the base outline and its inward unit normal). `off` is how far in from the base outline the wall's outer face
+ * stands, `lift` how high its bottom is above the base's plane.
+ */
+export type Bent = {
+  run: string;
+  base: string;
+  closed: boolean;
+  facets: Facet[];
+  pts: { s: number; p: P2; n: P2 }[];
+  off: number;
+  lift: number;
+  /** Tightest radius of the run (mm). */
+  minR: number;
 };
 
 /**
@@ -188,6 +220,8 @@ export type ConnectionKind =
   | 'glue' // glue flap on one panel's edge, folded onto the other panel's face
   | 'halflap' // crossing panels with half-depth slots
   | 'lean' // angled plywood panel resting on its parent, held by side walls
+  | 'teeth' // a bent wall's tapered glue teeth, folded onto its base (milestone 46)
+  | 'wrap' // a bent wall around its base, glued to the base's edge (milestone 46)
   | 'butt'; // edge to edge, no joint
 
 /**
@@ -383,9 +417,11 @@ export type Tray = {
   fixPlan?: { hinge?: Record<string, string>; trim?: string[]; swap?: string[]; extOn?: Record<string, 'prev'> };
   /** The student's choice for a wall the app changed: hinge it, cut it as its own piece, or let the corner's other wall give way. */
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
+  /** Milestone 46: the joint of its bent walls (on curve runs) with the base; absent: chosen from `wallKind` and the material. */
+  curveKind?: ConnectionKind;
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;

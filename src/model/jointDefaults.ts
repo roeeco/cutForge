@@ -5,7 +5,8 @@
 // kinds the material allows for at least one of its joints; the design's
 // choice is the default for new joints of that group where allowed.
 import type { Connection, ConnectionKind, Design, DesignJoints, MaterialKind, MaterialProfile } from './types';
-import { connectionsFor, connectionsForPair, matOf, minWeb } from './materials';
+import { connectionsFor, connectionsForPair, curvedKinds, matOf, minWeb, pairFilter } from './materials';
+import { inlineKinds, isInline, onRun } from './bent';
 import { autoFlap, seamKinds, seamTypeOf } from './seams';
 import { trayKinds } from './trays';
 
@@ -101,6 +102,12 @@ export function allowedKinds(d: Design, c: Connection): ConnectionKind[] {
  */
 export function pairKinds(d: Design, c: Pick<Connection, 'grown' | 'angle' | 'kind' | 'a' | 'b'>): ConnectionKind[] {
   const ma = matOf(d, c.a.panelId), mb = matOf(d, c.b.panelId);
+  // a wall bent along a curve, and its in-line seams (milestone 46)
+  if (onRun(c)) {
+    const k = pairFilter(curvedKinds(mb), mb, ma);
+    return k.length ? k : ['butt'];
+  }
+  if (isInline(d, c)) return inlineKinds(d.panels[c.a.panelId]?.bent ? ma : mb);
   if (c.grown) return ma === mb ? connectionsFor(mb, c.angle) : connectionsForPair(mb, ma, c.angle);
   return seamKinds(ma, seamTypeOf(c), mb);
 }
@@ -118,7 +125,8 @@ function groupDefaults(d: Design, group: JointGroup): ConnectionKind[] {
 
 /** Connections in a group. */
 export function groupConnections(d: Design, group: JointGroup): Connection[] {
-  return Object.values(d.connections).filter((c) => jointGroup(c) === group);
+  // bent walls' joints follow their tray's curved joint, not the design-wide lists (milestone 46)
+  return Object.values(d.connections).filter((c) => jointGroup(c) === group && !onRun(c) && !isInline(d, c));
 }
 
 /**

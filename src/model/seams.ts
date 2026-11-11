@@ -12,6 +12,7 @@ import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
+import { bentGeom, inlineGeom, isInline, onRun } from './bent';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -391,6 +392,9 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
 
 /** Geometry for one connection, or null when its panels no longer meet. */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
+  // a wall bent along a curve, and where it meets a wall in line (milestone 46)
+  if (onRun(c)) return bentGeom(d, c);
+  if (isInline(d, c)) return inlineGeom(d, c);
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -1062,6 +1066,8 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
       if (mine.some((c) => c.grown)) continue;
       // a flat panel placed on a face is a separate part, not joined to it
       if (flatOnHost(d, A.id, B.id)) continue;
+      // bent walls are joined by their own rules (milestone 46): to their base, and in line with their neighbours
+      if (A.bent || B.bent) continue;
       if (!nearEachOther(d, A, B)) continue;
       const found = seamsBetween(d, A, B);
       if (!found.length) continue;
@@ -1078,6 +1084,8 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
 export function seamStillFits(d: Design, c: Connection): boolean {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return false;
+  // in-line seams are kept by the bent walls' own reconciliation
+  if (isInline(d, c)) return true;
   const type = seamTypeOf(c);
   const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${baseKey(r.edge)}`;
   const have = [key(c.a), key(c.b)].sort().join();
