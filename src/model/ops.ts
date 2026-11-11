@@ -70,9 +70,31 @@ export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: Con
  * no longer meet keeps its last valid geometry and is flagged `broken`.
  */
 export function solve(d: Design) {
-  solveOnce(d);
-  // tray nets that would overlap when flat are changed so they lie flat (milestone 35)
-  fixFlatNets(d, solveOnce);
+  // inside-corner extensions read the closing seams' kinds and the trays' flat-net plans as they were
+  // at the start of a pass: when a pass changes them, solve again, so a design solved once equals
+  // the same design solved twice (and re-opened from a file) (BUGFIX_PLAN B24)
+  for (let pass = 0; pass < 3; pass++) {
+    const before = extensionInputs(d);
+    solveOnce(d);
+    // tray nets that would overlap when flat are changed so they lie flat (milestone 35)
+    fixFlatNets(d, solveOnce);
+    if (!d.order.some((id) => d.panels[id]?.ext) || extensionInputs(d) === before) return;
+  }
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) console.warn('CutForge: solve did not settle in 3 passes');
+}
+
+/** What inside-corner extensions depend on besides geometry: closing seams' kinds, and the trays' plans. */
+function extensionInputs(d: Design): string {
+  const kinds = Object.values(d.connections)
+    .filter((c) => !c.grown)
+    .map((c) => `${c.id}:${c.kind}`)
+    .sort()
+    .join(',');
+  const plans = Object.values(d.trays ?? {})
+    .map((t) => `${t.id}:${JSON.stringify(t.fixPlan?.extOn ?? {})}`)
+    .sort()
+    .join(',');
+  return `${kinds}|${plans}`;
 }
 
 function solveOnce(d: Design) {
