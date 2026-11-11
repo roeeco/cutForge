@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { ContactShadows, Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
+import { Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -612,23 +612,6 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const selGrown = selPanel ? parentConnection(design, selPanel) : undefined;
   const selLocked = locked(selPanel);
   const shapeLocked = sel?.kind === 'detail' && locked(findDetail(design, sel.id)?.panel.id);
-  const bounds = useMemo(() => {
-    const box = new THREE.Box3();
-    for (const id of design.order) {
-      const p = design.panels[id];
-      if (!p) continue;
-      const m = display.xf.get(id) ?? IDM;
-      for (const [x, y] of [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]]) box.expandByPoint(new THREE.Vector3(...W(m, p.frame, x, y)));
-    }
-    return box;
-  }, [design, display]);
-  // contact shadow: re-rendered once after each finished edit, not during drags
-  const [shadowKey, setShadowKey] = useState(0);
-  useEffect(() => {
-    if (!inTxn) setShadowKey((k) => k + 1);
-  }, [design, foldT, inTxn]);
-  const sc = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
-  const ss = bounds.isEmpty() ? 300 : Math.max(200, bounds.getSize(new THREE.Vector3()).length() * 1.8);
 
   return (
     <>
@@ -650,7 +633,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         raycast={() => null}
         userData={{ noAO: true }}
       />
-      {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
+      {/* no contact shadow (BUGFIX_PLAN U2): drei's one-frame capture drew it away from the boxes */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerDown={onGroundDown}
