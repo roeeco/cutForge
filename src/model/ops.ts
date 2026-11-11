@@ -5,7 +5,7 @@ import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
-import { insideCornerExtensions, reconcileTrays, trayOf, trayWalls, wallHeight } from './trays';
+import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
 import { panelNotches, panelOutline } from './geometry';
@@ -70,28 +70,44 @@ export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: Con
  * no longer meet keeps its last valid geometry and is flagged `broken`.
  */
 export function solve(d: Design) {
-  // inside-corner extensions read the closing seams' kinds and the trays' flat-net plans as they were
-  // at the start of a pass: when a pass changes them, solve again, so a design solved once equals
-  // the same design solved twice (and re-opened from a file) (BUGFIX_PLAN B24)
+  // inside-corner extensions and tray walls' sizes read the joints' kinds and the trays' flat-net plans as
+  // they were at the start of a pass: when a pass changes them, solve again, so a design solved once
+  // equals the same design solved twice (and re-opened from a file) (BUGFIX_PLAN B24, B25)
   for (let pass = 0; pass < 3; pass++) {
     const before = extensionInputs(d);
     solveOnce(d);
     // tray nets that would overlap when flat are changed so they lie flat (milestone 35)
     fixFlatNets(d, solveOnce);
-    if (!d.order.some((id) => d.panels[id]?.ext) || extensionInputs(d) === before) return;
+    if (extensionInputs(d) === before) return;
   }
   if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) console.warn('CutForge: solve did not settle in 3 passes');
 }
 
-/** What inside-corner extensions depend on besides geometry: closing seams' kinds, and the trays' plans. */
+/**
+ * A tray's wall and corner kinds are ones its base's material allows (BUGFIX_PLAN B25): after a
+ * material change, the design's choice for that material, else the material's own defaults. Walls
+ * are then sized and joined for them in this same pass.
+ */
+function fitTrayKinds(d: Design) {
+  for (const tray of Object.values(d.trays ?? {})) {
+    if (!d.panels[tray.baseId]) continue;
+    const m = matOf(d, tray.baseId);
+    const walls = connectionsFor(m, 90), corners = seamKinds(m, 'corner');
+    const def = trayKinds(m);
+    if (!walls.includes(tray.wallKind)) tray.wallKind = designKind(d, 'base', walls, m.kind) ?? (walls.includes(def.wallKind) ? def.wallKind : walls[0]);
+    if (!corners.includes(tray.cornerKind)) tray.cornerKind = designKind(d, 'corner', corners, m.kind) ?? (corners.includes(def.cornerKind) ? def.cornerKind : corners[0]);
+  }
+}
+
+/** What a pass reads before it re-fits it: every joint's kind, the trays' kinds and their plans. */
 function extensionInputs(d: Design): string {
+  // every joint's kind (tray walls are sized for theirs before the pass re-fits it), the trays' kinds and plans
   const kinds = Object.values(d.connections)
-    .filter((c) => !c.grown)
     .map((c) => `${c.id}:${c.kind}`)
     .sort()
     .join(',');
   const plans = Object.values(d.trays ?? {})
-    .map((t) => `${t.id}:${JSON.stringify(t.fixPlan?.extOn ?? {})}`)
+    .map((t) => `${t.id}:${t.wallKind}:${t.cornerKind}:${JSON.stringify(t.fixPlan?.extOn ?? {})}`)
     .sort()
     .join(',');
   return `${kinds}|${plans}`;
@@ -114,6 +130,7 @@ function solveOnce(d: Design) {
     }
   }
   reconcileWallSets(d);
+  fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
   dropOrphansToFloor(d);
   insideCornerExtensions(
