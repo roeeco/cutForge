@@ -28,6 +28,7 @@ import { DividerSection, PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 import { Gate } from '../easy/Gate';
+import { BendSection } from './BendUI';
 import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
@@ -207,6 +208,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           {p.divider && <DividerSection panelId={id} />}
           <RoundSection panelId={id} />
+          <Gate f="bend">
+            <BendSection panelId={id} />
+          </Gate>
           {!parent && !p.divider && (
             <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
           )}

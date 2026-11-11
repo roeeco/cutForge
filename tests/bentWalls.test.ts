@@ -196,7 +196,7 @@ describe('a rounded-rectangle tray', () => {
     expect(d.connections[inlineId(W, 'e')]).toBeDefined();
   });
 
-  it('plywood: a glue edge (the base inside the wall), and a check that names the missing living hinge', () => {
+  it('plywood: a glue edge (the base inside the wall), a living hinge in each corner (milestone 47), and too tight a corner flagged', () => {
     const d = createDesign(PLY);
     const base = addRoundedRect(d, 0, 0, 160, 120, 40)!;
     addTray(d, base, 40);
@@ -206,7 +206,8 @@ describe('a rounded-rectangle tray', () => {
     // fingers on the straight walls, which stand like the bent ones (outer faces flush with the base's edge)
     expect(wallsOf(d, base).filter((c) => !d.panels[c.b.panelId].bent).every((c) => c.kind === 'finger')).toBe(true);
     const keys = validate(d).map((i) => i.key);
-    expect(keys.filter((k) => k === 'val.bendHinge')).toHaveLength(4);
+    expect(keys.filter((k) => k.startsWith('val.bend'))).toEqual([]);
+    expect(bent.every((c) => d.panels[c.b.panelId].bent?.pattern?.style === 'lattice' && (c.geom?.lines?.length ?? 0) > 0)).toBe(true);
     // tighter than a living hinge reaches: named as impossible
     setCornerRadius(d, base, 15);
     expect(validate(d).filter((i) => i.key === 'val.bendTight')).toHaveLength(4);

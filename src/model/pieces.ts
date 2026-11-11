@@ -111,7 +111,9 @@ export function netGroups(d: Design): NetPanel[][] {
   // construction guides are never cut (milestone 28)
   const guides = constructionSet(d);
   const grow = (id: string) => {
-    const group: NetPanel[] = [{ panelId: id, xf: IDENTITY }];
+    // a kiss-scored strip lies with the face its scores go on up (milestone 47): mirrored when that is not the face it shows
+    const p0 = d.panels[id];
+    const group: NetPanel[] = [{ panelId: id, xf: p0.bent?.pattern?.mirror ? { tx: p0.w, ty: 0, rot: 0, mirror: true } : IDENTITY }];
     inNet.add(id);
     for (let i = 0; i < group.length; i++) {
       const { panelId, xf } = group[i];
@@ -185,6 +187,8 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      // a bend's perforations and living-hinge cuts (milestone 47): open cut lines
+      for (const s of ex.lines) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
       for (const dt of p.details) {
         // Adds and Cuts across the edge are part of the outline already

@@ -33,6 +33,23 @@ export type MaterialProfile = {
 export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number };
 
 /**
+ * How a bent wall bends (milestone 47): on its own (`smooth`), with score
+ * lines (`score`, card), with the inner liner kiss-scored (`kiss`,
+ * corrugated), perforated (`perf`: short cut dashes) or with a living hinge
+ * (`lattice`, plywood); `auto` picks the first of its material's styles that
+ * bends as tight as the curve.
+ */
+export type BendStyle = 'auto' | 'smooth' | 'score' | 'kiss' | 'perf' | 'lattice';
+/**
+ * A bent wall's stored bend choices (milestone 47); absent: automatic.
+ * `pitch`: line spacing (mm, null = automatic, following the curve); `face`:
+ * which face is up when it is cut, so kiss scores land on it (1: the wall's
+ * inner face, the box's inside; −1: its outer face). Absent: the face inside
+ * most of its bends.
+ */
+export type BendChoice = { style?: BendStyle; pitch?: number | null; face?: 1 | -1 };
+
+/**
  * A panel's placement in 3D. `o` is the origin of the panel's local 2D
  * coordinates, `u`/`v` are its unit in-plane axes. The material occupies the
  * slab from the plane towards `side * (u × v)` with the material thickness.
@@ -153,6 +170,8 @@ export type Panel = {
    * `frame` is the facet at its middle. Never saved.
    */
   bent?: Bent;
+  /** A bent wall's bend choices (milestone 47): style, line spacing, which face is up. Absent: automatic. */
+  bend?: BendChoice;
 };
 
 /**
@@ -178,7 +197,22 @@ export type Bent = {
   lift: number;
   /** Tightest radius of the run (mm). */
   minR: number;
+  /** Derived (milestone 47): the bend pattern cut into it (src/model/bendPattern.ts). */
+  pattern?: BendInfo;
 };
+
+/** A zone of a bent wall that turns one way, and what is cut into it there. */
+export type BendZone = { s0: number; s1: number; sign: 1 | -1; turn: number; minR: number; style: Exclude<BendStyle, 'auto'>; lines: number; /** lines a shape or joint cut short */ broken: number; /** what broke them, when too few lines are left to turn it: a shape (`byId`) or a joint */ by?: 'shape' | 'joint'; byId?: string };
+/**
+ * Derived: a bent wall's bend pattern (milestone 47). `style` as resolved
+ * (`auto` chose it when `auto`), `face` which face is up when cut (see
+ * `BendChoice`), its zones, and the problems found: a zone a shape or joint
+ * cut through so it cannot turn enough (`broken`), a zone too short for its
+ * turn (`short`), a kiss-scored strip bending both ways (`twoWay`), the style
+ * reaching less tight than the curve (`reach`, its radius).
+ */
+export type BendInfo = { style: Exclude<BendStyle, 'auto'>; auto: boolean; face: 1 | -1; mirror: boolean; zones: BendZone[]; reach: number; pitch: number };
+
 
 /**
  * A divider as drawn, in its base's local coordinates: a point on its
@@ -337,6 +371,8 @@ export type ConnGeom = {
   cuts?: { panelId: string; poly: P2[] }[];
   /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
   bolts?: number;
+  /** Open cut lines (milestone 47: a bend's perforations and living-hinge cuts). */
+  lines?: { panelId: string; a: P2; b: P2 }[];
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
@@ -432,4 +468,4 @@ export type Tray = {
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;

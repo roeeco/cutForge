@@ -1069,13 +1069,41 @@ Verified so far
 Next: milestones 47 and 48. Handover notes (where 46's pieces are, a suggested route for each, practical notes) are in `CURVED_WALLS.md` §8a.
 
 Limitations
-- Bends are smooth only: no scores, liner scoring or living hinge yet (milestone 47). Plywood curves (and card or corrugated ones tighter than they bend plainly) are flagged by the export check until then, so a plywood round box is not *Ready to cut*.
+- (Resolved in milestone 47: scores, kiss scores, perforations and living hinges.)
 - A strip is not one net with its straight neighbours (milestone 48): a rounded tray's corners are separate pieces glued in line, and a closed strip's seam is fixed at the back left (a divider drawn exactly through it is not joined there).
 - A strip longer than the sheet is reported, not split (milestone 48).
 - Nothing grows from a bent wall (no arched lid yet, milestone 48), it takes no fold-over, and the "touching but not joined" check skips bent walls; their joints are made by their own rules.
 - A run meeting a straight edge at a sharp corner (auto curves can) gets no corner joint there.
 - In outline mode the matched wall's handles are not drawn on the other wall; its shape updates live instead.
 - Telescoping lids only (no lip lid); the lid sits a clearance above the walls.
+
+## Milestone 47 — bend patterns ✅
+
+Implemented (`CURVED_WALLS.md` §2.2, §4.1, §5.2, §5.4, §5.5; `src/model/bendPattern.ts`, `src/model/bent.ts` `bendCheck`, `src/model/validate.ts` `bendIssues`, `src/model/pieces.ts`, `src/export/prepare.ts`, `src/export/label.ts`, `src/export/bendTest.ts`, `src/easy/fix.ts`, `src/ui/BendUI.tsx`, `src/ui/MaterialDrawer.tsx`, `src/views/View3D.tsx` `PatternLines`)
+- **Styles** (`stylesFor`, `styleReach`, `resolveStyle`): card Smooth · Scored · Perforated; corrugated Smooth · Kiss-scored · Perforated; plywood Smooth · Living hinge. Auto takes the first that reaches the wall's tightest radius.
+- **Choices** `Panel.bend` (`style`, `pitch`, `face`; schema 13, checked on load), set with `setBend`.
+- **The pattern** (`bendPattern`, `applyBendPatterns` at the end of every solve): zones of one turning direction (with Auto, only where tighter than the material bends plainly); lines at spacing R(s)·φ (φ = pitch / reach), between half and twice the pitch, or capped by a set spacing. Scores and kiss scores go to the score layer; perforation dashes and living-hinge cuts are open CUT lines (`ConnGeom.lines`, emitted by `pieces.ts`). Cut patterns keep a bridge from the wall's edges and ends; every line keeps clear of holes, slots, tabs, flaps and teeth. `Bent.pattern` records zones, lines and what broke them.
+- **Kiss scores** go on the face up when cut (`face`, by default the inside of most of the turn). The other way is perforated (Auto). The strip is mirrored in the file when that face is not the one it shows, and the export writes *THIS SIDE UP (kiss scores)* (or *UP*) on the guide layer.
+- **Kerf:** open cut lines are shortened by half the kerf at each end when compensated (`shortenOpen`).
+- **Checks** (replacing `val.bendHinge` / `val.bendPattern`): `val.bendStyle` (the chosen style does not reach; Fix: Auto), `val.bendShape` / `val.bendJoint` (a zone cut short so it cannot turn; Fix moves the shape along the wall when there is a straight stretch), `val.kissTwoWay` (kiss asked for on a strip bending both ways; Fix: Auto). `val.bendTight` is now against the tightest style (card perforations reach 3 mm).
+- **3D:** pattern lines drawn on both faces of a bent wall, following its facets.
+- **Card:** a curved wall's *Bend* section (`bend-section`): style (`bend-style-*`, the one Auto chose), the tightest bend against what the style reaches (`bend-reach`), *Automatic* spacing or a set one (`bend-pitch-auto`, `bend-pitch`), and on corrugated *Face up when cut*. Quick build: `bend: 'auto'` (hidden).
+- **Bend test** (`bendTestSheet`): *Download a bend test* in the material drawer (`mat-bend-test`): a strip with five quarter-turn zones for 0.7–1.6 × `patternR`, each labelled.
+- **Fixed on the way:** selecting a bent wall in Workshop crashed the editor (the hinge-angle row and the stage's hinge ring tried to turn it about its run); bent walls have no hinge angle now. `pieceLabel` moved to `src/export/label.ts`.
+- English and Hebrew strings; README and DECISIONS (*Bend patterns*) updated.
+
+Verified
+- `tests/bendPattern.test.ts` (12): styles per material and Auto's choice (card smooth / scored / perforated, corrugated kiss, plywood hinge or smooth, a style the material lacks falls back); a card box smooth at R 15, scored at R 8, perforated when asked, Auto stored as absent, plywood falls back to its hinge; Smooth at a tight corner named and fixed; spacing follows R(s) on an auto curve (between half and twice the pitch, R·φ at the tightest point, capped by a set spacing); a 3 mm plywood rounded box R 30 gets staggered living hinges and is clean, at R 15 flagged; every hinge cut a bridge from the wall's edges, ends and a hole; a big hole in a hinge zone named (`val.bendShape`, Fix finds no straight stretch); corrugated kiss scores, mirroring and the guide label, the face switch; a two-way strip (Auto: kiss and perforated; kiss asked for: flagged and fixed); kerf-compensated hinge cuts shorter by exactly the kerf; save/load keeps choices and the pattern, a bad style refused; the bend test for all four materials.
+- `bentWalls.test.ts`: the plywood rounded box now has a living hinge in each corner and no bend issue.
+- **Golden exports:** all existing cases byte-identical; five intended new ones: `bend-card-score`, `bend-card-perf`, `bend-corr-kiss`, `bend-ply-lattice`, `bend-ply-lattice-compensated`.
+- Unit suite: 629 pass, 1 skipped; typecheck clean.
+- Browser: new `tests/e2e/bendPattern.spec.ts` (the Bend card on a plywood corner: Auto's living hinge, Smooth flagged, Auto again, a set spacing; the bend test downloads). Full app suite (`--grep-invert classroom`): 100 passed, 0 failed, 57 skipped.
+
+Limitations
+- Facets are not split at score lines: a scored wall is shown and joined as a smooth curve.
+- The move-the-shape Fix needs a straight stretch on the wall; a corner wall is curved all along, so a shape there must be moved by hand.
+- Engraving on a mirrored kiss-scored strip lands on its scored face.
+- Teacher batches do not add the kiss label.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

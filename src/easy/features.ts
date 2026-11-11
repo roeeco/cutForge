@@ -32,6 +32,8 @@ export const FEATURES = {
   outline: 'show',
   /** Curved outline points. */
   curves: 'hide',
+  /** A bent wall's bend style, line spacing and face up (milestone 47); Quick build bends automatically. */
+  bend: 'auto',
   /** Fold-over (double wall). */
   foldover: 'hide',
   /** A tray wall's own height. */

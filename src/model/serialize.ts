@@ -106,6 +106,10 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // ('teeth', 'wrap'), a tray's `curveKind`, matched walls (`WallSketch.match`);
   // nothing to convert. The version keeps older editors from misreading them.
   11: (d) => d,
+  // v12 -> v13: bend patterns (milestone 47): a bent wall's `bend` choices
+  // (style, line spacing, which face is up) and open cut lines in a joint's
+  // geometry; nothing to convert.
+  12: (d) => d,
 };
 
 function migrateDividers(d: any): any {

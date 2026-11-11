@@ -186,6 +186,14 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   }
   // derived: solve re-makes it (milestone 46)
   delete x.bent;
+  if (x.bend !== undefined) {
+    const b = x.bend;
+    const w = `${where}.bend`;
+    if (!isObj(b)) fail(w, 'not bend choices');
+    if (b.style !== undefined) oneOf(b.style, ['auto', 'smooth', 'score', 'kiss', 'perf', 'lattice'] as const, `${w}.style`);
+    if (b.pitch !== undefined && b.pitch !== null) num(b.pitch, `${w}.pitch`, { min: 0.3, max: 100 });
+    if (b.face !== undefined && b.face !== 1 && b.face !== -1) fail(`${w}.face`, 'not 1 or -1');
+  }
   if (x.ext !== undefined) {
     if (!isObj(x.ext)) delete x.ext; // derived: solve re-makes it
     else if (!Number.isFinite(x.ext.s) || !Number.isFinite(x.ext.e)) delete x.ext;
@@ -241,7 +249,8 @@ function geomOk(g: unknown): boolean {
     listOk(g.adds, (a) => polyOk(a.poly)) &&
     listOk(g.scores, (k) => ptOk(k.a) && ptOk(k.b)) &&
     listOk(g.flaps3d, (f) => polyOk(f.poly) && Number.isFinite(f.z0) && Number.isFinite(f.z1)) &&
-    (g.cuts === undefined || listOk(g.cuts, (k) => polyOk(k.poly)))
+    (g.cuts === undefined || listOk(g.cuts, (k) => polyOk(k.poly))) &&
+    (g.lines === undefined || listOk(g.lines, (k) => ptOk(k.a) && ptOk(k.b)))
   );
 }
 

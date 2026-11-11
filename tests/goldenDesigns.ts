@@ -3,7 +3,8 @@
 import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setPanelSize } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
-import type { Design } from '../src/model/types';
+import type { BendStyle, Design, MaterialProfile } from '../src/model/types';
+import { addRoundedRect, setBend } from '../src/model/ops';
 
 const [CARD, , CORR4, PLY] = MATERIALS;
 const E = (n: number) => `e${n}`;
@@ -125,3 +126,17 @@ export function v6CardGable(): Design {
   autoConnect(d);
   return d;
 }
+
+/** Milestone 47: a rounded box whose corners bend with a pattern (one of each kind). */
+function patterned(m: MaterialProfile, r: number, style?: BendStyle): Design {
+  const d = createDesign(m);
+  const base = addRoundedRect(d, 0, 0, 120, 80, r)!;
+  addTray(d, base, 40);
+  autoConnect(d);
+  if (style) for (const id of d.order) if (d.panels[id]?.bent) setBend(d, id, { style });
+  return d;
+}
+export const bendCardScore = () => patterned(MATERIALS[0], 8);
+export const bendCardPerf = () => patterned(MATERIALS[0], 8, 'perf');
+export const bendCorrKiss = () => patterned(MATERIALS[1], 15);
+export const bendPlyLattice = () => patterned(MATERIALS[3], 30);

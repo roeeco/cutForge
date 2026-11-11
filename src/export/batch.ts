@@ -5,8 +5,8 @@ import type { Design } from '../model/types';
 import type { TaggedContour } from '../geom/types';
 import { createDesign } from '../model/ops';
 import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
-import { polygonContour, xformContour } from '../geom/vec';
-import { outlineText } from '../text/outline';
+import { xformContour } from '../geom/vec';
+import { pieceLabel as label } from './label';
 import { compensatePiece, type KerfMode, type PreparedSheet, type PrepError } from './prepare';
 
 export type BatchItem = { design: Design; label: string; id: string };
@@ -14,31 +14,6 @@ export type BatchItem = { design: Design; label: string; id: string };
 export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[]; skipped: string[] } | { error: 'mixed' | 'empty' };
 
 export const sameMaterial = (a: Design, b: Design) => a.material.kind === b.material.kind && Math.abs(a.material.thickness - b.material.thickness) < 1e-6;
-
-/** The smallest label text worth drawing (mm); a piece too small for it gets none (BUGFIX_PLAN B21). */
-const MIN_LABEL = 1;
-
-/** Name label, or initials when the name does not fit the piece, scaled to fit it both ways (or none). */
-function label(text: string, w: number, h: number): TaggedContour[] {
-  let size = Math.min(5, h / 4);
-  if (size < MIN_LABEL) return [];
-  let o = outlineText(text, 'rubik', size);
-  if (o && o.maxX - o.minX > w * 0.8) {
-    text = text.split(/\s+/).filter(Boolean).map((s) => [...s][0]).join('');
-    o = outlineText(text, 'rubik', size);
-  }
-  if (!o) return [];
-  const f = Math.min(1, (w * 0.8) / Math.max(1e-9, o.maxX - o.minX), (h * 0.8) / Math.max(1e-9, o.maxY - o.minY));
-  if (f < 1) {
-    size *= f;
-    if (size < MIN_LABEL) return [];
-    o = outlineText(text, 'rubik', size);
-    if (!o) return [];
-  }
-  // centred on the piece
-  const cx = (o.minX + o.maxX) / 2, cy = (o.minY + o.maxY) / 2;
-  return o.polys.map((p) => ({ op: 'guide' as const, role: 'line' as const, contour: polygonContour(p.map((q) => ({ x: q.x - cx + w / 2, y: q.y - cy + h / 2 }))) }));
-}
 
 export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'): BatchResult {
   if (!items.length) return { error: 'empty' };

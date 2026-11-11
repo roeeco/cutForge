@@ -13,6 +13,9 @@ import { fmtNum } from '../i18n';
 import { Icon } from './icons';
 import { MaterialArt } from './MaterialArt';
 import { useFeature } from '../easy/features';
+import { downloadText, safeName } from './download';
+import { sheetToSvg } from '../export/svg';
+import { bendTestSheet } from '../export/bendTest';
 
 /** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
 export function useMaterialEdit() {
@@ -86,6 +89,11 @@ export function MaterialDrawer() {
           <h4>{t('mat.bend')}</h4>
           <NumField label={t('mat.smoothR')} value={bendOf(m).smoothR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), smoothR: v } })} testId="mat-smoothR" />
           <NumField label={t('mat.patternR')} value={bendOf(m).patternR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), patternR: v } })} testId="mat-patternR" />
+          {/* the bend test strip (milestone 47): five zones patterned for radii around the limit */}
+          <button onClick={() => downloadText(`${safeName(materialName(t, m))}-bend-test.svg`, sheetToSvg(bendTestSheet(m, (r) => t('export.bendTestR', { r: fmtNum(r, 1) }))), 'image/svg+xml')} data-testid="mat-bend-test">
+            {t('mat.bendTest')}
+          </button>
+          <p className="note">{t('mat.bendTestHelp')}</p>
         </div>
         <MaterialsInUse />
         <div className="subsection">

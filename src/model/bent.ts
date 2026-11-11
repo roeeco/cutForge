@@ -17,6 +17,7 @@ import { matDir, toLocal, toWorld } from './frame';
 import { bendOf, matOf, tOf } from './materials';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { autoFlap, tabCount } from './seams';
+import { bestReach } from './bendPattern';
 
 /** Largest turn within one facet (radians) and largest sagitta (mm). */
 const FACET_TURN = (5 * Math.PI) / 180;
@@ -375,13 +376,19 @@ export function reconcileInline(d: Design) {
   for (const c of Object.values(d.connections)) if (!c.grown && c.id === inlineId(c.a.panelId, c.id.slice(-1) as 's' | 'e') && !want.has(c.id)) delete d.connections[c.id];
 }
 
-/** A bent wall's tightest radius against its material: below what it bends to plainly, and below what it bends to at all with its pattern. */
-export function bendCheck(d: Design, panelId: string): { minR: number; smoothR: number; patternR: number; tight: boolean; impossible: boolean } | null {
+/**
+ * A bent wall's tightest radius against its material: below what it bends to
+ * plainly (`tight`), below what its bend style reaches (`weak`: a style the
+ * student chose), and below what any of its material's styles reaches
+ * (`impossible`, `best` that radius).
+ */
+export function bendCheck(d: Design, panelId: string): { minR: number; smoothR: number; patternR: number; best: number; reach: number; tight: boolean; weak: boolean; impossible: boolean } | null {
   const p = d.panels[panelId];
   if (!p?.bent) return null;
   const m = matOf(d, panelId), lim = bendOf(m);
-  const r = p.bent.minR;
-  return { minR: r, smoothR: lim.smoothR, patternR: lim.patternR, tight: r < lim.smoothR - 1e-6, impossible: r < lim.patternR - 1e-6 };
+  const r = p.bent.minR, best = bestReach(m);
+  const reach = p.bent.pattern?.reach ?? lim.smoothR;
+  return { minR: r, smoothR: lim.smoothR, patternR: lim.patternR, best, reach, tight: r < lim.smoothR - 1e-6, weak: r < reach - 1e-6, impossible: r < best - 1e-6 };
 }
 
 /** Length of a world vector: for tests and checks. */

@@ -3,7 +3,7 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, parentConnection, setPanelSize, setPointRound, setRoundShape, solve } from '../model/ops';
+import { findDetail, moveOffBend, parentConnection, setBend, setPanelSize, setPointRound, setRoundShape, solve } from '../model/ops';
 import { bendOf } from '../model/materials';
 import { matOf } from '../model/materials';
 import { fitShape } from './guard';
@@ -82,7 +82,7 @@ function raiseRadius(d: Design, wallId: string): boolean {
   return any;
 }
 
-const FIXABLE = new Set(['val.bendTight', 'val.fluteBend', 'val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
+const FIXABLE = new Set(['val.bendTight', 'val.bendStyle', 'val.kissTwoWay', 'val.bendShape', 'val.fluteBend', 'val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -111,6 +111,13 @@ export function fixIssue(d: Design, i: Issue): boolean {
       return !sheetIssueFor(d, i);
     case 'val.bendTight':
       return i.target.kind === 'panel' && raiseRadius(d, i.target.id) && !sheetIssueFor(d, i);
+    case 'val.bendStyle':
+    case 'val.kissTwoWay':
+      // let Auto choose the bend (milestone 47): the first style that reaches, the other way perforated
+      return i.target.kind === 'panel' && setBend(d, i.target.id, { style: 'auto' }) && !validate(d).some((x) => x.key === i.key && x.target.kind === 'panel' && x.target.id === i.target.id);
+    case 'val.bendShape':
+      // move the shape off the bend, along the wall
+      return i.target.kind === 'detail' && moveOffBend(d, i.target.id) && !validate(d).some((x) => x.key === 'val.bendShape' && x.target.kind === 'detail' && x.target.id === i.target.id);
     case 'val.fluteBend':
       // lay the strip with its height along the flutes again
       d.allowRotate = false;

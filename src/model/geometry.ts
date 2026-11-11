@@ -36,7 +36,7 @@ export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
 
 /** Slots, glue flaps and flap score lines that connections add to a panel. */
 export function panelExtras(d: Design, p: Panel) {
-  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [], linerHoles: P2[][] = [];
+  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [], linerHoles: P2[][] = [], lines: { a: P2; b: P2 }[] = [];
   // fold-overs: rim and liner on their wall, lock slots in the base
   for (const fo of allFoldOvers(d)) {
     for (const h of fo.g.holes) if (h.panelId === p.id) holes.push(h.poly);
@@ -52,8 +52,9 @@ export function panelExtras(d: Design, p: Panel) {
     for (const h of c.geom.holes) if (h.panelId === p.id) holes.push(h.poly);
     for (const a of c.geom.adds) if (a.panelId === p.id) adds.push(a.poly);
     for (const s of c.geom.scores) if (s.panelId === p.id) scores.push(s);
+    for (const s of c.geom.lines ?? []) if (s.panelId === p.id) lines.push(s);
   }
-  return { holes, adds, scores, cuts, linerHoles };
+  return { holes, adds, scores, cuts, linerHoles, lines };
 }
 
 const EPS = 1e-7;

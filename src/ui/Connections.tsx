@@ -1,4 +1,5 @@
 // Inspector sections for a panel's connections, open seams, dividers and clear sizes.
+import { isRunKey } from '../model/edges';
 import { flapWidth } from '../model/jointDefaults';
 import { useState } from 'react';
 import { useStore, useT } from '../store/store';
@@ -240,7 +241,8 @@ export function PanelHinge({ panelId }: { panelId: string }) {
   const [refused, setRefused] = useState<string | undefined>();
   const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === panelId);
   const p = d.panels[panelId];
-  if (!c || !p) return null;
+  // a bent wall stands at 90° only (milestone 46): no hinge angle, and its run is not an edge to turn about
+  if (!c || !p || p.bent || isRunKey(c.a.edge)) return null;
   const st = useStore.getState;
   const h = hingeOf(c.angle, c.dir);
   const check = checkHinge(d, c.a.panelId, c.a.edge, h, p.h);

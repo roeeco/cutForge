@@ -765,7 +765,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
-      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && !design.panels[selPanel]?.bent && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
       {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
@@ -956,6 +956,7 @@ function PanelObject(props: {
           </group>
         );
       })}
+      {p.bent?.pattern && <PatternLines d={d} p={p} zs={[z0 - 0.15, z1 + 0.15]} warp={warp} />}
       {(tool === 'select' || tool === 'wall') && props.edges !== false && !props.folded && !props.inert && free.map((e) => <EdgeHandle key={e.key} p={p} seg={e} t={t} z0={z0} z1={z1} show={props.showEdges} active={selEdge === e.key} />)}
     </group>
   );
@@ -1342,6 +1343,38 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
 }
 
 type Warp = ReturnType<typeof bentWarp>;
+
+/** A bent wall's bend pattern (milestone 47) on both its faces: scores blue, cut lines brown, following its facets. */
+function PatternLines({ d, p, zs, warp }: { d: Design; p: Panel; zs: number[]; warp?: Warp }) {
+  const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === p.id);
+  const g = c?.geom;
+  const objs = useMemo(() => {
+    if (!g) return [];
+    const make = (segs: { a: P2; b: P2 }[], color: string) => {
+      const pts: THREE.Vector3[] = [];
+      for (const z of zs)
+        for (const s of segs) {
+          if (s.a.x !== s.b.x) continue;
+          // each line split so it follows a bent wall's facets
+          const n = Math.max(1, Math.ceil(Math.abs(s.b.y - s.a.y) / 10));
+          for (let i = 0; i < n; i++) {
+            const y0 = s.a.y + ((s.b.y - s.a.y) * i) / n, y1 = s.a.y + ((s.b.y - s.a.y) * (i + 1)) / n;
+            pts.push(warp ? warp(s.a.x, y0, z) : new THREE.Vector3(s.a.x, y0, z), warp ? warp(s.a.x, y1, z) : new THREE.Vector3(s.a.x, y1, z));
+          }
+        }
+      return pts.length ? new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color })) : null;
+    };
+    return [make(g.scores.filter((x) => x.panelId === p.id && Math.abs(x.a.x - x.b.x) < 1e-9 && x.a.y >= 0), '#2f6feb'), make((g.lines ?? []).filter((x) => x.panelId === p.id), '#5b4128')].filter((x) => x !== null) as THREE.Object3D[];
+  }, [g, p.id, zs[0], zs[1], warp]);
+  useEffect(() => () => objs.forEach((l) => ((l as THREE.LineSegments).geometry.dispose(), ((l as THREE.LineSegments).material as THREE.Material).dispose())), [objs]);
+  return (
+    <>
+      {objs.map((l, i) => (
+        <primitive key={i} object={l} raycast={() => null} />
+      ))}
+    </>
+  );
+}
 function DetailLines({ c, zs, color, warp }: { c: ReturnType<typeof detailContour>; zs: number[]; color: string; warp?: Warp }) {
   const lines = useMemo(
     () =>

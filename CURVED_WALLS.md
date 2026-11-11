@@ -381,7 +381,13 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - a divider ending on the curved wall joins it
   - `autoseam` fuzzer extended with round bases
 
-### Milestone 47: bend patterns
+### Milestone 47: bend patterns ✅
+*Done (PROGRESS.md, DECISIONS.md *Bend patterns*). Changed while building:*
+- *Plywood offers Smooth as well as the living hinge (Auto picks it only beyond `smoothR`); perforations reach 0.75 × `patternR` on card.*
+- *Spacing R(s)·φ is held between half and twice the material's pitch (the plan's `min(pitch, R·φ)` would make it constant at every radius the material reaches); a set spacing caps it.*
+- *A kiss-scored strip is laid mirrored in the file when its scored face is not the face it shows; the label is on the guide layer at export (and the short* UP *on narrow pieces).*
+- *Facets are not split at score lines: the wall keeps its smooth placement and the lines are drawn on it in 3D.*
+- *The move-the-shape Fix needs a straight stretch on the wall; on a wall that is curved all along it does nothing.*
 - `bendPattern`: score / kiss / perf / lattice; keep-outs; variable pitch.
 - Layers: perforation dashes on CUT; a "this side up" GUIDE label for kiss scores.
 - Card settings (§5.2); Quick build `bend: 'auto'`.

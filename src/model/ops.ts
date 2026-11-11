@@ -1,17 +1,18 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
+import { applyBendPatterns, bridgeOf } from './bendPattern';
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { BendChoice, BendStyle, Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayCurveKind, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { BENT_WEB, bendAlong, bentLift, facetsOf, onRun, reconcileInline } from './bent';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
-import { panelNotches, panelOutline } from './geometry';
+import { detailBBox, panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, bendOf, connectionsFor, curvedFor, curvedKinds, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
@@ -268,6 +269,8 @@ function solveOnce(d: Design) {
     }
   }
   applyTrims(d);
+  // bend patterns on bent walls (milestone 47), clear of every joint just made
+  applyBendPatterns(d);
 }
 
 /** A wall of a wall set derived from `<wallId>` for piece n of its edge: `<wallId>~n`. */
@@ -1962,3 +1965,55 @@ export function copyOutlineFrom(d: Design, id: string, from: string): boolean {
 }
 
 export { canMatch, leaderOf };
+
+/**
+ * A bent wall's bend choices (milestone 47): style, line spacing, which face
+ * is up when it is cut. `undefined` in the patch leaves a choice; `'auto'`,
+ * `null` spacing and the automatic face are stored as absent.
+ */
+export function setBend(d: Design, id: string, patch: { style?: BendStyle; pitch?: number | null; face?: 1 | -1 | null }): boolean {
+  const p = d.panels[id];
+  if (!p?.bent) return false;
+  const b: BendChoice = { ...(p.bend ?? {}) };
+  if (patch.style !== undefined) {
+    if (patch.style === 'auto') delete b.style;
+    else b.style = patch.style;
+  }
+  if (patch.pitch !== undefined) {
+    if (patch.pitch === null) delete b.pitch;
+    else b.pitch = Math.max(0.3, Math.min(100, patch.pitch));
+  }
+  if (patch.face !== undefined) {
+    if (patch.face === null) delete b.face;
+    else b.face = patch.face;
+  }
+  if (Object.keys(b).length) p.bend = b;
+  else delete p.bend;
+  solve(d);
+  return true;
+}
+
+/**
+ * Move a shape on a bent wall off its bend pattern (milestone 47's Fix): along
+ * the wall to the nearest place clear of every patterned zone (by a bridge),
+ * keeping its height. False when the wall has no straight stretch it fits on.
+ */
+export function moveOffBend(d: Design, detailId: string): boolean {
+  const f = findDetail(d, detailId);
+  const W = f && d.panels[f.panel.id];
+  const info = W?.bent?.pattern;
+  if (!f || !W || !info) return false;
+  const half = detailBBox(f.detail);
+  const hw = (half.maxX - half.minX) / 2, br = bridgeOf(matOf(d, W.id));
+  // the stretches clear of patterned zones, less a bridge and half the shape each side
+  const zs = info.zones.filter((z) => z.style !== 'smooth').map((z) => [z.s0 - br - hw, z.s1 + br + hw] as [number, number]);
+  let free: [number, number][] = [[br + hw, W.w - br - hw]];
+  for (const [a, b] of zs) free = free.flatMap(([x0, x1]): [number, number][] => (b <= x0 || a >= x1 ? [[x0, x1]] : [...(a > x0 ? [[x0, a] as [number, number]] : []), ...(b < x1 ? [[b, x1] as [number, number]] : [])]));
+  free = free.filter(([x0, x1]) => x1 >= x0);
+  if (!free.length) return false;
+  const cx = (half.minX + half.maxX) / 2;
+  const to = free.map(([x0, x1]) => Math.max(x0, Math.min(x1, cx))).reduce((a, b) => (Math.abs(b - cx) < Math.abs(a - cx) ? b : a));
+  updateDetail(d, detailId, { cx: f.detail.cx + (to - cx) });
+  solve(d);
+  return true;
+}

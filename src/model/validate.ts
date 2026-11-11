@@ -223,12 +223,12 @@ function fragmentsAfterThrough(d: Design, id: string): number {
   }
 }
 
-/** Fold-over rules (foldform's, plus webs, collisions and flute direction). */
 /**
- * Bent walls (milestone 46): a curve tighter than the material bends at all,
- * or tighter than it bends on its own (it needs a pattern: scores, liner
- * scoring, a living hinge; CURVED_WALLS.md milestone 47); corrugated with its
- * flutes round the wall instead of up it.
+ * Bent walls (milestones 46, 47): a curve tighter than the material bends at
+ * all, or than the bend style the student chose; a zone of its bend pattern a
+ * shape or joint cuts through so it cannot turn; kiss scores asked for on a
+ * strip that bends both ways; corrugated with its flutes round the wall
+ * instead of up it.
  */
 function bendIssues(d: Design): Issue[] {
   const out: Issue[] = [];
@@ -237,10 +237,18 @@ function bendIssues(d: Design): Issue[] {
     const b = p && bendCheck(d, id);
     if (!p || !b) continue;
     const m = matOf(d, id);
-    const vars = { panel: p.name, r: Math.round(b.minR * 10) / 10, min: Math.round(b.patternR * 10) / 10, smooth: Math.round(b.smoothR * 10) / 10 };
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    const vars = { panel: p.name, r: r1(b.minR), min: r1(b.best), smooth: r1(b.smoothR), reach: r1(b.reach) };
     const target: IssueTarget = { kind: 'panel', id };
+    const info = p.bent?.pattern;
     if (b.impossible) out.push({ key: 'val.bendTight', vars, target });
-    else if (b.tight) out.push({ key: m.kind === 'plywood' ? 'val.bendHinge' : 'val.bendPattern', vars, target });
+    else if (b.weak) out.push({ key: 'val.bendStyle', vars, target });
+    if (info) {
+      const z = info.zones.find((x) => x.by);
+      if (z?.by === 'shape') out.push({ key: 'val.bendShape', vars, target: z.byId ? { kind: 'detail', id: z.byId } : target });
+      else if (z?.by === 'joint') out.push({ key: 'val.bendJoint', vars, target });
+      if (info.style === 'kiss' && !info.auto && info.zones.some((x) => x.sign !== info.face)) out.push({ key: 'val.kissTwoWay', vars, target });
+    }
     if (m.kind === 'corrugated' && m.grain !== 'none') {
       const pl = Object.entries(d.placements).find(([k]) => k.startsWith(`${pieceKeyOf(d, id)}#`))?.[1];
       // a strip lies with its height along the sheet's y unless turned: flutes along y run up the wall
@@ -250,6 +258,7 @@ function bendIssues(d: Design): Issue[] {
   return out;
 }
 
+/** Fold-over rules (foldform's, plus webs, collisions and flute direction). */
 function foldOverIssues(d: Design): Issue[] {
   const out: Issue[] = [];
   const fos = allFoldOvers(d);

@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { bendCardPerf, bendCardScore, bendCorrKiss, bendPlyLattice, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -50,6 +50,12 @@ CASES.push({ name: 'hand-ply-box-compensated', make: plyBox, kerf: 'compensated'
 CASES.push({ name: 'hand-card-tray', make: cardTray });
 CASES.push({ name: 'hand-ply-lean', make: plyLean });
 CASES.push({ name: 'hand-corr-dividers', make: corrDividers });
+// milestone 47: one bend pattern of each kind (intended new goldens)
+CASES.push({ name: 'bend-card-score', make: bendCardScore });
+CASES.push({ name: 'bend-card-perf', make: bendCardPerf });
+CASES.push({ name: 'bend-corr-kiss', make: bendCorrKiss });
+CASES.push({ name: 'bend-ply-lattice', make: bendPlyLattice });
+CASES.push({ name: 'bend-ply-lattice-compensated', make: bendPlyLattice, kerf: 'compensated' });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);
