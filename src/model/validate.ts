@@ -8,7 +8,7 @@ import { throughHits, throughRegions } from './through';
 import { isRectSketch, segLength } from './edges';
 import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
-import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry';
+import { detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
 import { bboxOf } from '../geom/vec';
 import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
@@ -68,8 +68,9 @@ export function validate(d: Design): Issue[] {
       if (per > 0 && (2 * Math.abs(polygonArea(pts))) / per < min / 2) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
     if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    const band = jointBands(p, notches);
     for (const dt of p.details) {
-      const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id));
+      const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id)) ?? (cutNearJoint(band, dt, min) ? 'val.tooThin' : null);
       if (k) issues.push({ key: k, vars: k === 'val.tooThin' ? { panel: p.name, min } : { panel: p.name }, target: { kind: 'detail', id: dt.id } });
     }
     const outline = panelOutline(p, notches);
@@ -109,7 +110,7 @@ export function panelFit(d: Design, p: Panel): PanelFit {
   const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
   const own = ownOutline(p);
   const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
-  return { min, lim, own, plainRect, outlines: own.rings.map((r) => panelOutline(p, notches, r)) };
+  return { min, lim, own, plainRect, outlines: own.rings.flatMap((r) => panelOutlines(p, notches, r)) };
 }
 
 /** A shape's place on its panel: outside the panel, too close to its edge, or fine (null). */
@@ -145,6 +146,42 @@ export function webTo(poly: P2[], ring: P2[]): number {
       best = Math.min(best, segDistPoint(poly[i], ring[j], ring[(j + 1) % ring.length]), segDistPoint(ring[j], poly[i], poly[(i + 1) % poly.length]));
     }
   return best;
+}
+
+/** Where each joint notch cuts back into the panel (a cut-back's rectangle along its edge), with that edge. */
+function jointBands(p: Panel, notches: Record<string, { s0: number; s1: number; depth: number }[]>) {
+  const out: { a: P2; b: P2; band: P2[] }[] = [];
+  for (const e of ownOutline(p).rings.flat()) {
+    const dir = segDir(e), ie = segInward(e);
+    const at = (s: number, dd: number) => ({ x: e.a.x + dir.x * s + ie.x * dd, y: e.a.y + dir.y * s + ie.y * dd });
+    for (const x of notches[e.key] ?? []) if (x.depth > 1e-6) out.push({ a: e.a, b: e.b, band: [at(x.s0, 0), at(x.s1, 0), at(x.s1, x.depth), at(x.s0, x.depth)] });
+  }
+  return out;
+}
+
+const segsMeet = (p1: P2, p2: P2, q1: P2, q2: P2) => {
+  const cr = (o: P2, a: P2, b: P2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const d1 = cr(q1, q2, p1), d2 = cr(q1, q2, p2), d3 = cr(p1, p2, q1), d4 = cr(p1, p2, q2);
+  return d1 * d2 <= 0 && d3 * d4 <= 0 && Math.min(p1.x, p2.x) <= Math.max(q1.x, q2.x) + 1e-9 && Math.min(q1.x, q2.x) <= Math.max(p1.x, p2.x) + 1e-9 && Math.min(p1.y, p2.y) <= Math.max(q1.y, q2.y) + 1e-9 && Math.min(q1.y, q2.y) <= Math.max(p1.y, p2.y) + 1e-9;
+};
+
+/**
+ * A cut that comes into a joint's notch band, or closer to it than the
+ * material's web, without crossing that edge (BUGFIX_PLAN B9): a notch cut
+ * down from a wall's top into its bottom fingers. A cut across the jointed
+ * edge itself is laid out around by the joint (surviving contact) instead.
+ */
+function cutNearJoint(bands: ReturnType<typeof jointBands>, dt: Panel['details'][number], min: number): boolean {
+  if (dt.op !== 'cut' || dt.through || !bands.length) return false;
+  for (const poly of instancePolys(dt).flatMap((x) => x.polys)) {
+    for (const b of bands) {
+      const crosses = poly.some((q, i) => segsMeet(q, poly[(i + 1) % poly.length], b.a, b.b));
+      if (crosses) continue;
+      const inside = poly.some((q) => pointInPolygon(q, b.band)) || b.band.some((q) => pointInPolygon(q, poly));
+      if (inside || webTo(poly, b.band) < min - 1e-6) return true;
+    }
+  }
+  return false;
 }
 
 /** Does a cut shape reach the panel's material (it changed the outline)? */

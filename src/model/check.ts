@@ -308,7 +308,6 @@ export function checkDesign(raw: unknown): asserts raw is Design {
     if (badId(k)) fail(`trays.${k}`, 'bad id');
     if (!tray(d.trays[k], k, d)) delete d.trays[k];
   }
-  for (const c of Object.values<any>(d.connections)) if (c.trayId !== undefined && !own(d.trays, c.trayId)) delete c.trayId;
   // quantities and sheet placements: a bad one falls back to the default (one copy, placed automatically)
   if (!isObj(d.pieces)) d.pieces = {};
   for (const k of Object.keys(d.pieces)) {

@@ -8,7 +8,7 @@ import { MATERIALS } from '../../src/model/materials';
 import { buildPieces } from '../../src/model/pieces';
 import { validate } from '../../src/model/validate';
 import { flattenContour } from '../../src/geom/vec';
-import { selfCrossing } from './fuzz';
+import { selfCrossing } from '../bugs-model/fuzz';
 
 const edit = (d: any, f: () => void) => {
   f();
@@ -28,4 +28,20 @@ it('handle notch 27.5 mm deep in a 30 mm finger-jointed wall', () => {
   const crossing = outer.map((c) => selfCrossing(flattenContour(c.contour, 0.05))).filter(Boolean);
   console.log('validate:', validate(d).map((i) => i.key));
   expect(crossing).toEqual([]); // actual: the wall's outer contour crosses itself
+});
+
+it('a notch leaving only 0.5 mm above the fingers is reported; one well clear is not', () => {
+  for (const [bottom, flagged] of [[3.5, true], [12, false]] as const) {
+    const d = ops.createDesign(MATERIALS[3]);
+    const b = ops.addRootPanel(d, 0, 0, 200, 150);
+    let t = '';
+    edit(d, () => (t = ops.addTray(d, b, 30)!));
+    const w = `${t}/e0`;
+    const h = 36 - bottom; // from y = bottom to 6 mm above the 30 mm wall
+    let id = '';
+    edit(d, () => (id = ops.addDetail(d, w, 'rect', 'cut', 100, bottom + h / 2, 40, h)!));
+    const outer = buildPieces(d).filter((p) => p.panels.some((n) => n.panelId === w)).flatMap((p) => p.contours.filter((c) => c.role === 'outer'));
+    expect(outer.map((c) => selfCrossing(flattenContour(c.contour, 0.05))).filter(Boolean)).toEqual([]);
+    expect(validate(d).some((i) => i.key === 'val.tooThin' && i.target.kind === 'detail' && i.target.id === id), `bottom ${bottom}`).toBe(flagged);
+  }
 });

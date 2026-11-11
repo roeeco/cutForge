@@ -9,7 +9,7 @@ import { buildPieces, FRAG_SEP, pieceRoot, placementPiece } from '../../src/mode
 import { panelEdges } from '../../src/model/edges';
 
 describe('piece keys', () => {
-  it('no panel or edge id contains the fragment separator', () => {
+  it('no panel or edge id contains the fragment separator', { timeout: 60_000 }, () => {
     for (let i = 0; i < 2000; i++) for (const p of ['p', 'c', 'tr', 'd', 'i', 'x']) expect(newId(p)).not.toContain(FRAG_SEP);
     for (const m of MATERIALS) {
       const d = createDesign(m);

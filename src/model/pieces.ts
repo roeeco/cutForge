@@ -11,7 +11,7 @@ import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
 import { findEdge } from './edges';
 import { cornerDepths, cornerFit } from './seams';
-import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
+import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
 
@@ -163,12 +163,12 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       const ex = panelExtras(d, p);
       const square = Math.abs(Math.sin(2 * xf.rot)) < 1e-12;
       if (square || !ex.adds.length) {
-        for (const ring of own.rings) polys.push([toRing(panelOutline(p, notches, ring).map(tf))]);
+        for (const ring of own.rings) for (const o of panelOutlines(p, notches, ring)) polys.push([toRing(o.map(tf))]);
         for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
       } else {
         // turned by an angle that is not square: join the panel and its own additions (flaps, fold-over rim and liner)
         // in its exact local coordinates first, so rounding after the turn cannot leave hairline gaps between them
-        const local: Polygon[] = [...own.rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
+        const local: Polygon[] = [...own.rings.flatMap((ring) => panelOutlines(p, notches, ring).map((o) => [toRing(o)] as Polygon)), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
         for (const poly of safeUnion(local)) polys.push(poly.map((r) => toRing(r.slice(0, -1).map(([x, y]) => tf({ x, y })))) as Polygon);
       }
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
@@ -295,7 +295,7 @@ export function flatPanel(d: Design, panelId: string, xf: Xform2, noCornerFlaps 
   const p = d.panels[panelId];
   if (!p) return [];
   const notches = panelNotches(d, p);
-  const polys: Polygon[] = ownOutline(p).rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon);
+  const polys: Polygon[] = ownOutline(p).rings.flatMap((ring) => panelOutlines(p, notches, ring).map((o) => [toRing(o)] as Polygon));
   // without corner glue flaps (which a trim can always clear): only what a wall itself covers
   const skip = noCornerFlaps ? new Set(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'glue').flatMap((c) => (c.geom?.adds ?? []).map((x) => x.poly))) : null;
   for (const a of panelExtras(d, p).adds) if (!skip?.has(a)) polys.push([toRing(a)]);
