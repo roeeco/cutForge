@@ -788,17 +788,24 @@ function scaleSketch(p: Panel, w: number, h: number) {
 }
 
 /** Lengthen or shorten one straight edge of a root polygon by moving its end vertex along it. */
-export function setEdgeLength(d: Design, panelId: string, key: string, length: number) {
+export function setEdgeLength(d: Design, panelId: string, key: string, length: number): boolean {
   const p = d.panels[panelId];
   const e = p && findEdge(p, key);
-  if (!p || !e || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return;
+  if (!p || !e || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return false;
   const i = p.sketch.edgeIds.indexOf(key);
-  if (i < 0) return;
+  if (i < 0) return false;
   const dir = segDir(e);
   const L = Math.max(MIN_PANEL, length);
   const n = p.sketch.pts.length;
-  p.sketch.pts[(i + 1) % n] = { x: e.a.x + dir.x * L, y: e.a.y + dir.y * L };
+  const was = p.sketch.pts[(i + 1) % n];
+  p.sketch.pts[(i + 1) % n] = { ...was, x: e.a.x + dir.x * L, y: e.a.y + dir.y * L };
+  // an outline that would cross itself is refused, as moveVertex does (BUGFIX_PLAN B10)
+  if (!isSimplePolygon(sketchRing(p).map((x) => x.a))) {
+    p.sketch.pts[(i + 1) % n] = was;
+    return false;
+  }
   normalizeSketch(p);
+  return true;
 }
 
 /** Keep a root polygon's bounding box at the local origin (moving the frame to match) and its edges CCW. */
@@ -1149,16 +1156,24 @@ function wallSketch(d: Design, wallId: string): WallSketch | null {
  * Move a free corner of a wall (offsets from its rectangle corner). The
  * bottom corners slide only along the attached edge (dy stays 0).
  */
-export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off: { dx: number; dy: number }) {
+export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off: { dx: number; dy: number }): boolean {
   const s = wallSketch(d, wallId);
-  if (!s) return;
+  if (!s) return false;
   const bottom = corner === 'bl' || corner === 'br';
   const curve = s.corners?.[corner]?.curve;
   const v = { dx: Math.round(off.dx * 100) / 100, dy: bottom ? 0 : Math.round(off.dy * 100) / 100, ...(curve ? { curve } : {}) };
+  const before = s.corners ? plain(s.corners) : undefined;
   s.corners = { ...(s.corners ?? {}), [corner]: v };
   if (!v.dx && !v.dy && !curve) delete s.corners[corner];
   if (!Object.keys(s.corners).length) delete s.corners;
+  // an outline that would cross itself is refused, as moveVertex does (BUGFIX_PLAN B10)
+  if (!isSimplePolygon(sketchRing(d.panels[wallId]).map((e) => e.a))) {
+    if (before) s.corners = before;
+    else delete s.corners;
+    return false;
+  }
   solve(d);
+  return true;
 }
 
 /** Insert a point on a free edge of a wall at fraction t along it, pushed `off` mm outward (a gable: e2, 0.5, 30). */

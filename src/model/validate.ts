@@ -5,10 +5,10 @@ import { segDir, segInward } from './edges';
 import { toWorld } from './frame';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
 import { throughHits, throughRegions } from './through';
-import { isRectSketch, segLength } from './edges';
+import { isRectSketch, segLength, sketchRing } from './edges';
 import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
-import { detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
+import { crossesItself, detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
 import { bboxOf } from '../geom/vec';
 import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
@@ -68,6 +68,8 @@ export function validate(d: Design): Issue[] {
       if (per > 0 && (2 * Math.abs(polygonArea(pts))) / per < min / 2) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
     if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // a sketch whose edges cross (BUGFIX_PLAN B10: edits refuse this; older files may have one)
+    if (crossesItself(sketchRing(p).map((e) => e.a))) issues.push({ key: 'val.selfCross', vars: { panel: p.name }, target: { kind: 'panel', id } });
     const band = jointBands(p, notches);
     for (const dt of p.details) {
       const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id)) ?? (cutNearJoint(band, dt, min) ? 'val.tooThin' : null);

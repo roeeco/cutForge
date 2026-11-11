@@ -499,6 +499,7 @@ export const en = {
   'part.wallN': "Wall {n}",
   'val.split': "A cut splits {panel} into {n} pieces. Each piece is cut separately.",
   'val.sliver': "A part of {panel} is thinner than {min} mm and may break.",
+  'val.selfCross': "The outline of {panel} crosses itself, so it cannot be cut. Move its points back so the edges do not cross.",
   'val.orphan': "{panel} lost the edge it stood on (a cut removed it). Its shapes are kept; delete it or restore the edge.",
   'val.littleContact': "Too little contact between {a} and {b} for their joint: a cut took most of the shared edge.",
   'tool.op.add': "Add (joins the outline)",
