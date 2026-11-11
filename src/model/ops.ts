@@ -15,7 +15,7 @@ import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jo
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
-import { constructionSet, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame } from './place';
+import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
 import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
@@ -93,6 +93,7 @@ function solveOnce(d: Design) {
   }
   reconcileWallSets(d);
   reconcileTrays(d, makeTrayWall);
+  dropOrphansToFloor(d);
   insideCornerExtensions(
     d,
     (baseId, key) => {
@@ -236,12 +237,8 @@ export function reconcileWallSets(d: Design) {
       if (!dv || dv.base !== wall.id || (split && dv.n < pieces.length)) continue;
       const p = d.panels[id];
       if (!p) continue;
-      if (!p.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === id)) {
-        for (const x of Object.values(d.connections)) if (x.a.panelId === id || x.b.panelId === id) delete d.connections[x.id];
-        delete d.panels[id];
-        delete d.pieces[id];
-        d.order = d.order.filter((x) => x !== id);
-      } else p.broken = true;
+      if (!p.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === id)) removePanelRecord(d, id);
+      else p.broken = true;
     }
   }
 }
@@ -1313,11 +1310,6 @@ export function removeFoldOver(d: Design, wallId: string, id: string) {
 }
 
 export function deletePanel(d: Design, panelId: string) {
-  // panels placed on it drop to the floor where they are (milestone 28)
-  for (const id of hostedOn(d, panelId)) {
-    dropToFloor(d, d.panels[id]);
-    for (const c of Object.values(d.connections)) if (!c.grown && ((c.a.panelId === id && c.b.panelId === panelId) || (c.b.panelId === id && c.a.panelId === panelId))) delete d.connections[c.id];
-  }
   // deleting a tray wall opens that side of the tray
   const tc = Object.values(d.connections).find((c) => c.grown && c.b.panelId === panelId && c.trayId);
   const tray = tc && d.trays?.[tc.trayId!];
@@ -1327,13 +1319,8 @@ export function deletePanel(d: Design, panelId: string) {
     tray.openEdges = [...new Set([...tray.openEdges, key])];
   }
   for (const t of Object.values(d.trays ?? {})) if (t.baseId === panelId) delete d.trays[t.id];
-  for (const c of Object.values(d.connections)) {
-    if (c.a.panelId === panelId || c.b.panelId === panelId) delete d.connections[c.id];
-  }
-  delete d.panels[panelId];
-  delete d.pieces[panelId];
-  d.order = d.order.filter((id) => id !== panelId);
-  for (const k of Object.keys(d.placements)) if (pieceRoot(placementPiece(k)) === panelId) delete d.placements[k];
+  // panels placed on it drop to the floor where they are (milestone 28); its joints, quantity and placements go
+  removePanelRecord(d, panelId);
   solve(d);
 }
 

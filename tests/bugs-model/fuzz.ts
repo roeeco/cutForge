@@ -490,6 +490,8 @@ export function check(d: Design, o: CheckOpts = {}): Failure[] {
   // 2. references
   const ids = new Set(Object.keys(d.panels));
   if (d.order.length !== ids.size || d.order.some((id) => !ids.has(id)) || new Set(d.order).size !== d.order.length) f('ref:order', `order ${d.order.length} vs panels ${ids.size}`);
+  // every placed panel's host exists (BUGFIX_PLAN B22)
+  for (const p of Object.values(d.panels)) if (p.place && p.place.host !== null && !ids.has(p.place.host)) f('ref:danglingHost', `${p.id} on ${p.place.host}`);
   for (const c of Object.values(d.connections)) {
     if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) f('ref:connection', `${c.id} ${c.kind} grown=${c.grown} → ${c.a.panelId}/${c.b.panelId}`);
     for (const g of [...(c.geom?.edges ?? []), ...(c.geom?.holes ?? []), ...(c.geom?.adds ?? [])]) if (!ids.has(g.panelId)) f('ref:geom', `${c.id} geom refers to ${g.panelId}`);
