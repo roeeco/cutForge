@@ -251,7 +251,8 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {
         const pts = cleanPolygon(dropMicro(ring.slice(0, ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1] ? -1 : undefined).map(([x, y]) => ({ x, y }))));
-        if (pts.length < 3) return;
+        // a ring of no area is clipping noise: it would cut as a slit (BUGFIX_PLAN B14)
+        if (pts.length < 3 || Math.abs(polygonArea(pts)) < 1e-6) return;
         out.push({ op: 'cut', role: ri === 0 ? 'outer' : 'hole', contour: polygonContour(pts), ref: { panelId: group[0].panelId } });
       });
       return out;

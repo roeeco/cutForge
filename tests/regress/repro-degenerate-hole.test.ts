@@ -4,7 +4,7 @@
 // that neither outline.ts (pts.length < 3 only) nor pieces.ts ringContours / cleanPolygon
 // (1e-9 duplicate tolerance) drops.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadFonts, randomDesign, rng, seedMath } from './gen';
+import { loadFonts, randomDesign, rng, seedMath } from '../bugs-output/gen';
 import { pieceCopies } from '../../src/model/pack';
 import { contourArea } from '../../src/geom/vec';
 

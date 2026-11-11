@@ -164,6 +164,8 @@ function compute(ring: EdgeSeg[], shaped: Detail[]): OwnOutline {
       let pts = r.slice(0, r.length - 1).map(([x, y]) => ({ x, y }));
       if (pts.length < 3) return;
       const area = polygonArea(pts);
+      // a ring of no area is clipping noise, not material or a hole (BUGFIX_PLAN B14)
+      if (Math.abs(area) < 1e-6) return;
       if (ri === 0) {
         if (area < 0) pts = pts.reverse();
         rings.push({ segs: keyRing(pts, sources, sk), area: Math.abs(area) });
