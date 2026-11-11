@@ -16,7 +16,7 @@ const edit = (d: any, f: () => void) => {
   ops.autoConnect(d);
 };
 
-it('safeUnion of nothing returns [undefined]', () => {
+it('safeUnion of nothing returns nothing', () => {
   expect(safeUnion([])).toEqual([]);
 });
 

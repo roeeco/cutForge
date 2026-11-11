@@ -54,7 +54,12 @@ export function validate(d: Design): Issue[] {
     // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
     const hit = throughHits(d).get(id);
     const frags = hit ? fragmentsAfterThrough(d, id) : own.rings.length;
-    if (hit && frags === 0) issues.push({ key: 'val.removed', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // removed by a through-cut, or by its own shapes (a cut covering the whole board): flagged, not cut
+    if (frags === 0) {
+      issues.push({ key: 'val.removed', vars: { panel: p.name }, target: { kind: 'panel', id } });
+      if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
+      continue;
+    }
     else if (frags > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: frags }, target: { kind: 'panel', id } });
     if (hit?.approx && frags > 0) issues.push({ key: 'val.bevel', vars: { panel: p.name }, target: { kind: 'detail', id: hit.sources[0] } });
     for (const r of own.rings) {

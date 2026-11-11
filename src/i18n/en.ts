@@ -513,7 +513,7 @@ export const en = {
   'tray.customHeight': "Custom height: this wall keeps its own height.",
   'tray.ownHeight': "Own height",
   'tray.cutHint': "This cut touches a walled edge of a tray: every new straight edge of a tray base gets a wall. Finger notches belong on walls.",
-  'val.removed': "A through-cut removes all of {panel}. It is kept (and shown faintly) so deleting the cut brings it back; it is not in the cut file.",
+  'val.removed': "A cut removes all of {panel}. It is kept (and shown faintly) so deleting the cut brings it back; it is not in the cut file.",
   'val.bevel': "A through-cut crosses {panel} at an angle: the laser cuts straight, so it removes a little more than the slanted path.",
   'tool.op.through': "Cut through the whole design",
   'through.cuts': "Cuts {n} panels",
