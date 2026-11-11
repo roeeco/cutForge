@@ -237,6 +237,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A piece in the sheet margin is a blocking issue** (`val.offSheet`, Fix: repack), not a note: a laser bed's margin is where the sheet is held. A piece is checked as a whole net, and turned only where the grain allows; one that fits only turned says so (`val.tooBigGrain`), and its Fix allows turning for the whole design.
 - **The too-big Fix shrinks uniformly** (the board, its tray height, what stands on it), so a box keeps its proportions.
 - **A cut-out drawing with outlines inside its outline is a stencil** (`val.stencilShape`, Fix: engrave), as cut-through text with closed letters is.
+- **A wall-set member's own material is dropped when its edge merges again**: the merged wall is the base wall, with the base wall's material (as its other settings).
+- **solve settles**: a pass that changes the joints' or trays' kinds is repeated (at most three passes), so what is exported equals what is saved and re-opened.
 - **A teacher batch cuts with the first selected student's material settings** when the materials are the same kind and thickness; the batch card shows the kerf.
 
 ## The first-use tour (see `TOUR_PLAN.md`, milestone 43)

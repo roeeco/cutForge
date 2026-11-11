@@ -872,6 +872,15 @@ Verified: the repros in `tests/regress/`; pipeline fuzz (`FUZZ_N=300`): pieces r
 
 Verified: the repros in `tests/regress/` (B15 rewritten for the new issue keys; B16 with a 2000 × 60 board on sheet 0 and one export sheet; B17 with a cut "O" still `val.stencil`, an engraved smile clean and overlapping array copies still reported; B18 on 5–8-gon boxes in all four materials; B21 new, `tests/regress/batch-labels.test.ts`); Quick build fuzz (`tests/bugs-output/quick.test.ts`): no Fix reports success with its issue still there (was 47 `offSheet`, 3 `shapesOverlap`), no standing plan of height 0 (was 12); batch fuzz clean; `tests/adapt.test.ts` (the gable under a sloped roof still meets and joins the roof). Still open: the Quick build fuzz's `val.tooBig` Fix can bring up other issues on the shrunk box (32 of 45, e.g. an unjoined overlap); it existed before this pass (31) and is listed for a later look.
 
+## Bug-fix pass — phase 6: model consistency ✅
+
+- **B22** One helper removes a panel and everything naming it (`removePanelRecord` in `place.ts`: hosted panels drop to the floor where they are); deleting and both reconciliations use it, and `solve` drops any orphan from an older file to the floor.
+- **B23** `seamStillFits` looks both ways (what `seamsBetween` finds depends on the order, and `findOpenSeams` looks from the earlier panel); `autoConnect` keeps no automatic seam that is broken as soon as it is joined, or left broken by one joined after it.
+- **B24** `solve` repeats a pass (at most 3; a development warning if it does not settle) when the pass changed what it read at its start: every joint's kind, the trays' kinds and their flat-net plans.
+- **B25** `solve` re-fits each tray's wall and corner kinds to its base's material (the design's choice for it, else the material's defaults) before the walls are reconciled.
+
+Verified: the repros in `tests/regress/` (B25's written for the fix: five material switches and a construction base); model fuzz `FUZZ_N=600`: no dangling host (new invariant); `FUZZ_N=300 FUZZ_FROM=301`: no solve-twice or round-trip differences; `FUZZ_AUTOIDEM=1 FUZZ_N=300`: `idem:autoConnect` 15 → 10. Still open: those 10 involve walls split by through-cuts next to leaning panels, where a seam is joined and then dropped on the next run; and the fuzz classes `flat:autoTrayOverlapsOther` (a tray's flat-net fix cannot clear an overlap with a board that is not one of its walls; reported by validate), `joint:holeOutside` (a corner's tab slot lands outside a much-cut wall; reported) and `ref:edgeGoneNotBroken` (a grown fold kept on an edge a cut removed is not flagged broken, though B1 keeps it from folding), all present before this pass.
+
 ## Milestone 42 — the Board tool in one drag, with a perpendicular toggle ✅
 
 Implemented (`BOARD_TOOL_PLAN.md`; `src/views/board.ts`, `src/views/panelTool.tsx`, `src/views/View3D.tsx`, `src/ui/Toolbar.tsx`, `src/ui/PlacedUI.tsx`, `flipPlacedSide` in `src/model/ops.ts`)
