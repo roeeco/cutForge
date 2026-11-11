@@ -2,6 +2,7 @@
 // clear inside of a rectangular base, even spacing, and snapping a dragged
 // divider to equal compartments.
 import type { Design } from './types';
+import { pieceRoot, placementPiece } from './keys';
 import { isRectSketch } from './edges';
 import { tOf } from './materials';
 
@@ -45,9 +46,10 @@ export function renamePanel(d: Design, from: string, to: string) {
     delete d.pieces[from];
   }
   for (const k of Object.keys(d.placements)) {
-    const [key, rest] = k.split('#');
-    if (key === from || key.startsWith(from + '~')) {
-      d.placements[`${to}${key.slice(from.length)}#${rest}`] = d.placements[k];
+    // the panel's piece and its fragments (`<id>@n`)
+    const key = placementPiece(k);
+    if (pieceRoot(key) === from) {
+      d.placements[`${to}${k.slice(from.length)}`] = d.placements[k];
       delete d.placements[k];
     }
   }

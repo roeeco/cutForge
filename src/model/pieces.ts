@@ -19,12 +19,14 @@ export type NetPanel = { panelId: string; xf: Xform2 };
 /**
  * One connected outline to cut. A panel (or folded net) that its cuts split
  * into several fragments gives one piece per fragment: the largest keeps the
- * net's key, the others are `<key>~2`, `<key>~3` …; `frag` numbers them.
+ * net's key, the others are `<key>@2`, `<key>@3` …; `frag` numbers them.
+ * `@` is never part of a panel id (wall-set members are `<wall>~n`, split
+ * edges `<edge>#n`), so a fragment key never names another piece.
  */
 export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[]; frag?: { i: number; n: number } };
 
-/** The net (and quantity) a piece key belongs to: fragments share their net's. */
-export const pieceRoot = (key: string) => key.split('~')[0];
+export { FRAG_SEP, pieceRoot, placementPiece } from './keys';
+import { FRAG_SEP, pieceRoot } from './keys';
 
 /** Rigid unfolding of a folded child into its parent's coordinates. */
 export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number, s0 = 0): Xform2 {
@@ -256,7 +258,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       .map((poly) => ({ poly, own: ringContours(poly), ring: poly[0].map(([x, y]) => ({ x, y })) }))
       .filter((f) => f.own.length)
       .sort((a, b) => Math.abs(polygonArea(b.ring)) - Math.abs(polygonArea(a.ring)));
-    const parts: Piece[] = frags.map((f, i) => ({ key: i ? `${key}~${i + 1}` : key, panels: group, contours: [...f.own], frag: { i: i + 1, n: frags.length } }));
+    const parts: Piece[] = frags.map((f, i) => ({ key: i ? `${key}${FRAG_SEP}${i + 1}` : key, panels: group, contours: [...f.own], frag: { i: i + 1, n: frags.length } }));
     for (const c of contours) {
       const pts = flattenContour(c.contour, 0.05);
       const q = c.contour.closed && pts.length > 2 ? { x: pts.reduce((s2, v) => s2 + v.x, 0) / pts.length, y: pts.reduce((s2, v) => s2 + v.y, 0) / pts.length } : pts[Math.floor(pts.length / 2)];

@@ -68,6 +68,26 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     delete d.dividerSets;
     return d;
   },
+  // v8 -> v9: a fragment a cut splits off a piece is keyed `<key>@n`, not `<key>~n`, which
+  // wall-set members (`<wall>~n`) also use (BUGFIX_PLAN B5). Placements of fragments move to the
+  // new keys, so manual placements survive; a key whose `<x>~n` is a panel id is a wall-set member.
+  8: (d) => {
+    const panels = d.panels && typeof d.panels === 'object' ? d.panels : {};
+    const isPanel = (k: string) => Object.prototype.hasOwnProperty.call(panels, k);
+    if (d.placements && typeof d.placements === 'object') {
+      for (const k of Object.keys(d.placements)) {
+        const i = k.lastIndexOf('#');
+        if (i < 0) continue;
+        const piece = k.slice(0, i);
+        const m = /^(.*)~(\d+)$/.exec(piece);
+        if (!m || isPanel(piece)) continue;
+        const nk = `${m[1]}@${m[2]}${k.slice(i)}`;
+        if (!(nk in d.placements)) d.placements[nk] = d.placements[k];
+        delete d.placements[k];
+      }
+    }
+    return d;
+  },
 };
 
 export function serializeProject(d: Design): string {

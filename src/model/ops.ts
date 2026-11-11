@@ -1,6 +1,7 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
+import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
@@ -1314,7 +1315,7 @@ export function deletePanel(d: Design, panelId: string) {
   delete d.panels[panelId];
   delete d.pieces[panelId];
   d.order = d.order.filter((id) => id !== panelId);
-  for (const k of Object.keys(d.placements)) if (k.startsWith(panelId + '#')) delete d.placements[k];
+  for (const k of Object.keys(d.placements)) if (pieceRoot(placementPiece(k)) === panelId) delete d.placements[k];
   solve(d);
 }
 

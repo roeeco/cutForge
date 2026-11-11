@@ -195,7 +195,7 @@ describe('fragments', () => {
     const pieces = buildPieces(d);
     expect(pieces.map((p) => [p.key, p.frag])).toEqual([
       [id, { i: 1, n: 2 }],
-      [`${id}~2`, { i: 2, n: 2 }],
+      [`${id}@2`, { i: 2, n: 2 }],
     ]);
     expect(validate(d).filter((i) => i.key === 'val.split')).toHaveLength(1);
   });

@@ -94,7 +94,7 @@ describe('through-cuts that split or remove a panel', () => {
     solve(d);
     autoConnect(d);
     expect(panelsCutBy(d, id)).toContain(back);
-    const pieces = buildPieces(d).filter((p) => p.key === back || p.key.startsWith(back + '~'));
+    const pieces = buildPieces(d).filter((p) => p.key === back || p.key.startsWith(back + '@'));
     expect(pieces).toHaveLength(2);
     expect(validate(d).some((i) => i.key === 'val.split' && i.target.id === back)).toBe(true);
   });
@@ -132,7 +132,7 @@ describe('base hole through a divider', () => {
     expect(panelsCutBy(d, id)).toEqual([div]);
     const before = 120 * 35;
     expect(materialArea(d, div)).toBeLessThan(before - 12 * 30);
-    const pieces = buildPieces(d).filter((p) => p.key === div || p.key.startsWith(div + '~'));
+    const pieces = buildPieces(d).filter((p) => p.key === div || p.key.startsWith(div + '@'));
     expect(pieces).toHaveLength(2);
   });
 });
