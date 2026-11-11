@@ -109,8 +109,8 @@ export function useKeyboard() {
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
-        // the Panel tool's picked plane: start over (the tool stays)
-        if (s.panelPick) return s.set({ panelPick: null });
+        // a board being drawn: the stage drops it (the tool stays)
+        if (s.panelGhost?.drawing) return;
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();
@@ -121,7 +121,9 @@ export function useKeyboard() {
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
       } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
-        if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
+        // P again with the Board tool: the perpendicular button (milestone 42)
+        if (tool === 'panel' && s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
+        else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

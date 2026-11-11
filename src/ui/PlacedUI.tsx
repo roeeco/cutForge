@@ -1,8 +1,10 @@
 // A placed panel's card (milestone 29): what it is on (*On panel 3, inner
-// face*), Flat or Standing, and Construction for any panel's net.
+// face*), Flat or Standing, Flip side for a standing one (milestone 42), and
+// Construction for any panel's net.
 import { useStore, useT } from '../store/store';
 import { Segmented } from './NumField';
-import { setConstruction, setPlacedPose } from '../model/ops';
+import { flipPlacedSide, setConstruction, setPlacedPose } from '../model/ops';
+import { Icon } from './icons';
 import { faceOut, isConstruction } from '../model/place';
 import { panelLabel } from '../model/names';
 import type { Design, MsgKeyLike } from './placedTypes';
@@ -38,6 +40,12 @@ export function PlacedSection({ panelId }: { panelId: string }) {
           ]}
           onChange={(v) => apply((x) => setPlacedPose(x, panelId, v as 'flat' | 'standing'))}
         />
+      )}
+      {p.place?.pose === 'standing' && (
+        // which side of its line the material is on
+        <button className="btn-flip" onClick={() => apply((x) => flipPlacedSide(x, panelId))} title={t('ghost.flip')} data-testid="placed-flip">
+          <Icon name="flip" size={16} /> {t('placed.flip')}
+        </button>
       )}
       <label className="check" title={t('insp.constructionNote')}>
         <input type="checkbox" checked={guide} onChange={(e) => apply((x) => setConstruction(x, panelId, e.target.checked))} data-testid="panel-construction" />

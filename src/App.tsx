@@ -7,7 +7,8 @@ import { Inspector } from './ui/Inspector';
 import { StartScreen } from './ui/StartScreen';
 import { MaterialDrawer } from './ui/MaterialDrawer';
 import { ExportDialog } from './ui/ExportDialog';
-import { Hints } from './ui/Hints';
+import { TourNudge } from './tour/TourNudge';
+import { TourOverlay } from './tour/TourOverlay';
 import { Gate } from './easy/Gate';
 import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
@@ -57,14 +58,17 @@ export function App() {
           {view === '3d' && <MissionPanel />}
         </EditorBoundary>
         {!needsMaterial && (
+          // a first-time student who chose Start: one note offering the tour (milestone 43)
           <Gate f="hints">
-            <Hints />
+            <TourNudge />
           </Gate>
         )}
       </div>
       {needsMaterial && <StartScreen />}
       {drawerOpen && <MaterialDrawer />}
       {exportOpen && <ExportDialog />}
+      {/* the first-use tour over everything, while it runs (milestone 43) */}
+      <TourOverlay />
     </div>
   );
 }

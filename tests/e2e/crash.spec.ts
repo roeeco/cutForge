@@ -17,7 +17,7 @@ test('a design that cannot be drawn shows the recovery card, and is never saved'
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  const dismiss = page.getByTestId('hints-dismiss');
+  const dismiss = page.getByTestId('tour-nudge-dismiss');
   if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
   await S(page, () => {
     const { store, ops } = (window as any).__cutforge;

@@ -2,7 +2,7 @@
 // language toggle → material → panel in 3D → grow at 90° with finger joint →
 // cutouts in both views → numeric resize → switch views → undo →
 // autosave + reload → download SVG and DXF (checked with independent readers).
-import { setNum, pickPlane, shapeTool } from './util';
+import { setNum, drawBoard, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -28,19 +28,12 @@ test('vertical slice', async ({ page }) => {
   await page.getByTestId('mat-ply-3').click();
 
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
 
   // draw a panel on the floor grid
-  await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
-  await pickPlane(page, { x: cx - 120, y: cy - 60 }, 'flat');
-  await page.mouse.move(cx - 120, cy - 60);
-  await page.mouse.down();
-  await page.mouse.move(cx + 120, cy + 60, { steps: 8 });
-  await page.mouse.up();
-  // the panel is a ghost until ✓ (milestone 29)
-  await page.getByTestId('ghost-ok').click();
+  await drawBoard(page, { x: cx - 120, y: cy - 60 }, { x: cx + 120, y: cy + 60 });
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
   let d = await state(page);
   expect(d.order).toHaveLength(1);

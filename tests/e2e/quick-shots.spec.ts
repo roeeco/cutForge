@@ -170,7 +170,7 @@ for (const lang of ['en', 'he']) {
     await page.waitForTimeout(500);
     await shot(page, lang, '41-quick');
     await page.getByTestId('mode-workshop').click();
-    await page.getByTestId('hints-dismiss').click().catch(() => {});
+    await page.getByTestId('tour-nudge-dismiss').click().catch(() => {});
     await page.waitForTimeout(400);
     await shot(page, lang, '41-workshop');
   });

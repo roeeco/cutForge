@@ -9,6 +9,7 @@ import { Icon, Logo } from './icons';
 import { setMode } from '../easy/mode';
 import { ReadyBadge } from '../easy/ReadyBadge';
 import { shown, useFeature } from '../easy/features';
+import { startTourConfirmed } from '../tour/TourNudge';
 
 export function TopBar() {
   const mode = useStore((x) => x.viewPrefs.mode ?? 'workshop');
@@ -85,6 +86,12 @@ export function TopBar() {
             >
               <Icon name="file" /> {t('top.new')}
             </button>
+            {/* the first-use tour (milestone 43): the same confirm as New design guards the current work */}
+            {!(s.viewPrefs.modeLocked && mode === 'quick') && (
+              <button role="menuitem" onClick={item(() => startTourConfirmed())} data-testid="menu-tour">
+                <Icon name="play" /> {t('top.tour')}
+              </button>
+            )}
             <button role="menuitem" onClick={item(() => fileRef.current?.click())}>
               <Icon name="open" /> {t('top.openProject')}
             </button>

@@ -11,6 +11,15 @@ const P: Record<string, ReactElement> = {
       <path d="M14.5 15.5v2" />
     </>
   ),
+  // a board standing on a base line (the Board tool's perpendicular button, milestone 42)
+  panelStanding: (
+    <>
+      <path d="M3 20h18" />
+      <path d="M6.5 18.5V7.5h9v11z" />
+      <path d="M6.5 7.5 8.5 5.5h9l-2 2" />
+      <path d="M17.5 5.5v11l-2 2" />
+    </>
+  ),
   rect: <rect x="4" y="6" width="16" height="12" rx="1" />,
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,

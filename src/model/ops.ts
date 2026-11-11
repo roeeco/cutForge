@@ -1598,6 +1598,17 @@ export function setTrayPin(d: Design, trayId: string, edge: string, pin: 'hinge'
 }
 
 /** Lay a placed panel flat on its face or stand it up on its bottom line (milestone 29); it keeps its place and size. */
+/**
+ * Put a standing placed panel's material on the other side of its line
+ * (milestone 42, *Flip side*): the line it stands on stays where it is.
+ */
+export function flipPlacedSide(d: Design, panelId: string) {
+  const p = d.panels[panelId];
+  if (!p?.place || p.place.pose !== 'standing') return;
+  p.place = { ...p.place, side: p.place.side === -1 ? 1 : -1 };
+  solve(d);
+}
+
 export function setPlacedPose(d: Design, panelId: string, pose: 'flat' | 'standing') {
   const p = d.panels[panelId];
   if (!p?.place || p.place.pose === pose) return;

@@ -1,14 +1,13 @@
 // Review screenshots for milestones 28–36 (skipped unless SHOTS=1):
 //   SHOTS=1 npx playwright test -c pw-app.config.ts panel-shots
 import { test, type Page } from '@playwright/test';
-import { pickPlane } from './util';
 const OUT = 'docs/panel-shots';
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 async function setup(page: Page, lang: string, mat: string) {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   await S(page, (l: string) => (window as any).__cutforge.store.getState().setLang(l), lang);
 }
 const shot = (page: Page, lang: string, name: string) => page.screenshot({ path: `${OUT}/${lang}-${name}.png` });
@@ -35,31 +34,30 @@ for (const lang of ['en', 'he']) {
     const { base, walls } = await box(page);
     await S(page, () => (window as any).__cutforge.setCamera([0, 230, 200], [0, 15, -10]));
     await page.waitForTimeout(400);
-    // milestone 29: a flat panel on a wall's inner face, as a ghost with its bar
+    // milestones 29, 42: a flat board on a wall's inner face, as a ghost while it is drawn (release makes it)
     await page.getByTestId('tool-panel').click();
+    await shot(page, lang, '42-rail-flyout-out');
     const back = walls[2];
     const a = await proj(page, back, 30, 12), b = await proj(page, back, 80, 36);
-    await pickPlane(page, a, 'flat');
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 6 });
-    await page.mouse.up();
     await page.waitForTimeout(250);
-    await shot(page, lang, '29-flat-on-wall-ghost-bar');
-    await page.getByTestId('ghost-ok').click();
-    // a standing partition from wall to wall (seen from above, so the line is drawn on the base)
+    await shot(page, lang, '29-flat-on-wall-ghost');
+    await page.mouse.up();
+    // a standing partition from wall to wall (seen from above, so the line is drawn on the base): perpendicular on, it is a divider
     await S(page, () => (window as any).__cutforge.setCamera([0, 320, 110], [0, 0, 0]));
     await page.waitForTimeout(300);
     await page.getByTestId('tool-panel').click();
+    await page.getByTestId('tool-panel-standing').click();
+    await shot(page, lang, '42-rail-flyout-pressed');
     const c = await proj(page, base, 3.8, 30), e = await proj(page, base, 116.2, 30);
-    await pickPlane(page, c, 'standing');
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();
     await page.mouse.move(e.x, e.y, { steps: 6 });
-    await page.mouse.up();
     await page.waitForTimeout(250);
     await shot(page, lang, '29-standing-partition-ghost');
-    await page.getByTestId('ghost-ok').click();
+    await page.mouse.up();
     await page.waitForTimeout(250);
     await S(page, () => (window as any).__cutforge.setCamera([0, 230, 200], [0, 15, -10]));
     await page.waitForTimeout(300);
