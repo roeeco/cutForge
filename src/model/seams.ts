@@ -565,9 +565,11 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     return g;
   }
 
-  if (c.kind === 'butt') {
+  // a butt corner is cut back below like a slide corner, with no clearance; on a face it is plain edges
+  const buttCorner = c.kind === 'butt' && !c.grown && c.b.edge !== FACE;
+  if (c.kind === 'butt' && !buttCorner) {
     // a closing seam left as plain edges: valid while the panels still meet
-    return faceFit(A, c.a.edge, B, tB, false, 2, undefined, false, tA) || (c.b.edge !== FACE && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
+    return faceFit(A, c.a.edge, B, tB, false, 2, undefined, false, tA) ? g : null;
   }
 
   if (c.kind === 'glue' && c.grown) return grownGlue(d, c, A, B);
@@ -579,7 +581,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   // tabs and flaps are the owner's material; slots and fit the receiver's
   const mO = matOf(d, owner), tO = mO.thickness, tR = tOf(d, receiver), clR = matOf(d, receiver).clearance;
   const fit = faceFit(O, edge, R, tR, !c.grown, 2, rng, !c.grown, tO);
-  if (!fit) return null;
+  // a butt corner the owner's edge does not stand against (edge to edge only): plain edges while they meet
+  if (!fit) return buttCorner && !rng && cornerFit(A, c.a.edge, B, c.b.edge) ? g : null;
   // a notched receiver: the joint is laid out on every stretch the owner edge still meets
   if (!rng && fit.runs.length > 1) return mergeGeoms(fit.runs.map((r) => connectionGeomOne(d, c, r)));
   if (!rng) {
@@ -590,8 +593,9 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   if (corner && c.kind === 'tabslot') return cornerTabs(d, c, O, edge, R, c.b.edge, fit);
   if (corner && c.kind === 'glue' && fit.m !== 0) return cornerGlue(d, c, O, edge, R, c.b.edge, fit);
 
-  if (c.kind === 'slide') {
-    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + clR }] });
+  if (c.kind === 'slide' || c.kind === 'butt') {
+    // the owner's wall stops at the other's face: a slide fit leaves the clearance, a butt joint none (BUGFIX_PLAN B7)
+    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + (c.kind === 'slide' ? clR : 0) }] });
     return g;
   }
 
