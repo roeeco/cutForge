@@ -1039,7 +1039,7 @@ Part 2: dividers, growing, the fold view, picking, fixes (`CURVED_WALLS.md` §4.
 Verified so far
 - `tests/bentWalls.test.ts` (+7, 17): a divider across a corrugated circle joined at both ends with slots inside the wall's outline, the export check clean; plywood dividers on a curved wall slide-fitted; pie compartments (a line across, one from the rim ending on it); growing on a run, refused from a bent wall, no fold-over; the fold slider's flat strip; the radius Fix on rounded corners and on a small circle; a round-base fuzzer (60 seeds: circles, ovals, stadiums, rounded rectangles in three materials with 0–2 dividers: every bent wall and divider joined, nothing broken, the export runs).
 - In the browser (a script): a rectangle dragged on the front of a curved wall lands at its flat place and size (30 × 20 at the middle); the fold slider unrolls the wall.
-- Unit suite: 596 pass.
+- Unit suite: 596 pass. Browser suite: 96 passed, 0 failed, 57 skipped.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
