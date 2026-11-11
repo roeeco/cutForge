@@ -139,6 +139,17 @@ const toRing = (pts: P2[]): [number, number][] => {
   return ccw.map((p) => [q(p.x), q(p.y)]);
 };
 
+/**
+ * Points closer than 1e-4 mm to the previous one are float noise (a fold strip's overlap on a sloped
+ * edge leaves 1e-8 .. 1e-5 mm segments after the union): they are dropped (BUGFIX_PLAN B12).
+ */
+function dropMicro(pts: P2[]): P2[] {
+  const out: P2[] = [];
+  for (const q of pts) if (!out.length || Math.hypot(q.x - out[out.length - 1].x, q.y - out[out.length - 1].y) >= 1e-4) out.push(q);
+  while (out.length > 3 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) < 1e-4) out.pop();
+  return out;
+}
+
 export function buildPieces(d: Design): Piece[] {
   return netGroups(d).flatMap((g) => groupPieces(d, g));
 }
@@ -239,7 +250,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {
-        const pts = cleanPolygon(ring.slice(0, ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1] ? -1 : undefined).map(([x, y]) => ({ x, y })));
+        const pts = cleanPolygon(dropMicro(ring.slice(0, ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1] ? -1 : undefined).map(([x, y]) => ({ x, y }))));
         if (pts.length < 3) return;
         out.push({ op: 'cut', role: ri === 0 ? 'outer' : 'hole', contour: polygonContour(pts), ref: { panelId: group[0].panelId } });
       });
