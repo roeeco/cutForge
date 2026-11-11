@@ -342,6 +342,8 @@ function sideTrims(d: Design, ghost: Panel, t: number): { e1: P2[]; e3: P2[] } {
     const mp = matDir(p.frame), tp = tOf(d, id);
     const du = v3dot(ghost.frame.u, mp);
     if (Math.abs(du) < 1e-9) continue; // rows run along it: the top trim's business
+    // a board square to the ghost's side (side walls holding a leaning panel) meets that side face-on: it is joined there, not trimmed
+    if (Math.abs(du) > 0.99) continue;
     // the board as cut (its joints' fingers reach into the corner column)
     // and as sketched (the export check's contacts go by the sketch): inside either is in the way
     const rings = [panelOutline(p, panelNotches(d, p)), sketchRing(p).map((e) => e.a)];

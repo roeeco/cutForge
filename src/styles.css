@@ -785,7 +785,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar .sep { display: none; }
 }
 /* Quick build's bar also holds the Ready badge and sheet meter: the ⋯ menu takes over sooner */
-@media (max-width: 1400px) {
+@media (max-width: 1380px) {
   .topbar:has(.ready-wrap) .tablet-hide { display: none !important; }
   .topbar:has(.ready-wrap) .tablet-only { display: inline-flex; }
 }
@@ -797,4 +797,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .brand { display: none; }
   .topbar:has(.ready-wrap) .mat-pill > svg { display: none; }
   .topbar:has(.ready-wrap) .design-name { width: 64px; }
+}
+@media (max-width: 1500px) {
+  .topbar:has(.ready-wrap) .mat-pill .mat-name { display: none; }
+  .topbar:has(.ready-wrap) .mat-pill { padding-inline-end: 8px; }
 }
