@@ -19,7 +19,7 @@ import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
-import { netOverlaps } from './pieces';
+import { netOverlaps, pieceRoot } from './pieces';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
@@ -44,11 +44,7 @@ export function validate(d: Design): Issue[] {
     if (!p || guides.has(id)) continue;
     // each board's own material: its web and its sheet
     const min = minWeb(d, id);
-    const pm = matOf(d, id);
     const notches = panelNotches(d, p);
-    const fitsW = Math.min(p.w, p.h) <= Math.min(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
-    const fitsL = Math.max(p.w, p.h) <= Math.max(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
-    if (!fitsW || !fitsL) issues.push({ key: 'val.tooBig', vars: { panel: p.name }, target: { kind: 'panel', id } });
     const fit = panelFit(d, p);
     const { own } = fit;
     // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
@@ -367,16 +363,33 @@ function sheetIssues(d: Design): Issue[] {
       const m = profileOf(d, pl[c.key].mat);
       return { c, sheet: `${pl[c.key].mat ?? ''}#${pl[c.key].sheet}`, W: m.sheetW, H: m.sheetH, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
     });
-  const name = (k: string) => d.panels[k]?.name ?? '?';
+  const name = (k: string) => d.panels[pieceRoot(k)]?.name ?? '?';
+  // a piece (its whole folded net) that cannot fit inside the margin, turned only where the grain allows (BUGFIX_PLAN B15)
+  const big = new Set<string>(), named = new Set<string>();
+  for (const c of copies) {
+    if (c.copy) continue;
+    const prof = profileOf(d, c.mat);
+    const W = prof.sheetW - 2 * d.sheetMargin, H = prof.sheetH - 2 * d.sheetMargin;
+    const fits0 = c.w <= W + 1e-6 && c.h <= H + 1e-6, fits90 = c.h <= W + 1e-6 && c.w <= H + 1e-6;
+    const canTurn = prof.grain === 'none' || !!d.allowRotate;
+    if (fits0 || (canTurn && fits90)) continue;
+    big.add(c.pieceKey);
+    const root = pieceRoot(c.pieceKey);
+    if (named.has(root)) continue;
+    named.add(root);
+    out.push({ key: fits90 ? 'val.tooBigGrain' : 'val.tooBig', vars: { panel: name(root) }, target: { kind: 'panel', id: root } });
+  }
+  // a piece outside its sheet or in its margin (BUGFIX_PLAN B16); one too big for the sheet is reported as that instead
+  const M = d.sheetMargin;
   for (const a of placed)
-    if (a.bb[0] < -1e-6 || a.bb[1] < -1e-6 || a.bb[2] > a.W + 1e-6 || a.bb[3] > a.H + 1e-6)
-      out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: a.c.pieceKey } });
+    if (!big.has(a.c.pieceKey) && (a.bb[0] < M - 1e-6 || a.bb[1] < M - 1e-6 || a.bb[2] > a.W - M + 1e-6 || a.bb[3] > a.H - M + 1e-6))
+      out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: pieceRoot(a.c.pieceKey) } });
   for (let i = 0; i < placed.length; i++)
     for (let j = i + 1; j < placed.length; j++) {
       const a = placed[i], b = placed[j];
       if (a.sheet !== b.sheet || a.bb[0] > b.bb[2] || b.bb[0] > a.bb[2] || a.bb[1] > b.bb[3] || b.bb[1] > a.bb[3]) continue;
       if (overlapArea(a.poly, b.poly) > 1e-3)
-        out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: b.c.pieceKey } });
+        out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: pieceRoot(b.c.pieceKey) } });
     }
   return out;
 }

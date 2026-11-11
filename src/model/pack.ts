@@ -101,12 +101,13 @@ function packOne(d: Design, mat: MaterialProfile, copies: PieceCopy[], matId: st
     if (x < m - 1e-9 || y < m - 1e-9 || x + w > sheetW - m + 1e-9 || y + h > sheetH - m + 1e-9) return false;
     return !occupied.some((r) => r.sheet === sheet && x < r.x1 + gap - 1e-9 && x + w > r.x0 - gap + 1e-9 && y < r.y1 + gap - 1e-9 && y + h > r.y0 - gap + 1e-9);
   };
-  let lastSheet = Math.max(0, ...occupied.map((r) => r.sheet));
+  // nothing placed yet: a piece that fits nowhere goes on sheet 0, not on a second sheet after an empty one (BUGFIX_PLAN B16)
+  let lastSheet = occupied.length ? Math.max(...occupied.map((r) => r.sheet)) : -1;
   for (const c of auto) {
     const orients: [number, number, 0 | 90][] = [[c.w, c.h, 0]];
     if (canRotate && Math.abs(c.w - c.h) > 1e-9) orients.push([c.h, c.w, 90]);
     let placed: SheetPlacement | null = null;
-    for (let sheet = 0; sheet <= lastSheet + 1 && !placed; sheet++) {
+    for (let sheet = 0; sheet <= Math.max(0, lastSheet + 1) && !placed; sheet++) {
       let best: { x: number; y: number; rot: 0 | 90; w: number; h: number } | null = null;
       for (const [w, h, rot] of orients) {
         // candidate corners: sheet corner, right of / below existing pieces (top-left fill)
