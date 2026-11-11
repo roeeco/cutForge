@@ -9,7 +9,7 @@ import { toLocal, toWorld } from './frame';
 import { tOf } from './materials';
 import { FLOOR_FRAME } from './place';
 import { movePanel, movePlaced, parentConnection, setDividerOffset, solve } from './ops';
-import { clearBox, spacedOffsets } from './dividers';
+import { dividerRow, setDividerPos, spacedOffsets } from './dividers';
 
 /** Where a group of boards lies: on the floor, or on one face of a host. */
 export type Surface = { kind: 'floor' } | { kind: 'face'; host: string; face: 1 | -1 };
@@ -105,41 +105,62 @@ export function distributePanels(d: Design, ids: string[], mode: DistributeMode)
 }
 
 /**
- * Dividers that can be distributed together: two or more grown at 90° from
- * the same edge of the same rectangular base (so they are parallel). Their
- * row: what bounds them (the clear inside, or the nearest other divider or
- * wall face on either side).
+ * Dividers that can be distributed together (milestone 44): two or more on one
+ * base, parallel. Their row: from the nearest board on the outer side of the
+ * first to the nearest on the outer side of the last (a wall, or another
+ * divider that is not among them), along their normal.
  */
-export function dividerGroup(d: Design, ids: string[]): { baseId: string; edge: string; lo: number; hi: number; t: number } | null {
+export function dividerGroup(d: Design, ids: string[]): { baseId: string; lo: number; hi: number; t: number; order: string[] } | null {
   if (ids.length < 2) return null;
-  const cs = ids.map((id) => parentConnection(d, id));
-  if (cs.some((c) => !c || c.offset <= 0.5 || Math.abs(c.angle - 90) > 1e-6 || c.dir !== 'up')) return null;
-  const base = cs[0]!.a.panelId, edge = cs[0]!.a.edge;
-  if (cs.some((c) => c!.a.panelId !== base || c!.a.edge !== edge)) return null;
-  const box = clearBox(d, base);
-  if (!box || (edge !== 'e0' && edge !== 'e3')) return null;
-  const t = tOf(d, ids[0]);
-  let [lo, hi] = edge === 'e3' ? [box.x0, box.x1] : [box.y0, box.y1];
-  const mine = cs.map((c) => c!.offset);
-  const min = Math.min(...mine), max = Math.max(...mine);
-  // the nearest other dividers from the same edge bound the row
-  for (const c of Object.values(d.connections)) {
-    if (!c.grown || c.a.panelId !== base || c.a.edge !== edge || ids.includes(c.b.panelId) || c.offset <= 0.5) continue;
-    if (c.offset + t <= min + 1e-6) lo = Math.max(lo, c.offset + t);
-    else if (c.offset >= max - 1e-6) hi = Math.min(hi, c.offset);
-  }
-  return { baseId: base, edge, lo, hi, t };
+  const rows = ids.map((id) => dividerRow(d, id));
+  if (rows.some((r) => !r)) return null;
+  const r0 = rows[0]!;
+  const n = r0.n;
+  // one base, parallel (their normals the same or opposite)
+  if (rows.some((r) => r!.baseId !== r0.baseId || Math.abs(r!.n.x * n.y - r!.n.y * n.x) > 0.02)) return null;
+  // positions along the first one's normal
+  const along = ids.map((id, k) => {
+    const r = rows[k]!;
+    const same = r.n.x * n.x + r.n.y * n.y > 0;
+    return { id, pos: same ? r.pos : -(r.pos + r.t) };
+  });
+  along.sort((a, b) => a.pos - b.pos);
+  const first = rows[ids.indexOf(along[0].id)]!, last = rows[ids.indexOf(along[along.length - 1].id)]!;
+  const sameF = first.n.x * n.x + first.n.y * n.y > 0, sameL = last.n.x * n.x + last.n.y * n.y > 0;
+  const t = r0.t;
+  // the nearest bound beyond the outermost ones: the row's wall, or a divider that is not being spaced
+  const below = (r: NonNullable<typeof first>, same: boolean) => {
+    let lo = same ? r.lo : -r.hi;
+    r.others.forEach((o, k) => {
+      if (ids.includes(r.otherIds[k])) return;
+      const end = same ? o + t : -o;
+      if (end <= (same ? r.pos : -(r.pos + t)) + 1e-6) lo = Math.max(lo, end);
+    });
+    return lo;
+  };
+  const above = (r: NonNullable<typeof first>, same: boolean) => {
+    let hi = same ? r.hi : -r.lo;
+    r.others.forEach((o, k) => {
+      if (ids.includes(r.otherIds[k])) return;
+      const start = same ? o : -(o + t);
+      if (start >= (same ? r.pos + t : -r.pos) - 1e-6) hi = Math.min(hi, start);
+    });
+    return hi;
+  };
+  return { baseId: r0.baseId, lo: below(first, sameF), hi: above(last, sameL), t, order: along.map((a) => a.id) };
 }
 
 /** Equal compartments for parallel dividers on one base, between their outermost neighbours. */
 export function distributeDividers(d: Design, ids: string[]): boolean {
   const g = dividerGroup(d, ids);
   if (!g) return false;
-  const sorted = [...ids].sort((a, b) => parentConnection(d, a)!.offset - parentConnection(d, b)!.offset);
-  const offs = spacedOffsets(g.lo, g.hi, sorted.length, g.t);
-  sorted.forEach((id, k) => {
-    const c = parentConnection(d, id)!;
-    c.offset = Math.round(offs[k] * 1000) / 1000;
+  const n0 = dividerRow(d, g.order[0])!.n;
+  const offs = spacedOffsets(g.lo, g.hi, g.order.length, g.t);
+  g.order.forEach((id, k) => {
+    const r = dividerRow(d, id)!;
+    const same = r.n.x * n0.x + r.n.y * n0.y > 0;
+    const pos = Math.round(offs[k] * 1000) / 1000;
+    setDividerPos(d, id, same ? pos : -(pos + g.t));
   });
   solve(d);
   return true;

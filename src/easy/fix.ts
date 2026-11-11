@@ -43,6 +43,9 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
     // what stands on the board keeps its place relative to it: dividers' offsets, boards placed on it
     for (const c of Object.values(d.connections)) if (c.grown && c.a.panelId === rootId && !c.trayId && c.offset > 0) c.offset *= f;
     for (const q of Object.values(d.panels)) if (q.place?.host === rootId) (q.place.x *= f), (q.place.y *= f);
+    // a divider keeps its place and reach in proportion (milestone 44)
+    for (const q of Object.values(d.panels))
+      if (q.divider && q.place?.host === rootId) q.divider = { ...q.divider, at: { x: q.divider.at.x * f, y: q.divider.at.y * f }, reach: [q.divider.reach[0] * f, q.divider.reach[1] * f] };
     setPanelSize(d, rootId, p.w * f, p.h * f);
     solve(d);
   }

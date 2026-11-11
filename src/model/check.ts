@@ -188,6 +188,16 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
     oneOf(pl.pose, ['flat', 'standing'] as const, `${w}.pose`);
     if (pl.side !== undefined && pl.side !== 1 && pl.side !== -1) fail(`${w}.side`, 'not 1 or -1');
   }
+  if (x.divider !== undefined) {
+    const dv = x.divider;
+    const w = `${where}.divider`;
+    if (!isObj(dv) || !isObj(x.place) || x.place.pose !== 'standing') fail(w, 'not a divider');
+    point(dv.at, `${w}.at`);
+    num(dv.rot, `${w}.rot`, { min: -1e6, max: 1e6 });
+    if (!Array.isArray(dv.reach) || dv.reach.length !== 2) fail(`${w}.reach`, 'not two numbers');
+    num(dv.reach[0], `${w}.reach[0]`, { max: 0 });
+    num(dv.reach[1], `${w}.reach[1]`, { min: 0 });
+  }
 }
 
 function edgeRef(r: unknown, where: string) {

@@ -114,6 +114,8 @@ export function flatOnHost(d: Design, a: string, b: string): boolean {
 export function dropToFloor(d: Design, p: Panel) {
   const pl = p.place;
   if (!pl) return;
+  // a divider without its base is a plain standing board (milestone 44)
+  delete p.divider;
   const f = p.frame;
   const fl = (w: V3) => toLocal(FLOOR_FRAME, [w[0], 0, w[2]]);
   // its direction along the floor: u, or v when u is nearly vertical

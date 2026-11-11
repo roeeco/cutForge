@@ -4,7 +4,7 @@
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DividerRec, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -12,13 +12,14 @@ import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
 import { DEFAULT_MATERIAL, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
-import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
+import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
+import { dividerSpan, isDivider, reconcileDividers, setDividerPos } from './dividers';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
-import { edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
+import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
 const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -56,6 +57,18 @@ export function parentConnection(d: Design, panelId: string): Connection | undef
 
 export function seatingOf(kind: ConnectionKind): Seating {
   return kind === 'finger' ? 'overlap' : 'onTop';
+}
+
+/**
+ * The joint holding a board to what it stands on: a grown board's own
+ * connection, or a standing board's (and a divider's) edge on its host's face.
+ */
+export function baseJointOf(d: Design, panelId: string): Connection | undefined {
+  const g = parentConnection(d, panelId);
+  if (g) return g;
+  const host = d.panels[panelId]?.place?.host;
+  if (!host) return undefined;
+  return Object.values(d.connections).find((c) => !c.grown && ((c.a.panelId === panelId && c.b.panelId === host && c.b.edge === FACE) || (c.b.panelId === panelId && c.a.panelId === host && c.a.edge === FACE)));
 }
 
 /** Use the preferred joint when it is allowed here, otherwise the default (first) one. */
@@ -142,6 +155,8 @@ function solveOnce(d: Design) {
     },
     (a, b) => Object.values(d.connections).find((x) => !x.grown && ((x.a.panelId === a && x.b.panelId === b) || (x.a.panelId === b && x.b.panelId === a)))?.kind,
   );
+  // dividers find their ends on the boards around them (milestone 44)
+  reconcileDividers(d);
   // placed panels (milestone 28) follow their host: hosts first, in the same pass as grown panels (a host may be grown)
   const placed = d.order.filter((id) => d.panels[id]?.place && !parentConnection(d, id));
   const derive = (id: string) => {
@@ -597,33 +612,87 @@ export function deleteConnection(d: Design, id: string) {
 
 /**
  * Add a divider standing on `baseId`, parallel to `edge`, `position` mm in
- * from it. All its connections are generated together: tabs into base slots
- * (plywood) or resting on the base (paper), ends into the walls, half-laps
- * with crossing dividers.
+ * from it (to its near face), reaching across the whole base. Its joints are
+ * made together: tabs into base slots (plywood) or resting on the base
+ * (paper), ends into the walls, half-laps with the dividers it crosses.
  */
 export function addDivider(d: Design, baseId: string, edge: EdgeArg, position: number, height: number): string | null {
+  const base = d.panels[baseId];
+  const key = ek(edge);
+  if (!base || !findEdge(base, key)) return null;
   const kind = dividerKind(d, baseId);
+  const offset = Math.max(0.5, position);
+  // where a divider grown from the edge would stand (as dividers were made before milestone 44)
+  const f = spanFrame(base, key, 90, 'up', tOf(d, baseId), seatingOf(kind), offset, null);
+  const L = edgeLength(base, key);
+  const t = tOf(d, baseId);
+  const ux = f.u[0] * base.frame.u[0] + f.u[1] * base.frame.u[1] + f.u[2] * base.frame.u[2], uy = f.u[0] * base.frame.v[0] + f.u[1] * base.frame.v[1] + f.u[2] * base.frame.v[2];
+  const rot = (Math.atan2(uy, ux) * 180) / Math.PI;
+  const mid = toLocalOf(base.frame, toWorldOfFrame(f, L / 2, 0, t / 2));
+  const r = Math.max(L / 4, L / 2 - 1);
+  return addDividerRec(d, baseId, { at: mid, rot, reach: [-r, r] }, height, f.side);
+}
+
+/**
+ * Make a divider from what was drawn (`rec`, base-local). Its ends are found
+ * by `solve`; then it is joined to everything it meets. Null when it cannot
+ * be laid out (its anchor is off the base, or it would be too short).
+ */
+export function addDividerRec(d: Design, baseId: string, rec: DividerRec, height: number, side: 1 | -1 = 1): string | null {
+  const base = d.panels[baseId];
+  if (!base) return null;
+  const t = tOf(d, baseId);
+  const before = new Set(d.order.filter((x) => isDivider(d.panels[x]) && d.panels[x].place?.host === baseId));
+  if (!dividerSpan(d, baseId, rec, t, side, before)) return null;
   const nets = netState(d);
-  const r = growPanel(d, baseId, edge, { height, angle: 90, dir: 'up', kind, offset: Math.max(0.5, position) });
-  if (!r) return null;
-  dividerFallBack(d, r.panelId, nets);
-  connectSeams(d, r.panelId);
-  return r.panelId;
+  const id = newId('p');
+  const h = Math.max(MIN_PANEL, height);
+  d.panels[id] = {
+    id,
+    name: `${d.order.length + 1}`,
+    w: MIN_PANEL,
+    h,
+    sketch: rectSketch(MIN_PANEL, h),
+    frame: base.frame,
+    details: [],
+    place: { host: baseId, face: 1, x: rec.at.x, y: rec.at.y, rot: rec.rot, pose: 'standing', side },
+    divider: { at: { x: rec.at.x, y: rec.at.y }, rot: rec.rot, reach: [Math.min(0, rec.reach[0]), Math.max(0, rec.reach[1])] },
+    // a divider takes its base's material
+    ...(base.material ? { material: base.material } : {}),
+  };
+  d.order.push(id);
+  d.pieces[id] = { quantity: 1 };
+  solve(d);
+  connectSeams(d, id);
+  dividerFallBack(d, id, nets);
+  return id;
+}
+
+/** A divider along the line a → b drawn on a base (base-local): its middle, direction and reach. */
+export function dividerFromLine(a: P2, b: P2): DividerRec {
+  const L = Math.hypot(b.x - a.x, b.y - a.y);
+  return { at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, rot: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI, reach: [-L / 2, L / 2] };
+}
+
+/** Make a divider along a line drawn on a base (base-local). */
+export function addDividerLine(d: Design, baseId: string, a: P2, b: P2, height: number): string | null {
+  return addDividerRec(d, baseId, dividerFromLine(a, b), height);
 }
 
 /** A divider's joint with its base: the next kind along FACE_ORDER while it cannot be made. */
 function dividerFallBack(d: Design, panelId: string, nets?: string) {
-  const c = parentConnection(d, panelId);
-  if (!c) return;
-  const m = matOf(d, c.a.panelId);
+  const baseId = d.panels[panelId]?.place?.host;
+  const c = baseJointOf(d, panelId);
+  if (!baseId || !c) return;
+  const m = matOf(d, baseId);
   fallBack(d, c.id, connectionsFor(m, 90).filter((k) => seamKinds(m, 'face').includes(k)), nets);
 }
 
 /** A face picked on the stage: the panel, which face (1: its material side, z = t; −1: its plane, z = 0), and the world point clicked. */
 export type FacePick = { panelId: string; side: 1 | -1; point: [number, number, number] };
 export type BetweenPlan =
-  | { ok: true; baseId: string; edge: string; offset: number; height: number }
-  | { ok: false; reason: 'notParallel' | 'notFacing' | 'notSameBase' | 'noEdge' | 'tooClose' | 'tooShort' };
+  | { ok: true; baseId: string; rec: DividerRec; height: number }
+  | { ok: false; reason: 'notParallel' | 'notFacing' | 'notSameBase' | 'tooClose' };
 
 /** Gap between a divider's top and the lower of the two walls it is made between (mm). */
 export const DIVIDER_GAP = 5;
@@ -637,7 +706,9 @@ export const DIVIDER_GAP = 5;
 export function planDividerBetween(d: Design, a: FacePick, b: FacePick): BetweenPlan {
   const A = d.panels[a.panelId], B = d.panels[b.panelId];
   if (!A || !B || A.id === B.id) return { ok: false, reason: 'notFacing' };
-  const t = tOf(d, parentConnection(d, A.id)?.a.panelId ?? A.id);
+  // what a board stands on: its parent, or its host (a divider, a standing board)
+  const baseOf = (p: Panel) => parentConnection(d, p.id)?.a.panelId ?? (p.place?.pose === 'standing' ? p.place.host : null) ?? null;
+  const t = tOf(d, baseOf(A) ?? A.id);
   const out = (p: Panel, side: 1 | -1) => {
     const m = matDirOf(p.frame);
     return [m[0] * side, m[1] * side, m[2] * side] as [number, number, number];
@@ -647,32 +718,22 @@ export function planDividerBetween(d: Design, a: FacePick, b: FacePick): Between
   if (Math.abs(dot) < Math.cos(Math.PI / 180)) return { ok: false, reason: 'notParallel' };
   const ab = [b.point[0] - a.point[0], b.point[1] - a.point[1], b.point[2] - a.point[2]];
   if (dot > 0 || ab[0] * nA[0] + ab[1] * nA[1] + ab[2] * nA[2] <= 1e-6) return { ok: false, reason: 'notFacing' };
-  const ca = parentConnection(d, A.id), cb = parentConnection(d, B.id);
-  if (!ca || !cb || ca.a.panelId !== cb.a.panelId) return { ok: false, reason: 'notSameBase' };
-  const base = d.panels[ca.a.panelId];
-  // a base edge running along the faces' normal
+  const ba = baseOf(A), bb = baseOf(B);
+  if (!ba || ba !== bb) return { ok: false, reason: 'notSameBase' };
+  const base = d.panels[ba];
+  // the faces' normal along the base (they must stand on it, square to it)
   const nl = { x: nA[0] * base.frame.u[0] + nA[1] * base.frame.u[1] + nA[2] * base.frame.u[2], y: nA[0] * base.frame.v[0] + nA[1] * base.frame.v[1] + nA[2] * base.frame.v[2] };
   const ll = Math.hypot(nl.x, nl.y);
   if (ll < 0.99) return { ok: false, reason: 'notParallel' };
-  const q = (() => {
-    const o = base.frame.o;
-    const r = [b.point[0] - o[0], b.point[1] - o[1], b.point[2] - o[2]];
-    return { x: r[0] * base.frame.u[0] + r[1] * base.frame.u[1] + r[2] * base.frame.u[2], y: r[0] * base.frame.v[0] + r[1] * base.frame.v[1] + r[2] * base.frame.v[2] };
-  })();
-  let best: { key: string; off: number; len: number } | null = null;
-  for (const e of panelEdgesOf(base)) {
-    const dir = segDir(e);
-    if (Math.abs(dir.x * nl.x + dir.y * nl.y) / ll < Math.cos(Math.PI / 180)) continue;
-    const inw = { x: -dir.y, y: dir.x };
-    const off = (q.x - e.a.x) * inw.x + (q.y - e.a.y) * inw.y - t / 2;
-    if (off <= 0) continue;
-    if (!best || off < best.off) best = { key: e.key, off, len: segLength(e) };
-  }
-  if (!best) return { ok: false, reason: 'noEdge' };
-  // the divider is as long as that edge: one shorter than the gap (an octagon's side) would reach neither wall (BUGFIX_PLAN B11)
   const gap = ab[0] * nA[0] + ab[1] * nA[1] + ab[2] * nA[2];
-  if (best.len < gap - 1) return { ok: false, reason: 'tooShort' };
-  if (best.off < 1) return { ok: false, reason: 'tooClose' };
+  if (gap < t + 2) return { ok: false, reason: 'tooClose' };
+  // the divider runs square to both faces through the second pick, halfway between them (milestone 44: its ends find the walls)
+  const pb = toLocalOf(base.frame, b.point);
+  const at = { x: pb.x - (nl.x / ll) * (gap / 2), y: pb.y - (nl.y / ll) * (gap / 2) };
+  const rot = (Math.atan2(nl.y, nl.x) * 180) / Math.PI;
+  // reaching almost to both picked faces: dividers between them are crossed
+  const r = Math.max(0.5, gap / 2 - 0.5);
+  const rec: DividerRec = { at, rot, reach: [-r, r] };
   // the lower wall's top, above the base's top face
   const top = (p: Panel) => {
     const m = matDirOf(base.frame);
@@ -685,7 +746,11 @@ export function planDividerBetween(d: Design, a: FacePick, b: FacePick): Between
   };
   const height = Math.round(Math.min(top(A), top(B)) - t - DIVIDER_GAP);
   if (height < MIN_PANEL) return { ok: false, reason: 'tooClose' };
-  return { ok: true, baseId: base.id, edge: best.key, offset: Math.round(best.off * 10) / 10, height };
+  // it must reach both: its ends are the two picked boards
+  const before = new Set(d.order.filter((x) => isDivider(d.panels[x]) && d.panels[x].place?.host === base.id));
+  const sp = dividerSpan(d, base.id, rec, t, 1, before);
+  if (!sp || !sp.ends.every((e) => e.board === A.id || e.board === B.id)) return { ok: false, reason: 'notFacing' };
+  return { ok: true, baseId: base.id, rec, height };
 }
 
 /**
@@ -743,20 +808,12 @@ export function addDividerFor(d: Design, aId: string, bId: string): string | nul
 export function addDividerBetween(d: Design, a: FacePick, b: FacePick): string | null {
   const plan = planDividerBetween(d, a, b);
   if (!plan.ok) return null;
-  const kind = dividerKind(d, plan.baseId);
-  const nets = netState(d);
-  const r = growPanel(d, plan.baseId, plan.edge, { height: plan.height, angle: 90, dir: 'up', kind, offset: plan.offset });
-  if (!r) return null;
-  dividerFallBack(d, r.panelId, nets);
-  connectSeams(d, r.panelId);
-  return r.panelId;
+  return addDividerRec(d, plan.baseId, plan.rec, plan.height);
 }
 
-/** Move a divider (a panel grown at an offset) to a new offset from its parent edge. */
-export function setDividerOffset(d: Design, panelId: string, offset: number) {
-  const c = parentConnection(d, panelId);
-  if (!c) return;
-  c.offset = Math.max(0.5, offset);
+/** Move a divider along its normal so its slab starts at `pos` (milestone 44: `dividerRow` measures it). */
+export function setDividerOffset(d: Design, panelId: string, pos: number) {
+  setDividerPos(d, panelId, pos);
   solve(d);
 }
 
@@ -983,10 +1040,15 @@ export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
 
 /** Move a placed panel in its host's plane (host-local mm). */
 export function movePlaced(d: Design, panelId: string, dx: number, dy: number) {
-  const pl = d.panels[panelId]?.place;
+  const p = d.panels[panelId];
+  const pl = p?.place;
   if (!pl) return;
-  pl.x += dx;
-  pl.y += dy;
+  // a divider moves the line it was drawn as; its ends are found again (milestone 44)
+  if (p.divider) p.divider = { ...p.divider, at: { x: p.divider.at.x + dx, y: p.divider.at.y + dy } };
+  else {
+    pl.x += dx;
+    pl.y += dy;
+  }
   solve(d);
 }
 
@@ -1003,10 +1065,18 @@ export function rotatePlaced(d: Design, panelId: string, deg: number, pivot?: P2
   const p = d.panels[panelId];
   const pl = p?.place;
   if (!p || !pl || !deg) return;
-  const piv = pivot ?? placedCentre(p);
   const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
-  const x = pl.x - piv.x, y = pl.y - piv.y;
   const clean = (v: number) => Math.round(v * 1e9) / 1e9;
+  if (p.divider) {
+    // a divider turns the line it was drawn as, about its middle (milestone 44)
+    const piv = pivot ?? p.divider.at;
+    const x = p.divider.at.x - piv.x, y = p.divider.at.y - piv.y;
+    p.divider = { ...p.divider, at: { x: clean(piv.x + x * c - y * s), y: clean(piv.y + x * s + y * c) }, rot: normDeg(p.divider.rot + deg) };
+    solve(d);
+    return;
+  }
+  const piv = pivot ?? placedCentre(p);
+  const x = pl.x - piv.x, y = pl.y - piv.y;
   pl.x = clean(piv.x + x * c - y * s);
   pl.y = clean(piv.y + x * s + y * c);
   pl.rot = normDeg(pl.rot + deg);
@@ -1373,6 +1443,8 @@ export function deletePanel(d: Design, panelId: string) {
     tray.openEdges = [...new Set([...tray.openEdges, key])];
   }
   for (const t of Object.values(d.trays ?? {})) if (t.baseId === panelId) delete d.trays[t.id];
+  // its dividers go with it (milestone 44)
+  for (const id of hostedOn(d, panelId)) if (d.panels[id]?.divider) removePanelRecord(d, id);
   // panels placed on it drop to the floor where they are (milestone 28); its joints, quantity and placements go
   removePanelRecord(d, panelId);
   solve(d);
@@ -1653,6 +1725,8 @@ export function flipPlacedSide(d: Design, panelId: string) {
 export function setPlacedPose(d: Design, panelId: string, pose: 'flat' | 'standing') {
   const p = d.panels[panelId];
   if (!p?.place || p.place.pose === pose) return;
+  // laid flat, a divider is a plain board
+  if (pose === 'flat') delete p.divider;
   p.place = { ...p.place, pose, ...(pose === 'standing' ? { side: p.place.side ?? 1 } : {}) };
   if (pose === 'flat') delete p.place.side;
   // a flat panel is not joined to its host

@@ -7,7 +7,6 @@ import {
   autoConnect,
   createDesign,
   growPanel,
-  parentConnection,
   planDividerBetween,
   planDividerFor,
   solve,
@@ -52,9 +51,10 @@ describe('+ Divider between two selected walls (milestone 32)', () => {
       expect(conns(d, div, left).filter((c) => !c.broken)).toHaveLength(1);
       expect(conns(d, div, right).filter((c) => !c.broken)).toHaveLength(1);
       // halfway along the walls (the box is 110 deep): its mid-plane at 55 from the front edge
-      const c = parentConnection(d, div)!;
-      expect(['e0', 'e2']).toContain(c.a.edge);
-      expect(c.offset + m.thickness / 2).toBeCloseTo(55, 0);
+      // milestone 44: a divider is a line on the base, here along the front edge
+      const rec = d.panels[div].divider!;
+      expect(Math.abs(Math.sin((rec.rot * Math.PI) / 180))).toBeLessThan(1e-9);
+      expect(rec.at.y).toBeCloseTo(55, 0);
       // the lower wall's top less the gap (the walls stand on the base or overlap it)
       const top = Math.max(...[0, d.panels[left].h].map((y) => toWorld(d.panels[left].frame, 0, y)[1]));
       expect(toWorld(d.panels[div].frame, 0, d.panels[div].h)[1]).toBeLessThanOrEqual(top - 4);
@@ -133,8 +133,7 @@ describe('a divider between two faces', () => {
       expect(conns(d, div, left).filter((c) => !c.broken)).toHaveLength(1);
       expect(conns(d, div, right).filter((c) => !c.broken)).toHaveLength(1);
       // square to both walls (from the front or back edge), its mid-plane through the second click
-      const c = parentConnection(d, div)!;
-      expect(['e0', 'e2']).toContain(c.a.edge);
+      expect(Math.abs(Math.sin((d.panels[div].divider!.rot * Math.PI) / 180))).toBeLessThan(1e-9);
       const P = d.panels[div];
       const mid = toWorld(P.frame, 0, 0, m.thickness / 2);
       const n = [P.frame.u[1] * P.frame.v[2] - P.frame.u[2] * P.frame.v[1], P.frame.u[2] * P.frame.v[0] - P.frame.u[0] * P.frame.v[2], P.frame.u[0] * P.frame.v[1] - P.frame.u[1] * P.frame.v[0]];

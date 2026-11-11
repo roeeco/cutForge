@@ -130,9 +130,8 @@ function grownFromTop(d: Design, walls: string[]): boolean {
 export function hasDivider(d: Design): boolean {
   const b = tourBase(d), w = tourWalls(d);
   if (!b || !w) return false;
-  return Object.values(d.connections).some((c) => {
-    if (!c.grown || c.a.panelId !== b || !standsOnFace(d, c)) return false;
-    const id = c.b.panelId;
+  return d.order.some((id) => {
+    if (d.panels[id]?.place?.host !== b || !d.panels[id].divider) return false;
     const ends = Object.values(d.connections).filter((x) => !x.grown && ((x.a.panelId === id && w.all.includes(x.b.panelId)) || (x.b.panelId === id && w.all.includes(x.a.panelId))));
     return new Set(ends.map((x) => (x.a.panelId === id ? x.b.panelId : x.a.panelId))).size >= 2;
   });

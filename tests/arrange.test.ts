@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { addDivider, addPlacedPanel, addRootPanel, createDesign, growPanel, parentConnection } from '../src/model/ops';
 import { MATERIALS, tOf } from '../src/model/materials';
 import { alignPanels, commonPlane, distributeDividers, distributePanels } from '../src/model/arrange';
+import { dividerRow } from '../src/model/dividers';
 import { toWorld } from '../src/model/frame';
 import type { Design } from '../src/model/types';
 
@@ -54,7 +55,8 @@ describe('dividers', () => {
     const ids = [20, 35, 120].map((x) => addDivider(d, b, 3, x, 40)!);
     expect(distributeDividers(d, ids)).toBe(true);
     const t = tOf(d, b);
-    const offs = ids.map((id) => parentConnection(d, id)!.offset).sort((x, y) => x - y);
+    // where each slab starts along the row (milestone 44: dividers measure their place along their normal)
+    const offs = ids.map((id) => dividerRow(d, id)!.pos).sort((x, y) => x - y);
     // the clear inside runs from the left wall's inner face (t) to the right wall's (160 − t)
     const gaps = [offs[0] - t, offs[1] - offs[0] - t, offs[2] - offs[1] - t, 160 - t - offs[2] - t];
     for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 3);

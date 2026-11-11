@@ -35,7 +35,7 @@ import { FLOOR_FRAME, faceOut } from '../model/place';
 import { panelLabel } from '../model/names';
 import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
-import { clearBox, snapDividerOffset } from '../model/dividers';
+import { dividerAxes, dividerRow, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
 import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
@@ -723,7 +723,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
       {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
-      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && !selLocked && (
+      {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
       {multi && tool === 'select' && !folded && !jointsOn && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
@@ -2095,81 +2095,60 @@ function isWallLike(d: Design, id: string): boolean {
   return !!c && Math.abs(c.angle - 90) < 1e-6 && !parentConnection(d, c.a.panelId);
 }
 
-/** A divider: a panel standing at 90° on a floor panel, some way in from the edge it was grown from. */
-function isDivider(d: Design, id: string): Connection | null {
-  const c = parentConnection(d, id);
-  if (!c || c.offset <= 0.5 || Math.abs(c.angle - 90) > 1e-6 || c.dir !== 'up' || parentConnection(d, c.a.panelId)) return null;
-  return c;
-}
-
-/** Slabs standing on the same base parallel to a divider (other dividers from the same edge), and the clear limits, along the divider's axis. */
-function dividerRow(d: Design, c: Connection): { lo: number; hi: number; others: number[] } | null {
-  const box = clearBox(d, c.a.panelId);
-  if (!box || (c.a.edge !== 'e0' && c.a.edge !== 'e3')) return null;
-  const [lo, hi] = c.a.edge === 'e3' ? [box.x0, box.x1] : [box.y0, box.y1];
-  const others = Object.values(d.connections)
-    .filter((x) => x.grown && x.a.panelId === c.a.panelId && x.a.edge === c.a.edge && x.id !== c.id && isDivider(d, x.b.panelId))
-    .map((x) => x.offset);
-  return { lo, hi, others };
-}
-
 /**
- * A selected divider: a slide arrow on its face (along its normal) that moves
- * it, snapping to even spacing, and the compartment sizes along its row (the
- * two next to it can be typed). Dragging a divider of an automatic set takes
- * it out of the set.
+ * A selected divider (milestone 44): a slide arrow on its face (along its
+ * normal) that moves it, snapping to even spacing in its row, and the
+ * compartment sizes along the row (the two next to it can be typed). Its
+ * ends find the boards around it again as it moves.
  */
 function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
   const tt = useT();
-  const c = isDivider(d, id);
   const p = d.panels[id];
   const st = useStore.getState;
-  const drag = useRef<{ from: string; to: string } | null>(null);
-  if (!c || !p) return null;
-  const base = d.panels[c.a.panelId];
-  const th = tOf(d, p.id);
-  const row = dividerRow(d, c);
-  const axis = Wdir(m, inwardWorld(base, c.a.edge));
-  // on the face, low and in the middle: clear of the height arrow (top), the hinge knob and the compartment labels (above the top)
+  const row = dividerRow(d, id);
+  const ax = dividerAxes(d, id);
+  if (!p?.divider || !row || !ax) return null;
+  const base = d.panels[row.baseId];
+  if (!base) return null;
+  const th = row.t;
+  // positions relative to the row's start, so the arrow's value stays positive
+  const rel = { lo: 0, hi: row.hi - row.lo, others: row.others.map((o) => o - row.lo) };
+  const pos = row.pos - row.lo;
+  const axis = Wdir(m, [base.frame.u[0] * row.n.x + base.frame.v[0] * row.n.y, base.frame.u[1] * row.n.x + base.frame.v[1] * row.n.y, base.frame.u[2] * row.n.x + base.frame.v[2] * row.n.y]);
+  // on the face, low and in the middle: clear of the height arrow (top) and the compartment labels (above the top)
   const at = W(m, p.frame, p.w / 2, p.h * 0.3, th / 2);
   const move = (v: number, snapIt: boolean) => {
-    drag.current ??= { from: id, to: id };
-    const off = row && snapIt ? (snapDividerOffset(row, v, th, tolAt(at)) ?? v) : v;
-    st().preview((x) => setDividerOffset(x, id, off));
+    const off = snapIt ? (snapDividerOffset(rel, v, th, tolAt(at)) ?? v) : v;
+    st().preview((x) => setDividerOffset(x, id, off + row.lo));
   };
   // compartments along the row, labelled at the dividers' top
   const labels: { mid: number; size: number; side: 'left' | 'right' | null }[] = [];
-  if (row) {
-    const slabs = [...row.others, c.offset].sort((a, b) => a - b);
-    let cur = row.lo;
-    for (const o of [...slabs, null]) {
-      const end = o === null ? row.hi : o;
-      if (end - cur > 0.5) labels.push({ mid: (cur + end) / 2, size: end - cur, side: o === c.offset ? 'left' : cur === c.offset + th ? 'right' : null });
-      if (o !== null) cur = o + th;
-    }
+  const slabs = [...rel.others, pos].sort((a, b) => a - b);
+  let cur = 0;
+  for (const o of [...slabs, null]) {
+    const end = o === null ? rel.hi : o;
+    if (end - cur > 0.5) labels.push({ mid: (cur + end) / 2, size: end - cur, side: o === pos ? 'left' : Math.abs(cur - (pos + th)) < 1e-9 ? 'right' : null });
+    if (o !== null) cur = o + th;
   }
+  // towards one end of the divider, clear of the slide arrow (middle)
+  const a0 = p.divider.at;
+  const span = p.w;
+  const s = span * 0.32;
   const labelAt = (mid: number): V3 => {
-    const e = findEdge(base, c.a.edge)!;
-    const inw = segInward(e), dir = segDir(e);
-    // towards the far end of the row, clear of the hinge knob (20%) and the height arrow (middle)
-    const along = segLength(e) * 0.82;
-    const x = e.a.x + dir.x * along + inw.x * mid, y = e.a.y + dir.y * along + inw.y * mid;
-    return W(m, base.frame, x, y, th + p.h + 6);
+    const q = { x: a0.x + ax.dir.x * s, y: a0.y + ax.dir.y * s };
+    const k = row.lo + mid - (q.x * row.n.x + q.y * row.n.y);
+    return W(m, base.frame, q.x + row.n.x * k, q.y + row.n.y * k, th + p.h + 6);
   };
   return (
     <>
       <PushPull
         at={at}
         axis={axis}
-        value={c.offset}
-        min={1}
+        value={pos}
+        min={0.5}
         onPreview={(v) => move(v, true)}
-        onCommit={() => {
-          drag.current = null;
-          st().commit();
-        }}
+        onCommit={() => st().commit()}
         onCancel={() => {
-          drag.current = null;
           st().cancel();
           st().select({ kind: 'panel', id });
         }}
@@ -2189,7 +2168,6 @@ function DividerSlide({ d, id, m, tolAt }: { d: Design; id: string; m: THREE.Mat
               ? (v) => {
                   const off = l.side === 'left' ? l.mid - l.size / 2 + v : l.mid + l.size / 2 - v - th;
                   move(off, false);
-                  drag.current = null;
                   st().commit();
                 }
               : undefined

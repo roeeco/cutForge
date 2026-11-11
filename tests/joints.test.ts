@@ -1,6 +1,7 @@
+import { dividerRow } from '../src/model/dividers';
 import { describe, expect, it } from 'vitest';
 import { SCHEMA_VERSION } from '../src/model/types';
-import { addDivider, addRootPanel, addSideWalls, connectSeams, createDesign, deletePanel, growPanel, hasSideWalls, leanSupported, movePanel, setConnection, setMaterial, setPanelSize, solve } from '../src/model/ops';
+import { addDivider, addRootPanel, addSideWalls, connectSeams, createDesign, deletePanel, growPanel, hasSideWalls, leanSupported, movePanel, setConnection, setMaterial, setPanelSize, solve, setDividerOffset } from '../src/model/ops';
 import { MATERIALS, connectionsFor } from '../src/model/materials';
 import { findOpenSeams } from '../src/model/seams';
 import { panelExtras, panelNotches } from '../src/model/geometry';
@@ -216,10 +217,10 @@ describe('dividers and half-laps', () => {
 
   it('half-laps and slots follow a divider when it moves', () => {
     const { d, a } = organiser();
-    const grown = Object.values(d.connections).find((c) => c.grown && c.b.panelId === a)!;
     const hl = Object.values(d.connections).find((c) => c.kind === 'halflap')!;
     const before = JSON.stringify(hl.geom);
-    setConnection(d, grown.id, { offset: 25 });
+    // move it 15 mm along its normal (milestone 44: a divider is placed by its line)
+    setDividerOffset(d, a, dividerRow(d, a)!.pos + 15);
     expect(JSON.stringify(d.connections[hl.id].geom)).not.toBe(before);
     expect(d.connections[hl.id].broken).toBe(false);
     expect(validate(d)).toEqual([]);
@@ -227,8 +228,8 @@ describe('dividers and half-laps', () => {
   });
 
   it('corrugated dividers are held by tabs in slots in the walls (an edge on a face: tabs and slots first)', () => {
-    const { d, walls, a } = organiser(CORR);
-    const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap');
+    const { d, walls, a, base } = organiser(CORR);
+    const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap' && c.b.panelId !== base);
     expect(ends.map((c) => c.kind)).toEqual(['tabslot', 'tabslot']);
     // the slots are in the walls, with a web around them
     const slots = ends.flatMap((c) => c.geom!.holes).filter((h) => walls.includes(h.panelId));

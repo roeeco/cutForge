@@ -1,4 +1,5 @@
 // Quick build's actions (milestone 38): each recipe makes what the same steps make in Workshop.
+import { toWorld } from '../src/model/frame';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { useStore } from '../src/store/store';
 import { addDetail, addDividerFor, autoConnect, growPanel, addPathShape, addPolygonPanel, addRootPanel, addTray, createDesign, parentConnection, regularPolygon, setMaterial, solve } from '../src/model/ops';
@@ -102,9 +103,10 @@ describe('Divider', () => {
     const plan = planDividerLine(d, base, { x: 40, y: 2 }, { x: 40, y: 88 });
     expect(plan?.kind).toBe('divider');
     const r = dividerLine(d, base, { x: 40, y: 2 }, { x: 40, y: 88 })!;
-    const c = parentConnection(d, r.id)!;
-    // from the left edge (or the right one, by the base's edge order): the slab centred on the line
-    expect([c.offset, 120 - c.offset - t]).toContainEqual(expect.closeTo(40 - t / 2, 0));
+    // the slab centred on the line (milestone 44: a divider stands where it was drawn)
+    expect(d.panels[r.id].divider!.at.x).toBeCloseTo(40, 6);
+    const xs = [0, d.panels[r.id].w].map((x) => toWorld(d.panels[r.id].frame, x, 0, t / 2)[0]);
+    for (const x of xs) expect(x).toBeCloseTo(d.panels[base].frame.o[0] + 40, 6);
     // the compartments either side
     if (plan?.kind === 'divider' && plan.gaps) expect(plan.gaps[0] + plan.gaps[1] + t).toBeCloseTo(120 - 2 * t, 0);
   });
