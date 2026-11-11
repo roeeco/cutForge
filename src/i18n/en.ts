@@ -308,6 +308,7 @@ export const en = {
   'teach.batchDxf': "Download batch DXF",
   'teach.mixed': "These submissions use different materials or thicknesses, so they cannot share a sheet. Select only one material.",
   'teach.batchReady': "{n} sheet(s) with {p} pieces. Names are on the green guide layer (turn its output off in LightBurn).",
+  'teach.batchKerf': "Cut with the first selected student's material settings: kerf {kerf} mm.",
   'teach.select': "Select",
   'teach.selectedN': "{n} selected",
   'teach.retention': "Submissions are kept until you delete them or the class.",

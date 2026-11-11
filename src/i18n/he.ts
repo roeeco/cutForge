@@ -310,6 +310,7 @@ export const he: Record<MsgKey, string> = {
   'teach.batchDxf': "הורדת DXF משותף",
   'teach.mixed': "ההגשות האלה בחומרים או בעוביים שונים, ולכן אי אפשר לשים אותן על אותו גיליון. בחרו חומר אחד בלבד.",
   'teach.batchReady': "{n} גיליונות עם {p} חלקים. השמות בשכבת העזר הירוקה (כבו את הפלט שלה ב־LightBurn).",
+  'teach.batchKerf': "נחתך לפי הגדרות החומר של התלמיד הראשון שנבחר: רוחב חיתוך {kerf} מ\"מ.",
   'teach.select': "בחירה",
   'teach.selectedN': "נבחרו {n}",
   'teach.retention': "ההגשות נשמרות עד שתמחקו אותן או את הכיתה.",

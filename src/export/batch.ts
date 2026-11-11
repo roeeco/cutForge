@@ -15,16 +15,29 @@ export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[]; skippe
 
 export const sameMaterial = (a: Design, b: Design) => a.material.kind === b.material.kind && Math.abs(a.material.thickness - b.material.thickness) < 1e-6;
 
-/** Name label, or initials when the name does not fit the piece. */
+/** The smallest label text worth drawing (mm); a piece too small for it gets none (BUGFIX_PLAN B21). */
+const MIN_LABEL = 1;
+
+/** Name label, or initials when the name does not fit the piece, scaled to fit it both ways (or none). */
 function label(text: string, w: number, h: number): TaggedContour[] {
-  const size = Math.max(2, Math.min(5, h / 4));
+  let size = Math.min(5, h / 4);
+  if (size < MIN_LABEL) return [];
   let o = outlineText(text, 'rubik', size);
   if (o && o.maxX - o.minX > w * 0.8) {
-    const initials = text.split(/\s+/).filter(Boolean).map((s) => [...s][0]).join('');
-    o = outlineText(initials, 'rubik', size);
+    text = text.split(/\s+/).filter(Boolean).map((s) => [...s][0]).join('');
+    o = outlineText(text, 'rubik', size);
   }
-  if (!o || o.maxX - o.minX > w * 0.9) return [];
-  return o.polys.map((p) => ({ op: 'guide' as const, role: 'line' as const, contour: polygonContour(p.map((q) => ({ x: q.x + w / 2, y: q.y + h / 2 }))) }));
+  if (!o) return [];
+  const f = Math.min(1, (w * 0.8) / Math.max(1e-9, o.maxX - o.minX), (h * 0.8) / Math.max(1e-9, o.maxY - o.minY));
+  if (f < 1) {
+    size *= f;
+    if (size < MIN_LABEL) return [];
+    o = outlineText(text, 'rubik', size);
+    if (!o) return [];
+  }
+  // centred on the piece
+  const cx = (o.minX + o.maxX) / 2, cy = (o.minY + o.maxY) / 2;
+  return o.polys.map((p) => ({ op: 'guide' as const, role: 'line' as const, contour: polygonContour(p.map((q) => ({ x: q.x - cx + w / 2, y: q.y - cy + h / 2 }))) }));
 }
 
 export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'): BatchResult {
@@ -38,7 +51,10 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
   const skipped: string[] = [];
   const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) => {
     try {
-      return pieceCopies(it.design).map((c) => ({ ...c, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label }));
+      // the batch accepts each design's working material as the first's (same kind and thickness): its
+      // pieces go on the shared sheets, cut with the first design's profile (BUGFIX_PLAN B20)
+      const own = it.design.material.id;
+      return pieceCopies(it.design).map((c) => ({ ...c, mat: c.mat === own ? first.material.id : c.mat, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label }));
     } catch {
       skipped.push(it.id);
       return [];

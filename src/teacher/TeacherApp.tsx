@@ -274,7 +274,7 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
   const [history, setHistory] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [batch, setBatch] = useState<{ sheets: PreparedSheet[]; pieces: number } | null>(null);
+  const [batch, setBatch] = useState<{ sheets: PreparedSheet[]; pieces: number; kerf: number } | null>(null);
   const [msg, setMsg] = useState('');
   const refresh = async () => {
     const s = await api.submissions(cls.id, history);
@@ -325,7 +325,7 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
     if ('error' in r) return setMsg(r.error === 'mixed' ? t('teach.mixed') : failed.length ? t('teach.skipped', { names: chosen.filter((s) => failed.includes(s.id)).map((s) => s.displayName).join(', ') }) : '');
     const left = new Set([...failed, ...r.skipped]);
     if (left.size) setMsg(t('teach.skipped', { names: chosen.filter((s) => left.has(s.id)).map((s) => s.displayName).join(', ') }));
-    setBatch({ sheets: r.sheets, pieces: chosen.filter((s) => !left.has(s.id)).reduce((n, s) => n + s.pieceCount, 0) });
+    setBatch({ sheets: r.sheets, pieces: chosen.filter((s) => !left.has(s.id)).reduce((n, s) => n + s.pieceCount, 0), kerf: items.find((it) => !left.has(it.id))?.design.material.kerf ?? 0 });
   };
   const mark = async (ids: string[], status: 'new' | 'cut') => {
     await api.setStatus(ids, status);
@@ -449,6 +449,7 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
       {batch && (
         <div className="kerf-box" data-testid="batch-ready">
           <p>{t('teach.batchReady', { n: batch.sheets.length, p: batch.pieces })}</p>
+          <p className="note" data-testid="batch-kerf">{t('teach.batchKerf', { kerf: batch.kerf })}</p>
           <div className="row">
             <button className="primary" onClick={() => downloadText(`batch-${safeName(cls.name)}-nominal.svg`, batch.sheets.length === 1 ? sheetToSvg(batch.sheets[0]) : sheetsToSvg(batch.sheets), 'image/svg+xml')} data-testid="batch-svg">
               {t('teach.batchSvg')}
