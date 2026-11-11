@@ -1025,7 +1025,7 @@ Part 1: curve runs and bent walls (`CURVED_WALLS.md` §3.1, §3.2, §3.4, §4.3,
 Verified so far
 - `tests/bentWalls.test.ts` (10): runs of a rounded rectangle, a circle and a stadium; a corrugated-1.6 round box R 40 (one closed wall 2π(R − t + k·t) at its outer face, the outer face on the circle at every facet, tabs and slots matching and inside the base with their web, a closing flap, the export check clean); a card circle's tapered teeth and their 3D flaps; a plywood circle wrapping its base (full height, base cut back, length at the neutral line, exported as arcs of R − t); save/load; `panelToLocal` inverting `panelToWorld`; a card rounded tray (straight folds, teeth corners, in-line glue flaps meeting at the tangent points, clean); the tray's curved joint and an unjoined in-line seam staying unjoined; a plywood rounded box (wrap, fingers on the straight walls, `val.bendHinge` on each corner, `val.bendTight` at R 15).
 - Updated `round.test.ts`: trays on rounded rectangles and circles now stand bent walls.
-- Golden exports unchanged. Unit suite: 589 pass.
+- Golden exports unchanged. Unit suite: 589 pass. Browser suite (`--grep-invert classroom`): 96 passed, 0 failed, 57 skipped.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
