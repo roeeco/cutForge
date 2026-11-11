@@ -6,7 +6,7 @@ import * as ops from '../../src/model/ops';
 import { MATERIALS } from '../../src/model/materials';
 import { connectionsFor } from '../../src/model/materials';
 import { seamKinds } from '../../src/model/seams';
-import { diff } from '../bugs-model/fuzz';
+import { diff } from '../fuzz/fuzz';
 
 const [CARD, CORR16, CORR4, PLY] = MATERIALS;
 const snap = (d: any) => JSON.parse(JSON.stringify(d));

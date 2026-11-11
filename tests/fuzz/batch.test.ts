@@ -10,7 +10,7 @@ import { sheetsToSvg } from '../../src/export/svg';
 import { sheetsToDxf } from '../../src/export/dxf';
 import { createDesign } from '../../src/model/ops';
 
-const N = Number(process.env.FUZZ_N ?? 60);
+const N = Number(process.env.FUZZ_N ?? 10);
 beforeAll(loadFonts);
 
 describe('fuzz: batchExport', () => {

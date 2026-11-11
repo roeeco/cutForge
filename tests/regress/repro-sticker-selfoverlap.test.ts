@@ -37,7 +37,7 @@ describe('stencils', () => {
   });
   it('cut-out text "O" still reports val.stencil', async () => {
     const { addText } = await import('../../src/model/ops');
-    const { loadFonts } = await import('../bugs-output/gen');
+    const { loadFonts } = await import('../fuzz/gen');
     await loadFonts();
     const d = createDesign(MATERIALS[3]);
     const p = addRootPanel(d, 0, 0, 100, 100);

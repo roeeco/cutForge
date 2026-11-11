@@ -8,7 +8,7 @@ import { buildPieces } from '../../src/model/pieces';
 import { validate } from '../../src/model/validate';
 import { flattenContour } from '../../src/geom/vec';
 import { panelEdges } from '../../src/model/edges';
-import { selfCrossing } from '../bugs-model/fuzz';
+import { selfCrossing } from '../fuzz/fuzz';
 
 const edit = (d: any, f: () => void) => {
   f();

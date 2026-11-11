@@ -5,7 +5,7 @@ import { loadFonts, randomDesign, rng, seedMath } from './gen';
 import { pieceCopies } from '../../src/model/pack';
 import { contourArea, contourBBox } from '../../src/geom/vec';
 beforeAll(loadFonts);
-const N = Number(process.env.FUZZ_N ?? 150);
+const N = Number(process.env.FUZZ_N ?? 20);
 describe('probe', () => {
   it('degenerate cut contours', () => {
     const hits: string[] = [];

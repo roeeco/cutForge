@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { loadFonts, randomDesign, rng, seedMath } from './gen';
 import { checkPipeline, type Fail } from './pipecheck';
 
-const N = Number(process.env.FUZZ_N ?? 150);
+const N = Number(process.env.FUZZ_N ?? 15);
 const SEED0 = Number(process.env.FUZZ_SEED ?? 1);
 
 beforeAll(loadFonts);

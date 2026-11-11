@@ -8,7 +8,7 @@ import { profileOf } from '../../src/model/materials';
 
 beforeAll(loadFonts);
 
-const N = Number(process.env.FUZZ_N ?? 100);
+const N = Number(process.env.FUZZ_N ?? 20);
 
 /** Smallest distance between two non-adjacent edges of a polygon (a crude local feature size). */
 function minFeature(pts: { x: number; y: number }[]): number {

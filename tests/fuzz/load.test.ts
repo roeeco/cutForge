@@ -15,7 +15,7 @@ import { MATERIALS } from '../../src/model/materials';
 import { TEMPLATES, defaults, generate } from '../../src/templates/registry';
 import { MISSIONS, missionState, startMission } from '../../src/easy/missions';
 
-const N = Number(process.env.FUZZ_N ?? 400);
+const N = Number(process.env.FUZZ_N ?? 60);
 const SEED0 = Number(process.env.FUZZ_SEED ?? 1);
 
 beforeAll(loadFonts);

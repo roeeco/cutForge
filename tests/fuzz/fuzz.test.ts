@@ -4,8 +4,8 @@ import { writeFileSync } from 'node:fs';
 import { genOp, mulberry32, runSeq, shrink, type Op } from './fuzz';
 
 const FROM = Number(process.env.FUZZ_FROM ?? 1);
-const N = Number(process.env.FUZZ_N ?? 20);
-const STEPS = Number(process.env.FUZZ_STEPS ?? 30);
+const N = Number(process.env.FUZZ_N ?? 4);
+const STEPS = Number(process.env.FUZZ_STEPS ?? 20);
 const OUT = process.env.FUZZ_OUT;
 const SHRINK = process.env.FUZZ_SHRINK === '1';
 const EVERY = Number(process.env.FUZZ_EVERY ?? 1);

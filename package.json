@@ -9,7 +9,6 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:bugs": "vitest run -c vitest.bugs.config.ts",
     "e2e": "playwright test --trace off",
     "typecheck": "tsc -b --noEmit && tsc -p worker/tsconfig.json --noEmit",
     "dev:worker": "wrangler d1 migrations apply cutforge --local && wrangler dev --port 8787",

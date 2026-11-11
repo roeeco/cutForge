@@ -6,7 +6,7 @@ import { expect, it } from 'vitest';
 import * as ops from '../../src/model/ops';
 import { MATERIALS } from '../../src/model/materials';
 import { parseProject, serializeProject } from '../../src/model/serialize';
-import { diff } from '../bugs-model/fuzz';
+import { diff } from '../fuzz/fuzz';
 
 const BASE = [{ x: 98, y: 0 }, { x: 62, y: 62 }, { x: 0, y: 65 }, { x: -45, y: 45 }, { x: -100, y: 0 }, { x: -23, y: -23 }, { x: 0, y: -52 }, { x: 23, y: -23 }];
 

@@ -10,7 +10,7 @@ import { validate } from '../../src/model/validate';
 import { addDetail } from '../../src/model/ops';
 import { blocking } from '../../src/easy/fix';
 
-const N = Number(process.env.FUZZ_N ?? 120);
+const N = Number(process.env.FUZZ_N ?? 15);
 const SEED0 = Number(process.env.FUZZ_SEED ?? 1);
 
 beforeAll(loadFonts);

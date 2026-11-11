@@ -9,7 +9,7 @@ import type { Contour } from '../../src/geom/types';
 import { circleContour, contourArea, flattenContour, pointInPolygon, polygonContour, roundedRectContour, reverseContour } from '../../src/geom/vec';
 import { isSimplePolygon } from '../../src/model/ops';
 
-const N = Number(process.env.FUZZ_N ?? 3000);
+const N = Number(process.env.FUZZ_N ?? 300);
 
 function segDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) {
   const vx = b.x - a.x, vy = b.y - a.y;

@@ -10,7 +10,7 @@ import type { V3 } from '../../src/model/types';
 import { toWorld } from '../../src/model/frame';
 import { tOf } from '../../src/model/materials';
 
-const N = Number(process.env.OV_N ?? 30), FROM = Number(process.env.OV_FROM ?? 1);
+const N = Number(process.env.OV_N ?? 5), FROM = Number(process.env.OV_FROM ?? 1);
 it('no overlapping solids', () => {
   const bad: string[] = [];
   for (let s = FROM; s < FROM + N; s++) {

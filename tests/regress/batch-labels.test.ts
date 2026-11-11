@@ -1,6 +1,6 @@
 // BUGFIX_PLAN B21: teacher batch name labels fit their piece both ways, or are left out.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadFonts } from '../bugs-output/gen';
+import { loadFonts } from '../fuzz/gen';
 import { MATERIALS } from '../../src/model/materials';
 import { addRootPanel, createDesign } from '../../src/model/ops';
 import { batchExport } from '../../src/export/batch';

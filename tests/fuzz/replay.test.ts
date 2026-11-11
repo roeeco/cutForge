@@ -3,7 +3,8 @@ import { it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { runSeq, mulberry32 } from './fuzz';
 import { panelEdges } from '../../src/model/edges';
-it('replay', () => {
+// a tool, not a check: runs only with REPLAY_FILE set
+it.skipIf(!process.env.REPLAY_FILE)('replay', () => {
   const agg = JSON.parse(readFileSync(process.env.REPLAY_FILE!, 'utf8'));
   for (const [cls, e] of Object.entries<any>(agg)) {
     if (!cls.startsWith(process.env.REPLAY_CLS ?? '')) continue;
