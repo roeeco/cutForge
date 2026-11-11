@@ -6,10 +6,11 @@
 // Also: even spacing, and snapping a dragged divider to equal compartments.
 import type { Design, DividerRec, P2, Panel, PanelPlace } from './types';
 import { pieceRoot, placementPiece } from './keys';
-import { findEdge, isRectSketch, panelEdges, rectSketch, sketchOf } from './edges';
+import { findEdge, findRun, isRectSketch, panelEdges, rectSketch, sketchOf } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
-import { tOf } from './materials';
+import { bendOf, matOf, tOf } from './materials';
 import { spanFrame, spanOf } from './adapt';
+import { bendAlong, onRun, runPoint } from './bent';
 import { constructionSet, placeFrame } from './place';
 import { pointInPolygon } from '../geom/vec';
 
@@ -130,6 +131,20 @@ export function footprints(d: Design, baseId: string, dividers: Set<string>, ski
   for (const c of Object.values(d.connections)) {
     if (!c.grown || c.a.panelId !== baseId || Math.abs(c.angle - 90) > 1e-6 || c.dir !== 'up') continue;
     const w = d.panels[c.b.panelId];
+    // a wall bent along a curve (milestone 46): a footprint per facet, worked out from the run as solve bends it
+    if (w && w.id !== skip && !guides.has(w.id) && onRun(c)) {
+      const run = findRun(base, c.a.edge);
+      if (!run) continue;
+      const m = matOf(d, w.id);
+      const b = bendAlong(base, run, c.offset, m.thickness, bendOf(m).k, 0);
+      const t = m.thickness;
+      for (const f of b.facets) {
+        const quad = [runPoint(b, f.s0, b.off), runPoint(b, f.s1, b.off), runPoint(b, f.s1, b.off + t), runPoint(b, f.s0, b.off + t)];
+        const L = Math.hypot(quad[1].x - quad[0].x, quad[1].y - quad[0].y) || 1;
+        out.push({ id: w.id, quad, dir: { x: (quad[1].x - quad[0].x) / L, y: (quad[1].y - quad[0].y) / L }, divider: false });
+      }
+      continue;
+    }
     if (!w || w.id === skip || guides.has(w.id) || !findEdge(base, c.a.edge)) continue;
     const span = c.trayId ? null : c.span;
     const [s0, s1] = spanOf(base, c.a.edge, span);

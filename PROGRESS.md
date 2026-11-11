@@ -1027,6 +1027,20 @@ Verified so far
 - Updated `round.test.ts`: trays on rounded rectangles and circles now stand bent walls.
 - Golden exports unchanged. Unit suite: 589 pass. Browser suite (`--grep-invert classroom`): 96 passed, 0 failed, 57 skipped.
 
+Part 2: dividers, growing, the fold view, picking, fixes (`CURVED_WALLS.md` §4.2, §5.3, §6.4; `src/model/dividers.ts`, `src/model/seams.ts` `onFacet`, `src/model/bent.ts` `unbendPanel`, `src/views/View3D.tsx`, `src/easy/fix.ts`)
+- **Dividers in round boxes.** `footprints` gives a bent wall one footprint per facet (worked out from the run, as solve bends it), so a divider line ends on the curved wall's far face. Its end is joined on the facet it meets: `onFacet` makes a design view in which the wall is planar there (that facet's frame, whose local x is the wall's flat x), and the ordinary edge-on-face joint runs on it (`seamsBetween` → `bentFaceSeams`, `connectionGeom`). Card and corrugated: tabs through slots in the wall; plywood: a slide fit.
+- **A closed strip's seam is at the back left** (135°), not the back: a divider drawn on the box's grid, or in 30° steps through its middle, never meets it.
+- **Growing.** `growPanel` on a run makes a bent wall at 90° (the asked joint where it works on a curve, else its counterpart); nothing grows from a bent wall; `canFoldOver` refuses one.
+- **Fold view.** `unbendPanel`: the slider unrolls bent walls (the middle facet stays, each facet's turn scaled by the fold).
+- **Picking.** Clicks and drags on a bent wall (shapes, text, stickers, moving shapes, the paste target) map through its facets (`localOn`, `bentHit`); the `project` test hook too.
+- **Fixes.** `val.bendTight`: *Fix* makes the curve as round as the material bends with its pattern (a round base made bigger or its oval's ends rounder; rounded corners raised). `val.fluteBend`: lays strips back along the flutes.
+- **Names.** A bent tab-and-slot wall stands 0.05 mm further in, which the label heuristic took for a divider: curved walls are named first.
+
+Verified so far
+- `tests/bentWalls.test.ts` (+7, 17): a divider across a corrugated circle joined at both ends with slots inside the wall's outline, the export check clean; plywood dividers on a curved wall slide-fitted; pie compartments (a line across, one from the rim ending on it); growing on a run, refused from a bent wall, no fold-over; the fold slider's flat strip; the radius Fix on rounded corners and on a small circle; a round-base fuzzer (60 seeds: circles, ovals, stadiums, rounded rectangles in three materials with 0–2 dividers: every bent wall and divider joined, nothing broken, the export runs).
+- In the browser (a script): a rectangle dragged on the front of a curved wall lands at its flat place and size (30 × 20 at the middle); the fold slider unrolls the wall.
+- Unit suite: 596 pass.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

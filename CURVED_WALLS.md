@@ -348,6 +348,8 @@ Each one keeps every existing test green and adds its own. Golden exports change
 - *In-line seams (a bent wall meeting a straight wall at a tangent point) are connections `<wall>|s` / `<wall>|e`, kept by `reconcileInline`: a glue flap behind the straight wall (card, corrugated) or edge to edge (plywood). A closed strip's closing flap belongs to its base joint's geometry.*
 - *Bent tab-and-slot walls stand 0.05 mm further in than straight ones: the flattened curve's chords lie inside the arc.*
 - *Schema 12 (new joint kinds).*
+- *A closed strip's closing seam is at the back left (135°) rather than the back: a divider drawn on the box's grid, or in 30° steps through its middle, then never meets it.*
+- *A divider ends on a curved wall at its far face like on any wall; its end is joined on the facet it meets, through a view of the design in which the wall is planar there (`onFacet`), so the joint code is unchanged. Plywood gets a slide fit there.*
 - *From milestone 45:* `curveRuns` in `edges.ts`; Quick build Box *Round · Rounded* with the radius guard (§6.5).
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`

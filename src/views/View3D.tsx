@@ -17,6 +17,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
+import { facetsOf, panelToLocal, panelToWorld, unbendPanel } from '../model/bent';
 import { bentWarp, contourLinePoints, contourShapeGeometry, densify, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
@@ -90,13 +91,34 @@ export function placeText(panelId: string, x: number, y: number) {
 function useRay() {
   const { camera, gl } = useThree();
   const rc = useMemo(() => new THREE.Raycaster(), []);
-  return (clientX: number, clientY: number, plane: THREE.Plane): V3 | null => {
+  return (clientX: number, clientY: number, plane: THREE.Plane, on?: Panel): V3 | null => {
     const r = gl.domElement.getBoundingClientRect();
     rc.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
+    // on a bent wall (milestone 46): the nearest of its facets under the pointer
+    const bent = on?.bent ? bentHit(rc.ray, on) : null;
+    if (bent) return bent;
     const hit = rc.ray.intersectPlane(plane, new THREE.Vector3());
     return hit ? [hit.x, hit.y, hit.z] : null;
   };
 }
+
+/** Where a ray meets a bent wall's outer face: the nearest facet it hits within its stretch. */
+function bentHit(ray: THREE.Ray, p: Panel): V3 | null {
+  let best: THREE.Vector3 | null = null, bd = Infinity;
+  for (const f of facetsOf(p)) {
+    const pl = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(f.frame)), new THREE.Vector3(...f.frame.o));
+    const h = ray.intersectPlane(pl, new THREE.Vector3());
+    if (!h) continue;
+    const x = toLocal(f.frame, [h.x, h.y, h.z]).x;
+    if (x < f.s0 - 0.5 || x > f.s1 + 0.5) continue;
+    const dd = h.distanceTo(ray.origin);
+    if (dd < bd) [best, bd] = [h, dd];
+  }
+  return best ? [best.x, best.y, best.z] : null;
+}
+
+/** A world point on a panel in its flat coordinates (through a bent wall's facets). */
+const localOn = (p: Panel, w: V3) => (p.bent ? panelToLocal(p, w) : toLocal(p.frame, w));
 
 function planeOf(p: Panel, point: THREE.Vector3) {
   return new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(p.frame)), point);
@@ -175,6 +197,13 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     return r;
   }, [design, foldT, assemble]);
   const folded = foldT < 0.999 || assemble !== null;
+  // bent walls unroll with the fold slider (milestone 46)
+  const unbent = useMemo(() => {
+    const k = assemble !== null ? assembleFold(assemble) : foldT;
+    const out = new Map<string, Panel>();
+    if (k < 0.999) for (const id of design.order) if (design.panels[id]?.bent) out.set(id, unbendPanel(design.panels[id], k));
+    return out;
+  }, [design, foldT, assemble]);
   /** Snap tolerance in mm at a world point: a fixed number of screen pixels at any zoom. */
   const tolAt = (p: V3) => SNAP_PX * mmPerPx(three.camera, three.gl.domElement.clientHeight || 600, new THREE.Vector3(...p));
 
@@ -228,9 +257,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         st.preview((d) => movePlaced(d, g.id, dx, dy));
       } else if (g.kind === 'shape-draw') {
         const panel = st.design.panels[g.panelId];
-        const p = ray(ev.clientX, ev.clientY, g.plane);
+        const p = ray(ev.clientX, ev.clientY, g.plane, panel);
         if (!panel || !p) return;
-        const l = toLocal(panel.frame, p);
+        const l = localOn(panel, p);
         const ctx = noSmartSnap(ev) ? null : snapContext(st.txnBase ?? st.design, g.panelId, new Set([g.id]));
         const sn = ctx ? snapPoint(ctx, l, tolAt(p)) : null;
         const x = sn?.dx ? l.x + sn.dx : snap(l.x, ev), y = sn?.dy ? l.y + sn.dy : snap(l.y, ev);
@@ -250,9 +279,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         setLabel({ text: shape === 'circle' ? `Ø ${fmtNum(w)}` : `${fmtNum(w)} × ${fmtNum(h)}`, x: ev.clientX, y: ev.clientY });
       } else if (g.kind === 'detail-move') {
         const panel = st.design.panels[g.panelId];
-        const p = ray(ev.clientX, ev.clientY, g.plane);
+        const p = ray(ev.clientX, ev.clientY, g.plane, panel);
         if (!panel || !p) return;
-        const l = toLocal(panel.frame, p);
+        const l = localOn(panel, p);
         let dx = l.x - g.start.x, dy = l.y - g.start.y;
         const base = st.txnBase ?? st.design;
         const ctx = noSmartSnap(ev) ? null : snapContext(base, g.panelId, new Set(g.ids));
@@ -397,7 +426,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     if (tool === 'sticker') {
       if (e.button !== 0) return;
       e.stopPropagation();
-      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      const l = localOn(p, [e.point.x, e.point.y, e.point.z]);
       placeSticker(p.id, l.x, l.y);
       return;
     }
@@ -408,14 +437,14 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     if (tool === 'text') {
       if (e.button !== 0) return;
       e.stopPropagation();
-      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      const l = localOn(p, [e.point.x, e.point.y, e.point.z]);
       placeText(p.id, l.x, l.y);
       return;
     }
     if (tool === 'rect' || tool === 'circle' || tool === 'roundrect') {
       // another drawing drops a shape still waiting for ✓
       useStore.getState().cancelPending();
-      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      const l = localOn(p, [e.point.x, e.point.y, e.point.z]);
       const ctx = noSmartSnap(e.nativeEvent) ? null : snapContext(design, p.id, new Set());
       const sn = ctx ? snapPoint(ctx, l, tolAt([e.point.x, e.point.y, e.point.z])) : null;
       const start = { x: sn?.dx ? l.x + sn.dx : snap(l.x, e.nativeEvent), y: sn?.dy ? l.y + sn.dy : snap(l.y, e.nativeEvent) };
@@ -467,7 +496,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
     if (locked(p.id)) return e.stopPropagation();
     const boxes = group.map((x) => findDetail(design, x)).filter((f) => f && f.panel.id === p.id).map((f) => detailBBox(f!.detail));
     const box = { minX: Math.min(...boxes.map((b) => b.minX)), maxX: Math.max(...boxes.map((b) => b.maxX)), minY: Math.min(...boxes.map((b) => b.minY)), maxY: Math.max(...boxes.map((b) => b.maxY)) };
-    const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+    const l = localOn(p, [e.point.x, e.point.y, e.point.z]);
     begin(e, { kind: 'detail-move', ids: group, panelId: p.id, start: l, box, plane: planeOf(p, e.point) });
   };
 
@@ -539,7 +568,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const p = useStore.getState().design.panels[panelId];
       if (!p) return null;
       const z = faceZ(p, tOf(useStore.getState().design, panelId))[top ? 1 : 0];
-      const v = new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame)).project(camera);
+      // a bent wall (milestone 46): through its facets
+      const v = (p.bent ? new THREE.Vector3(...panelToWorld(p, x, y, z * p.frame.side)) : new THREE.Vector3(x, y, z).applyMatrix4(frameMatrix(p.frame))).project(camera);
       const r = gl.domElement.getBoundingClientRect();
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
@@ -666,7 +696,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           <PanelObject
             key={id}
             d={design}
-            p={p}
+            p={unbent.get(id) ?? p}
             index={index}
             m={display.xf.get(id) ?? IDM}
             selected={selPanel === id || selAlso.includes(id)}
@@ -688,7 +718,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
               }
               // where a paste lands; a paste being placed follows the pointer (milestone 33)
               const st = useStore.getState();
-              const l = toLocal(p.frame, pt);
+              const l = localOn(p, pt);
               st.pointerHit = { panelId: p.id, x: l.x, y: l.y, tol: tolAt(pt) };
               if (st.pasting) st.movePaste(p.id, gridSnap(l.x), gridSnap(l.y), tolAt(pt));
             } : undefined}

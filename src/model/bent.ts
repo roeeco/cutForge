@@ -386,3 +386,56 @@ export function bendCheck(d: Design, panelId: string): { minR: number; smoothR: 
 
 /** Length of a world vector: for tests and checks. */
 export const worldLen = (a: V3, b: V3) => v3len(v3sub(a, b));
+
+/**
+ * A bent panel with its bend scaled by `k` (the fold view, milestone 46): 1 as
+ * it stands, 0 a flat strip. The middle facet stays where it is; each facet
+ * further out turns from its neighbour by k times the turn it makes there, so
+ * the fold slider unrolls the wall as it unfolds a net. Display only.
+ */
+export function unbendPanel<T extends Pick<Panel, 'frame' | 'bent'>>(p: T, k: number): T {
+  const b = p.bent;
+  if (!b?.facets.length || k >= 1 - 1e-9 || b.facets.some((f) => !f.a || !f.b || !f.ma || !f.mb)) return p;
+  const fs = b.facets;
+  const v = fs[0].frame.v;
+  const rot = (x: V3, th: number): V3 => {
+    // Rodrigues about the (unit) vertical v
+    const c = Math.cos(th), s = Math.sin(th), kv = v3dot(v, x);
+    return v3add(v3add(v3mul(x, c), v3mul(v3cross(v, x), s)), v3mul(v, kv * (1 - c)));
+  };
+  const dirOf = (f: Facet) => v3norm(v3sub(f.b!, f.a!));
+  const turn = (a: Facet, c: Facet) => {
+    const x = dirOf(a), y = dirOf(c);
+    return Math.atan2(v3dot(v3cross(x, y), v), v3dot(x, y));
+  };
+  const n = fs.length, mid = fs.findIndex((f) => f.s1 >= (fs[0].s0 + fs[n - 1].s1) / 2);
+  const k0 = mid < 0 ? 0 : mid;
+  // each facet's turn from where it stands
+  const extra = new Array<number>(n).fill(0);
+  for (let i = k0 + 1; i < n; i++) extra[i] = extra[i - 1] - (1 - k) * turn(fs[i - 1], fs[i]);
+  for (let i = k0 - 1; i >= 0; i--) extra[i] = extra[i + 1] + (1 - k) * turn(fs[i], fs[i + 1]);
+  const out: Facet[] = fs.map((f) => ({ ...f }));
+  for (let i = k0 + 1; i < n; i++) {
+    const f = fs[i], L = v3len(v3sub(f.b!, f.a!));
+    const a = out[i - 1].b!, u = rot(dirOf(f), extra[i]);
+    out[i] = { ...f, a, b: v3add(a, v3mul(u, L)), ma: rot(f.ma!, extra[i]), mb: rot(f.mb!, extra[i]) };
+  }
+  for (let i = k0 - 1; i >= 0; i--) {
+    const f = fs[i], L = v3len(v3sub(f.b!, f.a!));
+    const bb = out[i + 1].a!, u = rot(dirOf(f), extra[i]);
+    out[i] = { ...f, b: bb, a: v3sub(bb, v3mul(u, L)), ma: rot(f.ma!, extra[i]), mb: rot(f.mb!, extra[i]) };
+  }
+  // shared ends share their inward direction (no gap at the inner face), and each facet's frame follows it
+  for (let i = 0; i < n; i++) {
+    if (i > 0) {
+      const m = v3mul(v3add(out[i - 1].mb!, out[i].ma!), 0.5);
+      out[i - 1].mb = m;
+      out[i].ma = m;
+    }
+  }
+  for (const f of out) {
+    const u = v3norm(v3sub(f.b!, f.a!));
+    f.frame = { ...f.frame, u, o: v3sub(f.a!, v3mul(u, f.s0)) };
+  }
+  return { ...p, bent: { ...b, facets: out }, frame: out[k0].frame };
+}

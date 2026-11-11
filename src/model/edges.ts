@@ -334,8 +334,8 @@ export function isRectSketch(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch }): b
 // stands on a run, named by the run's key: its first segment's key without the
 // segment number (`e2^~` for a rounded corner's arc, `e2~` for an auto curve).
 // A closed run (a circle, an oval) is named by the smallest of its segments'
-// prefixes and starts at the back of the outline (its point furthest along
-// local y), where its closing seam is.
+// prefixes and starts at the back left of the outline (its point furthest
+// towards local (−1, 1)), where its closing seam is.
 
 /** A run of curve segments: `prev` / `next` are the straight edges either side (absent on a closed run). */
 export type CurveRun = {
@@ -417,12 +417,11 @@ function ringRuns(ring: EdgeSeg[]): CurveRun[] {
     };
   };
   if (!brk.some(Boolean)) {
-    // one closed run: start at the back (largest y; then smallest x)
+    // one closed run: start at the back left (furthest towards local (−1, 1)), where no divider drawn
+    // on the box's grid or in 30° steps through its middle meets the closing seam
     let s = 0;
-    for (let i = 1; i < n; i++) {
-      const q = ring[i].a, b = ring[s].a;
-      if (q.y > b.y + 1e-9 || (Math.abs(q.y - b.y) <= 1e-9 && q.x < b.x)) s = i;
-    }
+    const k = (q: P2) => q.y - q.x;
+    for (let i = 1; i < n; i++) if (k(ring[i].a) > k(ring[s].a) + 1e-9) s = i;
     return [make(Array.from({ length: n }, (_, j) => (s + j) % n), true)];
   }
   // start at a break, then cut the ring at every break

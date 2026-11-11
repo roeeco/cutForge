@@ -459,7 +459,11 @@ export function defaultOffset(d: Design, kind: ConnectionKind, parentId?: string
 export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: GrowOpts): { panelId: string; connectionId: string } | null {
   const parent = d.panels[parentId];
   const edge = ek(edgeArg);
-  if (!parent || !findEdge(parent, edge) || isCurveKey(edge)) return null;
+  // nothing folds off a bent wall (milestone 46): a curved crease cannot fold
+  if (!parent || parent.bent) return null;
+  // a curve run: a wall bent along it, standing at 90° with a joint that works on a curve
+  if (isRunKey(edge)) return growBent(d, parent, edge, opts);
+  if (!findEdge(parent, edge) || isCurveKey(edge)) return null;
   const offset = opts.offset ?? defaultOffset(d, opts.kind, parentId);
   const L = edgeLength(parent, edge);
   const partial = opts.span && spanOf(parent, edge, opts.span)[1] - spanOf(parent, edge, opts.span)[0] < L - 1e-6 ? spanOf(parent, edge, opts.span) : null;
@@ -509,6 +513,23 @@ export function growPanel(d: Design, parentId: string, edgeArg: EdgeArg, opts: G
   return { panelId: id, connectionId: cid };
 }
 
+/** A wall bent along a curve run of `parent` (milestone 46): 90° only, its joint the asked one where it works on a curve. */
+function growBent(d: Design, parent: Panel, run: string, opts: GrowOpts): { panelId: string; connectionId: string } | null {
+  const r = findRun(parent, run);
+  if (!r || r.length < MIN_PANEL) return null;
+  if (Object.values(d.connections).some((c) => c.grown && c.a.panelId === parent.id && c.a.edge === run)) return null;
+  const m = matOf(d, parent.id);
+  const kind = curvedKinds(m).includes(opts.pref ?? opts.kind) ? (opts.pref ?? opts.kind) : curvedFor(opts.pref ?? opts.kind, m);
+  const id = newId('p');
+  d.panels[id] = { id, name: `${d.order.length + 1}`, w: r.length, h: Math.max(MIN_PANEL, opts.height), sketch: { kind: 'wall' }, frame: parent.frame, details: [], ...(parent.material ? { material: parent.material } : {}) };
+  d.order.push(id);
+  d.pieces[id] = { quantity: 1 };
+  const cid = newId('c');
+  d.connections[cid] = { id: cid, kind, pref: kind, a: { panelId: parent.id, edge: run }, b: { panelId: id, edge: 'e0' }, grown: true, angle: 90, dir: 'up', offset: defaultOffset(d, kind, parent.id), fingers: null, tabs: null, flap: null, foldDir: 'valley' };
+  solve(d);
+  return { panelId: id, connectionId: cid };
+}
+
 /** Connection using this edge at the edge itself (not a divider standing in from it). */
 export function edgeConnection(d: Design, panelId: string, edgeArg: EdgeArg): Connection | undefined {
   const edge = ek(edgeArg);
@@ -531,6 +552,8 @@ export function connectSeam(d: Design, seam: OpenSeam, kind?: ConnectionKind, au
   const ta = trayOf(d, seam.a.panelId), tb = trayOf(d, seam.b.panelId);
   const tray = ta && tb && ta.id === tb.id && ta.baseId !== seam.a.panelId && ta.baseId !== seam.b.panelId ? ta : undefined;
   if (!kind && tray && seam.type === 'corner') kind = tray.cornerKind;
+  // a plywood board on a bent wall's face: a slide fit (slots would need a solid island in its bend, CURVED_WALLS.md §6.4)
+  if (!kind && seam.type === 'face' && d.panels[seam.b.panelId]?.bent && matOf(d, seam.a.panelId).kind === 'plywood') kind = 'slide';
   // otherwise the design's choice for corners or for edges on a face
   if (!kind && seam.type !== 'cross') kind = designKind(d, seam.type === 'corner' ? 'corner' : 'base', kinds, matOf(d, seam.a.panelId).kind);
   const k = kind && kinds.includes(kind) ? kind : kinds[0];
@@ -1446,7 +1469,8 @@ export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: 
 /** Can this wall edge take a fold-over: card or corrugated, a grown wall, a free edge? */
 export function canFoldOver(d: Design, wallId: string, edge: string): boolean {
   const p = d.panels[wallId];
-  if (!p || matOf(d, wallId).kind === 'plywood' || !parentConnection(d, wallId) || !findEdge(p, edge)) return false;
+  // a bent wall's liner would have to shrink round the curve and buckle (milestone 46)
+  if (!p || p.bent || matOf(d, wallId).kind === 'plywood' || !parentConnection(d, wallId) || !findEdge(p, edge)) return false;
   if (edge === 'e0' || edgeConnection(d, wallId, edge)) return false;
   return !(p.foldOvers ?? []).some((f) => f.edge === edge);
 }

@@ -1,9 +1,12 @@
 // Milestone 46 (CURVED_WALLS.md §3.1, §3.2, §3.4, §4.3, §6.2): walls bent along curve runs.
 import { describe, expect, it } from 'vitest';
-import { addRoundedRect, addRoundPanel, addTray, autoConnect, createDesign, deleteConnection, setTrayKinds, setCornerRadius } from '../src/model/ops';
+import { addDividerLine, addFoldOver, addRoundedRect, addRoundPanel, addTray, autoConnect, canFoldOver, createDesign, deleteConnection, growPanel, setTrayKinds, setCornerRadius, solve } from '../src/model/ops';
+import { fixIssue } from '../src/easy/fix';
+import { rng } from './fuzz/gen';
 import { curveRuns, findRun, panelEdges } from '../src/model/edges';
 import { MATERIALS, bendOf } from '../src/model/materials';
-import { facetsOf, inlineId, panelToLocal, panelToWorld, runPoint } from '../src/model/bent';
+import { facetsOf, inlineId, panelToLocal, panelToWorld, runPoint, unbendPanel } from '../src/model/bent';
+import { FACE } from '../src/model/edges';
 import { validate } from '../src/model/validate';
 import { parseProject, serializeProject } from '../src/model/serialize';
 import { prepareExport } from '../src/export/prepare';
@@ -20,7 +23,7 @@ const bentOf = (d: Design, baseId: string) => wallsOf(d, baseId).filter((c) => d
 const blocking = (d: Design) => validate(d).filter((i) => !['val.split', 'val.bevel'].includes(i.key));
 
 describe('curve runs', () => {
-  it('a rounded rectangle has four open runs, each tangent to its straight neighbours; a circle one closed run starting at the back', () => {
+  it('a rounded rectangle has four open runs, each tangent to its straight neighbours; a circle one closed run starting at the back left', () => {
     const d = createDesign(PLY);
     const rr = addRoundedRect(d, 0, 0, 100, 60, 15)!;
     const runs = curveRuns(d.panels[rr]);
@@ -36,9 +39,9 @@ describe('curve runs', () => {
     const [run] = curveRuns(d.panels[c]);
     expect(run.closed).toBe(true);
     expect(run.key).toBe('e0^~');
-    // the back of the circle (largest local y)
-    expect(run.segs[0].a.y).toBeCloseTo(80, 9);
-    expect(run.segs[0].a.x).toBeCloseTo(40, 9);
+    // the back left of the circle (135°), where no divider on the box's grid meets it
+    expect(run.segs[0].a.x).toBeCloseTo(40 - 40 / Math.SQRT2, 9);
+    expect(run.segs[0].a.y).toBeCloseTo(40 + 40 / Math.SQRT2, 9);
   });
 
   it('a stadium has two runs of half a turn each', () => {
@@ -217,4 +220,143 @@ describe('a rounded-rectangle tray', () => {
     const p = runPoint(W.bent!, 0, 0);
     expect(ring.some((e) => Math.hypot(e.a.x - p.x, e.a.y - p.y) < 1e-9)).toBe(true);
   });
+});
+
+describe('dividers in round boxes', () => {
+  const roundBox = (m = CORR16, D = 120) => {
+    const d = createDesign(m);
+    const base = addRoundPanel(d, 0, 0, D, D, { shape: 'circle' })!;
+    addTray(d, base, 50);
+    autoConnect(d);
+    return { d, base, W: bentOf(d, base)[0].b.panelId };
+  };
+  const endJoints = (d: Design, id: string, W: string) => Object.values(d.connections).filter((c) => c.a.panelId === id && c.b.panelId === W && c.b.edge === FACE);
+
+  it('a divider across a corrugated circle ends on the curved wall at both ends and is joined there with tabs through slots in it', () => {
+    const { d, base, W } = roundBox();
+    const id = addDividerLine(d, base, { x: 10, y: 60 }, { x: 110, y: 60 }, 40)!;
+    autoConnect(d);
+    const ends = endJoints(d, id, W);
+    expect(ends.map((c) => c.a.edge).sort()).toEqual(['e1', 'e3']);
+    for (const c of ends) {
+      expect(c.kind).toBe('tabslot');
+      expect(c.broken).toBeFalsy();
+      // the slots are in the wall, in its flat coordinates (inside its outline)
+      expect(c.geom!.holes.length).toBeGreaterThan(0);
+      const wall = d.panels[W];
+      const out = panelOutline(wall, panelNotches(d, wall));
+      for (const h of c.geom!.holes) expect(h.poly.every((q) => pointInPolygon(q, out))).toBe(true);
+    }
+    expect(blocking(d)).toEqual([]);
+  });
+
+  it('plywood dividers on a curved wall get a slide fit', () => {
+    const { d, base, W } = roundBox(PLY, 160);
+    const id = addDividerLine(d, base, { x: 10, y: 80 }, { x: 150, y: 80 }, 30)!;
+    autoConnect(d);
+    const ends = endJoints(d, id, W);
+    expect(ends).toHaveLength(2);
+    expect(ends.every((c) => c.kind === 'slide' && !c.broken)).toBe(true);
+  });
+
+  it('pie compartments: a line across, then one from the rim ending on it', () => {
+    const { d, base, W } = roundBox();
+    const a = addDividerLine(d, base, { x: 10, y: 60 }, { x: 110, y: 60 }, 40)!;
+    autoConnect(d);
+    const b = addDividerLine(d, base, { x: 60, y: 110 }, { x: 60, y: 70 }, 40)!;
+    autoConnect(d);
+    expect(d.panels[b]).toBeDefined();
+    // it runs from the wall to the first divider, not across it
+    const joined = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === b).map((c) => c.b.panelId);
+    expect(joined).toContain(a);
+    expect(joined).toContain(W);
+    expect(d.panels[b].w).toBeLessThan(60);
+  });
+});
+
+describe('growing, fold-overs and the fold view', () => {
+  it('a wall grows on a curve run at 90° as a bent wall; nothing grows from a bent wall; no fold-over on it', () => {
+    const d = createDesign(CARD);
+    const base = addRoundedRect(d, 0, 0, 100, 60, 15)!;
+    const g = growPanel(d, base, 'e1^~', { height: 30, angle: 60, dir: 'up', kind: 'fold' })!;
+    expect(g).toBeTruthy();
+    const W = d.panels[g.panelId];
+    expect(W.bent).toBeTruthy();
+    expect(d.connections[g.connectionId]).toMatchObject({ kind: 'teeth', angle: 90 });
+    expect(growPanel(d, g.panelId, 'e2', { height: 30, angle: 90, dir: 'up', kind: 'fold' })).toBeNull();
+    expect(canFoldOver(d, g.panelId, 'e2')).toBe(false);
+    expect(addFoldOver(d, g.panelId)).toBeNull();
+  });
+
+  it('the fold slider unrolls a bent wall: at 0 a flat strip as long as the wall, at 1 as it stands', () => {
+    const d = createDesign(CORR16);
+    const base = addRoundPanel(d, 0, 0, 80, 80, { shape: 'circle' })!;
+    addTray(d, base, 50);
+    const W = d.panels[bentOf(d, base)[0].b.panelId];
+    expect(unbendPanel(W, 1)).toBe(W);
+    const flat = unbendPanel(W, 0);
+    const a = panelToWorld(flat, 0, 0), b = panelToWorld(flat, W.w, 0), m = panelToWorld(flat, W.w / 2, 0);
+    // straight: its ends and middle in one line, as far apart as it is long
+    expect(v3len(v3sub(a, b))).toBeCloseTo(v3len(v3sub(a, m)) + v3len(v3sub(m, b)), 6);
+    expect(v3len(v3sub(a, b))).toBeGreaterThan(W.w - 1);
+    // half way: still bent, less than as it stands
+    const half = unbendPanel(W, 0.5);
+    expect(v3len(v3sub(panelToWorld(half, 0, 0), panelToWorld(half, W.w, 0)))).toBeGreaterThan(v3len(v3sub(panelToWorld(W, 0, 0), panelToWorld(W, W.w, 0))));
+  });
+});
+
+describe('fixes', () => {
+  it('a curve tighter than the material bends is made rounder by its Fix: rounded corners, and a round base made bigger', () => {
+    const d = createDesign(PLY);
+    const base = addRoundedRect(d, 0, 0, 160, 120, 15)!;
+    addTray(d, base, 40);
+    autoConnect(d);
+    const tight = validate(d).filter((i) => i.key === 'val.bendTight');
+    expect(tight).toHaveLength(4);
+    expect(fixIssue(d, tight[0])).toBe(true);
+    solve(d);
+    expect(validate(d).filter((i) => i.key === 'val.bendTight')).toHaveLength(0);
+    const c = createDesign(PLY);
+    const cb = addRoundPanel(c, 0, 0, 40, 40, { shape: 'circle' })!;
+    addTray(c, cb, 40);
+    const i = validate(c).find((x) => x.key === 'val.bendTight')!;
+    expect(fixIssue(c, i)).toBe(true);
+    expect(c.panels[cb].w).toBeGreaterThanOrEqual(2 * bendOf(PLY).patternR);
+  });
+});
+
+describe('round bases, random (auto-connection fuzz)', () => {
+  it('every bent wall and every divider in it is joined, nothing broken, the export runs', () => {
+    const fails: string[] = [];
+    for (let seed = 1; seed <= 60; seed++) {
+      const r = rng(seed);
+      const m = r.pick([CARD, CORR16, PLY]);
+      const d = createDesign(m);
+      const shape = r.pick(['circle', 'oval', 'stadium', 'rounded'] as const);
+      const W = r.int(90, 200), H = r.int(70, 160);
+      const base = shape === 'rounded' ? addRoundedRect(d, 0, 0, W, H, r.int(10, 40))! : addRoundPanel(d, 0, 0, W, H, shape === 'oval' ? { shape, rEnd: r.int(15, 40) } : { shape })!;
+      addTray(d, base, r.int(25, 70));
+      autoConnect(d);
+      const bw = d.panels[base];
+      for (let k = r.int(0, 2); k > 0; k--) {
+        const y = r.num(0.3, 0.7) * bw.h;
+        addDividerLine(d, base, { x: 2, y }, { x: bw.w - 2, y }, r.int(15, 40));
+        autoConnect(d);
+      }
+      try {
+        const keys = validate(d).map((i) => i.key);
+        if (keys.includes('val.broken') || keys.includes('val.littleContact')) fails.push(`${seed} ${m.id} ${shape}: ${keys.join(',')}`);
+        for (const c of bentOf(d, base)) if (c.broken || !c.geom) fails.push(`${seed}: bent wall ${c.b.panelId} not joined`);
+        for (const id of d.order.filter((x) => d.panels[x].divider)) {
+          // both ends on a wall (bent or straight; a divider it ends on in the middle counts too)
+          const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === id && c.b.edge === FACE && c.b.panelId !== base);
+          if (ends.length < 2) fails.push(`${seed} ${m.id} ${shape}: divider ${id} joined at ${ends.length} ends`);
+        }
+        sheetsToSvg(prepareExport(d).sheets);
+      } catch (e) {
+        fails.push(`${seed}: THROWS ${(e as Error).message.slice(0, 100)}`);
+      }
+    }
+    expect(fails).toEqual([]);
+  }, 120_000);
 });

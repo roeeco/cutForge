@@ -318,4 +318,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Where a bent wall meets a straight wall tangentially** they are glued in line (a flap behind the straight wall; plywood edge to edge). A closed strip is closed at the back the same way. One net per strip (riding on a straight neighbour) is milestone 48.
 - **The design-wide joint lists leave bent walls out**: their joint is the tray card's *Curved walls*.
 - **Checks.** A run tighter than the material bends at all (`val.bendTight`); tighter than it bends on its own, needing scores or a living hinge that milestone 47 makes (`val.bendHinge` for plywood, `val.bendPattern` otherwise); corrugated with its flutes round the curve (`val.fluteBend`). All are blocking.
-- **Nothing grows from a bent wall** in this release (its edges offer no Grow), and the "touching but not joined" check skips bent walls.
+- **Nothing grows from a bent wall** in this release (its edges offer no Grow, `growPanel` refuses), it takes no fold-over, and the "touching but not joined" check skips bent walls. Growing on a curve run makes a bent wall at 90°.
+- **A closed strip's seam is at the back left (135°)**, where no divider drawn on the box's grid or in 30° steps through its middle meets it.
+- **Dividers end on a curved wall** at its far face, found from one footprint per facet, and are joined on the facet they meet as on a planar wall (tabs and slots; plywood a slide fit, since its bend will be a living hinge).
+- **The fold slider unrolls bent walls** (display only).

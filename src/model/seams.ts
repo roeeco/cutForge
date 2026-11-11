@@ -12,7 +12,7 @@ import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
-import { bentGeom, inlineGeom, isInline, onRun } from './bent';
+import { bentGeom, facetsOf, inlineGeom, isInline, onRun, panelToLocal, panelToWorld } from './bent';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -395,6 +395,11 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   // a wall bent along a curve, and where it meets a wall in line (milestone 46)
   if (onRun(c)) return bentGeom(d, c);
   if (isInline(d, c)) return inlineGeom(d, c);
+  // an edge on a bent wall's face: joined on the facet it meets, as a planar wall there
+  if (!c.grown && c.b.edge === FACE && d.panels[c.b.panelId]?.bent) {
+    const v = onFacet(d, d.panels[c.a.panelId], c.a.edge, d.panels[c.b.panelId]);
+    return v ? connectionGeomOne(v, c) : null;
+  }
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -984,6 +989,8 @@ function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
  * candidates on the same edge, or touching in the same place, are one seam.
  */
 export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
+  // a bent wall (milestone 46): only a standing board's edge on its face, per facet
+  if (A.bent || B.bent) return bentFaceSeams(d, A, B);
   const tA = tOf(d, A.id), tB = tOf(d, B.id);
   // a curve's flattened segments are never joined
   const ka = panelEdges(A).map((e) => e.key).filter((k) => !isCurveKey(k)), kb = panelEdges(B).map((e) => e.key).filter((k) => !isCurveKey(k));
@@ -1002,6 +1009,40 @@ export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   cand.push(...(preferA ? [...fa, ...fb] : [...fb, ...fa]));
   if (crossFit(A, B, tA, tB)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
   return dedupeSeams(d, cand, []);
+}
+
+/**
+ * A design view in which bent wall W is planar at the facet that P's edge
+ * meets (the facet under the edge's middle): its frame is that facet's, whose
+ * local x is the wall's flat x there, so a joint laid out on the view is in
+ * the wall's own coordinates (CURVED_WALLS.md §4.2). Null when the edge does
+ * not meet the wall.
+ */
+export function onFacet(d: Design, P: Panel | undefined, edge: string, W: Panel): Design | null {
+  const e = P && findEdge(P, edge);
+  if (!P || !e || !W.bent) return null;
+  const tP = tOf(d, P.id), tW = tOf(d, W.id);
+  const mid = toWorld(P.frame, (e.a.x + e.b.x) / 2, (e.a.y + e.b.y) / 2, tP / 2);
+  const x = panelToLocal(W, mid, tW).x;
+  const fs = facetsOf(W);
+  const f = fs.find((q) => x <= q.s1) ?? fs[fs.length - 1];
+  return { ...d, panels: { ...d.panels, [W.id]: { ...W, frame: f.frame, bent: undefined } } };
+}
+
+/** A standing board's edges on a bent wall's face (dividers ending on a curved wall). */
+function bentFaceSeams(d: Design, A: Panel, B: Panel): OpenSeam[] {
+  if (A.bent && B.bent) return [];
+  const [W, P] = A.bent ? [A, B] : [B, A];
+  if (P.place?.pose !== 'standing' || P.place.host !== W.bent!.base) return [];
+  const tW = tOf(d, W.id), tP = tOf(d, P.id);
+  const out: OpenSeam[] = [];
+  for (const e of panelEdges(P)) {
+    if (isCurveKey(e.key)) continue;
+    const v = onFacet(d, P, e.key, W);
+    const f = v && faceFit(P, e.key, v.panels[W.id], tW, true, 2, undefined, true, tP);
+    if (f) out.push({ type: 'face', a: { panelId: P.id, edge: e.key }, b: { panelId: W.id, edge: FACE }, overlapping: f.d1 > 1e-6 });
+  }
+  return out;
 }
 
 /** Keep candidates that use no edge and no place already taken (by an earlier candidate or an existing connection). */
@@ -1035,9 +1076,11 @@ function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
   const box = (p: Panel) => {
     const t = tOf(d, p.id);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-    for (const e of panelEdges(p))
+    // a bent wall: through its facets, at its facets' ends too
+    const pts = [...panelEdges(p).map((e) => e.a), ...(p.bent ? facetsOf(p).flatMap((f) => [{ x: f.s0, y: 0 }, { x: f.s0, y: p.h }]) : [])];
+    for (const q of pts)
       for (const z of [0, t]) {
-        const w = toWorld(p.frame, e.a.x, e.a.y, z);
+        const w = p.bent ? panelToWorld(p, q.x, q.y, z) : toWorld(p.frame, q.x, q.y, z);
         for (let k = 0; k < 3; k++) (lo[k] = Math.min(lo[k], w[k])), (hi[k] = Math.max(hi[k], w[k]));
       }
     return { lo, hi };
@@ -1066,8 +1109,6 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
       if (mine.some((c) => c.grown)) continue;
       // a flat panel placed on a face is a separate part, not joined to it
       if (flatOnHost(d, A.id, B.id)) continue;
-      // bent walls are joined by their own rules (milestone 46): to their base, and in line with their neighbours
-      if (A.bent || B.bent) continue;
       if (!nearEachOther(d, A, B)) continue;
       const found = seamsBetween(d, A, B);
       if (!found.length) continue;

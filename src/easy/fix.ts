@@ -3,7 +3,8 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, setPanelSize, solve } from '../model/ops';
+import { findDetail, parentConnection, setPanelSize, setPointRound, setRoundShape, solve } from '../model/ops';
+import { bendOf } from '../model/materials';
 import { matOf } from '../model/materials';
 import { fitShape } from './guard';
 import { validate } from '../model/validate';
@@ -56,7 +57,32 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
+/**
+ * A bent wall's curve made as round as its material bends to (milestone 46):
+ * a round base made bigger (a circle, a stadium's short side) or its oval's
+ * ends rounder; an outline's rounded corners each given at least that radius.
+ */
+function raiseRadius(d: Design, wallId: string): boolean {
+  const c = parentConnection(d, wallId);
+  const base = c && d.panels[c.a.panelId];
+  if (!base || base.sketch.kind !== 'poly') return false;
+  const R = Math.ceil(bendOf(matOf(d, wallId)).patternR);
+  const rs = base.sketch.round;
+  if (rs) {
+    const short = Math.min(base.w, base.h);
+    if (rs.shape === 'circle') return setRoundShape(d, base.id, { w: Math.max(base.w, 2 * R), h: Math.max(base.h, 2 * R) });
+    if (short < 2 * R) setRoundShape(d, base.id, base.w <= base.h ? { w: 2 * R } : { h: 2 * R });
+    if (rs.shape === 'oval') setRoundShape(d, base.id, { rEnd: Math.max(rs.rEnd ?? 0, R) });
+    return true;
+  }
+  let any = false;
+  base.sketch.pts.forEach((q, i) => {
+    if (q.curve === 'round' && (q.r ?? 0) < R) any = setPointRound(d, base.id, i, R) || any;
+  });
+  return any;
+}
+
+const FIXABLE = new Set(['val.bendTight', 'val.fluteBend', 'val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -81,6 +107,13 @@ export function fixIssue(d: Design, i: Issue): boolean {
     case 'val.tooBigGrain':
       // it fits turned: let the packer turn pieces against the grain
       d.allowRotate = true;
+      d.placements = {};
+      return !sheetIssueFor(d, i);
+    case 'val.bendTight':
+      return i.target.kind === 'panel' && raiseRadius(d, i.target.id) && !sheetIssueFor(d, i);
+    case 'val.fluteBend':
+      // lay the strip with its height along the flutes again
+      d.allowRotate = false;
       d.placements = {};
       return !sheetIssueFor(d, i);
     case 'val.offSheet':

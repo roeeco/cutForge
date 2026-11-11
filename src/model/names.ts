@@ -63,14 +63,14 @@ export function panelLabel(d: Design, id: string, t: T): string {
     const roots = d.order.filter((x) => !d.panels[x]?.divider && !conns.some((c) => c.grown && c.b.panelId === x));
     return roots[0] === id ? t('part.base') : t('part.panel', { n: roots.indexOf(id) + 1 });
   }
+  // a wall bent along a curve (milestone 46): numbered among its base's curves
+  if (isRunKey(parentC.a.edge) && d.panels[parentC.a.panelId]) return t('part.curvedWall', { n: curveRuns(d.panels[parentC.a.panelId]).findIndex((r) => r.key === parentC.a.edge) + 1 });
   if (parentC.kind === 'lean') return t('part.leaning');
   const isDivider = (c: (typeof conns)[number]) => c.offset > defaultOffset(d, c.kind) + 1e-6;
   if (isDivider(parentC)) {
     const divs = d.order.filter((x) => conns.some((c) => c.grown && c.b.panelId === x && isDivider(c)));
     return t('part.divider', { n: divs.indexOf(id) + 1 });
   }
-  // a wall bent along a curve (milestone 46): numbered among its base's curves
-  if (isRunKey(parentC.a.edge) && d.panels[parentC.a.panelId]) return t('part.curvedWall', { n: curveRuns(d.panels[parentC.a.panelId]).findIndex((r) => r.key === parentC.a.edge) + 1 });
   const parentIsRoot = !conns.some((c) => c.grown && c.b.panelId === parentC.a.panelId);
   const side = parentIsRoot && isRectSketch(d.panels[parentC.a.panelId]) ? rectEdgeIndex(parentC.a.edge) : null;
   if (side !== null && Math.abs(parentC.angle - 90) < 1e-6) return t('part.wallSide', { side: t(SIDE[side]) });
