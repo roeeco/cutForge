@@ -1,3 +1,5 @@
+import { archMaxRise } from '../model/arch';
+import { styleReach } from '../model/bendPattern';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
@@ -8,7 +10,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide } from '../model/ops';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide, setArchRise } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
@@ -745,6 +747,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
       {selEdge && !folded && !jointsOn && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && !jointsOn && <ArchArrow d={design} sel={selPanel} m={display.xf} />}
       {selPanel && design.panels[selPanel] && tool === 'select' && !folded && !jointsOn && editOutline !== selPanel && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
@@ -2321,6 +2324,37 @@ function DividerButton({ d, a, b }: { d: Design; a: string; b: string }) {
         )}
       </button>
     </StageHtml>
+  );
+}
+
+/**
+ * An arched lid's rise (milestone 48): an arrow over the arch's apex on the
+ * leader wall, shown while the lid, either end wall or the box's base is
+ * selected. Dragging it changes the rise, clamped to what the lid bends over.
+ */
+function ArchArrow({ d, sel, m }: { d: Design; sel: string; m: Map<string, THREE.Matrix4> }) {
+  const t = Object.values(d.trays ?? {}).find((x) => x.arch && (x.baseId === sel || x.arch.lid === sel || x.arch.lead === sel || x.arch.follow === sel));
+  const a = t?.arch;
+  const L = a && d.panels[a.lead], lid = a && d.panels[a.lid];
+  if (!t || !a || !L || !lid) return null;
+  const st = useStore.getState;
+  const mm = m.get(L.id) ?? IDM;
+  const tl = tOf(d, lid.id);
+  const lm = matOf(d, lid.id);
+  const max = archMaxRise(L.w, styleReach(lm, lm.kind === 'card' ? 'score' : lm.kind === 'corrugated' ? 'kiss' : 'lattice'));
+  return (
+    <PushPull
+      at={W(mm, L.frame, L.w / 2, L.h + a.rise + tl, tOf(d, L.id) / 2)}
+      axis={Wdir(mm, L.frame.v)}
+      value={a.rise}
+      offset={tl}
+      min={0}
+      max={max}
+      onPreview={(v) => st().preview((x) => void setArchRise(x, t.id, v))}
+      onCommit={() => st().commit()}
+      onCancel={() => st().cancel()}
+      testId="arch-rise"
+    />
   );
 }
 

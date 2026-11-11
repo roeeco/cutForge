@@ -2,6 +2,8 @@
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { applyBendPatterns, bridgeOf } from './bendPattern';
+import { planStrips } from './strips';
+import { archOfLid, archSeamId, clampRise, isArchSeam, lidPlace, planArch, reconcileArches } from './arch';
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
@@ -151,6 +153,8 @@ function solveOnce(d: Design) {
   reconcileWallSets(d);
   // telescoping lids follow their boxes (milestone 46)
   reconcileLids(d);
+  // arched lids: the leader's arch, the follower matched, the far joint (milestone 48)
+  reconcileArches(d);
   fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
   dropOrphansToFloor(d);
@@ -211,7 +215,14 @@ function solveOnce(d: Design) {
         // tabs: a little further in than on a straight edge, as the flattened curve's chords cut inside the arc
         c.offset = defaultOffset(d, c.kind, parent.id) + (c.kind === 'tabslot' ? BENT_WEB : 0);
         const m = matOf(d, child.id);
-        child.bent = bendAlong(parent, run, c.offset, m.thickness, bendOf(m).k, bentLift(c.kind, tOf(d, parent.id)));
+        // an arched lid (milestone 48) lies over its leader's arch, across to the follower
+        const arch = archOfLid(d, child.id);
+        const lp = arch && arch.arch?.lead === parent.id ? lidPlace(d, child, parent, arch) : null;
+        if (lp) {
+          c.offset = lp.off;
+          child.h = lp.h;
+        }
+        child.bent = bendAlong(parent, run, c.offset, m.thickness, bendOf(m).k, lp ? lp.lift : bentLift(c.kind, tOf(d, parent.id)), child.bend?.seamAt ?? 0);
         const fs = facetsOf(child);
         child.w = fs[fs.length - 1].s1;
         child.frame = (fs.find((f) => f.s1 >= child.w / 2) ?? fs[0]).frame;
@@ -249,7 +260,7 @@ function solveOnce(d: Design) {
       delete c.thin;
       continue;
     }
-    if (!c.grown) {
+    if (!c.grown && !isArchSeam(c)) {
       const ok = pairKinds(d, c);
       const g = jointGroup(c);
       fitKind(c, ok, g ? designKind(d, g, ok, ownerMaterial(d, c).kind) : undefined);
@@ -269,6 +280,8 @@ function solveOnce(d: Design) {
     }
   }
   applyTrims(d);
+  // curved walls cut in one strip with their neighbours (milestone 48)
+  planStrips(d);
   // bend patterns on bent walls (milestone 47), clear of every joint just made
   applyBendPatterns(d);
 }
@@ -1971,10 +1984,21 @@ export { canMatch, leaderOf };
  * is up when it is cut. `undefined` in the patch leaves a choice; `'auto'`,
  * `null` spacing and the automatic face are stored as absent.
  */
-export function setBend(d: Design, id: string, patch: { style?: BendStyle; pitch?: number | null; face?: 1 | -1 | null }): boolean {
+export function setBend(d: Design, id: string, patch: { style?: BendStyle; pitch?: number | null; face?: 1 | -1 | null; seamAt?: number | null }): boolean {
   const p = d.panels[id];
   if (!p?.bent) return false;
   const b: BendChoice = { ...(p.bend ?? {}) };
+  if (patch.seamAt !== undefined && p.bent.closed) {
+    // the closing seam moves round the strip (milestone 48): its shapes stay where they are on the box
+    const was = b.seamAt ?? 0, now = patch.seamAt === null ? 0 : ((patch.seamAt % 1) + 1) % 1;
+    const m = p.bent.pts.length - 1;
+    const k = (Math.round(now * m) - Math.round(was * m) + m) % m;
+    const shift = p.bent.pts[k]?.s ?? 0;
+    const L = p.w;
+    if (shift && L > 0) for (const dt of p.details) dt.cx = (((dt.cx - shift) % L) + L) % L;
+    if (now) b.seamAt = now;
+    else delete b.seamAt;
+  }
   if (patch.style !== undefined) {
     if (patch.style === 'auto') delete b.style;
     else b.style = patch.style;
@@ -2014,6 +2038,56 @@ export function moveOffBend(d: Design, detailId: string): boolean {
   const cx = (half.minX + half.maxX) / 2;
   const to = free.map(([x0, x1]) => Math.max(x0, Math.min(x1, cx))).reduce((a, b) => (Math.abs(b - cx) < Math.abs(a - cx) ? b : a));
   updateDetail(d, detailId, { cx: f.detail.cx + (to - cx) });
+  solve(d);
+  return true;
+}
+
+/**
+ * An arched lid on a tray (milestone 48, CURVED_WALLS.md §7.3): its end walls
+ * (the shortest pair of parallel walls facing each other) get the same arch,
+ * `rise` mm above their top corners (clamped to what the lid's material
+ * bends over), and a lid bent over it is grown from the first. Returns the
+ * lid's id.
+ */
+export function addArchedLid(d: Design, trayId: string, rise = 20): string | null {
+  const t = d.trays?.[trayId];
+  const w = t && planArch(d, trayId, rise);
+  if (!t || !w) return null;
+  const lead = d.panels[w.lead];
+  const m = matOf(d, lead.id);
+  const kind = m.kind === 'plywood' ? 'butt' : 'teeth';
+  const r = growPanel(d, w.lead, 'e2~', { height: 10, angle: 90, dir: 'up', kind, pref: kind });
+  if (!r) return null;
+  t.arch = { lead: w.lead, follow: w.follow, lid: r.panelId, rise };
+  t.arch.rise = clampRise(d, t, rise);
+  d.panels[w.follow].sketch.kind === 'wall' && ((d.panels[w.follow].sketch as WallSketch).match = w.lead);
+  solve(d);
+  return r.panelId;
+}
+
+/** Change an arched lid's rise (clamped to what its material bends over). */
+export function setArchRise(d: Design, trayId: string, rise: number): boolean {
+  const t = d.trays?.[trayId];
+  if (!t?.arch) return false;
+  t.arch.rise = clampRise(d, t, Math.max(0, rise));
+  solve(d);
+  return true;
+}
+
+/** Remove an arched lid: the lid goes, the end walls get their flat tops back and stop matching. */
+export function removeArchedLid(d: Design, trayId: string): boolean {
+  const t = d.trays?.[trayId];
+  const a = t?.arch;
+  if (!t || !a) return false;
+  delete t.arch;
+  delete d.connections[archSeamId(trayId)];
+  for (const id of [a.lead, a.follow]) {
+    const p = d.panels[id];
+    if (p?.sketch.kind !== 'wall') continue;
+    delete p.sketch.arch;
+    if (id === a.follow) delete p.sketch.match;
+  }
+  if (d.panels[a.lid]) deletePanel(d, a.lid);
   solve(d);
   return true;
 }

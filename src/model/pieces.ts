@@ -14,6 +14,7 @@ import { cornerDepths, cornerFit } from './seams';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
+import { inlineXf } from './strips';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -53,6 +54,8 @@ export type NetFold = { id: string; parent: string; child: string; xf: (d: Desig
  * and shown as broken (BUGFIX_PLAN B1).
  */
 export function foldHolds(d: Design, c: Connection): boolean {
+  // a strip running on in line (milestone 48) joins its net like a fold, with no fold in it
+  if (c.kind === 'inline' && c.rides && !c.broken) return !!d.panels[c.a.panelId] && !!d.panels[c.b.panelId];
   if (c.kind !== 'fold' || c.broken) return false;
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return false;
@@ -64,7 +67,10 @@ export function netFolds(d: Design): NetFold[] {
   const out: NetFold[] = [];
   for (const c of Object.values(d.connections)) {
     if (!foldHolds(d, c)) continue;
-    if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
+    if (c.kind === 'inline' && c.rides) {
+      const child = c.rides, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
+      out.push({ id: c.id, parent, child, xf: (dd) => inlineXf(dd, dd.connections[c.id] ?? c, child) });
+    } else if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
     else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
       const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
@@ -163,7 +169,7 @@ export function panelPiece(d: Design, panelId: string): Piece {
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
+  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && c.kind === 'fold' && foldHolds(d, c));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];

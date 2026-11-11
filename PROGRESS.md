@@ -1066,13 +1066,12 @@ Verified so far
 - Unit suite: 606 pass (the slow `regress/repro-degenerate-hole` case timed out once while two suites shared the machine; it passes alone in 28 s).
 - Full browser suite (`--grep-invert classroom`): 99 passed, 0 failed, 57 skipped (the `SHOTS`-only screenshot specs and the switched-off tour spec). Golden exports unchanged throughout.
 
-Next: milestones 47 and 48. Handover notes (where 46's pieces are, a suggested route for each, practical notes) are in `CURVED_WALLS.md` §8a.
+Milestones 47 and 48 followed (below); the handover notes for them are in `CURVED_WALLS.md` §8a.
 
 Limitations
 - (Resolved in milestone 47: scores, kiss scores, perforations and living hinges.)
-- A strip is not one net with its straight neighbours (milestone 48): a rounded tray's corners are separate pieces glued in line, and a closed strip's seam is fixed at the back left (a divider drawn exactly through it is not joined there).
-- A strip longer than the sheet is reported, not split (milestone 48).
-- Nothing grows from a bent wall (no arched lid yet, milestone 48), it takes no fold-over, and the "touching but not joined" check skips bent walls; their joints are made by their own rules.
+- (Resolved in milestone 48: strips in one net, a movable closing seam, splitting, the arched lid.) A divider drawn exactly through a closing seam is still not joined there.
+- Nothing grows from a bent wall, it takes no fold-over, and the "touching but not joined" check skips bent walls; their joints are made by their own rules.
 - A run meeting a straight edge at a sharp corner (auto curves can) gets no corner joint there.
 - In outline mode the matched wall's handles are not drawn on the other wall; its shape updates live instead.
 - Telescoping lids only (no lip lid); the lid sits a clearance above the walls.
@@ -1104,6 +1103,30 @@ Limitations
 - The move-the-shape Fix needs a straight stretch on the wall; a corner wall is curved all along, so a shape there must be moved by hand.
 - Engraving on a mirrored kiss-scored strip lands on its scored face.
 - Teacher batches do not add the kiss label.
+
+## Milestone 48 — strips and arched lids ✅
+
+Implemented (`CURVED_WALLS.md` §4.3, §6.2, §7.3; `src/model/strips.ts`, `src/model/arch.ts`, `src/model/pieces.ts` `netFolds`, `src/model/bent.ts` `bendAlong` / `bentGeom` / `inlineGeom`, `src/model/edges.ts` arched tops, `src/model/match.ts`, `src/model/ops.ts`, `src/ui/TrayUI.tsx`, `src/ui/BendUI.tsx`, `src/views/View3D.tsx` `ArchArrow`)
+- **New joint kinds** `'inline'` and `'key'` (schema 14), `Connection.rides` (derived).
+- **Strip plan** (`planStrips`, every solve, before bend patterns), for the in-line seams the editor made:
+  - card and corrugated: each curved corner rides on one straight neighbour in the tray's net (`inlineXf`, `netFolds`), glued to the other; teeth that would lie on the base flat are trimmed or left off; corrugated prefers the neighbour that keeps flutes up the curve; a kiss-scored corner rides only with its scored face up; a corner that would overlap stays its own piece.
+  - plywood: the tray's walls are one strip (`planChain`), closed by a puzzle key at the back-left seam, keyed apart wherever the sheet runs out.
+- **Puzzle keys** (`keyDims`, `keyAdd`, `keySocket`, `splitCut`): a closed plywood strip's closing seam; a wall longer than the sheet cut in equal pieces (`val.stripSplit`, a note).
+- **Closing seam position** `Panel.bend.seamAt` (`bendAlong` starts there; `setBend` keeps the wall's shapes where they are on the box); the curved wall card's *Closing seam* (`bend-seam`, degrees) and a line saying which wall it is cut in one strip with (`bend-strip`).
+- **Arched lid** (`Tray.arch`; `addArchedLid`, `setArchRise`, `removeArchedLid`, `reconcileArches`, `lidPlace`, `archFarGeom`): the leader end wall's top an exact arc (`WallSketch.arch`), the follower matched, a bent lid over it between their inner faces, teeth folded down inside both (plywood glued edge on), the rise clamped to the lid's pattern reach. Tray card (both modes): *Arched lid* (`tray-arch`), *Arch rise* (`tray-arch-rise`, with the limit when reached), *Remove the arched lid*; a rise arrow over the apex on the stage (`arch-rise`).
+- English and Hebrew strings; README, DECISIONS (*Strips and arched lids*) and CURVED_WALLS updated.
+
+Verified
+- `tests/strips.test.ts` (8): a card rounded tray is one net that lies flat (each corner in line with the wall it continues, glued to the next, export check clean); corrugated corners ride on the walls that keep their flutes up the wall; a plywood flex box is one strip of four straight walls and four hinge corners plus a keyed closing seam at the back left (two outlines on the sheet); a plywood strip on a short sheet is keyed apart, each part within it; a plywood circle closed with a key, its closing seam moved a quarter round with a shape staying where it is, and back; a 600 mm circumference on a 500 mm card sheet cut in two parts that each fit, noted; an arched lid on a corrugated box (both end walls arched 30 mm and following a change to 40, the lid's length the arc's developed length, its underside on the apex, from inner face to inner face, its far edge teeth on the follower, clean); a plywood arch clamped to the living hinge's reach, save/load, removal.
+- Updated: `bentWalls.test.ts` (a plywood circle's key; a card rounded tray's corners each `inline` at one end and glued at the other), `bendPattern.test.ts` (a kiss-scored corner's face up in its net). The milestone-47 goldens `bend-*` were regenerated (their corners are strips now); every other golden is byte-identical.
+- Unit suite: 637 pass, 1 skipped; typecheck clean.
+- Browser: new `tests/e2e/strips.spec.ts` (Quick build: a box, *Arched lid*, the rise from the card and by dragging its arrow, *Ready to cut*, removal; Workshop: a card corner says which wall it continues, a circle's closing seam moved to 90°). Full app suite (`--grep-invert classroom`): 102 passed, 0 failed, 57 skipped.
+
+Limitations
+- The student cannot choose which neighbour a corner rides on (`Tray.pin` is not offered for it); a seam they set by hand keeps its kind.
+- Trimmed teeth are still drawn whole in 3D.
+- A tray's whole net larger than the sheet is reported, not split; only single long walls and plywood strips are.
+- The arch owns its leader's top corners (kept square) and replaces its top's points while set; the lid's own card is a curved wall's card.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

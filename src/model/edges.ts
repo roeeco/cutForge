@@ -187,6 +187,20 @@ function arcPoints(f: Fillet): P2[] {
   return [f.t1, ...out, f.t2];
 }
 
+/** Points of a circular arc from a to b bulging `rise` mm to the left of a → b (outward on a CCW ring's top edge). */
+function archPoints(a: P2, b: P2, rise: number): P2[] {
+  const c = Math.hypot(b.x - a.x, b.y - a.y);
+  if (c < 1e-9) return [a, b];
+  const r = Math.min(rise, c / 2 - 1e-6);
+  const R = (c * c / 4 + r * r) / (2 * r);
+  const ux = (b.x - a.x) / c, uy = (b.y - a.y) / c;
+  // the outward side: right of a → b on a CCW ring (the top runs right to left, so outward is up)
+  const nx = uy, ny = -ux;
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const ctr = { x: m.x - nx * (R - r), y: m.y - ny * (R - r) };
+  return arcPoints({ i: 0, t1: a, t2: b, c: ctr, r: R });
+}
+
 /** A polygon sketch's ring with its rounded corners: trimmed straight edges and arcs keyed `<outgoing edge>^~<n>`. */
 function roundRing(pts: SketchPt[], keys: string[]): EdgeSeg[] {
   const n = pts.length;
@@ -220,6 +234,20 @@ export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: 
     return curveRing(ring, (e) => !!at.get(e.key));
   }
   const ring = straightRing(p);
+  // an arched top (milestone 48): a circular arc from the top right corner to the top left, keyed e2~n
+  if (s.arch && s.arch > 1e-6) {
+    const i = ring.findIndex((e) => e.key === 'e2');
+    if (i >= 0) {
+      const e = ring[i];
+      // the top's other points belong to the arch's chord
+      let j = i + 1;
+      while (j < ring.length && ring[j].key !== 'e3') j++;
+      const a = e.a, b = (ring[j - 1] ?? e).b;
+      const arc = archPoints(a, b, s.arch);
+      const segs: EdgeSeg[] = arc.slice(1).map((q, k) => ({ key: `e2~${k}`, a: arc[k], b: q }));
+      return [...ring.slice(0, i), ...segs, ...ring.slice(j)];
+    }
+  }
   const ins = new Map((s.inserts ?? []).map((x) => [x.id, !!x.curve]));
   if (!s.corners?.tr?.curve && !s.corners?.tl?.curve && ![...ins.values()].some(Boolean)) return ring;
   // the point an edge starts at: e2 at the top right corner, e3 at the top left, an insert's piece at the insert

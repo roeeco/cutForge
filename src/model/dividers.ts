@@ -136,7 +136,7 @@ export function footprints(d: Design, baseId: string, dividers: Set<string>, ski
       const run = findRun(base, c.a.edge);
       if (!run) continue;
       const m = matOf(d, w.id);
-      const b = bendAlong(base, run, c.offset, m.thickness, bendOf(m).k, 0);
+      const b = bendAlong(base, run, c.offset, m.thickness, bendOf(m).k, 0, w.bend?.seamAt ?? 0);
       const t = m.thickness;
       for (const f of b.facets) {
         const quad = [runPoint(b, f.s0, b.off), runPoint(b, f.s1, b.off), runPoint(b, f.s1, b.off + t), runPoint(b, f.s0, b.off + t)];

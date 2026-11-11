@@ -140,7 +140,8 @@ describe('plywood living hinge', () => {
       // staggered columns: neighbouring columns' bridges are at different heights
       const cols = [...new Set(cuts.map((s) => s.a.x))].sort((a, b) => a - b);
       const ends = (x: number) => cuts.filter((s) => s.a.x === x).map((s) => Math.round(Math.max(s.a.y, s.b.y) * 100) / 100).sort((a, b) => a - b);
-      expect(ends(cols[0])[0]).not.toBeCloseTo(ends(cols[1])[0], 0);
+      const mid = cols.length >> 1;
+      expect(ends(cols[mid])[0]).not.toBeCloseTo(ends(cols[mid + 1])[0], 0);
     }
     expect(blocking(d)).toEqual([]);
     setCornerRadius(d, base, 15);
@@ -187,7 +188,7 @@ describe('plywood living hinge', () => {
 });
 
 describe('kiss scores', () => {
-  it('corrugated 1.6 at R 15: kiss scores on the inside, the strip mirrored so that face is up, labelled on the guide layer', () => {
+  it('corrugated 1.6 at R 15: kiss scores on the inside, the strip laid so that face is up, labelled on the guide layer', () => {
     const { d } = roundedBox(CORR16, 15);
     const walls = bentWalls(d);
     for (const W of walls) {
@@ -198,8 +199,10 @@ describe('kiss scores', () => {
     }
     expect(blocking(d)).toEqual([]);
     const W = walls[0];
+    // in its piece (on its own, or riding on a straight wall in the tray's net, milestone 48) the scored face is up
     const piece = buildPieces(d).find((p) => p.panels.some((n) => n.panelId === W.id))!;
-    expect(!!piece.panels[0].xf.mirror).toBe(W.bent!.pattern!.mirror);
+    const n = piece.panels.find((x) => x.panelId === W.id)!;
+    expect((W.frame.side === 1) !== !!n.xf.mirror ? 1 : -1).toBe(W.bent!.pattern!.face);
     const prep = prepareExport(d);
     expect(prep.sheets.flatMap((s) => s.contours).filter((c) => c.op === 'guide').length).toBeGreaterThan(0);
     // the outside up: no longer mirrored the other way

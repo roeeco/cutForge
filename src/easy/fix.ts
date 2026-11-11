@@ -54,7 +54,7 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 }
 
 /** Warnings that do not stop a cut: shown as notes, not as things to fix. */
-export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
+export const NOTE_KEYS = new Set(['val.split', 'val.bevel', 'val.stripSplit']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
 /**

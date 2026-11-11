@@ -12,6 +12,7 @@ import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
+import { archFarGeom, isArchSeam } from './arch';
 import { bentGeom, facetsOf, inlineGeom, isInline, onRun, panelToLocal, panelToWorld } from './bent';
 
 const TOL = 0.02; // mm, for "meets" tests
@@ -394,6 +395,8 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   // a wall bent along a curve, and where it meets a wall in line (milestone 46)
   if (onRun(c)) return bentGeom(d, c);
+  // an arched lid's far edge on its follower (milestone 48)
+  if (isArchSeam(c)) return archFarGeom(d, c);
   if (isInline(d, c)) return inlineGeom(d, c);
   // an edge on a bent wall's face: joined on the facet it meets, as a planar wall there
   if (!c.grown && c.b.edge === FACE && d.panels[c.b.panelId]?.bent) {

@@ -9,6 +9,7 @@ import { matOf, bendOf } from '../model/materials';
 import { styleReach, stylesFor } from '../model/bendPattern';
 import type { BendStyle } from '../model/types';
 import { fmtNum } from '../i18n';
+import { panelLabel } from '../model/names';
 
 export function BendSection({ panelId }: { panelId: string }) {
   const t = useT();
@@ -25,6 +26,10 @@ export function BendSection({ panelId }: { panelId: string }) {
   const r = fmtNum(p.bent.minR, 1);
   const kiss = info.zones.some((z) => z.style === 'kiss') || info.style === 'kiss';
   const lines = info.zones.reduce((s, z) => s + z.lines, 0);
+  // its in-line seams (milestone 48): one strip with a neighbour in the net, or its own piece glued in line
+  const seams = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === panelId && /\|[se]$/.test(c.id));
+  const ride = seams.find((c) => c.kind === 'inline');
+  const strip = seams.length ? { with: ride ? (ride.a.panelId === panelId ? ride.b.panelId : ride.a.panelId) : null } : null;
   return (
     <div className="subsection bend" data-testid="bend-section">
       <h4>{t('bend.title')}</h4>
@@ -58,6 +63,17 @@ export function BendSection({ panelId }: { panelId: string }) {
             </>
           )}
         </>
+      )}
+      {p.bent.closed && (
+        <>
+          <NumField label={t('bend.seam')} value={Math.round((p.bend?.seamAt ?? 0) * 360)} unit={t('unit.deg')} decimals={0} min={0} max={359} onCommit={(v) => apply((x) => void setBend(x, panelId, { seamAt: v / 360 }))} testId="bend-seam" />
+          <p className="note">{t('bend.seamHelp')}</p>
+        </>
+      )}
+      {strip && (
+        <p className="note" data-testid="bend-strip" dir="auto">
+          {strip.with ? t('bend.strip', { panel: panelLabel(d, strip.with, t) }) : t('bend.stripOwn')}
+        </p>
       )}
       {m.kind === 'corrugated' && kiss && (
         <>

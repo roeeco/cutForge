@@ -31,7 +31,7 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'teeth', 'wrap', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'teeth', 'wrap', 'inline', 'key', 'butt'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;
 const TAB_LOCKS = ['flush', 'through', 'snap', 'bolt'] as const;
@@ -135,6 +135,7 @@ function sketch(s: unknown, where: string) {
   } else if (k.kind === 'wall') {
     // a matched wall's leader (milestone 46): a link to a board that is not there is dropped (solve keeps the shape)
     if (k.match !== undefined && typeof k.match !== 'string') delete k.match;
+    if (k.arch !== undefined) num(k.arch, `${where}.arch`, { min: 0, max: 10000 });
     if (k.corners !== undefined) {
       if (!isObj(k.corners)) fail(`${where}.corners`, 'not an object');
       for (const c of Object.keys(k.corners)) {
@@ -193,6 +194,7 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
     if (b.style !== undefined) oneOf(b.style, ['auto', 'smooth', 'score', 'kiss', 'perf', 'lattice'] as const, `${w}.style`);
     if (b.pitch !== undefined && b.pitch !== null) num(b.pitch, `${w}.pitch`, { min: 0.3, max: 100 });
     if (b.face !== undefined && b.face !== 1 && b.face !== -1) fail(`${w}.face`, 'not 1 or -1');
+    if (b.seamAt !== undefined) num(b.seamAt, `${w}.seamAt`, { min: 0, max: 1 });
   }
   if (x.ext !== undefined) {
     if (!isObj(x.ext)) delete x.ext; // derived: solve re-makes it
@@ -282,6 +284,7 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
+  if (x.rides !== undefined && typeof x.rides !== 'string') delete x.rides; // derived
   // the last valid joint geometry: derived, and only kept for a broken joint; a damaged one is dropped
   if (x.geom !== undefined && !geomOk(x.geom)) delete x.geom;
   return true;
@@ -298,6 +301,12 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   oneOf(x.cornerKind, CONNECTION_KINDS, `${where}.cornerKind`);
   if (x.curveKind !== undefined) oneOf(x.curveKind, CONNECTION_KINDS, `${where}.curveKind`);
   if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
+  if (x.arch !== undefined) {
+    const a = x.arch;
+    // an arched lid whose walls or lid are gone is dropped (the lid itself stays as a board)
+    if (!isObj(a) || [a.lead, a.follow, a.lid].some((id) => badId(id) || !own(d.panels, id))) delete x.arch;
+    else num(a.rise, `${where}.arch.rise`, { min: 0, max: 10000 });
+  }
   arr(x.openEdges, `${where}.openEdges`).forEach((e, i) => str(e, `${where}.openEdges[${i}]`));
   if (x.tabLen !== undefined) oneOf(x.tabLen, TAB_LOCKS, `${where}.tabLen`);
   if (x.flat !== undefined) oneOf(x.flat, ['auto', 'off'] as const, `${where}.flat`);

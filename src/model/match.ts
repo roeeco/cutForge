@@ -101,6 +101,9 @@ export function copyProfile(d: Design, fromId: string, toId: string) {
     const at = insertAt(tc, 'e2', map(insertPoint(fc, x)));
     return { id: x.id, edge: 'e2' as const, ...at, ...(x.curve ? { curve: x.curve } : {}) };
   });
+  // an arched top (milestone 48) is the same arch on both
+  if (fs.arch) ts.arch = fs.arch;
+  else delete ts.arch;
   const sides = (ts.inserts ?? []).filter((x) => x.edge !== 'e2');
   const inserts = [...sides, ...top];
   if (inserts.length) ts.inserts = inserts;

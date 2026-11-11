@@ -400,7 +400,12 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - kerf-compensated hinge lines are shortened by the kerf
   - golden files for one pattern of each kind
 
-### Milestone 48: strips: tangent joins, closing seam, sheet splitting, arched lid
+### Milestone 48: strips: tangent joins, closing seam, sheet splitting, arched lid ✅
+*Done (PROGRESS.md, DECISIONS.md *Strips and arched lids*). Changed while building:*
+- *Seams are a puzzle key (no glue, no extra piece): plywood closing seams, and splits of a strip longer than the sheet (inside one wall, or at a seam of a plywood strip). Card and corrugated closing seams keep their glue flap.*
+- *A plywood strip all round is closed at the in-line seam furthest to the back left, not in the middle of a straight wall.*
+- *Teeth that would lie on the base in the flat net are trimmed (or left off); the student cannot choose the neighbour a corner rides on.*
+- *The arch is an exact circular arc (`WallSketch.arch`) rather than curve points, so its tightest radius is the one the clamp allows; Workshop gets it from the tray card too (no grow-from-a-curved-top-edge gesture).*
 - `'inline'` joins in `netFolds` and `fixFlatNets` (a curved corner rides on one straight neighbour, preferring flutes up the wall).
 - Closing seam with `seamAt`: card/corrugated overlap flap; plywood backing strip or puzzle key.
 - Splitting strips longer than the sheet.

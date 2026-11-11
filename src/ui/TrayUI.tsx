@@ -7,6 +7,9 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
+import { addArchedLid, removeArchedLid, setArchRise } from '../model/ops';
+import { archMaxRise, archWalls } from '../model/arch';
+import { styleReach } from '../model/bendPattern';
 import { addFoldOver, addLid, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt } from '../model/ops';
 import { trayWallOn } from '../model/flatnet';
 import { panelLabel } from '../model/names';
@@ -81,6 +84,11 @@ export function TraySection({ panelId }: { panelId: string }) {
   const runs = curveRuns(d.panels[panelId]).filter((r) => r.length >= MIN_EDGE);
   const straight = panelEdges(d.panels[panelId]).some((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key));
   const open = tray.openEdges.filter((k) => panelEdges(d.panels[panelId]).some((e) => e.key === k) || runs.some((r) => r.key === k));
+  // an arched lid's highest rise (milestone 48): the arch no tighter than its material bends with its pattern
+  const archLead = tray.arch && d.panels[tray.arch.lead];
+  const lm = tray.arch && d.panels[tray.arch.lid] ? matOf(d, tray.arch.lid) : bm;
+  const archReach = styleReach(lm, lm.kind === 'card' ? 'score' : lm.kind === 'corrugated' ? 'kiss' : 'lattice');
+  const archLimit = archLead ? archMaxRise(archLead.w, archReach) : null;
   return (
     <div className="subsection tray-card" data-testid="tray-card">
       <h4>{t('tray.title')}</h4>
@@ -143,10 +151,34 @@ export function TraySection({ panelId }: { panelId: string }) {
       )}
       </Gate>
       {straight && tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
+      {tray.arch ? (
+        // an arched lid (milestone 48): its rise, clamped to what its material bends over
+        <div className="tray-arch" data-testid="tray-arch-section">
+          <p className="note" dir="auto">{t('tray.archIs', { lead: panelLabel(d, tray.arch.lead, t), follow: panelLabel(d, tray.arch.follow, t) })}</p>
+          <NumField label={t('tray.archRise')} value={tray.arch.rise} unit={t('unit.mm')} min={0} max={1000} onCommit={(v) => apply((x) => void setArchRise(x, tray.id, v))} testId="tray-arch-rise" />
+          {archLimit !== null && archLimit <= tray.arch.rise + 1e-6 && (
+            <p className="note" data-testid="tray-arch-max">{t('tray.archMax', { max: fmtNum(archLimit, 1), r: fmtNum(archReach, 1) })}</p>
+          )}
+          <button className="ghost" onClick={() => apply((x) => void removeArchedLid(x, tray.id))} data-testid="tray-arch-remove">
+            {t('tray.archRemove')}
+          </button>
+        </div>
+      ) : (
+        !tray.lidOf &&
+        !lidOn(d, tray.id) &&
+        archWalls(d, tray.id) && (
+          <div className="tray-arch">
+            <button onClick={() => apply((x) => void addArchedLid(x, tray.id))} data-testid="tray-arch">
+              {t('tray.arch')}
+            </button>
+            <p className="note">{t('tray.archHelp')}</p>
+          </div>
+        )
+      )}
       {tray.lidOf ? (
         <p className="note" data-testid="tray-is-lid">{t('tray.isLid')}</p>
       ) : (
-        !lidOn(d, tray.id) && (
+        !lidOn(d, tray.id) && !tray.arch && (
           <div className="tray-lid">
             <button onClick={() => apply((x) => void addLid(x, tray.id))} data-testid="tray-lid">
               {t('tray.lid')}

@@ -110,6 +110,9 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // (style, line spacing, which face is up) and open cut lines in a joint's
   // geometry; nothing to convert.
   12: (d) => d,
+  // v13 -> v14: strips (milestone 48): joint kinds 'inline' and 'key', a closed
+  // strip's `bend.seamAt`, a tray's arched lid (`Tray.arch`); nothing to convert.
+  13: (d) => d,
 };
 
 function migrateDividers(d: any): any {

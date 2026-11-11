@@ -18,6 +18,7 @@ import { bendOf, matOf, tOf } from './materials';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { autoFlap, tabCount } from './seams';
 import { bestReach } from './bendPattern';
+import { inlineXf, keyAdd, keyDims, keySocket, splitCut, stripMax } from './strips';
 
 /** Largest turn within one facet (radians) and largest sagitta (mm). */
 const FACET_TURN = (5 * Math.PI) / 180;
@@ -46,9 +47,11 @@ export const bentLift = (kind: ConnectionKind, tBase: number) => (kind === 'wrap
  * face stands, `t` its thickness, `k` its neutral-line factor, `lift` the
  * height of its bottom above the base's plane.
  */
-export function bendAlong(base: Panel, run: CurveRun, off: number, t: number, k: number, lift: number): Bent {
-  const segs = run.segs, m = segs.length;
+export function bendAlong(base: Panel, run: CurveRun, off: number, t: number, k: number, lift: number, seamAt = 0): Bent {
   const closed = run.closed;
+  // a closed strip starts at its closing seam: `seamAt` of the way round from the run's start (milestone 48)
+  const k0 = closed && seamAt > 0 ? Math.round(seamAt * run.segs.length) % run.segs.length : 0;
+  const segs = k0 ? [...run.segs.slice(k0), ...run.segs.slice(0, k0)] : run.segs, m = segs.length;
   // vertices: m + 1 (open), m (closed, the first repeated at the end below)
   const V: P2[] = closed ? segs.map((e) => e.a) : [...segs.map((e) => e.a), segs[m - 1].b];
   const nv = V.length;
@@ -206,7 +209,7 @@ const empty = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [], fla
 /** Flap width for glue on a bent wall: the connection's, the design's, else the material's. */
 const flapOf = (d: Design, c: Pick<Connection, 'flap'>, m: MaterialProfile) => c.flap ?? d.joints?.[m.kind]?.flap ?? autoFlap(m);
 
-/** A strip closed on itself is closed with a glue flap (card, corrugated); plywood is glued edge to edge (a backing strip comes later). */
+/** A strip closed on itself is closed with a glue flap (card, corrugated); plywood with a puzzle key (milestone 48). */
 export const closingFlap = (m: MaterialProfile) => m.kind !== 'plywood';
 
 /** Kinds a bent wall's in-line seam with a neighbour may take: a glue flap behind the neighbour, or edge to edge. */
@@ -296,6 +299,18 @@ export function bentGeom(d: Design, c: Connection): ConnGeom | null {
       i0 = j;
     }
   } else if (c.kind !== 'butt') return null;
+  // a strip longer than the sheet: cut across with puzzle keys (milestone 48), evenly
+  const max = stripMax(d, mW);
+  const key = keyDims(mW, W.h);
+  if (L > max + 1e-6 && key) {
+    const n = Math.ceil(L / max);
+    for (let i = 1; i < n; i++) g.cuts = [...(g.cuts ?? []), { panelId: W.id, poly: splitCut((L * i) / n, W.h / 2, -tB - 20, W.h + 20, key, mW.clearance) }];
+  }
+  // a closed plywood strip: a puzzle key across its closing seam (milestone 48)
+  if (b.closed && !closingFlap(mW) && key) {
+    g.adds.push({ panelId: W.id, poly: keyAdd(L, W.h / 2, key), flat: true });
+    g.cuts = [...(g.cuts ?? []), { panelId: W.id, poly: keySocket(0, W.h / 2, key, mW.clearance) }];
+  }
   // a closed strip: a glue flap past its end, behind its start
   if (b.closed && closingFlap(mW)) {
     const fh = Math.min(flapOf(d, c, mW), L / 4);
@@ -320,7 +335,24 @@ export function inlineGeom(d: Design, c: Connection): ConnGeom | null {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
   const g = empty();
-  if (c.kind === 'butt') return g;
+  // one strip (milestone 48): the net runs on, nothing to cut
+  if (c.kind === 'butt' || c.kind === 'inline') return g;
+  if (c.kind === 'key') {
+    // a puzzle key: on the panel whose end meets the other's start, its socket in the other
+    const [K, O] = c.a.edge === 'e1' ? [A, B] : [B, A];
+    const mK = matOf(d, K.id);
+    const k = keyDims(mK, Math.min(A.h, B.h));
+    if (!k) return g;
+    const ym = Math.min(A.h, B.h) / 2;
+    const xf = inlineXf(d, c, K.id);
+    const eK = findEdge(K, 'e1'), eO = findEdge(O, 'e3');
+    if (!xf || !eK || !eO) return g;
+    // the key's height on the other panel (their bottoms may stand apart)
+    const yO = ym + xf.ty;
+    g.adds.push({ panelId: K.id, poly: keyAdd(eK.a.x, ym, k), flat: true });
+    g.cuts = [{ panelId: O.id, poly: keySocket(eO.b.x, yO, k, mK.clearance) }];
+    return g;
+  }
   if (c.kind !== 'glue') return null;
   const mA = matOf(d, A.id), tA = mA.thickness, tB = tOf(d, B.id);
   const end: 0 | 1 = c.a.edge === 'e1' ? 1 : 0;

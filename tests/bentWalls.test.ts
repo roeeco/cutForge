@@ -115,8 +115,10 @@ describe('a round box', () => {
     expect(panelExtras(p, p.panels[pb]).cuts.length).toBeGreaterThan(0);
     // its length at the neutral line, half way through
     expect(p.panels[pc.b.panelId].w).toBeCloseTo(2 * Math.PI * (80 - 1.5), 2);
-    // a plywood strip edge to edge: no closing flap
-    expect(pc.geom!.adds).toHaveLength(0);
+    // a plywood strip closed with a puzzle key (milestone 48): no glue flap, a key at its end and its socket at its start
+    expect(pc.geom!.adds).toHaveLength(1);
+    expect(pc.geom!.adds[0].flat).toBe(true);
+    expect(pc.geom!.cuts!.filter((k) => k.panelId === pc.b.panelId)).toHaveLength(1);
   });
 
   it('save and load: the bend is derived, not saved, and comes back the same', () => {
@@ -160,14 +162,13 @@ describe('a rounded-rectangle tray', () => {
     const bent = bentOf(d, base);
     expect(bent).toHaveLength(4);
     expect(bent.every((c) => c.kind === 'teeth')).toBe(true);
-    // each corner is glued at both ends to the straight wall beside it (a flap behind it)
+    // each corner continues one straight wall in the net (milestone 48) and is glued at its other end to the next (a flap behind it)
     for (const c of bent) {
-      for (const at of ['s', 'e'] as const) {
-        const s = d.connections[inlineId(c.b.panelId, at)];
-        expect(s?.kind).toBe('glue');
-        expect(s.geom!.adds).toHaveLength(1);
-        expect(s.geom!.flaps3d[0].panelId).toBe(s.b.panelId);
-      }
+      const ss = (['s', 'e'] as const).map((at) => d.connections[inlineId(c.b.panelId, at)]);
+      expect(ss.map((s) => s.kind).sort()).toEqual(['glue', 'inline']);
+      const s = ss.find((x) => x.kind === 'glue')!;
+      expect(s.geom!.adds).toHaveLength(1);
+      expect(s.geom!.flaps3d[0].panelId).toBe(s.b.panelId);
     }
     // the corner's ends meet its neighbours' ends: in line at the tangent points
     const c = bent.find((x) => x.a.edge === 'e1^~')!;

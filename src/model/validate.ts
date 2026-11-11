@@ -21,6 +21,7 @@ import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
 import { netOverlaps, pieceKeyOf, pieceRoot } from './pieces';
 import { bendCheck } from './bent';
+import { keyDims, stripMax } from './strips';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
@@ -249,6 +250,9 @@ function bendIssues(d: Design): Issue[] {
       else if (z?.by === 'joint') out.push({ key: 'val.bendJoint', vars, target });
       if (info.style === 'kiss' && !info.auto && info.zones.some((x) => x.sign !== info.face)) out.push({ key: 'val.kissTwoWay', vars, target });
     }
+    // longer than the sheet: cut in pieces with puzzle keys (milestone 48), a note
+    const max = stripMax(d, m);
+    if (p.w > max + 1e-6 && keyDims(m, p.h)) out.push({ key: 'val.stripSplit', vars: { panel: p.name, n: Math.ceil(p.w / max) }, target });
     if (m.kind === 'corrugated' && m.grain !== 'none') {
       const pl = Object.entries(d.placements).find(([k]) => k.startsWith(`${pieceKeyOf(d, id)}#`))?.[1];
       // a strip lies with its height along the sheet's y unless turned: flutes along y run up the wall

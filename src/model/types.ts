@@ -47,7 +47,7 @@ export type BendStyle = 'auto' | 'smooth' | 'score' | 'kiss' | 'perf' | 'lattice
  * inner face, the box's inside; −1: its outer face). Absent: the face inside
  * most of its bends.
  */
-export type BendChoice = { style?: BendStyle; pitch?: number | null; face?: 1 | -1 };
+export type BendChoice = { style?: BendStyle; pitch?: number | null; face?: 1 | -1; /** A closed strip's closing seam (milestone 48): how far round from where it starts by default (the back left), 0–1. */ seamAt?: number };
 
 /**
  * A panel's placement in 3D. `o` is the origin of the panel's local 2D
@@ -119,6 +119,12 @@ export type WallSketch = {
    * derived from it (src/model/match.ts).
    */
   match?: string;
+  /**
+   * Milestone 48: an arched top (an arched lid's end walls). The top edge is a
+   * circular arc this many mm above the line between its top corners; its
+   * points and curve flags are not used while it is set.
+   */
+  arch?: number;
 };
 /**
  * Layer 1 of a panel's outline (POLYGONS_AND_CUTS.md §3). Root panels are
@@ -262,6 +268,8 @@ export type ConnectionKind =
   | 'lean' // angled plywood panel resting on its parent, held by side walls
   | 'teeth' // a bent wall's tapered glue teeth, folded onto its base (milestone 46)
   | 'wrap' // a bent wall around its base, glued to the base's edge (milestone 46)
+  | 'inline' // two walls in line, cut as one strip (milestone 48; derived by the strip plan, never stored as a choice)
+  | 'key' // two walls in line, held by a puzzle key cut across the seam (milestone 48)
   | 'butt'; // edge to edge, no joint
 
 /**
@@ -336,6 +344,11 @@ export type Connection = {
    * folds off the other one.
    */
   hingeOf?: string;
+  /**
+   * Derived (milestone 48): on an in-line seam cut as one strip (`kind`
+   * 'inline'), the panel that rides on the other in the flat net.
+   */
+  rides?: string;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -463,9 +476,16 @@ export type Tray = {
   curveKind?: ConnectionKind;
   /** Milestone 46: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
   lidOf?: string;
+  /**
+   * Milestone 48: an arched lid across the box. `lead` and `follow` are the two
+   * walls it spans (the follower's top matches the leader's), `lid` the bent
+   * panel grown along the leader's arched top, `rise` the arch's height above
+   * the walls' top corners (mm).
+   */
+  arch?: { lead: string; follow: string; lid: string; rise: number };
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
