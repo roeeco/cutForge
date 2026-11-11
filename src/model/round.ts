@@ -9,8 +9,9 @@
 //   oval     the draftsman's four-centre oval: a rhombus whose corners on the
 //            long axis are rounded to rEnd and those on the short axis to a
 //            larger radius, chosen so the arcs meet tangentially with no
-//            straight part. It looks like an ellipse but stays exact arcs, and
-//            its tightest bend (rEnd) is gentler than an ellipse's (b²/a).
+//            straight part. It looks like an ellipse but stays exact arcs; its
+//            end radius starts at the draftsman's construction (`defaultEnd`),
+//            gentler than an ellipse's tightest bend (b²/a).
 import type { P2, RoundShape, SketchPt } from './types';
 
 /** The smallest end radius worth drawing (mm). */
@@ -18,15 +19,28 @@ export const MIN_END = 0.5;
 
 /** A four-centre oval's two radii for semi-axes a ≥ b and end radius r1 (clamped below b); r2 is Infinity at a stadium. */
 export function ovalRadii(a: number, b: number, rEnd?: number): { r1: number; r2: number } {
-  const r1 = Math.max(MIN_END, Math.min(b, rEnd ?? (b * b) / a));
+  const r1 = Math.max(MIN_END, Math.min(b, rEnd ?? defaultEnd(2 * a, 2 * b)));
   if (b - r1 < 1e-6 || a - b < 1e-6) return { r1: b, r2: Infinity };
   return { r1, r2: ((a - r1) ** 2 + b * b - r1 * r1) / (2 * (b - r1)) };
 }
 
-/** The end radius an oval of this size starts with: as close to an ellipse as its ends allow (b²/a). */
+/**
+ * The end radius an oval of this size starts with: the draftsman's
+ * construction, which fits an ellipse of the same box well all round. Join
+ * the ends of the two semi-axes (A on the long axis, C on the short one); take
+ * a − b off it from C (to E); the perpendicular bisector of AE crosses the
+ * long axis at the end arc's centre. (An ellipse's own end radius, b²/a, is
+ * smaller and gives an oval with pointed ends.) 0.1 mm steps.
+ */
 export const defaultEnd = (w: number, h: number) => {
   const a = Math.max(w, h) / 2, b = Math.min(w, h) / 2;
-  return Math.round(((b * b) / a) * 10) / 10;
+  if (a - b < 1e-9) return Math.round(b * 10) / 10;
+  const L = Math.hypot(a, b);
+  const E = { x: ((a - b) * a) / L, y: b - ((a - b) * b) / L };
+  const M = { x: (a + E.x) / 2, y: E.y / 2 };
+  const n = { x: E.y, y: a - E.x };
+  const x = M.x - (M.y / n.y) * n.x;
+  return Math.round((a - x) * 10) / 10;
 };
 
 /**

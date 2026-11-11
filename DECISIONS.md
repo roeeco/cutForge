@@ -277,3 +277,36 @@ Defaults chosen where the brief left room. Each is reversible.
   - Its width is read-only. Deleting its base deletes it; laying it flat makes it a plain board.
 - **Rows.** A divider's row is the line along its normal through its middle: the nearest board that is not a divider each way (or the base's edge) and the parallel dividers between. The slide arrow's snapping, the compartment labels and *Equal compartments* use it, so they work at any angle and on any base.
 - **`renamePanel` and template ids keep placed boards' hosts** (and trays' bases). Before, a renamed base dropped the boards placed on it to the floor.
+
+## Round outlines and bend limits (milestone 45, `CURVED_WALLS.md`)
+- **Rounded corners.** A polygon point with `curve: 'round'` and a radius `r` is a tangent circular arc in place of the corner.
+  - Arcs that would overlap on an edge are both scaled down until they meet (a 40 × 20 rectangle rounded at 15 becomes a stadium).
+  - Arcs are flattened in layer 1 within 0.02 mm, with every point exactly on the circle and an even count, so an arc's middle is on the outline.
+  - Their segments are keyed `<outgoing edge>^~<n>`: curve keys, so they are not growable, walled or joined, like auto curves.
+  - Straight parts shorter than a micron (where two arcs meet) are dropped.
+  - **Unlike an auto curve, rounding is allowed beside a joined edge:** the straight edges keep their keys and only get shorter. A wall on one gets shorter too, and a corner seam whose walls no longer meet goes, as for any auto seam.
+- **Round bases** (`Sketch.round`: circle, oval, stadium) are made as rounded corners: of a square (radius half its side), a rhombus (the four-centre oval) or a rectangle (radius half its shorter side).
+  - Resizing makes them again: a circle stays as wide as it is deep.
+  - Editing their points or *Convert to points* drops `round`: from then on they are outlines of points.
+  - *Edit outline* is hidden while a base is round.
+- **The four-centre oval.**
+  - End radius r1; side radius r2 = ((a − r1)² + b² − r1²) / (2 (b − r1)), so the arcs meet tangentially with no straight part.
+  - At r1 ≥ b it is a stadium.
+  - Its default r1 is the draftsman's construction: join the semi-axes' ends A and C, take a − b off it from C to E, and the perpendicular bisector of AE crosses the long axis at the end centre (20.7 mm for 120 × 60). *Changed from the plan's b²/a* (an ellipse's own end radius, 15 mm there), which gave pointed ends.
+- **Arcs back at export** (`src/geom/arcfit.ts`). Cut contours are polygons after the booleans; at export, a run of at least 4 segments whose vertices all lie within 10⁻⁵ mm of one circle becomes a true arc. Conditions:
+  - each step turns at most 24° and all the same way;
+  - the radius is 0.2 mm to 10 m;
+  - the circle is fitted through the run's ends and middle;
+  - arcs over 170° are split.
+  - It runs once per piece, before kerf compensation; a whole circle becomes three arcs.
+  - A regular polygon (up to 12 sides) and approximated curves (text, imported Béziers, auto curves) never pass, and every golden export is unchanged.
+  - Circles cut across an outline now come out as arcs too.
+  - Kerf compensation treats a join smooth within a microradian (it was 10⁻⁹) and snaps the two ends together, so arcs given back meet their neighbours.
+- **Bend limits** (`MaterialProfile.bend`; `bendDefaults(kind, t)`, `bendOf(m)`): `smoothR`, `patternR`, `pitch`, `k`, from the bending study.
+  - card 10 / 4 mm; corrugated under 3 mm 25 / 8, otherwise 60 / 20; plywood max(150, 50t) / max(25, 10t).
+  - The material drawer shows and edits `smoothR` and `patternR` (an edit makes a custom profile, as kerf does).
+  - A round base's card warns when its tightest radius is under `patternR`: a wall could not follow it.
+- **Schema 11:** new optional fields only; the version keeps older editors from misreading round outlines.
+- **Moved to milestone 46:**
+  - Quick build's *Round* / *Rounded* Box: without walls on curves, a round "box" would be a floor with no wall.
+  - `curveRuns`: its first user is the bent wall.

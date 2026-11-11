@@ -317,7 +317,13 @@ These use milestone 44's divider rules (`DIVIDERS_PLAN.md`), with three addition
 
 Each one keeps every existing test green and adds its own. Golden exports change only where a milestone says so. **Milestone 44 (dividers, `DIVIDERS_PLAN.md`) comes first.**
 
-### Milestone 45: round outlines and material bend limits (no curved walls yet)
+### Milestone 45: round outlines and material bend limits (no curved walls yet) ✅
+*Done (PROGRESS.md). Changed while building:*
+- *Quick build's Round / Rounded Box moved to milestone 46: without curved walls it would be a floor with no wall.*
+- *`curveRuns` moved to milestone 46, its first user.*
+- *The oval's default end radius is the draftsman's construction rather than b²/a, which gave pointed ends.*
+- *Schema 11 (10 went to the dividers).*
+
 - **Model:**
   - `SketchPt.curve: 'round'` + `r`
   - arc rings and `curveRuns` in `edges.ts`
@@ -334,6 +340,7 @@ Each one keeps every existing test green and adds its own. Golden exports change
 - Trays still leave curves open. This milestone is useful alone: round trays, coasters, game boards.
 
 ### Milestone 46: bent walls on curves (smooth bends, base joints, matched walls)
+- *From milestone 45:* `curveRuns` in `edges.ts`; Quick build Box *Round · Rounded* with the radius guard (§6.5).
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`
   - `Panel.bent` derived in `solveOnce` after frames

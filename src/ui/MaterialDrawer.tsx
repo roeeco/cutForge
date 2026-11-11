@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
-import { MATERIALS, materialsInUse, mixedMaterials } from '../model/materials';
+import { bendOf, MATERIALS, materialsInUse, mixedMaterials } from '../model/materials';
 import { materialName } from './materialName';
 import { editMaterial, setMaterial, solve } from '../model/ops';
 import { changeMaterial } from '../templates/registry';
@@ -80,6 +80,12 @@ export function MaterialDrawer() {
           <NumField label={t('mat.clearance')} value={m.clearance} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => setM({ clearance: v })} testId="mat-clearance" />
           {m.kind !== 'plywood' && <NumField label={t('mat.foldAllowance')} value={m.foldAllowance} decimals={2} unit={mm} min={0} max={20} onCommit={(v) => setM({ foldAllowance: v })} />}
           <p className="note">{t('mat.calibrate')}</p>
+        </div>
+        <div className="subsection" data-testid="drawer-bend">
+          {/* how tightly it bends (milestone 45): starting points, to check with a test strip */}
+          <h4>{t('mat.bend')}</h4>
+          <NumField label={t('mat.smoothR')} value={bendOf(m).smoothR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), smoothR: v } })} testId="mat-smoothR" />
+          <NumField label={t('mat.patternR')} value={bendOf(m).patternR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), patternR: v } })} testId="mat-patternR" />
         </div>
         <MaterialsInUse />
         <div className="subsection">

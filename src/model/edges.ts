@@ -195,7 +195,8 @@ function roundRing(pts: SketchPt[], keys: string[]): EdgeSeg[] {
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const a = fs[i]?.t2 ?? { x: pts[i].x, y: pts[i].y }, b = fs[j]?.t1 ?? { x: pts[j].x, y: pts[j].y };
-    if (Math.hypot(b.x - a.x, b.y - a.y) > 1e-9) out.push({ key: keys[i] ?? `e${i}`, a, b });
+    // a straight part shorter than a micron is where two arcs meet (an oval's, a circle's): none
+    if (Math.hypot(b.x - a.x, b.y - a.y) > 1e-6) out.push({ key: keys[i] ?? `e${i}`, a, b });
     const f = fs[j];
     if (f) {
       const q = arcPoints(f);

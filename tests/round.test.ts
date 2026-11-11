@@ -1,9 +1,9 @@
 // Milestone 45 (CURVED_WALLS.md §3.1, §6.1): rounded corners (`curve: 'round'`) and round bases (a
 // circle, a four-centre oval, a stadium), made of exact circular arcs.
 import { describe, expect, it } from 'vitest';
-import { addRoundedRect, addRoundPanel, addRootPanel, addTray, autoConnect, convertToPoints, createDesign, growPanel, moveVertex, setCornerRadius, setPanelSize, setPointRound, setRoundShape, solve } from '../src/model/ops';
+import { addPolygonPanel, addRoundedRect, addRoundPanel, addRootPanel, regularPolygon, addTray, autoConnect, convertToPoints, createDesign, growPanel, moveVertex, setCornerRadius, setPanelSize, setPointRound, setRoundShape, solve } from '../src/model/ops';
 import { isCurveKey, panelEdges, segLength, type EdgeSeg } from '../src/model/edges';
-import { ovalRadii, roundPts } from '../src/model/round';
+import { defaultEnd, ovalRadii, roundPts } from '../src/model/round';
 import { MATERIALS, bendDefaults, bendOf } from '../src/model/materials';
 import { validate } from '../src/model/validate';
 import { parseProject, serializeProject } from '../src/model/serialize';
@@ -77,13 +77,16 @@ describe('round bases', () => {
       expect(validate(d)).toEqual([]);
     });
 
-  it('an oval whose end radius reaches half its depth is a stadium; the default end radius is b²/a', () => {
+  it('an oval whose end radius reaches half its depth is a stadium; the default end radius is the draftsman’s construction', () => {
     expect(ovalRadii(60, 30, 40)).toEqual({ r1: 30, r2: Infinity });
     const a = roundPts(120, 60, { shape: 'oval', rEnd: 30 }), b = roundPts(120, 60, { shape: 'stadium' });
     expect(a).toEqual(b);
     const d = createDesign(PLY);
     const id = addRoundPanel(d, 0, 0, 120, 60, { shape: 'oval' })!;
-    expect((d.panels[id].sketch as { round?: { rEnd?: number } }).round?.rEnd).toBe(15);
+    // 120 × 60: A (60, 0), C (0, 30), E 30 mm from C along CA; the bisector of AE meets the long axis 20.7 from A
+    expect((d.panels[id].sketch as { round?: { rEnd?: number } }).round?.rEnd).toBe(20.7);
+    // a square box: a circle's radius
+    expect(defaultEnd(80, 80)).toBe(40);
   });
 
   it('its card: a new size or shape makes it again; a circle stays as wide as it is deep; points edited make it an outline of points', () => {
@@ -178,5 +181,47 @@ describe('bend limits', () => {
     expect(bendOf(CORR4)).toMatchObject({ smoothR: 60, patternR: 20 });
     expect(bendOf(PLY)).toMatchObject({ smoothR: 150, patternR: 30 });
     expect(bendOf({ ...PLY, bend: { ...bendDefaults('plywood', 3), patternR: 22 } }).patternR).toBe(22);
+  });
+});
+
+describe('exported as true arcs', () => {
+  /** The outer cut contour of the piece made from a panel, on its sheet. */
+  const outer = (d: Design, kerf: 'nominal' | 'compensated' = 'nominal') => {
+    const prep = prepareExport(d, kerf);
+    return prep.sheets.flatMap((s) => s.contours).filter((c) => c.op === 'cut' && c.role === 'outer');
+  };
+
+  it('a circle base is cut as arcs of its radius, a rounded rectangle as four lines and four quarter arcs', () => {
+    const d = createDesign(PLY);
+    addRoundPanel(d, 0, 0, 80, 80, { shape: 'circle' });
+    const [c] = outer(d);
+    expect(c.contour.segs.every((s) => s.k === 'A')).toBe(true);
+    for (const s of c.contour.segs) if (s.k === 'A') expect(s.r).toBeCloseTo(40, 6);
+    const d2 = createDesign(PLY);
+    addRoundedRect(d2, 0, 0, 100, 60, 15);
+    const [r] = outer(d2);
+    expect(r.contour.segs.filter((s) => s.k === 'L')).toHaveLength(4);
+    const arcs = r.contour.segs.filter((s) => s.k === 'A');
+    expect(arcs).toHaveLength(4);
+    for (const s of arcs) if (s.k === 'A') expect(s.r).toBeCloseTo(15, 6);
+    // the SVG draws them with arc commands, the DXF with bulges
+    expect(sheetsToSvg(prepareExport(d2).sheets)).toMatch(/ A15 15 /);
+    expect(sheetsToDxf(prepareExport(d2).sheets)).toMatch(/\n\s*42\r?\n/);
+  });
+
+  it('an oval keeps both its radii; kerf compensation grows its arcs by half the kerf', () => {
+    const d = createDesign(PLY);
+    addRoundPanel(d, 0, 0, 120, 60, { shape: 'oval', rEnd: 20 });
+    const radii = (k: 'nominal' | 'compensated') => [...new Set(outer(d, k)[0].contour.segs.map((s) => (s.k === 'A' ? Math.round(s.r * 1000) / 1000 : -1)))].sort((a, b) => a - b);
+    expect(radii('nominal')).toEqual([20, 105]);
+    expect(radii('compensated')).toEqual([20 + PLY.kerf / 2, 105 + PLY.kerf / 2]);
+  });
+
+  it('a regular 12-gon stays twelve straight cuts (its corners are not taken for an arc)', () => {
+    const d = createDesign(PLY);
+    addPolygonPanel(d, 0, 0, regularPolygon(12, 50));
+    const [c] = outer(d);
+    expect(c.contour.segs.filter((s) => s.k === 'L')).toHaveLength(12);
+    expect(c.contour.segs.some((s) => s.k === 'A')).toBe(false);
   });
 });

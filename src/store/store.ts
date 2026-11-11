@@ -199,8 +199,12 @@ type State = {
   /** Connection whose joint card is open (seam pill or inspector). */
   openJoint: string | null;
   /** Polygon tool: click vertices, or drag a regular n-gon. */
-  polyMode: 'click' | 'ngon';
+  polyMode: 'click' | 'ngon' | 'round' | 'rounded';
   ngonSides: number;
+  /** The polygon tool's Round mode: which round shape a drag makes (milestone 45). */
+  roundShape: 'circle' | 'oval' | 'stadium';
+  /** The polygon tool's Rounded mode: the corner radius (mm). */
+  roundCorner: number;
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
   /** A base vertex index, or on a wall a free corner ('tl' | 'tr') or an inserted point's id. */
@@ -260,7 +264,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -336,6 +340,8 @@ export const useStore = create<State>()((set, get) => ({
   openJoint: null,
   polyMode: 'click',
   ngonSides: 6,
+  roundShape: 'circle',
+  roundCorner: 15,
   editOutline: null,
   selVertex: null,
   extrude: null,

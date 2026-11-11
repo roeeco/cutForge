@@ -318,7 +318,7 @@ Fixed during the final pass
 Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (178 tests in 22 files, including the Worker API tests and the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (23 passed, 12 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` pointing at the pre-installed headless shell.
 
 Remaining limitations (polygons, cuts and corrugated)
-- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments.
+- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments. (Since milestone 45, circular arcs are given back at export; see there.)
 - Through-cuts go through the whole design; there is no per-cut depth.
 - Fold scores are plain SCORE lines: no crush-score style for 4 mm board.
 - The packer does not turn pieces for flute direction; fold-over scores across the flutes are only warned about.
@@ -975,6 +975,41 @@ Limitations
 - A divider turned under 30° after it was made keeps its ends there, unjoined; the export check names it.
 - A ghost's ✓ bar can sit under the right-hand card when the box is far right in the view (Enter still works); this is how every ghost bar is placed.
 - Round and curved boxes are milestones 45–48 (`CURVED_WALLS.md`).
+
+## Milestone 45 — round outlines and bend limits ✅
+
+Implemented (`CURVED_WALLS.md` §3.1, §3.3, §6.1; `src/model/edges.ts` `fillets`/`roundRing`, `src/model/round.ts`, `src/model/ops.ts`, `src/geom/arcfit.ts`, `src/export/prepare.ts`, `src/export/offset.ts`, `src/model/materials.ts`, `src/views/polyTool.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`)
+- **Rounded corners:** `curve: 'round'` with `r`; arcs keyed `<edge>^~<n>`, clamped where they would overlap. Point card: *Corner · Curve · Round*, with a radius (`point-round`, `point-radius`). Base card: *Corner radius* for all of them (`round-corner-all`).
+- **Round bases:** circle, four-centre oval, stadium (`Sketch.round`, `roundPts`, `ovalRadii`, `defaultEnd`).
+  - Ops: `addRoundPanel`, `setRoundShape`, `convertToPoints`, `setPointRound`, `setCornerRadius`, `addRoundedRect`. `setPanelSize` remakes a round base; point edits drop `round`.
+  - Card (`round-section`): shape, an oval's end radius with its side radius, *Convert to points*, and a note when tighter than the material bends.
+- **Polygon tool:** *Round* (drag a box; the card's shape; Shift or *Circle* keeps it square) and *Rounded* (the card's corner radius). On a panel they draw the shape as a polygon shape.
+- **Arcs back at export** (`refitArcs`), and kerf compensation follows arcs that meet tangentially.
+- **Bend limits** on materials (`bend`, `bendDefaults`, `bendOf`) and in the material drawer (`drawer-bend`, `mat-smoothR`, `mat-patternR`).
+- **Strings, schema:** English and Hebrew strings; schema 11.
+
+Verified
+- **`tests/round.test.ts` (16):**
+  - a circle's points all on its circle, filling its box, smooth, area to the tolerance;
+  - a stadium's straight sides and ends;
+  - the four-centre oval in both orientations (box exact, radii 20 / 105, smooth);
+  - the clamp to a stadium and the draftsman's default (20.7 for 120 × 60, a circle's radius for a square);
+  - resizing and shape changes, a circle staying round, *Convert to points*, point edits dropping the shape;
+  - save/load equal with an identical export;
+  - rounded rectangles (shortened sides, arc centres), corners clamped where they would overlap, one corner rounded then all changed then a corner again;
+  - rounding beside a wall shortens it; a tray on a rounded rectangle walls its four sides, a circle none yet;
+  - bend defaults per material and an own value replacing them;
+  - export: a circle as arcs of its radius, a rounded rectangle as 4 lines and 4 quarter arcs (SVG `A`, DXF bulges), an oval's radii exact and grown by half the kerf when compensated, a 12-gon still 12 lines.
+- **Golden exports:** all 32 unchanged (the arc refit finds nothing to change in them).
+- **Unit suite:** `npx vitest run`, all pass; typecheck clean.
+- **Browser:**
+  - New `tests/e2e/round.spec.ts`: a circle dragged in Round mode, made an oval 60 deep with ends of 20 (side radius 45, the tight-bend note), converted to points; Rounded mode at 12, all corners to 20, one corner back to a corner and rounded again at 8 in *Edit outline*, plywood's bend limits in the drawer (30) edited to 24. Passed three runs in a row, after it waits for the end-radius field to follow a new depth.
+  - `polygon`, `trays`, `gizmo` specs pass.
+
+Limitations
+- Tray walls stand on straight edges only: curves are left open until walls bend (milestone 46). Quick build's *Round* Box comes with them.
+- A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
+- Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

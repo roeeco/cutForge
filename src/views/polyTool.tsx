@@ -14,13 +14,15 @@ import { useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
-import { addPolygonPanel, addPolygonShape, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
+import { addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
 import { sketchRing, straightRing, wallCorners, type EdgeSeg } from '../model/edges';
+import { defaultEnd, roundPts } from '../model/round';
 import { detailSel, gridSnap, noSmartSnap, useStore, useT } from '../store/store';
 import { outlineTargets, snapOutlinePoint, type OutlineSnap, type OutlineTargets } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { fmtNum } from '../i18n';
 import { mmPerPx, StageHtml } from './widgets';
+import { NumField, Segmented } from '../ui/NumField';
 import { panelsCutBy } from '../model/through';
 import { STAGE } from './palette';
 import { frameMatrix, faceZ } from './three-geom';
@@ -65,6 +67,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
   };
   const mode = useStore((s) => s.polyMode);
   const sides = useStore((s) => s.ngonSides);
+  const roundShape = useStore((s) => s.roundShape);
+  const roundCorner = useStore((s) => s.roundCorner);
   const rc = useMemo(() => new THREE.Raycaster(), []);
 
   const localAt = (d: Draft, clientX: number, clientY: number): P2 | null => {
@@ -93,6 +97,52 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     if (r < 2.5) return null;
     const rot = shift ? Math.round((Math.atan2(to.y - d.centre.y, to.x - d.centre.x) + Math.PI / 2 + Math.PI / sides) / STEP) * STEP : 0;
     return regularPolygon(sides, Math.round(r * 2) / 2, rot).map((p) => ({ x: p.x + d.centre!.x, y: p.y + d.centre!.y }));
+  };
+
+  /** Round and Rounded (milestone 45): the box dragged from the start corner (square with Shift, or for a circle). */
+  const boxOf = (d: Draft, to: P2, shift: boolean): { x0: number; y0: number; w: number; h: number } | null => {
+    if (!d.centre) return null;
+    let dx = to.x - d.centre.x, dy = to.y - d.centre.y;
+    if (shift || (mode === 'round' && roundShape === 'circle')) {
+      const m = Math.max(Math.abs(dx), Math.abs(dy));
+      dx = (dx < 0 ? -1 : 1) * m;
+      dy = (dy < 0 ? -1 : 1) * m;
+    }
+    const w = Math.abs(snap1(dx)), h = Math.abs(snap1(dy));
+    if (w < 5 || h < 5) return null;
+    return { x0: Math.min(d.centre.x, d.centre.x + (dx < 0 ? -w : w)), y0: Math.min(d.centre.y, d.centre.y + (dy < 0 ? -h : h)), w, h };
+  };
+  /** A round or rounded outline in that box, as drawn (its arcs flattened). */
+  const roundOutline = (b: { x0: number; y0: number; w: number; h: number }): P2[] => {
+    const sk =
+      mode === 'round'
+        ? { kind: 'poly' as const, ...roundPts(b.w, b.h, { shape: roundShape, ...(roundShape === 'oval' ? { rEnd: defaultEnd(b.w, b.h) } : {}) }) }
+        : { kind: 'poly' as const, pts: [{ x: 0, y: 0 }, { x: b.w, y: 0 }, { x: b.w, y: b.h }, { x: 0, y: b.h }].map((q) => ({ ...q, curve: 'round' as const, r: roundCorner })), edgeIds: ['e0', 'e1', 'e2', 'e3'] };
+    return sketchRing({ w: b.w, h: b.h, sketch: sk }).map((e) => ({ x: e.a.x + b.x0, y: e.a.y + b.y0 }));
+  };
+  /** What a drag from the centre (Regular) or corner (Round, Rounded) draws. */
+  const dragPts = (d: Draft, to: P2, shift: boolean): P2[] | null => {
+    if (mode === 'ngon') return ngonPts(d, to, shift);
+    const b = boxOf(d, to, shift);
+    return b ? roundOutline(b) : null;
+  };
+
+  /** Make a round base (or a rounded shape on a panel) from a dragged box. */
+  const finishRound = (b: { x0: number; y0: number; w: number; h: number }) => {
+    const d = dr.current;
+    if (!d) return;
+    if (d.panelId !== null) return finish(roundOutline(b));
+    closedAt.t = performance.now();
+    setDraft(null);
+    setControls(true);
+    const st = useStore.getState();
+    let id: string | null = null;
+    st.cancelPending();
+    st.apply((x) => void (id = mode === 'round' ? addRoundPanel(x, b.x0, -b.y0, b.w, b.h, { shape: roundShape }) : addRoundedRect(x, b.x0, -b.y0, b.w, b.h, roundCorner)));
+    if (id) {
+      st.select({ kind: 'panel', id });
+      st.beginPending({ kind: 'panel', ids: [id], panelId: id });
+    }
   };
 
   const finish = (pts: P2[], regular?: number) => {
@@ -135,7 +185,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       const l = toLocal(frame, [e.point.x, e.point.y, e.point.z]);
       const p0 = { x: snap1(l.x), y: snap1(l.y) };
       const d: Draft = { panelId: panel?.id ?? null, frame, z, plane, pts: [], cur: p0, typed: '', stamp: e.nativeEvent.timeStamp };
-      if (st.polyMode === 'ngon') {
+      if (st.polyMode !== 'click') {
         d.centre = p0;
         setControls(false);
       } else d.pts = [p0];
@@ -169,7 +219,9 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       const d = dr.current;
       if (!d?.centre) return;
       const raw = localAt(d, ev.clientX, ev.clientY);
-      const pts = raw && ngonPts(d, raw, ev.shiftKey);
+      const b = raw && mode !== 'ngon' ? boxOf(d, raw, ev.shiftKey) : null;
+      if (b) return finishRound(b);
+      const pts = raw && mode === 'ngon' ? ngonPts(d, raw, ev.shiftKey) : null;
       if (pts) finish(pts, sides);
       else {
         setDraft(null);
@@ -226,7 +278,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
   const view = useMemo(() => {
     if (!draft) return null;
     const shift = draft.shift ?? false;
-    const pts = draft.centre ? (draft.cur && ngonPts(draft, draft.cur, shift)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])];
+    const pts = draft.centre ? (draft.cur && dragPts(draft, draft.cur, shift)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])];
     const closedOk = pts.length >= 3 && isSimplePolygon(pts);
     const m = frameMatrix(draft.frame);
     const zz = draft.z + (draft.frame.side === 1 ? 0.4 : -0.4);
@@ -235,13 +287,14 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     const close = pts.length >= 3 ? [v(pts[pts.length - 1]), v(pts[0])] : [];
     const last = draft.pts[draft.pts.length - 1];
     const seg = last && draft.cur && !draft.centre ? Math.hypot(draft.cur.x - last.x, draft.cur.y - last.y) : null;
-    return { open, close, closedOk, seg, label: pts.length ? v(draft.cur ?? pts[0]) : null, n: draft.centre ? sides : null, r: draft.centre && draft.cur ? Math.hypot(draft.cur.x - draft.centre.x, draft.cur.y - draft.centre.y) : null };
-  }, [draft, sides]);
+    const b = draft.centre && draft.cur && mode !== 'ngon' ? boxOf(draft, draft.cur, shift) : null;
+    return { open, close, closedOk, seg, label: pts.length ? v(draft.cur ?? pts[0]) : null, n: draft.centre && mode === 'ngon' ? sides : null, r: draft.centre && draft.cur ? Math.hypot(draft.cur.x - draft.centre.x, draft.cur.y - draft.centre.y) : null, box: b };
+  }, [draft, sides, mode, roundShape, roundCorner]);
 
   // a through-cut being drawn on a panel: how many panels it will cut, live (rounded to whole mm so it is not redone every pixel)
   const through = useStore((s) => s.shapeThrough && s.shapeOp === 'cut');
   const design = useStore((s) => s.design);
-  const throughPts = draft && through && draft.panelId ? (draft.centre ? (draft.cur && ngonPts(draft, draft.cur, draft.shift ?? false)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])]) : [];
+  const throughPts = draft && through && draft.panelId ? (draft.centre ? (draft.cur && dragPts(draft, draft.cur, draft.shift ?? false)) || [] : [...draft.pts, ...(draft.cur ? [draft.cur] : [])]) : [];
   const throughKey = throughPts.map((q) => `${Math.round(q.x)},${Math.round(q.y)}`).join(' ');
   const cutCount = useMemo(() => {
     if (!draft?.panelId || throughPts.length < 3 || !isSimplePolygon(throughPts)) return null;
@@ -275,7 +328,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       {view.label && (
         <StageHtml position={view.label.toArray() as V3} style={{ pointerEvents: 'none' }}>
           <span className="dim-label poly-label" data-testid="poly-label" dir="ltr">
-            {draft.typed ? `${draft.typed}▍ ${t('unit.mm')}` : view.n ? `${view.n} × r ${fmtNum(view.r ?? 0)}` : view.seg !== null ? `${fmtNum(view.seg)} ${t('unit.mm')}` : ''}
+            {draft.typed ? `${draft.typed}▍ ${t('unit.mm')}` : view.box ? `${fmtNum(view.box.w)} × ${fmtNum(view.box.h)}` : view.n ? `${view.n} × r ${fmtNum(view.r ?? 0)}` : view.seg !== null ? `${fmtNum(view.seg)} ${t('unit.mm')}` : ''}
             {!draft.centre && !view.closedOk && draft.pts.length >= 3 ? ` · ${t('poly.crosses')}` : ''}
           </span>
         </StageHtml>
@@ -568,13 +621,15 @@ export function PolygonToolCard() {
   const tool = useStore((s) => s.tool);
   const mode = useStore((s) => s.polyMode);
   const sides = useStore((s) => s.ngonSides);
+  const roundShape = useStore((s) => s.roundShape);
+  const roundCorner = useStore((s) => s.roundCorner);
   if (tool !== 'polygon') return null;
   const set = useStore.getState().set;
   return (
     <div className="card poly-card" data-testid="poly-card">
       <p className="kicker">{t('tool.polygon')}</p>
       <div className="seg" role="radiogroup" aria-label={t('poly.mode')}>
-        {(['click', 'ngon'] as const).map((x) => (
+        {(['click', 'ngon', 'round', 'rounded'] as const).map((x) => (
           <button key={x} role="radio" aria-checked={mode === x} className={mode === x ? 'on' : ''} onClick={() => set({ polyMode: x })} data-testid={`poly-mode-${x}`}>
             {t(`poly.mode.${x}`)}
           </button>
@@ -592,7 +647,17 @@ export function PolygonToolCard() {
           </button>
         </div>
       )}
-      <p className="note">{t(mode === 'ngon' ? 'poly.help.ngon' : 'poly.help.click')}</p>
+      {mode === 'round' && (
+        // milestone 45: a circle, a four-centre oval or a stadium filling the dragged box
+        <Segmented
+          label={t('round.shape')}
+          value={roundShape}
+          options={(['circle', 'oval', 'stadium'] as const).map((x) => ({ value: x, label: t(`round.${x}`), testId: `round-${x}` }))}
+          onChange={(v) => set({ roundShape: v as 'circle' | 'oval' | 'stadium' })}
+        />
+      )}
+      {mode === 'rounded' && <NumField label={t('round.corner')} value={roundCorner} unit={t('unit.mm')} min={0.5} max={500} onCommit={(v) => set({ roundCorner: v })} testId="round-corner" />}
+      <p className="note">{t(`poly.help.${mode}`)}</p>
     </div>
   );
 }

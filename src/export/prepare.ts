@@ -6,6 +6,7 @@ import type { Contour, TaggedContour } from '../geom/types';
 import { flattenContour, pointInPolygon, xformContour } from '../geom/vec';
 import { pack, pieceCopies, placementXform, sheetGroups } from '../model/pack';
 import { offsetContour } from './offset';
+import { refitArcs } from '../geom/arcfit';
 
 export type KerfMode = 'nominal' | 'compensated';
 
@@ -52,14 +53,18 @@ export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepar
   const groupOf = (mat: string | undefined) => groups.find((g) => g.mat === (mat ?? d.material.id)) ?? groups[0];
   const errors: PrepError[] = [];
   const compensated = new Map<string, { contours: TaggedContour[]; ok: boolean }>();
+  // arcs the outline pipeline flattened become true arcs again (milestone 45), once per piece
+  const arced = new Map<string, TaggedContour[]>();
   for (const c of copies) {
     const pl = placements[c.key];
     if (!pl) continue;
     const g = groupOf(pl.mat);
-    let contours = c.contours;
+    if (!arced.has(c.pieceKey)) arced.set(c.pieceKey, c.contours.map((tc) => (tc.op === 'cut' && tc.contour.closed ? { ...tc, contour: refitArcs(tc.contour) } : tc)));
+    const base = arced.get(c.pieceKey)!;
+    let contours = base;
     if (kerfMode === 'compensated') {
       // copies share geometry: compensate once per piece, with its own material's kerf
-      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(c.contours, g.profile.kerf));
+      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(base, g.profile.kerf));
       const r = compensated.get(c.pieceKey)!;
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey, panelId: c.pieceKey });
       contours = r.contours;
