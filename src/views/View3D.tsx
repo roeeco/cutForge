@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks } from '../model/ops';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
@@ -27,7 +27,8 @@ import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSiz
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
-import { snapLineEnd, ConfirmBar, FaceHover, PanelGhostView, PendingBar, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
+import { snapLineEnd, ConfirmBar, FaceHover, PanelGhostView, PendingBar, confirmPanelGhost, dividerGhost, faceAt, ghostPlace, hostFace, snapGhostPoint } from './panelTool';
+import { drawsDivider } from './board';
 import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
 import { commonPlane } from '../model/arrange';
 import { FLOOR_FRAME, faceOut } from '../model/place';
@@ -65,7 +66,7 @@ type Drag =
   | { kind: 'shape-draw'; panelId: string; id: string; start: { x: number; y: number }; plane: THREE.Plane }
   | { kind: 'detail-move'; ids: string[]; panelId: string; start: { x: number; y: number }; box: { minX: number; maxX: number; minY: number; maxY: number }; plane: THREE.Plane }
   | { kind: 'panel-move'; id: string; ids?: string[]; start: V3; plane: THREE.Plane }
-  /** The Panel tool drawing its ghost on a face (milestone 29). */
+  /** The Board tool (or Quick build's Divider) drawing its ghost on a face (milestones 29, 42). */
   | { kind: 'ghost-draw'; plane: THREE.Plane; H: Frame; targets: FaceTargets }
   /** A placed panel dragged in its host's plane. */
   | { kind: 'placed-move'; id: string; plane: THREE.Plane; H: Frame; start: P2 }
@@ -146,6 +147,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const quick = useMode() === 'quick';
   const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
   const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
+  // with the Board tool over the floor: the snapped point under the pointer (milestone 42)
+  const [floorHover, setFloorHover] = useState<V3 | null>(null);
   const inTxn = useStore((s) => !!s.txnBase);
   const { controls } = useThree() as unknown as { controls: { enabled: boolean } | null };
   const ray = useRay();
@@ -279,8 +282,15 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       const st = useStore.getState();
       if (g.kind === 'ghost-draw') {
         const cur = st.panelGhost;
-        // a ghost too small to be a panel is dropped; otherwise it waits for ✓ or ✕
-        if (cur) st.set({ panelGhost: ghostPlace({ ...cur, drawing: false }) ? { ...cur, drawing: false } : null });
+        if (!cur) return;
+        if (st.tool === 'panel') {
+          // the Board tool (milestone 42): release makes the board (a click or a short drag makes nothing, the tool stays)
+          if (cur.divider ? dividerGhost(st.design, cur) : ghostPlace(cur)) confirmPanelGhost();
+          else st.set({ panelGhost: null });
+          return;
+        }
+        // Quick build's Divider: a line too short is dropped; otherwise it waits for ✓ or ✕
+        st.set({ panelGhost: (cur.divider ? dividerGhost(st.design, cur) : ghostPlace(cur)) ? { ...cur, drawing: false } : null });
         return;
       }
       if (g.kind === 'panel-draw' && st.tool === 'box') {
@@ -462,33 +472,24 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   };
 
   /**
-   * The Panel tool, in three clicks: the first picks the face (or the floor)
-   * the panel goes on, the second flat or standing (on the small planes
-   * shown there), the third starts drawing on that face.
+   * The Board tool (milestone 42): pressing on the floor or a face starts the
+   * board there at once, flat or standing as the perpendicular button says; a
+   * standing line on a box's base is a divider line.
    */
   const panelDown = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, pt: V3) => {
     if (e.button !== 0) return;
-    const st = useStore.getState();
-    const pick = st.panelPick;
-    if (pick?.pose && pick.host === host && (host === null || pick.face === face)) {
-      st.set({ panelPick: null, panelPose: pick.pose });
-      return startGhost(e, host, face, pt);
-    }
-    e.stopPropagation();
-    const hf = hostFace(design, host, face);
-    if (!hf) return;
-    const at = toLocal(hf.H, pt);
-    st.set({ panelPick: { host, face, at: { x: at.x, y: at.y }, pose: null }, panelGhost: null });
+    setFloorHover(null);
+    startGhost(e, host, face, pt, drawsDivider(design, useStore.getState().panelPose, host, face));
   };
 
-  /** The Panel tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
+  /** The Board tool: start a ghost on the floor (host null) or a panel's face, from the snapped point under the pointer. */
   const startGhost = (e: ThreeEvent<PointerEvent>, host: string | null, face: 1 | -1, point: V3, divider = false) => {
     const hf = hostFace(design, host, face);
     if (!hf || e.button !== 0) return;
     const targets = faceTargets(design, host, face);
     const q = snapGhostPoint(targets, toLocal(hf.H, point), tolAt(point), e.nativeEvent).p;
     const st = useStore.getState();
-    st.set({ panelGhost: { host, face, pose: divider ? 'standing' : st.panelPose, a: q, b: q, height: st.standHeight, side: 1, construction: false, drawing: true, ...(divider ? { divider: true } : {}) } });
+    st.set({ panelGhost: { host, face, pose: divider ? 'standing' : st.panelPose, a: q, b: q, height: st.standHeight, side: 1, drawing: true, ...(divider ? { divider: true } : {}) } });
     begin(e, { kind: 'ghost-draw', plane: hf.plane, H: hf.H, targets });
   };
 
@@ -621,7 +622,19 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         userData={{ noAO: true }}
       />
       {!bounds.isEmpty() && <ContactShadows key={shadowKey} frames={1} position={[sc.x, -0.05, sc.z]} scale={ss} far={Math.max(80, ss / 4)} blur={2.4} opacity={0.42} resolution={quality === 'rich' ? 1024 : 512} color="#2b3442" />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onPointerDown={onGroundDown} onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerDown={onGroundDown}
+        onPointerMove={(e) => {
+          if (tool !== 'panel' || folded) return;
+          // the floor is hovered only where nothing stands in front of it
+          if (e.intersections[0]?.object !== e.object) return floorHover && setFloorHover(null);
+          if (faceHover) setFaceHover(null);
+          const q: V3 = [snap(e.point.x, e.nativeEvent), 0, snap(e.point.z, e.nativeEvent)];
+          if (!floorHover || floorHover[0] !== q[0] || floorHover[2] !== q[2]) setFloorHover(q);
+        }}
+        onPointerOut={() => floorHover && setFloorHover(null)}
+        onClick={(e) => tool === 'select' && e.delta < 4 && performance.now() - closedAt.t > 600 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} visible={false}>
         <planeGeometry args={[4000, 4000]} />
         <meshBasicMaterial />
       </mesh>
@@ -649,6 +662,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             onPanelDown={onPanelDown(p)}
             onHoverPoint={!folded ? (pt) => {
               if (tool === 'panel') {
+                if (floorHover) setFloorHover(null);
                 const face = faceAt(design, p, pt);
                 if (faceHover?.panelId !== p.id || faceHover.face !== face) setFaceHover({ panelId: p.id, face });
               }
@@ -689,9 +703,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {tool === 'select' && !folded && !jointsOn && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {(tool === 'panel' || tool === 'divider') && !folded && <PanelGhostView d={design} />}
-      {tool === 'panel' && !folded && <PanelPicker d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
       {tool === 'panel' && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
+      {tool === 'panel' && !folded && !panelGhost && floorHover && <FloorHover at={floorHover} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
         <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
@@ -703,7 +717,10 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {multi && tool === 'select' && !folded && !jointsOn && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
       {selPanel && tool === 'select' && !folded && !jointsOn && !selGrown && editOutline !== selPanel && !selLocked && design.panels[selPanel] && (
         design.panels[selPanel].place?.host ? (
-          <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+          <>
+            <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+            {design.panels[selPanel].place?.pose === 'standing' && <PlacedFlip d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} />}
+          </>
         ) : (
           <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         )
@@ -1052,68 +1069,22 @@ function EdgeHandle({ p, seg, t, z0, z1, show, active }: { p: Panel; seg: EdgeSe
   );
 }
 
-/**
- * The Panel tool's second click: where the first click picked a face (or the
- * floor), a small flat plane and a small standing one; click one (or its
- * label) to choose, then press on the face to draw.
- */
-function PanelPicker({ d }: { d: Design }) {
-  const t = useT();
-  const pick = useStore((s) => s.panelPick);
-  const [hover, setHover] = useState<'flat' | 'standing' | null>(null);
-  if (!pick) return null;
-  const hf = hostFace(d, pick.host, pick.face);
-  if (!hf) return null;
-  const H = hf.H;
-  const out = faceOut(H, pick.host === null ? 1 : pick.face);
-  const u = new THREE.Vector3(...H.u).normalize(), n = new THREE.Vector3(...out).normalize();
-  const v = new THREE.Vector3().crossVectors(n, u).normalize();
-  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
-  const at = toWorld(H, pick.at.x, pick.at.y, hf.z);
-  const choose = (pose: 'flat' | 'standing') => useStore.getState().set({ panelPick: { ...pick, pose }, panelPose: pose });
-  const col = (pose: 'flat' | 'standing') => (pick.pose === pose ? STAGE.selected : hover === pose ? STAGE.hover : STAGE.ghost);
-  const down = (pose: 'flat' | 'standing') => (e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation();
-    choose(pose);
-  };
+/** With the Board tool over the floor: a small square at the snapped point under the pointer (milestone 42). */
+function FloorHover({ at }: { at: V3 }) {
+  const geom = useMemo(() => {
+    return new THREE.BufferGeometry().setFromPoints([[-7, -7], [7, -7], [7, 7], [-7, 7]].map(([x, y]) => new THREE.Vector3(x, 0, y)));
+  }, []);
+  useEffect(() => () => geom.dispose(), [geom]);
   return (
-    <>
-      <ScreenSized position={at} quaternion={q}>
-        {/* the point picked */}
-        <mesh position={[0, 0, 1]} raycast={() => null} renderOrder={22}>
-          <circleGeometry args={[4, 20]} />
-          <meshBasicMaterial color={STAGE.selected} depthTest={false} transparent opacity={0.95} />
-        </mesh>
-        {pick.pose !== 'standing' && (
-          <mesh position={[-46, 0, 1.5]} onPointerDown={down('flat')} onPointerOver={() => setHover('flat')} onPointerOut={() => setHover(null)} raycast={priorityRaycast} renderOrder={21} userData={{ noAO: true, testId: 'pick-flat-plane' }}>
-            <planeGeometry args={[56, 56]} />
-            <meshBasicMaterial color={col('flat')} transparent opacity={0.55} depthTest={false} side={THREE.DoubleSide} />
-          </mesh>
-        )}
-        {pick.pose !== 'flat' && (
-          <mesh position={[46, 0, 29]} rotation={[Math.PI / 2, 0, 0]} onPointerDown={down('standing')} onPointerOver={() => setHover('standing')} onPointerOut={() => setHover(null)} raycast={priorityRaycast} renderOrder={21} userData={{ noAO: true, testId: 'pick-standing-plane' }}>
-            <planeGeometry args={[56, 56]} />
-            <meshBasicMaterial color={col('standing')} transparent opacity={0.55} depthTest={false} side={THREE.DoubleSide} />
-          </mesh>
-        )}
-      </ScreenSized>
-      <StageHtml position={at}>
-        <div className="pose-pick" data-testid="pose-pick" data-pose={pick.pose ?? ''}>
-          {pick.pose ? (
-            <span className="pose-hint">{t('pick.draw')}</span>
-          ) : (
-            <>
-              <button onClick={() => choose('flat')} onPointerEnter={() => setHover('flat')} onPointerLeave={() => setHover(null)} data-testid="pick-flat">
-                {t('ghost.flat')}
-              </button>
-              <button onClick={() => choose('standing')} onPointerEnter={() => setHover('standing')} onPointerLeave={() => setHover(null)} data-testid="pick-standing">
-                {t('ghost.standing')}
-              </button>
-            </>
-          )}
-        </div>
-      </StageHtml>
-    </>
+    <ScreenSized position={[at[0], 0.3, at[2]]}>
+      <lineLoop geometry={geom} raycast={() => null} renderOrder={7}>
+        <lineBasicMaterial color={STAGE.hover} depthTest={false} transparent opacity={0.95} />
+      </lineLoop>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={6} userData={{ noAO: true, floorHover: true }}>
+        <planeGeometry args={[14, 14]} />
+        <meshBasicMaterial color={STAGE.hover} transparent opacity={0.3} depthTest={false} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </ScreenSized>
   );
 }
 
@@ -2007,6 +1978,18 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
  * and shapes, other panels on the face, walls standing on it) and turns it
  * about the host's normal.
  */
+/** A selected standing board's flip badge (milestone 42): its material goes to the other side of its line. */
+function PlacedFlip({ d, p, m }: { d: Design; p: Panel; m: THREE.Matrix4 }) {
+  const t = useT();
+  return (
+    <StageHtml position={W(m, p.frame, p.w, p.h / 2, tOf(d, p.id) / 2)}>
+      <button className="w-dim ghost flip-badge" onClick={() => useStore.getState().apply((x) => flipPlacedSide(x, p.id))} title={t('ghost.flip')} aria-label={t('ghost.flip')} data-testid="placed-flip-badge">
+        <Icon name="flip" size={14} />
+      </button>
+    </StageHtml>
+  );
+}
+
 function PlacedGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4; tolAt: (p: V3) => number }) {
   const st = useStore.getState;
   const pl = p.place!;
@@ -2643,7 +2626,7 @@ export function View3D() {
   const trayCut = useStore((s) => cutOnTrayBase(s.design, s.selection));
   // one wall selected: Shift-click the opposite wall for + Divider (milestone 32)
   const picking = useStore((s) => s.selection?.kind === 'panel' && !s.selection.ids && isWallLike(s.design, s.selection.id));
-  const panelPick = useStore((s) => s.panelPick);
+  const boardPose = useStore((s) => s.panelPose);
   // the joints view shows one panel's joints at a time
   const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
   const hint =
@@ -2660,7 +2643,7 @@ export function View3D() {
         : tool === 'select'
           ? 'tool.hint.select'
           : tool === 'panel'
-            ? panelPick?.pose ? 'pick.hintDraw' : panelPick ? 'pick.hintPose' : 'pick.hintPlane'
+            ? boardPose === 'standing' ? 'tool.hint.boardStanding' : 'tool.hint.board'
             : tool === 'polygon'
               ? 'tool.hint.polygon'
               : tool === 'text'

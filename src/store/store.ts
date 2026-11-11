@@ -47,13 +47,11 @@ const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
 /** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
 export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
-/** The Panel tool's chosen plane, and the pose once chosen. */
-export type PanelPick = { host: string | null; face: 1 | -1; at: { x: number; y: number }; pose: 'flat' | 'standing' | null };
-
 /**
- * The Panel tool's ghost (milestone 29), in its host's local coordinates (the
- * floor's for `host` null): flat, the rectangle with corners `a` and `b`;
+ * The Board tool's ghost (milestones 29, 42), in its host's local coordinates
+ * (the floor's for `host` null): flat, the rectangle with corners `a` and `b`;
  * standing, the line from `a` to `b`, `height` tall, its material on `side`.
+ * The Board tool makes it on release; Quick build's Divider waits for ✓.
  */
 export type PanelGhost = {
   host: string | null;
@@ -63,10 +61,9 @@ export type PanelGhost = {
   b: { x: number; y: number };
   height: number;
   side: 1 | -1;
-  construction: boolean;
   /** A divider line on a box's base (milestone 38): from wall to wall it becomes a divider, otherwise a standing panel. */
   divider?: boolean;
-  /** The pointer is still down (drawing). */
+  /** The pointer is still down (drawing); Quick build's Divider then waits for ✓. */
   drawing: boolean;
 };
 export type View = '3d' | '2d' | 'solo';
@@ -129,6 +126,8 @@ export type ViewPrefs = {
   modeLocked?: boolean;
   /** The missions the class offers (milestone 40); absent: all. */
   missions?: string[];
+  /** The Board tool draws flat or standing (perpendicular) boards (milestone 42); absent: flat. */
+  boardPose?: 'flat' | 'standing';
 };
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
@@ -196,17 +195,11 @@ type State = {
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
   extrude: { baseId: string; height: number } | null;
-  /** The Panel tool's ghost (milestone 29): drawn on the floor or a face, then made with ✓ or dropped with ✕. */
+  /** The Board tool's ghost while drawing on the floor or a face (milestones 29, 42); release makes it. */
   panelGhost: PanelGhost | null;
-  /** The Panel tool's pose for the next ghost, and the height a standing ghost starts at (the last one used). */
+  /** The Board tool's pose for the next board (the perpendicular button, kept in `viewPrefs.boardPose`), and the height a standing board starts at (the last one used). */
   panelPose: 'flat' | 'standing';
   standHeight: number;
-  /**
-   * The Panel tool's first two clicks: the face (or the floor) the panel goes
-   * on, where it was clicked (host coordinates), and then flat or standing;
-   * the third click starts drawing.
-   */
-  panelPick: PanelPick | null;
   /**
    * Something a drawing tool just made (milestone 30), waiting for ✓: shapes
    * (or a polygon panel), still adjustable. ✓ keeps it as one undo step and
@@ -255,8 +248,10 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'panelPose' | 'panelPick' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
+  /** The Board tool's perpendicular button: flat or standing boards, remembered with the view prefs (milestone 42). */
+  setBoardPose: (pose: 'flat' | 'standing') => void;
 };
 
 const HISTORY_LIMIT = 200;
@@ -323,8 +318,7 @@ export const useStore = create<State>()((set, get) => ({
   selVertex: null,
   extrude: null,
   panelGhost: null,
-  panelPose: 'flat',
-  panelPick: null,
+  panelPose: initialPrefs().boardPose === 'standing' ? 'standing' : 'flat',
   standHeight: 40,
   pending: null,
   clipboard: null,
@@ -457,7 +451,7 @@ export const useStore = create<State>()((set, get) => ({
     // another tool drops what the last one made and was not confirmed
     if (get().pending) get().cancelPending();
     const act = t === 'circle' || t === 'rect' || t === 'roundrect' ? 'hole' : t === 'text' || t === 'sticker' ? 'text' : null;
-    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, panelPick: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
+    set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
   },
   setShapeOp: (o) => set({ shapeOp: o }),
   setView: (v) => set({ view: v, tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
@@ -494,6 +488,10 @@ export const useStore = create<State>()((set, get) => ({
       /* ignore */
     }
     set({ viewPrefs: next });
+  },
+  setBoardPose: (pose) => {
+    get().setPrefs({ boardPose: pose });
+    set({ panelPose: pose });
   },
 }));
 

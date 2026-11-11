@@ -159,13 +159,33 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
   display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; width: 56px;
   background: var(--rail-bg); border-radius: var(--r-lg); box-shadow: var(--shadow-float);
 }
-.rail > button, .rail .op-btn {
+.rail > button, .rail .op-btn, .rail-tool > button {
   width: 44px; height: 44px; min-height: 0; padding: 0; border: none; border-radius: var(--r-md);
   background: transparent; color: var(--rail-ink); display: grid; place-items: center; position: relative;
 }
-.rail > button svg.ico { width: 22px; height: 22px; }
-.rail > button:hover:not(:disabled) { background: var(--rail-hover); color: white; }
-.rail > button.on { background: var(--rail-on); color: #0b2724; }
+.rail > button svg.ico, .rail-tool > button svg.ico { width: 22px; height: 22px; }
+.rail > button:hover:not(:disabled), .rail-tool > button:hover:not(:disabled) { background: var(--rail-hover); color: white; }
+.rail > button.on, .rail-tool > button.on { background: var(--rail-on); color: #0b2724; }
+/* the Board tool (milestone 42): its perpendicular button slides out from beneath it, toward the stage */
+.rail-tool { position: relative; width: 44px; height: 44px; }
+.rail-tool > .rail-main { z-index: 2; }
+.rail-tool > .rail-main:not(.on) { background: var(--rail-bg); }
+.rail-tool > .rail-main:not(.on):hover { background: var(--rail-hover); }
+.rail-tool > .rail-flyout {
+  position: absolute; top: 0; inset-inline-start: 0; z-index: 1;
+  background: color-mix(in srgb, var(--rail-bg) 82%, white); color: white; box-shadow: var(--shadow-float);
+  visibility: hidden; transform: translateX(0);
+  transition: transform 160ms ease-out, visibility 0s linear 160ms;
+}
+.rail-tool > .rail-flyout:hover:not(.on) { background: color-mix(in srgb, var(--rail-bg) 70%, white); }
+.rail-tool > .rail-flyout.on, .rail-tool > .rail-flyout.on:hover { background: var(--rail-on); color: #0b2724; }
+.rail-tool.out > .rail-flyout { visibility: visible; transform: translateX(calc(100% + 6px)); transition: transform 160ms ease-out, visibility 0s; }
+[dir='rtl'] .rail-tool.out > .rail-flyout { transform: translateX(calc(-100% - 6px)); }
+/* with the flyout out, the main button's tip clears it */
+.rail-tool.out > .rail-main .tip { inset-inline-start: calc(100% + 60px); }
+@media (prefers-reduced-motion: reduce) {
+  .rail-tool > .rail-flyout, .rail-tool.out > .rail-flyout { transition: none; }
+}
 .rail .rail-sep { height: 1px; background: #3a4456; margin: 4px 6px; }
 .rail .ops { display: flex; flex-direction: column; gap: 4px; align-items: center; padding-block: 2px; }
 .rail .op-btn { width: 44px; height: 30px; }
@@ -588,6 +608,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .ghost-bar .cancel { background: transparent; border: 1px solid var(--line-strong); }
 .ghost-bar .warn { color: #8a5a00; max-width: 220px; white-space: normal; }
 .flip-badge { cursor: pointer; }
+.placed .btn-flip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
 
 /* Quick build (milestone 37) */
 .quick-guide {
@@ -661,9 +682,6 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 /* below its anchor (the top of a ghost whose height arrow points up from there) */
 .ghost-bar.below { transform: translate(-50%, 38px); }
 /* The Panel tool's second click: flat or standing */
-.pose-pick { transform: translate(-50%, 44px); display: inline-flex; gap: 34px; pointer-events: auto; font-family: 'Rubik UI', system-ui, sans-serif; }
-.pose-pick button { min-height: 0; padding: 4px 10px; border-radius: var(--r-pill); font-size: 12px; background: var(--surface); border: 1px solid var(--accent-bright); box-shadow: var(--shadow-soft); }
-.pose-pick .pose-hint { background: var(--surface); border-radius: var(--r-pill); padding: 4px 10px; font-size: 12px; box-shadow: var(--shadow-soft); white-space: nowrap; pointer-events: none; }
 .joint-menu-sub { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; display: grid; gap: 2px; }
 /* Workshop's shape card: which shape, and what it does to the board (icons and words, not colour dots) */
 .shape-card { width: 250px; top: auto; bottom: 16px; }
