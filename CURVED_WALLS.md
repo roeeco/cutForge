@@ -1,4 +1,4 @@
-# Curved walls: feasibility study and plan (milestones 44–47)
+# Curved walls: feasibility study and plan (milestones 45–48)
 
 Can CutForge stand walls on curved outlines (round boxes, rounded corners, ovals, S-curves)? It would use creases, perforations and living hinges where the material needs them. The current approach must stay: simple actions, and everything adjustable after it is made.
 
@@ -8,7 +8,9 @@ Can CutForge stand walls on curved outlines (round boxes, rounded corners, ovals
 - One physical rule changes the joints: a wall can **never fold up from a curved base edge** (§2.1).
 - Plywood bends only with a living hinge, and 4 mm corrugated only at large radii (§2.2).
 
-Planned as four milestones (§6), each shippable on its own. Defaults are listed in §7 so the owner can change them before work starts.
+Planned as four milestones (§8), each shippable on its own. Defaults are listed in §9 so the owner can change them before work starts.
+- **Milestone 44 comes first:** the new divider model (`DIVIDERS_PLAN.md`). Dividers in round boxes need it, and it doesn't depend on anything here.
+- **Round and oval boxes** are worked through in §6, **matched walls and arched lids** in §7.
 
 ---
 
@@ -40,7 +42,7 @@ The original brief listed living hinges as out of scope (`laser-fabrication-edit
   - **Wrap / glue edge** (all): the base sits inside the wall; the wall's inner face is glued to the base's edge. This is the plywood default, as in most kerf-bent boxes.
 - The same rule blocks:
   - **Fold-overs on a bent wall's top:** the liner would have to shrink by ~2t/R and buckle. Refused with a note, like `curveBlocked`.
-  - **Lids grown off a curved top edge.** A lid for a round box is a separate panel (§6, later).
+  - **Lids grown off a curved top edge.** A lid for a round box is a shallow matching tray instead (§6.3); an arched lid is a bent panel on matched walls (§7).
 - **What stays possible:** where a curved run meets a straight wall **tangentially** (rounded rectangle, stadium), the strip just continues in the flat net. There's no fold there, so a straight wall and its rounded corner can be one piece.
 
 ### 2.2 How each built-in material can bend
@@ -76,6 +78,7 @@ Reference points:
   - rectangle, r = h/2 → **stadium/oval**
   - any r → **rounded rectangle / rounded polygon**
 - Arcs have constant curvature. That makes the hinge pitch, the radius check and the true-arc export trivial; `export/dxf.ts` already writes bulged polylines.
+- Rounded corners on a point-based outline cover rounded rectangles and polygons. Round and oval boxes get their own parametric sketch, edited by size rather than points (§6.1).
 
 **Curve runs.** `edges.ts` gains `curveRuns(p)`:
 - A run is the maximal chain of `~` segments between straight edges or sharp corners. It carries its arc-length parameter, curvature κ(s), and whether each end is tangent to its neighbour.
@@ -225,11 +228,96 @@ Quick build's `fix.ts` gets **Fix** actions: raise radius, switch style, move th
 ### 5.5 Calibration strip
 The material drawer gets *Download a bend test*: a strip with zones patterned for 5 radii around the material's defaults, labelled on the GUIDE layer. Wrap it round cans or bottles and enter the tightest radius that held. This mirrors the kerf test-cut workflow the app already recommends, and makes §2.2's estimates per-classroom facts.
 
-## 6. Milestones
+## 6. Round and oval boxes
 
-Each one keeps every existing test green and adds its own. Golden exports change only where a milestone says so.
+These are the likeliest first use (pencil cups, dice cups, oval trays), and they differ from rounded corners in a few ways.
 
-### Milestone 44: round outlines and material bend limits (no curved walls yet)
+### 6.1 The shape: parametric, not points
+A circle or oval drawn as points with rounded corners is awkward to edit: a circle's points would sit on a square around it. A round base gets its own layer-1 sketch instead:
+
+```ts
+Sketch |= { kind: 'round'; shape: 'circle' | 'oval' | 'stadium'; rEnd?: number /* oval only */ };  // size from Panel.w / h
+```
+- It produces tangent arcs (and, for a stadium, two straight sides), keyed by stable ids (`a0…a3`, `s0`, `s1`).
+- Its card edits **width, depth, shape** and, for an oval, **end radius**: no points. *Convert to points* turns it into a point outline with rounded corners for free editing (one way).
+- **Oval = four-centre oval:** four tangent circular arcs with two radii, the draftsman's oval. It looks like an ellipse but stays exact arcs, so radius checks and hinge pitch stay simple.
+
+A true ellipse is **not** offered, because its tightest bend is much tighter than it looks. For a 120 × 60 mm footprint:
+
+| Shape | Tightest radius | 3 mm plywood (≥ ~30 mm) |
+| --- | --- | --- |
+| Ellipse | b²/a = 15 mm | No |
+| Four-centre oval, end radius 20 | 20 mm (sides 105 mm) | No |
+| Four-centre oval, end radius 30 | 30 mm (sides ∞): the stadium | Yes |
+| Stadium | 30 mm | Yes |
+
+The radius guard (§5.1) clamps the end radius to the material's limit, so on a stiff material an oval turns into a stadium by itself. The card says so (*"Plywood: ends at least 30 mm round, so this oval is a stadium"*).
+
+### 6.2 Walls on a round base
+- **One wall.** A circle is one closed run, so one bent wall goes all the way round, with a **closing seam** (§4.3) at the back by default. An oval and a stadium are the same: one strip, the seam on a straight side for a stadium.
+- **Nothing folds from the base** (§2.1). Wall to base by material:
+  - card: glue teeth
+  - corrugated: tabs in curved slots
+  - plywood: the base glued inside the wall
+- **Flutes and grain:** a separate strip packs with its height along the sheet's y, which puts corrugated flutes up the wall without turning anything.
+- **Size limits** (calibrate, §5.5). Smallest diameter is 2 × the reachable radius; largest is the strip fitting the sheet in one piece (longer strips split, §4.3):
+
+| Preset | Smallest diameter | Largest in one piece (default sheet) |
+| --- | --- | --- |
+| Card 0.5 | ~20 mm (room for teeth) | ~155 mm (500 mm sheet) |
+| Corrugated 1.6 | ~16 mm with kiss-scores, ~50 smooth | ~185 mm (600 mm sheet) |
+| Corrugated 4 | ~40 mm with kiss-scores, ~120 smooth | ~185 mm |
+| Plywood 3 | ~60 mm (living hinge) | ~185 mm |
+
+### 6.3 Lids
+A lid can't grow off a curved top edge (§2.1). For any box, the lid becomes **a shallow tray of the box's outline, offset outward** by wall thickness + clearance, turned over (a hat-box or telescoping lid, rim ~12 mm). It's made from parts that exist by then (an offset base, a tray, bent walls), so it costs little.
+- **Quick build:** *Wall / lid* on a round box's top edge offers **Lid**. One ✓; the rim height arrow afterwards.
+- **Workshop:** the same from the box card, plus *Lip lid* (a disc with a short strip glued under it, inset to sit inside the wall).
+
+### 6.4 Dividers in round boxes
+These use milestone 44's divider rules (`DIVIDERS_PLAN.md`), with three additions:
+- **Ends on a curved wall:** they find the curved wall's face like any other, and the joint is made per facet (§4.2). Plywood dividers there default to glue or a slide fit, since slots need a solid island in the hinge.
+- **Direction snapping** follows milestone 44's grid. A round box's grid axes are its own: an oval's long axis, or along the sheet for a circle. With Shift (30° steps), radial lines through the centre are targets too, so 3-, 4-, 6- and 12-way pies snap exactly.
+- **Pie compartments fall out of the rule:** draw one line across the box, then lines from the rim to the centre. Each ends on the first divider it reaches, so no hub part is needed.
+
+### 6.5 Quick build Box: Round
+- Drag the footprint's bounding box. **Shift** makes it a circle.
+- The box card then has *Circle · Oval · Stadium*, the size, and the end radius for an oval.
+- Walls rise at the last height used, as for every box.
+
+## 7. Matched walls and arched lids
+
+### 7.1 The problem
+- **The second curved case:** a curved panel spanning *between* two walls (an arched lid, a chute, a curved card holder). It's a bent panel (§3.2) whose run is a wall's **top** edge. Like every curved crease, it can't fold off that edge, so it's a separate piece joined by teeth, tabs or glue.
+- **Why matching matters:** its far edge rests on the opposite wall, so the two walls' top outlines must stay identical.
+- **Why the obvious fixes fall short:**
+  - **Editing both walls together in outline mode** keeps them matched only while both are selected. A later height change, a curve flag or an undo breaks the match silently. And facing walls run their local x in opposite directions, so a point-by-point copy mirrors an off-centre arch.
+  - **Snapping to the parallel wall** matches points one by one. But a curve's shape depends on all its neighbouring points and their flags, so matching every point by hand is tedious and fragile.
+
+### 7.2 One profile, used by both walls
+- **Matched walls.** `WallSketch.match?: string` names the leader wall. The follower stores no top points: its top is the leader's top **projected through 3D** onto it, which handles mirroring and offsets.
+  - Offered only for parallel walls facing each other (within 1°, overlapping across).
+  - Non-parallel facing walls (a tapered box) would need a cone-shaped panel; they get a one-time *Copy outline from…* instead.
+- **Editing.** Outline mode on either wall edits the shared profile (on the follower it writes the leader's points through the projection). The other wall's handles show faintly and move live.
+- **Opting out.** *Own outline* on the follower's card copies the profile into its own points and drops the link. That's the tray's *Own height* checkbox again: shared by default, opt-out per wall.
+- **The curved panel turns it on.** Growing a panel from a curved top edge already finds the opposite wall it reaches (lids do this today, `heightTargets`). If that wall is parallel, it becomes a follower.
+  - The student shapes the arch once, on either wall, and everything follows.
+  - The far joint is the bent panel's edge against the follower's top run: per facet (§4.2), or the curved tab-and-slot (§3.4) with the follower's top as the "base".
+- **`curveBlocked` relaxes:** a point may be curved next to an edge joined to a bent panel, because that joint follows the curve. It still refuses for any other joint.
+- **Snapping as a supplement:** points projected from a parallel facing wall join the outline snap targets (DECISIONS *Outline point snapping*). This is useful even without a link (matching two gable peaks) and cheap.
+
+### 7.3 Arched lid (one action)
+- **Quick build:** *Arched lid* on a box's card. It picks the two walls across the short side, links them, gives the leader a circular arch, and grows the bent lid across.
+  - There's one arrow on the stage for the arch's **rise**, like the tray height arrow.
+  - The rise is clamped so the arc's radius stays above the material's reachable radius.
+- **Workshop:** the same result from parts: curve the top in *Edit outline* and grow from the curved edge.
+- The two side walls under the lid's long edges keep their straight tops; the lid sits on them by its straight edges with the usual joints.
+
+## 8. Milestones
+
+Each one keeps every existing test green and adds its own. Golden exports change only where a milestone says so. **Milestone 44 (dividers, `DIVIDERS_PLAN.md`) comes first.**
+
+### Milestone 45: round outlines and material bend limits (no curved walls yet)
 - **Model:**
   - `SketchPt.curve: 'round'` + `r`
   - arc rings and `curveRuns` in `edges.ts`
@@ -237,14 +325,15 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - self-crossing and overlapping fillets refused (`isSimplePolygon` on the flattened ring)
   - `check.ts` accepts the new fields; schema 10
 - **Material:** `MaterialProfile.bend` + `bendDefaults(kind)`; drawer fields.
-- **Actions:** Polygon tool *Round / Rounded* presets; point card *Round (r)*; Quick build Box *Round / Rounded* with the radius guard.
+- **Round sketch** (§6.1): circle, four-centre oval, stadium; card fields; *Convert to points*.
+- **Actions:** Polygon tool *Round / Rounded* presets; point card *Round (r)*; Quick build Box *Round / Rounded* with the radius guard (§6.5).
 - **Export:** arcs from rounded corners stay true arcs in SVG/DXF. The base outline is refit from the run's arcs; booleans that cross them still flatten, as today.
 - **Tests:**
-  - `tests/round.test.ts`: circle, stadium and rounded rectangle; the radius clamp; save/load; export arcs read back by `ezdxf`/`svgpathtools`
+  - `tests/round.test.ts`: circle, oval and stadium sketches (tangent arcs, both oval radii, the clamp turning an oval into a stadium); rounded rectangles; save/load; export arcs read back by `ezdxf`/`svgpathtools`
   - e2e: Box *Round* in Quick build
 - Trays still leave curves open. This milestone is useful alone: round trays, coasters, game boards.
 
-### Milestone 45: bent walls on curves (smooth bends, base joints)
+### Milestone 46: bent walls on curves (smooth bends, base joints, matched walls)
 - **Model:**
   - `facetsOf`, `panelToWorld`/`panelToLocal`
   - `Panel.bent` derived in `solveOnce` after frames
@@ -260,14 +349,18 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - fold slider unbends
   - bend beads along the zone
 - **Checks:** radius vs `smoothR`; fold-over and grow refused on bent walls.
+- **Round boxes:** one closed wall with a fixed closing seam at the back (the movable seam comes in 48); the telescoping lid (§6.3).
+- **Matched walls** (§7.2): `WallSketch.match`, projected profile, live handles, *Own outline*, *Copy outline from…*, parallel-wall snap targets.
 - **Tests:**
   - a corrugated-1.6 round box R 40: one wall of length 2π(R − t + k·t), tabs and slots matching, the export check clean
+  - its telescoping lid fits over the wall with the clearance
+  - matched walls: an off-centre arch on the leader appears unmirrored on the follower; *Own outline* keeps the shape and drops the link; undo restores the link
   - a card rounded-rectangle tray: straight walls fold, corners are teeth
   - a plywood rounded box: a glue edge, and a check that names the missing hinge
   - a divider ending on the curved wall joins it
   - `autoseam` fuzzer extended with round bases
 
-### Milestone 46: bend patterns
+### Milestone 47: bend patterns
 - `bendPattern`: score / kiss / perf / lattice; keep-outs; variable pitch.
 - Layers: perforation dashes on CUT; a "this side up" GUIDE label for kiss scores.
 - Card settings (§5.2); Quick build `bend: 'auto'`.
@@ -280,31 +373,35 @@ Each one keeps every existing test green and adds its own. Golden exports change
   - kerf-compensated hinge lines are shortened by the kerf
   - golden files for one pattern of each kind
 
-### Milestone 47: strips: tangent joins, closing seam, sheet splitting
+### Milestone 48: strips: tangent joins, closing seam, sheet splitting, arched lid
 - `'inline'` joins in `netFolds` and `fixFlatNets` (a curved corner rides on one straight neighbour, preferring flutes up the wall).
 - Closing seam with `seamAt`: card/corrugated overlap flap; plywood backing strip or puzzle key.
 - Splitting strips longer than the sheet.
+- **Arched lid** (§7.3): the Quick build action, the rise arrow and its radius clamp.
 - **Tests:**
+  - an arched lid on a corrugated box: both end walls follow the rise, the lid's length is the arc's developed length, and its far edge joins the follower
   - a card rounded tray is one net that lies flat
   - a plywood flex box is one strip of four straight sections and four hinge corners, plus a closing seam
   - a 600 mm circumference on a 500 mm card sheet splits in two
 
 ### Later, feasible but out of these milestones
-- **Lids for curved boxes:** a panel from the base outline + clearance, with a rim strip or teeth.
 - **Flared walls on arcs** (cone strips: exact development for circular runs; general curves need a full developable solver).
 - **Through-cuts through bent walls** (per facet).
 - **Bézier handles.**
 - **Half-laps into hinge zones.**
 
-## 7. Decisions (defaults; change them here before starting if the owner disagrees)
+## 9. Decisions (defaults; change them here before starting if the owner disagrees)
 1. **Round corners are circular arcs** (`'round'`, radius r). `auto` Bézier curves get bent walls too, but stay Workshop-only and need the variable-pitch pattern.
 2. **Curved walls stand at 90° only** in this release.
 3. **Plywood's default curved joint is a glue edge** (the base inside the wall); tabs are offered, not defaulted.
 4. **Perforations are short CUT dashes,** not a new layer, so every LightBurn setup cuts them correctly. A separate PERF colour is a one-line change in `layers.ts` if the classroom prefers per-layer control; confirm on the classroom machine.
 5. **Material limits are starting points** shown in the drawer and calibrated with the bend test. The guard clamps to `patternR`, not `smoothR`, so Quick build picks the pattern itself.
 6. **The closing seam defaults** to the middle of the longest straight section, else the back of the box.
+7. **"Oval" is a four-centre oval, not an ellipse** (§6.1), clamped toward a stadium on stiff materials.
+8. **Every lid on a curved box is a telescoping shallow tray** (§6.3); the arched lid (§7.3) is the one exception.
+9. **Matching is a stored link with an opt-out** (*Own outline*), switched on by growing a curved panel across to a parallel wall (§7.2). There is no multi-wall editing selection.
 
-## 8. Risks
+## 10. Risks
 - **Facet count vs performance.** A 300 mm smooth circle at ≤ 5° is ~72 facets. Contacts only test facets whose bounds touch, and bent meshes are cached by content like `ownOutline`.
 - **The one-frame assumption is everywhere** (29 files). `facetsOf` lets each consumer move over separately. Until it does, it must refuse bent panels explicitly: a lint-style test lists every `.frame` read outside the allow-list.
 - **The material figures are estimates,** especially for corrugated. The bend test (§5.5) and teacher class profiles are how they become real; the UI must say "starting point" as it does for kerf.
