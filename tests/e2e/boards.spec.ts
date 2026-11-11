@@ -1,6 +1,6 @@
 // Panels and dividers round (PANELS_AND_DIVIDERS.md): a material for each
 // board (milestone 36).
-import { pickPlane, shapeTool } from './util';
+import { drawBoard, setNum, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -121,8 +121,8 @@ async function dragOn(page: Page, from: { x: number; y: number }, to: { x: numbe
   await page.mouse.up();
 }
 
-test.describe('milestone 29: the Panel tool on faces', () => {
-  test('a flat panel on a wall’s inner face, snapped to the wall’s corner, then ✓', async ({ page }) => {
+test.describe('milestones 29 and 42: the Board tool on faces', () => {
+  test('a flat board on a wall’s inner face, snapped to the wall’s corner, made on release', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await start(page, 'ply-3');
@@ -130,13 +130,7 @@ test.describe('milestone 29: the Panel tool on faces', () => {
     const back = walls[2];
     // high enough to see the back wall's inner face over the front wall
     await S(page, () => (window as any).__cutforge.setCamera([0, 200, 160], [0, 20, -30]));
-    await page.getByTestId('tool-panel').click();
-    // three clicks: the face, flat, then the drag that draws
-    await pickPlane(page, await proj(page, back, 30, 20), 'flat');
-    await dragOn(page, await proj(page, back, 30, 20), await proj(page, back, 0.8, 39.2));
-    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
-    await expect(page.getByTestId('ghost-w')).toContainText('30');
-    await page.getByTestId('ghost-ok').click();
+    await drawBoard(page, await proj(page, back, 30, 20), await proj(page, back, 0.8, 39.2));
     const d = await design(page);
     const p: any = Object.values(d.panels).find((x: any) => x.place);
     expect(p.place).toMatchObject({ host: back, face: 1, x: 0, y: 20, rot: 0, pose: 'flat' });
@@ -147,56 +141,47 @@ test.describe('milestone 29: the Panel tool on faces', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a standing partition drawn wall to wall: both ends on the walls, height typed, ✓; slots in the base and walls', async ({ page }) => {
+  test('perpendicular, a line drawn wall to wall across a box’s base: a divider joined to the base and both walls, with slots', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await start(page, 'ply-3');
     const { base } = await plyBox(page);
     await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
-    await page.getByTestId('tool-panel').click();
-    // Standing; a line across the box from just inside one side wall to just inside the other (walls stand at x 0–3 and 77–80 of the base)
-    await pickPlane(page, await proj(page, base, 3.8, 30), 'standing');
-    await dragOn(page, await proj(page, base, 3.8, 30), await proj(page, base, 76.2, 30));
-    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
-    await expect(page.getByTestId('ghost-standing')).toHaveAttribute('aria-checked', 'true');
-    const g = await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost);
-    // the ends land on the walls' inner faces
-    expect(Math.min(g.a.x, g.b.x)).toBeCloseTo(3, 6);
-    expect(Math.max(g.a.x, g.b.x)).toBeCloseTo(77, 6);
-    await page.getByTestId('ghost-h').click();
-    await page.getByTestId('ghost-h-input').fill('25');
-    await page.getByTestId('ghost-h-input').press('Enter');
-    await page.getByTestId('ghost-ok').click();
+    // a line across the box from just inside one side wall to just inside the other (walls stand at x 0–3 and 77–80 of the base)
+    await drawBoard(page, await proj(page, base, 3.8, 30), await proj(page, base, 76.2, 30), { standing: true });
     const d = await design(page);
-    const p: any = Object.values(d.panels).find((x: any) => x.place);
-    expect(p.place.pose).toBe('standing');
-    expect(p.h).toBe(25);
-    expect(p.w).toBeCloseTo(74, 6);
+    const id = await S<string>(page, () => (window as any).__cutforge.store.getState().selection.id);
+    const p: any = d.panels[id];
     const joins = Object.values(d.connections).filter((c: any) => c.a.panelId === p.id || c.b.panelId === p.id) as any[];
     expect(joins.length).toBe(3);
-    expect(joins.every((c) => c.kind === 'tabslot' && !c.broken)).toBe(true);
-    // the cut plan: slots in the base and both walls
+    expect(joins.every((c) => !c.broken)).toBe(true);
     // its joints put slots in the base and in both side walls
     const slotted = new Set(joins.map((c) => (c.a.panelId === p.id ? c.b.panelId : c.a.panelId)));
     expect(slotted.size).toBe(3);
-    for (const c of joins) expect(c.geom.holes.length).toBeGreaterThan(0);
+    expect(slotted.has(base)).toBe(true);
+    for (const c of joins.filter((c) => !c.grown)) expect(c.geom.holes.length).toBeGreaterThan(0);
     await page.getByTestId('view-2d').click();
     await expect(page.getByTestId('cutplan')).toBeVisible();
     expect(errors).toEqual([]);
   });
 
-  test('Esc drops the ghost', async ({ page }) => {
+  test('Esc during the drag drops the board', async ({ page }) => {
     await start(page, 'ply-3');
     const { base } = await plyBox(page);
     await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
     await page.getByTestId('tool-panel').click();
-    await pickPlane(page, await proj(page, base, 20, 20), 'flat');
-    await dragOn(page, await proj(page, base, 20, 20), await proj(page, base, 50, 40));
-    await expect(page.getByTestId('panel-ghost-bar')).toBeVisible();
     const before = Object.keys((await design(page)).panels).length;
+    const a = await proj(page, base, 20, 20), b = await proj(page, base, 50, 40);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 6 });
+    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost)).not.toBeNull();
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('panel-ghost-bar')).toHaveCount(0);
+    await page.mouse.up();
+    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost)).toBeNull();
     expect(Object.keys((await design(page)).panels).length).toBe(before);
+    // the tool stays
+    await expect(page.getByTestId('tool-panel')).toHaveAttribute('aria-pressed', 'true');
   });
 });
 
@@ -427,39 +412,146 @@ test('milestone 35: Ctrl-drag along an edge from a third to the middle grows a p
   expect(errors).toEqual([]);
 });
 
-test.describe('panel tool, joints view and grow bar (follow-up fixes)', () => {
+test.describe('the Board tool, joints view and grow bar (follow-ups, milestone 42)', () => {
   const proj = (page: Page, id: string, x: number, y: number) => S<{ x: number; y: number }>(page, (a: any) => (window as any).__cutforge.projectFace(a.id, a.x, a.y, 1), { id, x, y });
 
-  test('the Panel tool takes three clicks: the face, flat or standing, then the drag; a standing line snaps level', async ({ page }) => {
+  test('the Board tool draws in one drag; the perpendicular button slides out and is remembered', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
     await start(page, 'ply-3');
-    const { base } = await plyBox(page);
-    await S(page, () => (window as any).__cutforge.setCamera([0, 260, 120], [0, 0, 0]));
-    await page.waitForTimeout(250);
-    await page.getByTestId('tool-panel').click();
-    const a = await proj(page, base, 15, 20), b = await proj(page, base, 60, 24);
-    // first click: the face is picked, the two small planes are offered
-    await page.mouse.click(a.x, a.y);
-    await expect(page.getByTestId('pick-flat')).toBeVisible();
-    await expect(page.getByTestId('pick-standing')).toBeVisible();
-    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelPick)).toMatchObject({ host: base, pose: null });
-    // Esc starts over; pick again
-    await page.keyboard.press('Escape');
-    expect(await S<any>(page, () => (window as any).__cutforge.store.getState().panelPick)).toBeNull();
-    await page.mouse.click(a.x, a.y);
-    await page.getByTestId('pick-standing').click();
-    await expect(page.getByTestId('pose-pick')).toHaveAttribute('data-pose', 'standing');
-    // third: drag a line about 5° off level: it lands level
+    const st = () => S<any>(page, () => {
+      const s = (window as any).__cutforge.store.getState();
+      return { tool: s.tool, past: s.past.length, sel: s.selection, ghost: s.panelGhost, n: Object.keys(s.design.panels).length };
+    });
+    const world = (x: number, y: number, z: number) => S<{ x: number; y: number }>(page, (a: number[]) => (window as any).__cutforge.projectWorld(a[0], a[1], a[2]), [x, y, z]);
+    await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
+    await page.waitForTimeout(300);
+    // 1. the Board button: the perpendicular button slides out to its right (English), not pressed
+    const main = page.getByTestId('tool-panel'), fly = page.getByTestId('tool-panel-standing');
+    await expect(main).toContainText('Board');
+    await expect(fly).toBeHidden();
+    await main.click();
+    await expect(fly).toBeVisible();
+    await expect(fly).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(async () => (await fly.boundingBox())!.x - ((await main.boundingBox())!.x + (await main.boundingBox())!.width)).toBeGreaterThanOrEqual(0);
+    // 2. a drag on the floor: a floor board at the dragged size, selected, back to Select, one more undo step
+    const s0 = await st();
+    await drawBoard(page, await world(-40, 0, 30), await world(40, 0, -30));
+    let s = await st();
+    expect(s.n).toBe(s0.n + 1);
+    expect(s.tool).toBe('select');
+    expect(s.past).toBe(s0.past + 1);
+    expect(s.ghost).toBeNull();
+    const board = s.sel.id as string;
+    let d = await design(page);
+    expect([d.panels[board].w, d.panels[board].h]).toEqual([80, 60]);
+    expect(d.panels[board].frame.o).toEqual([-40, 0, 30]);
+    await expect(page.getByTestId('panel-ghost-bar')).toHaveCount(0);
+    await expect(fly).toBeHidden();
+    // 3. perpendicular on, a line on the board's top face about 5° off level: a standing board, level, 40 mm tall
+    await main.click();
+    await fly.click();
+    await expect(fly).toHaveAttribute('aria-pressed', 'true');
+    await expect(main).toHaveAttribute('data-pose', 'standing');
+    const p1 = await st();
+    await drawBoard(page, await proj(page, board, 10, 30), await proj(page, board, 60, 34.4), { standing: true });
+    s = await st();
+    expect(s.tool).toBe('select');
+    let standing: any = (await design(page)).panels[s.sel.id];
+    expect(standing.place).toMatchObject({ host: board, pose: 'standing' });
+    expect(Math.abs(standing.place.rot) % 180).toBeCloseTo(0, 6);
+    expect(standing.h).toBe(40);
+    expect(s.past).toBe(p1.past + 1);
+    await page.keyboard.press('ControlOrMeta+z');
+    expect((await st()).n).toBe(p1.n);
+    // again; then the card's Flip side and the stage's flip badge move its material, the card's H field its height
+    await drawBoard(page, await proj(page, board, 10, 30), await proj(page, board, 60, 30), { standing: true });
+    const sid = (await st()).sel.id as string;
+    await expect(page.getByTestId('placed-flip-badge')).toBeVisible();
+    await page.getByTestId('placed-flip').click();
+    expect((await design(page)).panels[sid].place.side).toBe(-1);
+    await page.getByTestId('placed-flip-badge').click();
+    expect((await design(page)).panels[sid].place.side).toBe(1);
+    await setNum(page, 'panel-h', '25');
+    standing = (await design(page)).panels[sid];
+    expect(standing.h).toBe(25);
+    expect(standing.place).toMatchObject({ host: board, pose: 'standing' });
+    // 4. on a tray's base, a line from wall to wall with perpendicular on: a divider joined at both ends; the note shows while drawing
+    const tray = await S<{ base: string; walls: string[] }>(page, () => {
+      const cf = (window as any).__cutforge;
+      let out: any;
+      cf.store.getState().apply((dd: any) => {
+        const b = cf.ops.addRootPanel(dd, 80, 40, 120, 80);
+        cf.ops.addTray(dd, b, 40);
+        out = { base: b, walls: Object.values(dd.connections).filter((c: any) => c.grown && c.a.panelId === b).map((c: any) => c.b.panelId) };
+      });
+      cf.store.getState().select(null);
+      return out;
+    });
+    await page.waitForTimeout(200);
+    await main.click();
+    await expect(fly).toHaveAttribute('aria-pressed', 'true');
+    const a = await proj(page, tray.base, 60, 6), b = await proj(page, tray.base, 60, 74);
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
-    await page.mouse.move(b.x, b.y, { steps: 6 });
+    await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+    await page.mouse.move(b.x, b.y, { steps: 4 });
+    await expect(page.getByTestId('divider-live')).toHaveAttribute('data-kind', 'divider');
     await page.mouse.up();
-    const g = await S<any>(page, () => (window as any).__cutforge.store.getState().panelGhost);
-    expect(g.pose).toBe('standing');
-    expect(Math.abs(g.b.y - g.a.y)).toBeLessThan(1e-6);
-    await page.getByTestId('ghost-ok').click();
-    const d = await design(page);
-    const placed: any = Object.values(d.panels).find((p: any) => p.place?.host === base);
-    expect(Math.abs(placed.place.rot) % 180).toBeCloseTo(0, 6);
+    d = await design(page);
+    const div = (await st()).sel.id as string;
+    const grownFrom = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === div) as any;
+    expect(grownFrom.a.panelId).toBe(tray.base);
+    const ends = Object.values(d.connections).filter((c: any) => !c.grown && (c.a.panelId === div || c.b.panelId === div)) as any[];
+    expect(ends).toHaveLength(2);
+    for (const c of ends) expect(tray.walls).toContain(c.a.panelId === div ? c.b.panelId : c.a.panelId);
+    expect(ends.every((c) => !c.broken)).toBe(true);
+    // 5. reload: the perpendicular button is still pressed; P toggles it
+    await page.waitForTimeout(800);
+    await page.reload();
+    await expect(page.getByTestId('view3d')).toBeVisible();
+    await main.click();
+    await expect(fly).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('p');
+    await expect(fly).toHaveAttribute('aria-pressed', 'false');
+    await expect(main).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('p');
+    await expect(fly).toHaveAttribute('aria-pressed', 'true');
+    // 6. a click without a drag makes nothing; Esc during a drag makes nothing
+    await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
+    await page.waitForTimeout(300);
+    const n0 = (await st()).n;
+    const empty = await world(-150, 0, 100);
+    await page.mouse.click(empty.x, empty.y);
+    expect((await st()).n).toBe(n0);
+    expect((await st()).tool).toBe('panel');
+    const e1 = await world(-200, 0, 100), e2 = await world(-120, 0, 100);
+    await page.mouse.move(e1.x, e1.y);
+    await page.mouse.down();
+    await page.mouse.move(e2.x, e2.y, { steps: 5 });
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    expect((await st()).n).toBe(n0);
+    expect(errors).toEqual([]);
+  });
+
+  test('the perpendicular button slides out to the left in Hebrew, and without motion when reduced motion is asked for', async ({ page }) => {
+    await start(page, 'ply-3');
+    await S(page, () => (window as any).__cutforge.store.getState().setLang('he'));
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    const main = page.getByTestId('tool-panel'), fly = page.getByTestId('tool-panel-standing');
+    await main.click();
+    await expect(fly).toBeVisible();
+    // 7. Hebrew: its box is left of the main button's
+    await expect.poll(async () => (await main.boundingBox())!.x - ((await fly.boundingBox())!.x + (await fly.boundingBox())!.width)).toBeGreaterThanOrEqual(0);
+    // 8. reduced motion: it shows at once, with no animation
+    await page.getByTestId('tool-select').click();
+    await expect(fly).toBeHidden();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await main.click();
+    const anims = await fly.evaluate((el) => el.getAnimations().length);
+    expect(anims).toBe(0);
+    await expect(fly).toBeVisible();
   });
 
   test('the grow ghost’s ✓ sits below its height arrow', async ({ page }) => {

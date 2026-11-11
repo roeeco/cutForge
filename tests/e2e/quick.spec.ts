@@ -2,7 +2,7 @@
 // five actions and no joint controls; Workshop is today's editor; parts made
 // with Workshop tools show read-only in Quick build.
 import { test, expect, type Page } from '@playwright/test';
-import { pickPlane, QUICK_STATE } from './util';
+import { drawBoard, QUICK_STATE } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<string>(page, () => JSON.stringify((window as any).__cutforge.store.getState().design));
@@ -188,7 +188,7 @@ test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each o
 
 test.describe('Workshop', () => {
   test.use({ storageState: { cookies: [], origins: ['http://localhost:5199'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })) } });
-  test('the Panel tool on a box’s base offers Divider: a line from wall to wall becomes a divider (milestone 38)', async ({ page }) => {
+  test('the Board tool on a box’s base, perpendicular: a line from wall to wall becomes a divider (milestones 38, 42)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
@@ -205,12 +205,8 @@ test.describe('Workshop', () => {
     });
     await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
     await page.waitForTimeout(300);
-    await page.getByTestId('tool-panel').click();
-    await pickPlane(page, await onFace(page, base, 70, 6), 'standing');
-    await drag(page, await onFace(page, base, 70, 6), await onFace(page, base, 70, 84));
-    await page.getByTestId('ghost-divider').click();
-    await expect(page.getByTestId('divider-makes')).toHaveAttribute('data-kind', 'divider');
-    await page.getByTestId('ghost-ok').click();
+    // perpendicular on: a line from wall to wall is a divider, made on release (milestone 42)
+    await drawBoard(page, await onFace(page, base, 70, 6), await onFace(page, base, 70, 84), { standing: true });
     const d = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
     const divs = (Object.values(d.connections) as any[]).filter((c) => c.grown && c.a.panelId === base && c.offset > 6);
     expect(divs).toHaveLength(1);
