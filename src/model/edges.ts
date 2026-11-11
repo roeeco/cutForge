@@ -8,11 +8,13 @@
 //   <key>#<n>       piece n of an edge a cut split into several pieces
 //   <key>~<n>       segment n of an edge flattened into a curve (next to an
 //                   auto-curve point): not growable, not joined
+//   <key>^~<n>      segment n of the arc of a rounded corner (milestone 45),
+//                   the corner at the start of edge <key>: a curve key too
 //   face            the panel's face (edge-on-face and crossing seams)
 //
 // This module derives the keyed outline of a panel: layer 1 (its sketch) and
 // layer 3 (the straight edges of its own outline, see POLYGONS_AND_CUTS.md §3).
-import type { P2, Panel, Sketch, WallSketch } from './types';
+import type { P2, Panel, Sketch, SketchPt, WallSketch } from './types';
 
 export const FACE = 'face';
 export type EdgeArg = string | number;
@@ -118,15 +120,105 @@ function curveRing(ring: EdgeSeg[], smooth: (e: EdgeSeg) => boolean): EdgeSeg[] 
   return out;
 }
 
+/** Arc flattening tolerance (mm): the chord's largest distance from the arc. */
+const ARC_TOL = 0.02;
+
+/** A rounded corner as built: its tangent points, centre and radius (after clamping). */
+export type Fillet = { i: number; t1: P2; t2: P2; c: P2; r: number };
+
+/**
+ * Rounded corners (milestone 45): at each point with `curve: 'round'` a
+ * tangent circular arc of radius r replaces the corner. Where the arcs at the
+ * two ends of an edge would overlap, both are scaled down so they meet.
+ */
+export function fillets(pts: SketchPt[]): (Fillet | null)[] {
+  const n = pts.length;
+  const out: (Fillet | null)[] = pts.map(() => null);
+  if (n < 3) return out;
+  const L = new Array<number>(n).fill(0), half = new Array<number>(n).fill(0);
+  const unit = (x: number, y: number) => {
+    const l = Math.hypot(x, y) || 1;
+    return { x: x / l, y: y / l };
+  };
+  const u1s: P2[] = [], u2s: P2[] = [];
+  for (let i = 0; i < n; i++) {
+    const V = pts[i], P = pts[(i + n - 1) % n], N = pts[(i + 1) % n];
+    const u1 = unit(P.x - V.x, P.y - V.y), u2 = unit(N.x - V.x, N.y - V.y);
+    u1s.push(u1);
+    u2s.push(u2);
+    if (V.curve !== 'round' || !(V.r && V.r > 0)) continue;
+    const th = Math.acos(Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y)));
+    // a straight-through point or a spike has no corner to round
+    if (th < 1e-6 || Math.PI - th < 1e-6) continue;
+    half[i] = th / 2;
+    L[i] = V.r / Math.tan(th / 2);
+  }
+  const scale = new Array<number>(n).fill(1);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const len = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+    if (L[i] + L[j] > len + 1e-12) {
+      const k = len / (L[i] + L[j]);
+      scale[i] = Math.min(scale[i], k);
+      scale[j] = Math.min(scale[j], k);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (!L[i]) continue;
+    const V = pts[i], u1 = u1s[i], u2 = u2s[i];
+    const l = L[i] * scale[i], r = l * Math.tan(half[i]);
+    const b = unit(u1.x + u2.x, u1.y + u2.y), dist = r / Math.sin(half[i]);
+    out[i] = { i, t1: { x: V.x + u1.x * l, y: V.y + u1.y * l }, t2: { x: V.x + u2.x * l, y: V.y + u2.y * l }, c: { x: V.x + b.x * dist, y: V.y + b.y * dist }, r };
+  }
+  return out;
+}
+
+/** An arc from t1 to t2 about c (the short way round), flattened within ARC_TOL; every point lies on the circle. */
+function arcPoints(f: Fillet): P2[] {
+  const a1 = Math.atan2(f.t1.y - f.c.y, f.t1.x - f.c.x), a2 = Math.atan2(f.t2.y - f.c.y, f.t2.x - f.c.x);
+  let da = a2 - a1;
+  while (da > Math.PI) da -= 2 * Math.PI;
+  while (da <= -Math.PI) da += 2 * Math.PI;
+  const step = 2 * Math.acos(Math.max(-1, 1 - ARC_TOL / Math.max(f.r, ARC_TOL)));
+  // an even count puts a point at the arc's middle: an oval's or a circle's extreme lies exactly on the outline
+  const k = 2 * Math.max(1, Math.min(256, Math.ceil(Math.abs(da) / step / 2)));
+  const out: P2[] = [];
+  for (let j = 1; j < k; j++) out.push({ x: f.c.x + f.r * Math.cos(a1 + (da * j) / k), y: f.c.y + f.r * Math.sin(a1 + (da * j) / k) });
+  return [f.t1, ...out, f.t2];
+}
+
+/** A polygon sketch's ring with its rounded corners: trimmed straight edges and arcs keyed `<outgoing edge>^~<n>`. */
+function roundRing(pts: SketchPt[], keys: string[]): EdgeSeg[] {
+  const n = pts.length;
+  const fs = fillets(pts);
+  const out: EdgeSeg[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = fs[i]?.t2 ?? { x: pts[i].x, y: pts[i].y }, b = fs[j]?.t1 ?? { x: pts[j].x, y: pts[j].y };
+    if (Math.hypot(b.x - a.x, b.y - a.y) > 1e-9) out.push({ key: keys[i] ?? `e${i}`, a, b });
+    const f = fs[j];
+    if (f) {
+      const q = arcPoints(f);
+      for (let m = 0; m + 1 < q.length; m++) out.push({ key: `${keys[j] ?? `e${j}`}^~${m}`, a: q[m], b: q[m + 1] });
+    }
+  }
+  // close exactly: each segment starts where the one before it ends
+  for (let m = 0; m < out.length; m++) out[(m + 1) % out.length].a = out[m].b;
+  return out;
+}
+
 /** Layer 1: the sketch outline as keyed CCW edges (curves flattened). */
 export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: Panel['ext'] }): EdgeSeg[] {
-  const ring = straightRing(p);
   const s = sketchOf(p);
   if (s.kind === 'poly') {
-    if (!s.pts.some((q) => q.curve)) return ring;
-    const at = new Map(s.edgeIds.map((k, i) => [k, !!s.pts[i]?.curve]));
+    if (!s.pts.some((q) => q.curve)) return straightRing(p);
+    // rounded corners first, then auto curves on the straight edges left
+    const ring = s.pts.some((q) => q.curve === 'round') ? roundRing(s.pts, s.edgeIds) : straightRing(p);
+    if (!s.pts.some((q) => q.curve === 'auto')) return ring;
+    const at = new Map(s.edgeIds.map((k, i) => [k, s.pts[i]?.curve === 'auto']));
     return curveRing(ring, (e) => !!at.get(e.key));
   }
+  const ring = straightRing(p);
   const ins = new Map((s.inserts ?? []).map((x) => [x.id, !!x.curve]));
   if (!s.corners?.tr?.curve && !s.corners?.tl?.curve && ![...ins.values()].some(Boolean)) return ring;
   // the point an edge starts at: e2 at the top right corner, e3 at the top left, an insert's piece at the insert

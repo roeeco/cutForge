@@ -4,7 +4,7 @@
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DividerRec, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -16,6 +16,7 @@ import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toL
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
 import { dividerSpan, isDivider, reconcileDividers, setDividerPos } from './dividers';
+import { defaultEnd, MIN_END, roundPts } from './round';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
@@ -875,7 +876,8 @@ export function setPanelSize(d: Design, panelId: string, w: number | undefined, 
         if (i !== null) setPanelSize(d, parent.id, i % 2 === 0 ? w : undefined, i % 2 === 1 ? w : undefined);
         else setEdgeLength(d, parent.id, pc.a.edge, w);
       }
-    } else scaleSketch(p, Math.max(MIN_PANEL, w), p.h);
+    } else if (p.sketch.kind === 'poly' && p.sketch.round) remakeRound(p, Math.max(MIN_PANEL, w), p.sketch.round.shape === 'circle' ? Math.max(MIN_PANEL, w) : p.h);
+    else scaleSketch(p, Math.max(MIN_PANEL, w), p.h);
   }
   if (h !== undefined) {
     const pc = parentConnection(d, panelId);
@@ -883,6 +885,7 @@ export function setPanelSize(d: Design, panelId: string, w: number | undefined, 
     // push-pull on a tray wall changes the whole tray, unless the wall has its own height
     if (pc && tray && !p.customHeight) tray.height = Math.max(MIN_PANEL, h) + (pc.kind === 'finger' ? 0 : tOf(d, pc.a.panelId));
     else if (pc) p.h = Math.max(MIN_PANEL, h);
+    else if (p.sketch.kind === 'poly' && p.sketch.round) remakeRound(p, p.sketch.round.shape === 'circle' ? Math.max(MIN_PANEL, h) : p.w, Math.max(MIN_PANEL, h));
     else scaleSketch(p, p.w, Math.max(MIN_PANEL, h));
   }
   solve(d);
@@ -1199,6 +1202,8 @@ export function moveVertex(d: Design, panelId: string, i: number, to: P2): boole
   const pts = p.sketch.pts.map((q, k) => (k === i ? { ...q, x: to.x, y: to.y } : q));
   if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
   p.sketch.pts = pts;
+  // a round base edited by its points is an outline of points from now on (milestone 45)
+  delete p.sketch.round;
   normalizeSketch(p);
   solve(d);
   return true;
@@ -1212,6 +1217,7 @@ export function insertVertex(d: Design, panelId: string, i: number, t = 0.5): st
   const p = d.panels[panelId];
   if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return null;
   const s = p.sketch;
+  delete s.round;
   const n = s.pts.length;
   const a = s.pts[i], b = s.pts[(i + 1) % n];
   const id = nextEdgeId(s.edgeIds);
@@ -1243,6 +1249,7 @@ export function deleteVertex(d: Design, panelId: string, i: number): boolean {
   const s = p.sketch;
   const pts = s.pts.filter((_, k) => k !== i);
   if (!isSimplePolygon(pts) || polygonArea(pts) <= 0) return false;
+  delete s.round;
   const n = s.pts.length;
   const keep = s.edgeIds[(i + n - 1) % n], gone = s.edgeIds[i];
   const start = s.pts[(i + n - 1) % n], end = s.pts[(i + 1) % n];
@@ -1378,9 +1385,11 @@ export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: 
   if (s.kind === 'poly') {
     if (typeof pt !== 'number' || !s.pts[pt] || parentConnection(d, panelId)) return false;
     const q = { ...s.pts[pt] };
+    delete q.r;
     if (on) q.curve = 'auto';
     else delete q.curve;
     s.pts = s.pts.map((x, k) => (k === pt ? q : x));
+    delete s.round;
     normalizeSketch(p);
   } else if (pt === 'tl' || pt === 'tr') {
     const c = { dx: 0, dy: 0, ...s.corners?.[pt] };
@@ -1735,4 +1744,103 @@ export function setPlacedPose(d: Design, panelId: string, pose: 'flat' | 'standi
   if (pose === 'flat') for (const c of Object.values(d.connections)) if (!c.grown && p.place.host && ((c.a.panelId === panelId && c.b.panelId === p.place.host) || (c.b.panelId === panelId && c.a.panelId === p.place.host))) delete d.connections[c.id];
   solve(d);
   if (pose === 'standing') connectSeams(d, panelId);
+}
+
+// ---------------------------------------------------------------------------
+// Round outlines (milestone 45, CURVED_WALLS.md §3.1, §6.1).
+
+/** Make a round base's points again at a new size (its shape and end radius kept). */
+function remakeRound(p: Panel, w: number, h: number) {
+  const s = p.sketch;
+  if (s.kind !== 'poly' || !s.round) return;
+  const r = roundPts(w, h, s.round);
+  s.pts = r.pts;
+  s.edgeIds = r.edgeIds;
+  normalizeSketch(p);
+}
+
+/** A round floor panel (a circle, a four-centre oval or a stadium) filling w × h, its corner at (x, z) as `addRootPanel`. */
+export function addRoundPanel(d: Design, x: number, z: number, w: number, h: number, round: RoundShape): string | null {
+  if (w < MIN_PANEL || h < MIN_PANEL) return null;
+  const id = addRootPanel(d, x, z, w, h);
+  const p = d.panels[id];
+  const shape: RoundShape = round.shape === 'oval' ? { shape: 'oval', rEnd: round.rEnd ?? defaultEnd(w, h) } : { shape: round.shape };
+  const r = roundPts(w, h, shape);
+  p.sketch = { kind: 'poly', pts: r.pts, edgeIds: r.edgeIds, round: shape };
+  normalizeSketch(p);
+  solve(d);
+  return id;
+}
+
+/** Change a round base's shape, end radius or size; it is made again from them. */
+export function setRoundShape(d: Design, panelId: string, patch: Partial<RoundShape> & { w?: number; h?: number }): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || !p.sketch.round) return false;
+  const cur = p.sketch.round;
+  const shape = patch.shape ?? cur.shape;
+  let w = Math.max(MIN_PANEL, patch.w ?? p.w), h = Math.max(MIN_PANEL, patch.h ?? p.h);
+  // a circle is as wide as it is deep: the size typed (or the larger, from another shape)
+  if (shape === 'circle') w = h = patch.w ?? patch.h ?? Math.max(w, h);
+  const rEnd = shape === 'oval' ? (patch.rEnd ?? (cur.shape === 'oval' ? cur.rEnd : undefined) ?? defaultEnd(w, h)) : undefined;
+  p.sketch.round = { shape, ...(rEnd !== undefined ? { rEnd: Math.max(MIN_END, Math.round(rEnd * 100) / 100) } : {}) };
+  remakeRound(p, w, h);
+  solve(d);
+  return true;
+}
+
+/** Turn a round base into an outline of points (rounded corners) for free editing: one way. */
+export function convertToPoints(d: Design, panelId: string): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || !p.sketch.round) return false;
+  delete p.sketch.round;
+  solve(d);
+  return true;
+}
+
+/**
+ * Round a base's point with a tangent arc of radius r (null: a corner again).
+ * Unlike an auto curve, a rounded corner keeps the straight edges either side
+ * (shorter), so it is allowed beside a joined edge.
+ */
+export function setPointRound(d: Design, panelId: string, i: number, r: number | null): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return false;
+  const s = p.sketch;
+  if (!s.pts[i]) return false;
+  const q = { ...s.pts[i] };
+  if (r === null || r <= 0) {
+    if (q.curve === 'round') delete q.curve;
+    delete q.r;
+  } else {
+    q.curve = 'round';
+    q.r = Math.round(r * 100) / 100;
+  }
+  s.pts = s.pts.map((x, k) => (k === i ? q : x));
+  delete s.round;
+  normalizeSketch(p);
+  solve(d);
+  return true;
+}
+
+/** Set every rounded corner of a base to radius r (its other points stay as they are). */
+export function setCornerRadius(d: Design, panelId: string, r: number): boolean {
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || p.sketch.round || !p.sketch.pts.some((q) => q.curve === 'round')) return false;
+  const v = Math.max(MIN_END, Math.round(r * 100) / 100);
+  p.sketch.pts = p.sketch.pts.map((q) => (q.curve === 'round' ? { ...q, r: v } : q));
+  normalizeSketch(p);
+  solve(d);
+  return true;
+}
+
+/** A rectangle with every corner rounded to r, its corner at (x, z) as `addRootPanel` (the Rounded preset). */
+export function addRoundedRect(d: Design, x: number, z: number, w: number, h: number, r: number): string | null {
+  if (w < MIN_PANEL || h < MIN_PANEL) return null;
+  const id = addRootPanel(d, x, z, w, h);
+  const p = d.panels[id];
+  const v = Math.max(MIN_END, Math.round(r * 100) / 100);
+  p.sketch = { kind: 'poly', pts: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }].map((q) => ({ ...q, curve: 'round' as const, r: v })), edgeIds: ['e0', 'e1', 'e2', 'e3'] };
+  normalizeSketch(p);
+  solve(d);
+  return id;
 }

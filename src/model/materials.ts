@@ -1,4 +1,4 @@
-import type { ConnectionKind, Design, MaterialProfile } from './types';
+import type { BendLimits, ConnectionKind, Design, MaterialKind, MaterialProfile } from './types';
 
 // Starting points only: calibrate thickness, kerf and clearance on the actual
 // material and laser with a test cut.
@@ -128,4 +128,23 @@ export function normalizeMaterials(d: Design, prev?: MaterialProfile) {
     for (const id of Object.keys(d.materials)) if (!used.has(id) || id === d.material.id) delete d.materials[id];
     if (!Object.keys(d.materials).length) delete d.materials;
   }
+}
+
+// ---------------------------------------------------------------------------
+// How tightly a material bends (milestone 45, CURVED_WALLS.md §2.2, §3.3).
+// Starting points from the bending study, to calibrate with a test strip:
+// card bends on its own to ~10 mm (scored, ~4 mm); corrugated with the flutes
+// up the wall to ~6t (liner-scored, ~5t); 3 mm plywood only with a living
+// hinge (~30 mm at a 2 mm pitch).
+
+/** A kind's bend limits, scaled by thickness where the study gives them per t. */
+export function bendDefaults(kind: MaterialKind, t: number): BendLimits {
+  if (kind === 'card') return { smoothR: 10, patternR: 4, pitch: 2.5, k: 0.5 };
+  if (kind === 'corrugated') return t >= 3 ? { smoothR: 60, patternR: 20, pitch: 7, k: 1 } : { smoothR: 25, patternR: 8, pitch: 3.5, k: 1 };
+  return { smoothR: Math.max(150, 50 * t), patternR: Math.max(25, 10 * t), pitch: 2, k: 0.5 };
+}
+
+/** A material's bend limits: its own, else its kind's. */
+export function bendOf(m: MaterialProfile): BendLimits {
+  return m.bend ?? bendDefaults(m.kind, m.thickness);
 }

@@ -19,7 +19,18 @@ export type MaterialProfile = {
   sheetH: number;
   /** Grain/flute direction on the sheet: along sheet x, along y, or none. */
   grain: 'x' | 'y' | 'none';
+  /** How tightly it bends (milestone 45, CURVED_WALLS.md §3.3); absent: its kind's defaults (`bendDefaults`). */
+  bend?: BendLimits;
 };
+
+/**
+ * How tightly a material bends (starting points: calibrate with a test strip).
+ * `smoothR`: the smallest radius it bends to on its own; `patternR`: with its
+ * kind's pattern (scores, liner scoring, a living hinge); `pitch`: that
+ * pattern's line spacing; `k`: the neutral-line factor (developed length =
+ * angle × (inner radius + k·t)). Millimetres.
+ */
+export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number };
 
 /**
  * A panel's placement in 3D. `o` is the origin of the panel's local 2D
@@ -66,9 +77,19 @@ export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off:
  * third of each side's length (src/model/edges.ts). Room for 'bezier'
  * (handles of its own) later.
  */
-export type CurveKind = 'auto';
-/** A sketch point (a polygon vertex) and how the outline passes it. */
-export type SketchPt = P2 & { curve?: CurveKind };
+export type CurveKind = 'auto' | 'round';
+/**
+ * A sketch point (a polygon vertex) and how the outline passes it. 'round'
+ * (milestone 45): a tangent circular arc of radius `r` replaces the corner
+ * (clamped so the arcs on an edge never overlap).
+ */
+export type SketchPt = P2 & { curve?: CurveKind; r?: number };
+/**
+ * A round base (milestone 45, CURVED_WALLS.md §6.1): a circle, a four-centre
+ * oval (end radius `rEnd`) or a stadium filling the panel's w × h. Its points
+ * are made from it (`roundPts`), so its card edits sizes, not points.
+ */
+export type RoundShape = { shape: 'circle' | 'oval' | 'stadium'; rEnd?: number };
 export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type WallSketch = {
   kind: 'wall';
@@ -82,7 +103,7 @@ export type WallSketch = {
  * grown panels are a parametric w × h rectangle with corner offsets and
  * inserted points on their free edges.
  */
-export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[] } | WallSketch;
+export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[]; round?: RoundShape } | WallSketch;
 
 export type Panel = {
   id: string;
@@ -367,4 +388,4 @@ export type Tray = {
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;

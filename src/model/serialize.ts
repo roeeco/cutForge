@@ -97,6 +97,11 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // its joint with the base becomes the same joint as an edge on the base's
   // face (same kind and settings). Anything that does not fit stays as it was.
   9: (d) => migrateDividers(d),
+  // v10 -> v11: rounded corners and round bases (`curve: 'round'` with `r`,
+  // `Sketch.round`) and materials' bend limits (`bend`), all optional and
+  // new (milestone 45): nothing to convert. The version keeps older editors
+  // from opening a file whose round outlines they would read wrongly.
+  10: (d) => d,
 };
 
 function migrateDividers(d: any): any {
