@@ -7,6 +7,8 @@ import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
 import { detailSel, selectedDetailIds } from './store';
+import { validate } from '../model/validate';
+import { isBad, rememberGood } from './goodDesign';
 
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
@@ -20,6 +22,7 @@ export function useAutosave(onLoaded: () => void) {
         if (raw && !cancelled) {
           const d = migrateDesign(raw);
           useStore.getState().replaceDesign(d, false);
+          rememberGood(d);
         }
       } catch {
         /* no saved design or storage blocked: start fresh */
@@ -33,8 +36,19 @@ export function useAutosave(onLoaded: () => void) {
         if (timer) clearTimeout(timer);
         useStore.getState().set({ saveState: 'saving' });
         timer = setTimeout(async () => {
+          timer = undefined;
+          const d = useStore.getState().design;
+          // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {
-            await saveLocal(useStore.getState().design);
+            if (isBad(d)) throw new Error('not drawable');
+            validate(d);
+          } catch {
+            useStore.getState().set({ saveState: 'failed' });
+            return;
+          }
+          rememberGood(d);
+          try {
+            await saveLocal(d);
             useStore.getState().set({ saveState: 'saved' });
           } catch {
             useStore.getState().set({ saveState: 'failed' });
@@ -44,6 +58,7 @@ export function useAutosave(onLoaded: () => void) {
     })();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
       unsub();
     };
   }, []);
@@ -94,8 +109,8 @@ export function useKeyboard() {
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
-        // the Panel tool's picked plane: start over (the tool stays)
-        if (s.panelPick) return s.set({ panelPick: null });
+        // a board being drawn: the stage drops it (the tool stays)
+        if (s.panelGhost?.drawing) return;
         if (s.tool !== 'select') s.setTool('select');
         else if (s.selection) s.select(null);
         else if (s.view === 'solo') s.closeSolo();
@@ -106,7 +121,9 @@ export function useKeyboard() {
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
       } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const tool = TOOL_KEYS[e.key.toLowerCase()];
-        if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
+        // P again with the Board tool: the perpendicular button (milestone 42)
+        if (tool === 'panel' && s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
+        else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') s.setTool(tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

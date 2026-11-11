@@ -163,7 +163,8 @@ export function planDividerLine(d: Design, baseId: string, a: P2, b: P2, fallbac
     const plan = planDividerBetween(d, picks[0], picks[1]);
     if (plan.ok && plan.baseId === baseId) return { kind: 'divider', a: A, b: B, picks, plan, gaps: compartmentGaps(faces, A, B, tOf(d, baseId), [ea.face.panelId, eb.face.panelId]) };
   }
-  return { kind: 'standing', a: A, b: B, height: dividerHeight(d, baseId) ?? Math.max(MIN_PANEL, fallbackHeight) };
+  // what the ghost shows is what ✓ makes: never lower than a board can be (BUGFIX_PLAN B19)
+  return { kind: 'standing', a: A, b: B, height: Math.max(MIN_PANEL, dividerHeight(d, baseId) ?? fallbackHeight) };
 }
 
 /** The clear sizes on either side of a divider along the line A→B: to the nearest parallel faces it runs between. */

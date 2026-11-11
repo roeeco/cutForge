@@ -10,7 +10,7 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
   await page.getByTestId('tpl-organiser').check();
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   let d = await design(page);
   expect(d.template.id).toBe('organiser');
   expect(d.order).toContain('t:divX2');
@@ -72,7 +72,7 @@ test('card stand template in corrugated', async ({ page }) => {
   await page.getByTestId('tpl-stand').check();
   await page.getByTestId('mat-corr-1.6').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   const d = await design(page);
   expect(d.order).toEqual(expect.arrayContaining(['t:base', 't:support1', 't:support3', 't:lip']));
   await page.getByTestId('tp-angle').selectOption('30');

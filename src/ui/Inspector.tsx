@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
-import { pieceKeyOf } from '../model/pieces';
+import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
 import { matOf } from '../model/materials';
 import { rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
@@ -341,7 +341,7 @@ function SheetPlacementControls({ panelId }: { panelId: string }) {
   const view = useStore((s) => s.view);
   const key = useStore((s) => s.sheetCopy);
   const d = useStore((s) => s.design);
-  if (view !== '2d' || !key || !key.startsWith(pieceKeyOf(d, panelId) + '#')) return null;
+  if (view !== '2d' || !key || pieceRoot(placementPiece(key)) !== pieceKeyOf(d, panelId)) return null;
   const blocked = matOf(d, panelId).grain !== 'none' && !d.allowRotate;
   return (
     <div className="subsection">

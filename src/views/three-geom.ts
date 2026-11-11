@@ -6,7 +6,7 @@ import { flattenContour, pointInPolygon } from '../geom/vec';
 import { holeCuts, ownOutline } from '../model/outline';
 import polygonClipping from 'polygon-clipping';
 import { throughRegions } from '../model/through';
-import { panelExtras, panelNotches, panelOutline } from '../model/geometry';
+import { panelExtras, panelNotches, panelOutlines } from '../model/geometry';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
 import { profileOf, tOf } from '../model/materials';
@@ -38,7 +38,7 @@ export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = 
   const t = d.panels[p.id] ? tOf(d, p.id) : profileOf(d, p.material).thickness;
   const own = ownOutline(p);
   const notches = opts.joints === false ? {} : panelNotches(d, p);
-  let rings = own.rings.map((r) => panelOutline(p, notches, r));
+  let rings = own.rings.flatMap((r) => panelOutlines(p, notches, r));
   // material a joint adds in the panel's own plane (a locking tab's barbs)
   const flatAdds = opts.joints === false ? [] : jointFlatAdds(d, p);
   if (flatAdds.length) {

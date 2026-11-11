@@ -2,15 +2,16 @@
 // flat net (unfolded about their fold lines); everything else is separate.
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
-import type { Design, P2, Panel } from './types';
+import type { Connection, Design, P2, Panel } from './types';
 import type { EdgeArg } from './edges';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, flattenContour, IDENTITY, pointInPolygon, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { holeCuts, ownOutline } from './outline';
 import { throughRegions } from './through';
 import { edgeInwardLocal, edgeLocal } from './frame';
+import { findEdge } from './edges';
 import { cornerDepths, cornerFit } from './seams';
-import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutline } from './geometry';
+import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
 
@@ -18,12 +19,14 @@ export type NetPanel = { panelId: string; xf: Xform2 };
 /**
  * One connected outline to cut. A panel (or folded net) that its cuts split
  * into several fragments gives one piece per fragment: the largest keeps the
- * net's key, the others are `<key>~2`, `<key>~3` …; `frag` numbers them.
+ * net's key, the others are `<key>@2`, `<key>@3` …; `frag` numbers them.
+ * `@` is never part of a panel id (wall-set members are `<wall>~n`, split
+ * edges `<edge>#n`), so a fragment key never names another piece.
  */
 export type Piece = { key: string; panels: NetPanel[]; contours: TaggedContour[]; frag?: { i: number; n: number } };
 
-/** The net (and quantity) a piece key belongs to: fragments share their net's. */
-export const pieceRoot = (key: string) => key.split('~')[0];
+export { FRAG_SEP, pieceRoot, placementPiece } from './keys';
+import { FRAG_SEP, pieceRoot } from './keys';
 
 /** Rigid unfolding of a folded child into its parent's coordinates. */
 export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeArg, allowance: number, s0 = 0): Xform2 {
@@ -43,11 +46,24 @@ export function foldXform(parent: Pick<Panel, 'w' | 'h' | 'sketch'>, edge: EdgeA
 /** A fold in a net: the panel that stays (`parent`) and the one folded off it (`child`). Grown folds, and tray corners made folds (milestone 35). */
 export type NetFold = { id: string; parent: string; child: string; xf: (d: Design) => Xform2 | null };
 
+/**
+ * A fold connection that still folds: both panels exist, both edges exist and
+ * the connection is not broken. A fold whose parent edge went (a cut across
+ * it, a deleted point) does not fold: its child is cut as a net of its own
+ * and shown as broken (BUGFIX_PLAN B1).
+ */
+export function foldHolds(d: Design, c: Connection): boolean {
+  if (c.kind !== 'fold' || c.broken) return false;
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return false;
+  return !!findEdge(A, c.a.edge) && !!findEdge(B, c.b.edge);
+}
+
 /** Every fold joining two panels into one net. */
 export function netFolds(d: Design): NetFold[] {
   const out: NetFold[] = [];
   for (const c of Object.values(d.connections)) {
-    if (c.kind !== 'fold' || !d.panels[c.a.panelId] || !d.panels[c.b.panelId]) continue;
+    if (!foldHolds(d, c)) continue;
     if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
     else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
@@ -94,10 +110,7 @@ export function netGroups(d: Design): NetPanel[][] {
   const groups: NetPanel[][] = [];
   // construction guides are never cut (milestone 28)
   const guides = constructionSet(d);
-  for (const id of d.order) {
-    if (!d.panels[id] || inNet.has(id) || guides.has(id)) continue;
-    // a fold child is reached from its parent
-    if (folds.some((f) => f.child === id)) continue;
+  const grow = (id: string) => {
     const group: NetPanel[] = [{ panelId: id, xf: IDENTITY }];
     inNet.add(id);
     for (let i = 0; i < group.length; i++) {
@@ -111,7 +124,11 @@ export function netGroups(d: Design): NetPanel[][] {
       }
     }
     groups.push(group);
-  }
+  };
+  // a fold child is reached from its parent
+  for (const id of d.order) if (d.panels[id] && !inNet.has(id) && !guides.has(id) && !folds.some((f) => f.child === id)) grow(id);
+  // a fold child its parent could not unfold (or one in a fold cycle) is cut on its own, never lost
+  for (const id of d.order) if (d.panels[id] && !inNet.has(id) && !guides.has(id)) grow(id);
   return groups;
 }
 
@@ -121,6 +138,17 @@ const toRing = (pts: P2[]): [number, number][] => {
   const q = (x: number) => Math.round(x * 1e7) / 1e7;
   return ccw.map((p) => [q(p.x), q(p.y)]);
 };
+
+/**
+ * Points closer than 1e-4 mm to the previous one are float noise (a fold strip's overlap on a sloped
+ * edge leaves 1e-8 .. 1e-5 mm segments after the union): they are dropped (BUGFIX_PLAN B12).
+ */
+function dropMicro(pts: P2[]): P2[] {
+  const out: P2[] = [];
+  for (const q of pts) if (!out.length || Math.hypot(q.x - out[out.length - 1].x, q.y - out[out.length - 1].y) >= 1e-4) out.push(q);
+  while (out.length > 3 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) < 1e-4) out.pop();
+  return out;
+}
 
 export function buildPieces(d: Design): Piece[] {
   return netGroups(d).flatMap((g) => groupPieces(d, g));
@@ -133,7 +161,7 @@ export function panelPiece(d: Design, panelId: string): Piece {
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => c.kind === 'fold' && (c.grown || c.hingeOf));
+  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];
@@ -146,12 +174,12 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       const ex = panelExtras(d, p);
       const square = Math.abs(Math.sin(2 * xf.rot)) < 1e-12;
       if (square || !ex.adds.length) {
-        for (const ring of own.rings) polys.push([toRing(panelOutline(p, notches, ring).map(tf))]);
+        for (const ring of own.rings) for (const o of panelOutlines(p, notches, ring)) polys.push([toRing(o.map(tf))]);
         for (const a of ex.adds) polys.push([toRing(a.map(tf))]);
       } else {
         // turned by an angle that is not square: join the panel and its own additions (flaps, fold-over rim and liner)
         // in its exact local coordinates first, so rounding after the turn cannot leave hairline gaps between them
-        const local: Polygon[] = [...own.rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
+        const local: Polygon[] = [...own.rings.flatMap((ring) => panelOutlines(p, notches, ring).map((o) => [toRing(o)] as Polygon)), ...ex.adds.map((a) => [toRing(a)] as Polygon)];
         for (const poly of safeUnion(local)) polys.push(poly.map((r) => toRing(r.slice(0, -1).map(([x, y]) => tf({ x, y })))) as Polygon);
       }
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
@@ -222,8 +250,9 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {
-        const pts = cleanPolygon(ring.slice(0, ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1] ? -1 : undefined).map(([x, y]) => ({ x, y })));
-        if (pts.length < 3) return;
+        const pts = cleanPolygon(dropMicro(ring.slice(0, ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1] ? -1 : undefined).map(([x, y]) => ({ x, y }))));
+        // a ring of no area is clipping noise: it would cut as a slit (BUGFIX_PLAN B14)
+        if (pts.length < 3 || Math.abs(polygonArea(pts)) < 1e-6) return;
         out.push({ op: 'cut', role: ri === 0 ? 'outer' : 'hole', contour: polygonContour(pts), ref: { panelId: group[0].panelId } });
       });
       return out;
@@ -241,7 +270,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       .map((poly) => ({ poly, own: ringContours(poly), ring: poly[0].map(([x, y]) => ({ x, y })) }))
       .filter((f) => f.own.length)
       .sort((a, b) => Math.abs(polygonArea(b.ring)) - Math.abs(polygonArea(a.ring)));
-    const parts: Piece[] = frags.map((f, i) => ({ key: i ? `${key}~${i + 1}` : key, panels: group, contours: [...f.own], frag: { i: i + 1, n: frags.length } }));
+    const parts: Piece[] = frags.map((f, i) => ({ key: i ? `${key}${FRAG_SEP}${i + 1}` : key, panels: group, contours: [...f.own], frag: { i: i + 1, n: frags.length } }));
     for (const c of contours) {
       const pts = flattenContour(c.contour, 0.05);
       const q = c.contour.closed && pts.length > 2 ? { x: pts.reduce((s2, v) => s2 + v.x, 0) / pts.length, y: pts.reduce((s2, v) => s2 + v.y, 0) / pts.length } : pts[Math.floor(pts.length / 2)];
@@ -278,7 +307,7 @@ export function flatPanel(d: Design, panelId: string, xf: Xform2, noCornerFlaps 
   const p = d.panels[panelId];
   if (!p) return [];
   const notches = panelNotches(d, p);
-  const polys: Polygon[] = ownOutline(p).rings.map((ring) => [toRing(panelOutline(p, notches, ring))] as Polygon);
+  const polys: Polygon[] = ownOutline(p).rings.flatMap((ring) => panelOutlines(p, notches, ring).map((o) => [toRing(o)] as Polygon));
   // without corner glue flaps (which a trim can always clear): only what a wall itself covers
   const skip = noCornerFlaps ? new Set(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'glue').flatMap((c) => (c.geom?.adds ?? []).map((x) => x.poly))) : null;
   for (const a of panelExtras(d, p).adds) if (!skip?.has(a)) polys.push([toRing(a)]);

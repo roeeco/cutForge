@@ -1,0 +1,114 @@
+{
+ "format": "cutforge-project",
+ "schemaVersion": 8,
+ "savedAt": "2026-11-11T07:15:25.935Z",
+ "design": {
+  "schemaVersion": 8,
+  "id": "d_e9asiw1",
+  "name": "v8 fragment",
+  "material": {
+   "id": "ply-3",
+   "kind": "plywood",
+   "nameKey": "mat.ply3",
+   "thickness": 3,
+   "kerf": 0.15,
+   "clearance": 0.1,
+   "foldAllowance": 0,
+   "sheetW": 600,
+   "sheetH": 400,
+   "grain": "x"
+  },
+  "panels": {
+   "p_hresig2": {
+    "id": "p_hresig2",
+    "name": "1",
+    "w": 160,
+    "h": 80,
+    "sketch": {
+     "kind": "poly",
+     "pts": [
+      {
+       "x": 0,
+       "y": 0
+      },
+      {
+       "x": 160,
+       "y": 0
+      },
+      {
+       "x": 160,
+       "y": 80
+      },
+      {
+       "x": 0,
+       "y": 80
+      }
+     ],
+     "edgeIds": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ]
+    },
+    "frame": {
+     "o": [
+      0,
+      0,
+      0
+     ],
+     "u": [
+      1,
+      0,
+      0
+     ],
+     "v": [
+      0,
+      0,
+      -1
+     ],
+     "side": 1
+    },
+    "details": [
+     {
+      "id": "x_byz4tw3",
+      "shape": "rect",
+      "op": "cut",
+      "cx": 100,
+      "cy": 40,
+      "w": 4,
+      "h": 200
+     }
+    ]
+   }
+  },
+  "order": [
+   "p_hresig2"
+  ],
+  "connections": {},
+  "pieces": {
+   "p_hresig2": {
+    "quantity": 1
+   }
+  },
+  "placements": {
+   "p_hresig2#0": {
+    "sheet": 0,
+    "x": 5,
+    "y": 315,
+    "rot": 0,
+    "manual": false
+   },
+   "p_hresig2~2#0": {
+    "sheet": 0,
+    "x": 300,
+    "y": 200,
+    "rot": 0,
+    "manual": true
+   }
+  },
+  "trays": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5
+ }
+}

@@ -7,6 +7,7 @@
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
 import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
 import { matOf, minWeb, tOf } from './materials';
+import { removePanelRecord } from './place';
 
 export const MIN_EDGE = 5;
 
@@ -73,12 +74,8 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
         if (!w.customHeight) w.h = Math.max(MIN_EDGE, wallHeight(d, c.kind, tray.height, base.id));
         continue;
       }
-      if (!w.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === w.id)) {
-        for (const x of Object.values(d.connections)) if (x.a.panelId === w.id || x.b.panelId === w.id) delete d.connections[x.id];
-        delete d.panels[w.id];
-        delete d.pieces[w.id];
-        d.order = d.order.filter((x) => x !== w.id);
-      } else w.broken = true;
+      if (!w.details.length && !Object.values(d.connections).some((x) => x.grown && x.a.panelId === w.id)) removePanelRecord(d, w.id);
+      else w.broken = true;
     }
   }
 }

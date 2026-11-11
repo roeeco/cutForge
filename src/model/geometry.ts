@@ -9,6 +9,9 @@ import { normalizeNotches } from './seams';
 // the own outline (Add/Cut shapes) feeds the edge layer
 import './outline';
 import { allFoldOvers } from './foldover';
+import type { Polygon } from 'polygon-clipping';
+import { safeDifference, safeUnion } from '../geom/clip';
+import { polygonArea } from '../geom/vec';
 
 export type { Notch };
 
@@ -57,10 +60,16 @@ const EPS = 1e-7;
 
 /**
  * Manufactured outline (nominal size, joint notches applied, no kerf) as a CCW
- * polygon: each keyed edge of the ring carries its notches (positive depth cuts
+ * polygon (the largest part, when a cut into a joint band splits it; see
+ * `panelOutlines`): each keyed edge of the ring carries its notches (positive depth cuts
  * back, negative protrudes), and corners meet where the offset edges cross.
  */
 export function panelOutline(p: Pick<Panel, 'w' | 'h'> & { sketch?: Panel['sketch'] }, notches: Record<string, Notch[]>, ring: EdgeSeg[] = panelEdges(p)): Vec2[] {
+  return panelOutlines(p, notches, ring)[0];
+}
+
+/** `panelOutline` as each edge's notches give it, which can cross itself when a cut reaches a joint band. */
+function notchedOutline(p: Pick<Panel, 'w' | 'h'> & { sketch?: Panel['sketch'] }, notches: Record<string, Notch[]>, ring: EdgeSeg[]): Vec2[] {
   const n = ring.length;
   const N = (e: EdgeSeg) => notches[e.key] ?? [];
   const startDepth = (e: EdgeSeg) => N(e).find((x) => x.s0 <= EPS)?.depth ?? 0;
@@ -90,6 +99,59 @@ export function panelOutline(p: Pick<Panel, 'w' | 'h'> & { sketch?: Panel['sketc
     }
   }
   return cleanPolygon(pts);
+}
+
+/** Does a closed polygon cross or touch itself (other than at neighbouring segments)? */
+export function crossesItself(pts: Vec2[]): boolean {
+  const n = pts.length;
+  if (n < 4) return false;
+  const cr = (o: Vec2, a: Vec2, b: Vec2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const E = 1e-9;
+  const xs = pts.map((q, i) => {
+    const r = pts[(i + 1) % n];
+    return [Math.min(q.x, r.x), Math.max(q.x, r.x), Math.min(q.y, r.y), Math.max(q.y, r.y)];
+  });
+  for (let i = 0; i < n; i++)
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      const A = xs[i], B = xs[j];
+      if (A[0] > B[1] + E || B[0] > A[1] + E || A[2] > B[3] + E || B[2] > A[3] + E) continue;
+      const p1 = pts[i], p2 = pts[(i + 1) % n], q1 = pts[j], q2 = pts[(j + 1) % n];
+      const d1 = cr(q1, q2, p1), d2 = cr(q1, q2, p2), d3 = cr(p1, p2, q1), d4 = cr(p1, p2, q2);
+      if (((d1 > E && d2 < -E) || (d1 < -E && d2 > E)) && ((d3 > E && d4 < -E) || (d3 < -E && d4 > E))) return true;
+      const on = (a: Vec2, b: Vec2, c: Vec2, dd: number) => Math.abs(dd) <= E && Math.min(a.x, b.x) - E <= c.x && c.x <= Math.max(a.x, b.x) + E && Math.min(a.y, b.y) - E <= c.y && c.y <= Math.max(a.y, b.y) + E;
+      if (on(q1, q2, p1, d1) || on(q1, q2, p2, d2) || on(p1, p2, q1, d3) || on(p1, p2, q2, d4)) return true;
+    }
+  return false;
+}
+
+/**
+ * The manufactured outline of one own ring as one or more polygons. Normally
+ * `panelOutline`; when that crosses itself (a cut came into an edge's joint
+ * band, BUGFIX_PLAN B9), the ring is built as a boolean instead: the plain
+ * ring, joined with every protrusion and less every cut-back, which may leave
+ * it in several parts (validate reports the cut).
+ */
+export function panelOutlines(p: Pick<Panel, 'w' | 'h'> & { sketch?: Panel['sketch'] }, notches: Record<string, Notch[]>, ring: EdgeSeg[] = panelEdges(p)): Vec2[][] {
+  const pts = notchedOutline(p, notches, ring);
+  if (!crossesItself(pts)) return [pts];
+  const toR = (q: Vec2[]): [number, number][] => (polygonArea(q) >= 0 ? q : [...q].reverse()).map((v) => [v.x, v.y]);
+  const adds: Polygon[] = [[toR(ring.map((e) => e.a))]], cuts: Polygon[] = [];
+  for (const e of ring) {
+    const dir = segDir(e), ie = segInward(e);
+    const at = (s: number, dd: number): Vec2 => ({ x: e.a.x + dir.x * s + ie.x * dd, y: e.a.y + dir.y * s + ie.y * dd });
+    for (const x of notches[e.key] ?? []) {
+      if (Math.abs(x.depth) < 1e-9) continue;
+      // a cut-back reaches a hair past the edge so it clears it; a protrusion overlaps the ring a hair so it joins
+      const q = x.depth > 0 ? [at(x.s0, -1e-4), at(x.s1, -1e-4), at(x.s1, x.depth), at(x.s0, x.depth)] : [at(x.s0, 1e-4), at(x.s1, 1e-4), at(x.s1, x.depth), at(x.s0, x.depth)];
+      (x.depth > 0 ? cuts : adds).push([toR(q)]);
+    }
+  }
+  const out = safeDifference(safeUnion(adds), cuts)
+    .map((poly) => cleanPolygon(poly[0].slice(0, -1).map(([x, y]) => ({ x, y }))))
+    .filter((q) => q.length >= 3 && Math.abs(polygonArea(q)) > 1e-6)
+    .sort((a, b) => Math.abs(polygonArea(b)) - Math.abs(polygonArea(a)));
+  return out.length ? out : [pts];
 }
 
 /** Remove duplicate and collinear vertices. */

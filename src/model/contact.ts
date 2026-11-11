@@ -80,7 +80,10 @@ function contactOf(A: Slab, B: Slab): Contact | null {
     for (const r of X.rings)
       for (let i = 0; i < r.length; i++) {
         const a = r[i], b = r[(i + 1) % r.length];
-        const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 1.5));
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        // a non-finite edge (a damaged file) is skipped, and no edge is sampled more than 20 000 times
+        if (!Number.isFinite(len)) continue;
+        const n = Math.min(20_000, Math.max(1, Math.ceil(len / 1.5)));
         for (let k = 0; k <= n; k++) {
           const x = a.x + ((b.x - a.x) * k) / n, y = a.y + ((b.y - a.y) * k) / n;
           for (const z of [0, X.t / 2, X.t]) {

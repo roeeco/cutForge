@@ -8,7 +8,7 @@ import type { ConnectionKind, Design, P2, Panel, WallSketch } from './types';
 import { findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, sketchRing, type EdgeArg } from './edges';
 import { edgeLength, frameNormal, growFrame, matDir, toLocal, toWorld, type GrowDir, type Seating } from './frame';
 import { pointInPolygon } from '../geom/vec';
-import { detailCorners, detailInstances } from './geometry';
+import { crossesItself, detailCorners, detailInstances, panelNotches, panelOutline } from './geometry';
 import { cornerFit } from './seams';
 import { profileOf, tOf } from './materials';
 import { v3add, v3dot, v3mul, v3sub } from '../geom/v3';
@@ -200,6 +200,8 @@ export function adaptiveSketch(d: Design, ghost: Panel, exclude: Set<string>): W
   const N = 96;
   const xs = Array.from({ length: N + 1 }, (_, i) => (w * i) / N);
   const top = xs.map(() => h);
+  // which board trimmed each column
+  const by: (string | null)[] = xs.map(() => null);
   const nG = frameNormal(ghost.frame);
   for (const id of d.order) {
     const p = d.panels[id];
@@ -221,20 +223,35 @@ export function adaptiveSketch(d: Design, ghost: Panel, exclude: Set<string>): W
         const hit = toLocal(p.frame, toWorld(ghost.frame, xs[i], lo + 1e-6, zg));
         if (!pointInPolygon(hit, ring)) continue;
         top[i] = lo;
+        by[i] = id;
       }
     }
   }
-  if (top.every((y) => Math.abs(y - h) < 1e-6)) return null;
+  // a board that only cuts across a corner of the top (an angled far wall): stop a little clear of it, so the
+  // two do not merely touch; one the whole top meets (a roof) is joined to it and keeps its line
+  for (const id of new Set(by.filter((x): x is string => !!x))) {
+    const cols = by.map((x, i) => (x === id ? i : -1)).filter((i) => i >= 0);
+    if (cols.length < N / 2 && (cols[0] === 0 || cols[cols.length - 1] === N)) for (const i of cols) top[i] = Math.max(0.05, top[i] - 2 * gapOf(d, ghost));
+  }
+  // between two columns the true line may dip lower than either sample: take the lower of the neighbours (BUGFIX_PLAN B18)
+  const sampled = [...top];
+  // (only where the line bends: a straight stretch between samples is exact)
+  for (let i = 0; i <= N; i++) {
+    const a = sampled[Math.max(0, i - 1)], b = sampled[Math.min(N, i + 1)];
+    if (Math.abs(a - 2 * sampled[i] + b) > 1e-3) top[i] = Math.min(sampled[i], a, b);
+  }
+  const sides = sideTrims(d, ghost, t);
+  if (top.every((y) => Math.abs(y - h) < 1e-6) && !sides.e1.length && !sides.e3.length) return null;
   // the end columns stand in the panels beside the ghost (left out above): carry the trimmed line on through them
   const inner = xs.map((x) => x > t + 1e-6 && x < w - t - 1e-6);
   const firstIn = inner.indexOf(true), lastIn = inner.lastIndexOf(true);
   if (firstIn > 0 && firstIn + 1 <= lastIn) {
     const k = (top[firstIn + 1] - top[firstIn]) / (xs[firstIn + 1] - xs[firstIn]);
-    for (let i = 0; i < firstIn; i++) if (top[firstIn] < h - 1e-6) top[i] = Math.min(h, top[firstIn] + k * (xs[i] - xs[firstIn]));
+    for (let i = 0; i < firstIn; i++) if (top[firstIn] < h - 1e-6) top[i] = Math.min(top[i], h, top[firstIn] + k * (xs[i] - xs[firstIn]));
   }
   if (lastIn >= 1 && lastIn < N) {
     const k = (top[lastIn] - top[lastIn - 1]) / (xs[lastIn] - xs[lastIn - 1]);
-    for (let i = lastIn + 1; i <= N; i++) if (top[lastIn] < h - 1e-6) top[i] = Math.min(h, top[lastIn] + k * (xs[i] - xs[lastIn]));
+    for (let i = lastIn + 1; i <= N; i++) if (top[lastIn] < h - 1e-6) top[i] = Math.min(top[i], h, top[lastIn] + k * (xs[i] - xs[lastIn]));
   }
   // simplify the top line (it is piecewise straight)
   const pts: P2[] = xs.map((x, i) => ({ x, y: top[i] }));
@@ -254,9 +271,118 @@ export function adaptiveSketch(d: Design, ghost: Panel, exclude: Set<string>): W
     const off = -((q.x - tr.x - dir.x * tpar) * inw.x + (q.y - tr.y - dir.y * tpar) * inw.y);
     return { id: `adapt${k}`, edge: 'e2' as const, t: Math.round(tpar * 1e9) / 1e9, off: Math.round(off * 1e6) / 1e6 };
   });
-  if (inserts.length) s.inserts = inserts;
-  if (!s.corners!.tl && !s.corners!.tr) delete s.corners;
-  return s;
+  // the side edges, trimmed where a board beside the ghost runs into one of its sides (BUGFIX_PLAN B18);
+  // a trim reaching the bottom moves the bottom corner along the attached edge
+  if (sides.e1.length && sides.e1[0].y < 1e-9) {
+    s.corners!.br = { dx: Math.round((sides.e1.shift()!.x - w) * 1000) / 1000, dy: 0 };
+  }
+  if (sides.e3.length && sides.e3[0].y < 1e-9) {
+    s.corners!.bl = { dx: Math.round(sides.e3.shift()!.x * 1000) / 1000, dy: 0 };
+  }
+  const cs = wallCornersOf(w, h, s);
+  const sideIns = (edge: 'e1' | 'e3', a: P2, b: P2, pts: P2[]) => {
+    const dir = { x: b.x - a.x, y: b.y - a.y };
+    const L2 = dir.x * dir.x + dir.y * dir.y, L = Math.sqrt(L2);
+    const out = { x: dir.y / L, y: -dir.x / L };
+    return pts.map((q, k) => {
+      const tpar = ((q.x - a.x) * dir.x + (q.y - a.y) * dir.y) / L2;
+      const off = (q.x - a.x - dir.x * tpar) * out.x + (q.y - a.y - dir.y * tpar) * out.y;
+      return { id: `adapt${edge}_${k}`, edge, t: Math.round(tpar * 1e9) / 1e9, off: Math.round(off * 1e6) / 1e6 };
+    }).filter((x) => x.t > 1e-6 && x.t < 1 - 1e-6);
+  };
+  const all = [...inserts, ...sideIns('e1', cs[1], cs[2], sides.e1), ...sideIns('e3', cs[3], cs[0], [...sides.e3].reverse())];
+  if (all.length) s.inserts = all;
+  if (!Object.keys(s.corners!).length) delete s.corners;
+  // never an outline that crosses itself: without the side trims, or nothing
+  const ok = (k: WallSketch) => !crossesItself(sketchRing({ ...ghost, sketch: k }).map((e) => e.a));
+  if (ok(s)) return s;
+  if (s.inserts) s.inserts = s.inserts.filter((x) => x.edge === 'e2');
+  if (!s.inserts?.length) delete s.inserts;
+  if (s.corners) {
+    delete s.corners.br;
+    delete s.corners.bl;
+    if (!Object.keys(s.corners).length) delete s.corners;
+  }
+  return ok(s) ? s : null;
+}
+
+/** How far a trimmed ghost stays clear of a board it is trimmed against at an angle. */
+const gapOf = (d: Design, ghost: Panel) => Math.max(0.2, profileOf(d, ghost.material).clearance);
+
+const wallCornersOf = (w: number, h: number, s: WallSketch): P2[] => {
+  const c = s.corners ?? {};
+  return [
+    { x: c.bl?.dx ?? 0, y: 0 },
+    { x: w + (c.br?.dx ?? 0), y: 0 },
+    { x: w + (c.tr?.dx ?? 0), y: h + (c.tr?.dy ?? 0) },
+    { x: c.tl?.dx ?? 0, y: h + (c.tl?.dy ?? 0) },
+  ];
+};
+
+
+/**
+ * Where boards beside a ghost run into its sides (a lid grown off one wall of a hexagonal box: the
+ * angled walls next to that wall cross the lid's corners). For rows across the ghost, the stretch of
+ * the row inside another board's slab, when it reaches exactly one side, trims that side. Returned
+ * as the trimmed side lines (ghost-local points, bottom to top), each with an untrimmed point just
+ * below and above, so the side follows the board's face; empty when nothing reaches a side. Boards
+ * that meet the ghost's side edge at a corner joint, and stretches across the whole row (its parent),
+ * are left alone.
+ */
+function sideTrims(d: Design, ghost: Panel, t: number): { e1: P2[]; e3: P2[] } {
+  const w = ghost.w, h = ghost.h;
+  const M = 400;
+  const ys = Array.from({ length: M + 1 }, (_, j) => (h * j) / M);
+  const left = ys.map(() => 0), right = ys.map(() => w);
+  const gap = gapOf(d, ghost);
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p) continue;
+    if (panelEdges(p).some((e) => cornerFit(ghost, 'e1', p, e.key) || cornerFit(ghost, 'e3', p, e.key))) continue;
+    const mp = matDir(p.frame), tp = tOf(d, id);
+    const du = v3dot(ghost.frame.u, mp);
+    if (Math.abs(du) < 1e-9) continue; // rows run along it: the top trim's business
+    // a board square to the ghost's side (side walls holding a leaning panel) meets that side face-on: it is joined there, not trimmed
+    if (Math.abs(du) > 0.99) continue;
+    // the board as cut (its joints' fingers reach into the corner column)
+    // and as sketched (the export check's contacts go by the sketch): inside either is in the way
+    const rings = [panelOutline(p, panelNotches(d, p)), sketchRing(p).map((e) => e.a)];
+    for (let j = 0; j <= M; j++)
+      for (const zg of [0, t / 2, t]) {
+        const base = toWorld(ghost.frame, 0, ys[j], zg);
+        const d0 = v3dot(v3sub(base, p.frame.o), mp);
+        // a little clear of the board's face, so the two do not touch
+        const xa = Math.min(-d0 / du, (tp - d0) / du) - gap, xb = Math.max(-d0 / du, (tp - d0) / du) + gap;
+        if (xb <= 1e-6 || xa >= w - 1e-6) continue;
+        const atLeft = xa <= 1e-6, atRight = xb >= w - 1e-6;
+        if (atLeft === atRight) continue; // inside the row (the top trim's) or across all of it (its parent)
+        // part of that stretch must be in the board (its joints' notches leave gaps along it)
+        const x0 = Math.max(0, xa), x1 = Math.min(w, xb);
+        let inside = false;
+        for (let k = 0; k <= 8 && !inside; k++) {
+          const q = toLocal(p.frame, toWorld(ghost.frame, x0 + ((x1 - x0) * k) / 8, ys[j], zg));
+          inside = rings.some((r) => pointInPolygon(q, r));
+        }
+        if (!inside) continue;
+        if (atLeft) left[j] = Math.max(left[j], Math.min(xb, w / 2));
+        else right[j] = Math.min(right[j], Math.max(xa, w / 2));
+      }
+  }
+  // between two rows the face may reach further than either sample: take the deeper of the neighbours
+  const deeper = (v: number[], pick: (a: number, b: number) => number) => v.map((x, j) => pick(x, pick(v[Math.max(0, j - 1)], v[Math.min(M, j + 1)])));
+  const L = deeper(left, Math.max), R = deeper(right, Math.min);
+  left.splice(0, left.length, ...L);
+  right.splice(0, right.length, ...R);
+  const line = (trim: number[], at: (j: number) => number) => {
+    const rows = trim.map((v, j) => (Math.abs(v - at(j)) > 1e-3 ? j : -1)).filter((j) => j >= 0);
+    if (!rows.length) return [] as P2[];
+    const j0 = Math.max(0, rows[0] - 1), j1 = Math.min(M, rows[rows.length - 1] + 1);
+    const pts: P2[] = [];
+    for (let j = j0; j <= j1; j++) pts.push({ x: trim[j], y: ys[j] });
+    // the first and last points are on the untrimmed side unless the trim reaches the corner
+    return simplify(pts, 0.02).filter((q) => q.y < h - 1e-9);
+  };
+  return { e1: line(right, () => w), e3: line(left, () => 0) };
 }
 
 /** Douglas–Peucker on an open polyline. */

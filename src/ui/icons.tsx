@@ -11,6 +11,15 @@ const P: Record<string, ReactElement> = {
       <path d="M14.5 15.5v2" />
     </>
   ),
+  // a board standing on a base line (the Board tool's perpendicular button, milestone 42)
+  panelStanding: (
+    <>
+      <path d="M3 20h18" />
+      <path d="M6.5 18.5V7.5h9v11z" />
+      <path d="M6.5 7.5 8.5 5.5h9l-2 2" />
+      <path d="M17.5 5.5v11l-2 2" />
+    </>
+  ),
   rect: <rect x="4" y="6" width="16" height="12" rx="1" />,
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
@@ -79,6 +88,15 @@ const P: Record<string, ReactElement> = {
   file: <path d="M6 3.5h8l4 4v13H6zM14 3.5V8h4" />,
   open: <path d="M3.5 7V5h6l2 2h9v12h-17zM3.5 10h17" />,
   save: <path d="M5 4h11.5L19 6.5V20H5zM8 4v5h7V4M8 20v-6h8v6" />,
+  send: <path d="M4 12l16-8-6 16-3-7-7-1z" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.3" />
+      <circle cx="12" cy="12" r="1.3" />
+      <circle cx="19" cy="12" r="1.3" />
+    </>
+  ),
+  download: <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" />,
   teacher: <path d="M3 9 12 5l9 4-9 4zM7 11v5c3 2 7 2 10 0v-5M21 9v5" />,
   grow: <path d="M12 19V7M7 11l5-5 5 5M5 21h14" />,
   play: <path d="M8 5.5v13l10-6.5z" />,

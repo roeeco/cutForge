@@ -7,13 +7,15 @@ import { Inspector } from './ui/Inspector';
 import { StartScreen } from './ui/StartScreen';
 import { MaterialDrawer } from './ui/MaterialDrawer';
 import { ExportDialog } from './ui/ExportDialog';
-import { Hints } from './ui/Hints';
+import { TourNudge } from './tour/TourNudge';
+import { TourOverlay } from './tour/TourOverlay';
 import { Gate } from './easy/Gate';
 import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
+import { EditorBoundary } from './ui/ErrorBoundary';
 
 export function App() {
   const t = useT();
@@ -49,19 +51,24 @@ export function App() {
     <div className="app">
       <TopBar />
       <div className="main">
-        <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
-        <Toolbar />
-        <Inspector />
-        {view === '3d' && <MissionPanel />}
+        <EditorBoundary>
+          <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+          <Toolbar />
+          <Inspector />
+          {view === '3d' && <MissionPanel />}
+        </EditorBoundary>
         {!needsMaterial && (
+          // a first-time student who chose Start: one note offering the tour (milestone 43)
           <Gate f="hints">
-            <Hints />
+            <TourNudge />
           </Gate>
         )}
       </div>
       {needsMaterial && <StartScreen />}
       {drawerOpen && <MaterialDrawer />}
       {exportOpen && <ExportDialog />}
+      {/* the first-use tour over everything, while it runs (milestone 43) */}
+      <TourOverlay />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Template registry and regeneration. Generated entities get stable ids
 // (`t:<role>`), so user-added shapes stay attached to their panels when a
 // parameter changes; edits that cannot be kept are listed.
+import { pieceRoot, placementPiece } from '../model/keys';
 import type { Design, MaterialProfile } from '../model/types';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
@@ -105,7 +106,7 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   // boards naming the old working material keep it
   if (old.material.id !== material.id && Object.values(d.panels).some((p) => p.material === old.material.id)) d.materials = { ...(d.materials ?? {}), [old.material.id]: { ...old.material } };
   for (const id of d.order) if (old.pieces[id]) d.pieces[id] = { ...old.pieces[id] };
-  for (const [k, p] of Object.entries(old.placements)) if (p.manual && d.panels[k.split('#')[0]]) d.placements[k] = { ...p };
+  for (const [k, p] of Object.entries(old.placements)) if (p.manual && d.panels[pieceRoot(placementPiece(k))]) d.placements[k] = { ...p };
   // the design-wide joint choices (every material's) are kept, and the new material's apply to the regenerated joints
   if (old.joints) {
     d.joints = JSON.parse(JSON.stringify(old.joints));

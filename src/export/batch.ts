@@ -10,20 +10,34 @@ import { outlineText } from '../text/outline';
 import { compensatePiece, type KerfMode, type PreparedSheet, type PrepError } from './prepare';
 
 export type BatchItem = { design: Design; label: string; id: string };
-export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[] } | { error: 'mixed' | 'empty' };
+/** `skipped`: the items (by id) that could not be included, e.g. a damaged submission. */
+export type BatchResult = { sheets: PreparedSheet[]; errors: PrepError[]; skipped: string[] } | { error: 'mixed' | 'empty' };
 
 export const sameMaterial = (a: Design, b: Design) => a.material.kind === b.material.kind && Math.abs(a.material.thickness - b.material.thickness) < 1e-6;
 
-/** Name label, or initials when the name does not fit the piece. */
+/** The smallest label text worth drawing (mm); a piece too small for it gets none (BUGFIX_PLAN B21). */
+const MIN_LABEL = 1;
+
+/** Name label, or initials when the name does not fit the piece, scaled to fit it both ways (or none). */
 function label(text: string, w: number, h: number): TaggedContour[] {
-  const size = Math.max(2, Math.min(5, h / 4));
+  let size = Math.min(5, h / 4);
+  if (size < MIN_LABEL) return [];
   let o = outlineText(text, 'rubik', size);
   if (o && o.maxX - o.minX > w * 0.8) {
-    const initials = text.split(/\s+/).filter(Boolean).map((s) => [...s][0]).join('');
-    o = outlineText(initials, 'rubik', size);
+    text = text.split(/\s+/).filter(Boolean).map((s) => [...s][0]).join('');
+    o = outlineText(text, 'rubik', size);
   }
-  if (!o || o.maxX - o.minX > w * 0.9) return [];
-  return o.polys.map((p) => ({ op: 'guide' as const, role: 'line' as const, contour: polygonContour(p.map((q) => ({ x: q.x + w / 2, y: q.y + h / 2 }))) }));
+  if (!o) return [];
+  const f = Math.min(1, (w * 0.8) / Math.max(1e-9, o.maxX - o.minX), (h * 0.8) / Math.max(1e-9, o.maxY - o.minY));
+  if (f < 1) {
+    size *= f;
+    if (size < MIN_LABEL) return [];
+    o = outlineText(text, 'rubik', size);
+    if (!o) return [];
+  }
+  // centred on the piece
+  const cx = (o.minX + o.maxX) / 2, cy = (o.minY + o.maxY) / 2;
+  return o.polys.map((p) => ({ op: 'guide' as const, role: 'line' as const, contour: polygonContour(p.map((q) => ({ x: q.x - cx + w / 2, y: q.y - cy + h / 2 }))) }));
 }
 
 export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'): BatchResult {
@@ -33,9 +47,19 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
   const synth = createDesign(first.material);
   synth.sheetMargin = first.sheetMargin;
   synth.sheetSpacing = first.sheetSpacing;
-  const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) =>
-    pieceCopies(it.design).map((c) => ({ ...c, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label })),
-  );
+  // one submission that cannot be cut (a damaged design) is left out and named, never the whole batch
+  const skipped: string[] = [];
+  const copies: (PieceCopy & { owner: string })[] = items.flatMap((it, i) => {
+    try {
+      // the batch accepts each design's working material as the first's (same kind and thickness): its
+      // pieces go on the shared sheets, cut with the first design's profile (BUGFIX_PLAN B20)
+      const own = it.design.material.id;
+      return pieceCopies(it.design).map((c) => ({ ...c, mat: c.mat === own ? first.material.id : c.mat, key: `${i}:${c.key}`, pieceKey: `${i}:${c.pieceKey}`, owner: it.label }));
+    } catch {
+      skipped.push(it.id);
+      return [];
+    }
+  });
   // boards of their own material: each material on its own sheets (grouped by material, like a student's export)
   for (const it of items) if (it.design.materials) synth.materials = { ...(synth.materials ?? {}), ...it.design.materials };
   const placements = pack(synth, copies);
@@ -54,5 +78,5 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
     for (const tc of [...contours, ...label(c.owner, c.w, c.h)]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   const sheets = groups.flatMap((g) => g.list);
-  return { sheets, errors };
+  return { sheets, errors, skipped };
 }

@@ -8,9 +8,9 @@ import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { FACE } from '../model/edges';
-import { connectionsFor, matOf } from '../model/materials';
+import { connectionsFor, matOf, tOf } from '../model/materials';
 import { addSideWalls, connectSeam, deleteConnection, leanSupported, setConnection } from '../model/ops';
-import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf, tabLocks, snapDepth, boltCount } from '../model/seams';
+import { autoLockDepth, autoTabs, minTabWidth, findOpenSeams, fingerCountFor, maxFingers, seamKinds, seamTypeOf, cornerFit, cornerAngle, faceFit, ownerOf, tabLocks, snapDepth, boltCount } from '../model/seams';
 import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
@@ -53,6 +53,8 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
   const isChild = c.grown && c.b.panelId === panelId;
   const kinds = kindsFor(d, c);
   const len = jointLength(d, c);
+  // the joint lays fingers out for the thicker board (seams.ts)
+  const fingerT = Math.max(tOf(d, c.a.panelId), tOf(d, c.b.panelId));
   const ang = cornerAngleOf(d, c);
   return (
     <div className="conn-edit" data-testid={`conn-${c.kind}`}>
@@ -75,7 +77,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
         </div>
       )}
       {c.kind === 'finger' && (
-        <Stepper label={t('conn.fingers')} value={fingerCountFor(c, len, d.material.thickness)} step={2} min={3} max={99} slider={false} onCommit={(v) => apply((x) => setConnection(x, c.id, { fingers: v }))} testId="conn-fingers" />
+        <Stepper label={t('conn.fingers')} value={fingerCountFor(c, len, fingerT)} step={2} min={3} max={maxFingers(len, fingerT)} slider={false} onCommit={(v) => apply((x) => setConnection(x, c.id, { fingers: v }))} testId="conn-fingers" />
       )}
       {c.kind === 'tabslot' && <Stepper label={t('conn.tabs')} value={c.tabs ?? autoTabs(len)} min={1} max={30} onCommit={(v) => apply((x) => setConnection(x, c.id, { tabs: v }))} testId="conn-tabs" />}
       {c.kind === 'tabslot' && (

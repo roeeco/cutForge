@@ -353,4 +353,4 @@ export type Tray = {
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;

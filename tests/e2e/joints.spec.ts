@@ -1,6 +1,6 @@
 // Milestone 2 flows through the UI: closing seams, dividers with half-laps,
 // a leaning plywood panel held by side walls, and a folded card tray.
-import { setNum, pickPlane } from './util';
+import { setNum, drawBoard } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -11,17 +11,10 @@ async function start(page: Page, material: string, w: number, h: number) {
   await page.goto('/');
   await page.getByTestId(`mat-${material}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   // a base panel of exact size (drawing by mouse is covered by the vertical-slice test)
-  await page.getByTestId('tool-panel').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
-  await pickPlane(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, 'flat');
-  await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2 - 40);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 40, { steps: 5 });
-  await page.mouse.up();
-  // the panel is a ghost until ✓ (milestone 29)
-  await page.getByTestId('ghost-ok').click();
+  await drawBoard(page, { x: box.x + box.width / 2 - 100, y: box.y + box.height / 2 - 40 }, { x: box.x + box.width / 2 + 100, y: box.y + box.height / 2 + 40 });
   await setNum(page, 'panel-w', String(w));
   await setNum(page, 'panel-h', String(h));
   return (await design(page)).order[0] as string;

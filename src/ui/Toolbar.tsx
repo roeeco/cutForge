@@ -49,6 +49,7 @@ function WorkshopRail() {
   const view = useStore((s) => s.view);
   const op = useStore((s) => s.shapeOp);
   const through = useStore((s) => s.shapeThrough);
+  const pose = useStore((s) => s.panelPose);
   const setTool = useStore((s) => s.setTool);
   const setOp = useStore((s) => s.setShapeOp);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -89,7 +90,32 @@ function WorkshopRail() {
     <>
       <nav className="rail" aria-label={t('tool.title')}>
         {railBtn('select', 'tool.select', 'select', 'V')}
-        {view === '3d' && railBtn('panel', 'tool.panel', 'panel', 'P')}
+        {view === '3d' && (
+          // the Board tool, and its perpendicular button sliding out beside it while the tool is active (milestone 42)
+          <div className={`rail-tool ${tool === 'panel' ? 'out' : ''}`}>
+            <button className={`rail-main ${tool === 'panel' ? 'on' : ''}`} aria-pressed={tool === 'panel'} aria-label={t('tool.panel')} onClick={() => setTool('panel')} data-testid="tool-panel" data-pose={pose}>
+              <Icon name={pose === 'standing' ? 'panelStanding' : 'panel'} />
+              <span className="tip" aria-hidden>
+                {t('tool.panel')}
+                <kbd>{'P'}</kbd>
+              </span>
+            </button>
+            <button
+              className={`rail-flyout ${pose === 'standing' ? 'on' : ''}`}
+              aria-pressed={pose === 'standing'}
+              aria-label={t('tool.panelStanding')}
+              inert={tool !== 'panel'}
+              onClick={() => useStore.getState().setBoardPose(pose === 'standing' ? 'flat' : 'standing')}
+              data-testid="tool-panel-standing"
+            >
+              <Icon name="panelStanding" />
+              <span className="tip" aria-hidden>
+                {t('tool.panelStanding')}
+                <kbd>{'P'}</kbd>
+              </span>
+            </button>
+          </div>
+        )}
         {/* rectangle, rounded rectangle and circle: one button, the card chooses */}
         <button className={inShapes ? 'on' : ''} aria-pressed={inShapes} aria-label={t('tool.shapes')} onClick={() => setTool(inShapes ? 'select' : shapeIcon)} data-testid="tool-shapes">
           <Icon name={shapeIcon === 'rect' ? 'shapes' : shapeIcon} />

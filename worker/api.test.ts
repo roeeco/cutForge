@@ -85,6 +85,15 @@ describe('class submissions', () => {
     expect((await submit(env, 'ZZZZZZ', ok)).status).toBe(404);
     expect((await submit(env, cls.code, { ...ok, project: '{"hello":1}' })).status).toBe(400);
     expect((await submit(env, cls.code, { ...ok, preview: '<svg onload="x()">' })).status).toBe(400);
+    // a project file that parses but is damaged (a board corner with no x, a coordinate of 1e308): refused (BUGFIX_PLAN B3)
+    const damaged = (f: (d: any) => void) => {
+      const j = JSON.parse(p.text);
+      f(j.design);
+      return JSON.stringify(j);
+    };
+    const root = (d: any) => d.panels[d.order[0]];
+    expect((await submit(env, cls.code, { ...ok, project: damaged((d) => delete root(d).sketch.pts[1].x) })).status).toBe(400);
+    expect((await submit(env, cls.code, { ...ok, project: damaged((d) => (root(d).sketch.pts[1].x = 1e308)) })).status).toBe(400);
     expect((await submit(env, cls.code, { ...ok, project: 'x'.repeat(LIMITS.projectBytes + 10) })).status).toBe(413);
     expect((await submit(env, cls.code, { ...ok, displayName: '' })).status).toBe(400);
     for (let i = 0; i < LIMITS.perDevicePer10Min; i++) expect((await submit(env, cls.code, ok)).status).toBe(201);

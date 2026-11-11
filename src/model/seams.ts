@@ -308,9 +308,20 @@ export function autoFlap(m: MaterialProfile): number {
   return m.kind === 'card' ? 10 : m.kind === 'corrugated' ? Math.max(15, 4 * m.thickness) : 12;
 }
 
-/** Odd finger count for a seam: explicit or automatic (target ≈ max(3t, 10 mm)). */
+/**
+ * The most fingers a seam of this length takes: the largest odd n whose
+ * fingers are at least as wide as the boards are thick (narrower fingers make
+ * the boards overlap at the corner, BUGFIX_PLAN B6). At least 3.
+ */
+export function maxFingers(length: number, t: number): number {
+  let n = Math.floor(length / Math.max(t, 1e-6) + 1e-9);
+  if (n % 2 === 0) n -= 1;
+  return Math.max(3, n);
+}
+
+/** Odd finger count for a seam: explicit (up to `maxFingers`) or automatic (target ≈ max(3t, 10 mm)). */
 export function fingerCountFor(c: Pick<Connection, 'fingers'>, length: number, t: number): number {
-  if (c.fingers && c.fingers >= 3) return c.fingers % 2 ? c.fingers : c.fingers + 1;
+  if (c.fingers && c.fingers >= 3) return Math.min(c.fingers % 2 ? c.fingers : c.fingers + 1, maxFingers(length, t));
   const target = Math.max(3 * t, 10);
   let n = Math.max(3, Math.round(length / target));
   if (n % 2 === 0) n += n * target < length ? 1 : -1;
@@ -554,9 +565,11 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     return g;
   }
 
-  if (c.kind === 'butt') {
+  // a butt corner is cut back below like a slide corner, with no clearance; on a face it is plain edges
+  const buttCorner = c.kind === 'butt' && !c.grown && c.b.edge !== FACE;
+  if (c.kind === 'butt' && !buttCorner) {
     // a closing seam left as plain edges: valid while the panels still meet
-    return faceFit(A, c.a.edge, B, tB, false, 2, undefined, false, tA) || (c.b.edge !== FACE && cornerFit(A, c.a.edge, B, c.b.edge)) ? g : null;
+    return faceFit(A, c.a.edge, B, tB, false, 2, undefined, false, tA) ? g : null;
   }
 
   if (c.kind === 'glue' && c.grown) return grownGlue(d, c, A, B);
@@ -568,7 +581,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   // tabs and flaps are the owner's material; slots and fit the receiver's
   const mO = matOf(d, owner), tO = mO.thickness, tR = tOf(d, receiver), clR = matOf(d, receiver).clearance;
   const fit = faceFit(O, edge, R, tR, !c.grown, 2, rng, !c.grown, tO);
-  if (!fit) return null;
+  // a butt corner the owner's edge does not stand against (edge to edge only): plain edges while they meet
+  if (!fit) return buttCorner && !rng && cornerFit(A, c.a.edge, B, c.b.edge) ? g : null;
   // a notched receiver: the joint is laid out on every stretch the owner edge still meets
   if (!rng && fit.runs.length > 1) return mergeGeoms(fit.runs.map((r) => connectionGeomOne(d, c, r)));
   if (!rng) {
@@ -579,8 +593,9 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   if (corner && c.kind === 'tabslot') return cornerTabs(d, c, O, edge, R, c.b.edge, fit);
   if (corner && c.kind === 'glue' && fit.m !== 0) return cornerGlue(d, c, O, edge, R, c.b.edge, fit);
 
-  if (c.kind === 'slide') {
-    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + clR }] });
+  if (c.kind === 'slide' || c.kind === 'butt') {
+    // the owner's wall stops at the other's face: a slide fit leaves the clearance, a butt joint none (BUGFIX_PLAN B7)
+    g.edges.push({ panelId: O.id, edge, notches: [{ s0: fit.s0, s1: fit.s1, depth: fit.d1 + (c.kind === 'slide' ? clR : 0) }] });
     return g;
   }
 
@@ -652,10 +667,39 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
  * the receiver, grown by c/2 (clearance once). The receiver's end is extended
  * past the corner by a web so the slots are closed holes.
  */
-function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit: FaceFit): ConnGeom {
+/**
+ * How deep the joint on the edge next to each end of `eO` cuts into O (the
+ * other board's thickness; 0 for none, a fold or a butt): the bottom joint of
+ * a tray wall, at the corner where the wall's side edge meets it.
+ */
+function endJointDepths(d: Design, c: Connection, O: Panel, eO: string): [number, number] {
+  const nb = edgeNeighbours(O, eO);
+  if (!nb) return [0, 0];
+  const depth = (key: string) => {
+    let out = 0;
+    for (const x of Object.values(d.connections)) {
+      if (x.id === c.id || x.kind === 'fold' || x.kind === 'butt' || x.kind === 'lean') continue;
+      const other = x.a.panelId === O.id && (findEdge(O, x.a.edge)?.key === key) ? x.b.panelId : x.b.panelId === O.id && x.b.edge !== FACE && findEdge(O, x.b.edge)?.key === key ? x.a.panelId : null;
+      if (other && d.panels[other]) out = Math.max(out, tOf(d, other));
+    }
+    return out;
+  };
+  return [depth(nb[0].key), depth(nb[1].key)];
+}
+
+function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR: string, fit0: FaceFit): ConnGeom {
   const mO = matOf(d, O.id), mR = matOf(d, R.id);
   const t = mO.thickness, cl = mR.clearance;
   const g = empty();
+  let fit = fit0;
+  // boards of another thickness (BUGFIX_PLAN B8): the corner's notches would meet the joint on the next
+  // edge (a wall's bottom fingers) at a different depth, and the outline would cross itself; they stop
+  // that joint's depth plus the web short of each end instead
+  if (Math.abs(mR.thickness - t) > 1e-6) {
+    const L = edgeLength(O, eO), [dA, dB] = endJointDepths(d, c, O, eO), web = minWeb(mO);
+    const s0 = dA > 0 ? Math.max(fit.s0, dA + web) : fit.s0, s1 = dB > 0 ? Math.min(fit.s1, L - dB - web) : fit.s1;
+    if (s1 - s0 >= 3 * Math.max(2, mO.kind === 'corrugated' ? minTabWidth(mO) : 2)) fit = { ...fit, s0, s1 };
+  }
   const len = fit.s1 - fit.s0;
   const n = tabCount(d, c, len, mO);
   const seg = len / (2 * n + 1);
@@ -1031,7 +1075,11 @@ export function seamStillFits(d: Design, c: Connection): boolean {
   const type = seamTypeOf(c);
   const key = (r: { panelId: string; edge: string }) => `${r.panelId}:${baseKey(r.edge)}`;
   const have = [key(c.a), key(c.b)].sort().join();
-  return seamsBetween(d, A, B).some((s) => s.type === type && [key(s.a), key(s.b)].sort().join() === have);
+  // findOpenSeams looks from the earlier panel (design order); the joint's a may be the other one, and
+  // what seamsBetween finds depends on the order: look both ways, or a seam found one way is removed
+  // and found again on every edit (BUGFIX_PLAN B23)
+  const [P, Q] = d.order.indexOf(A.id) <= d.order.indexOf(B.id) ? [A, B] : [B, A];
+  return [...seamsBetween(d, P, Q), ...seamsBetween(d, Q, P)].some((s) => s.type === type && [key(s.a), key(s.b)].sort().join() === have);
 }
 
 /** Key of a seam: its two panels and edges. */

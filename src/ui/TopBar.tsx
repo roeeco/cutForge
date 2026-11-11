@@ -9,6 +9,7 @@ import { Icon, Logo } from './icons';
 import { setMode } from '../easy/mode';
 import { ReadyBadge } from '../easy/ReadyBadge';
 import { shown, useFeature } from '../easy/features';
+import { startTourConfirmed } from '../tour/TourNudge';
 
 export function TopBar() {
   const mode = useStore((x) => x.viewPrefs.mode ?? 'workshop');
@@ -20,6 +21,20 @@ export function TopBar() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // narrow windows (BUGFIX_PLAN U1): the less-used items move into a ⋯ menu
+  const [more, setMore] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!more) return;
+    const close = (e: PointerEvent) => !moreRef.current?.contains(e.target as Node) && setMore(false);
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setMore(false);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', key);
+    };
+  }, [more]);
   const d = s.design;
   const builtIn = MATERIALS.find((m) => m.id === d.material.id);
   useEffect(() => {
@@ -38,7 +53,9 @@ export function TopBar() {
       const design = parseProject(await f.text());
       useStore.getState().replaceDesign(design);
     } catch (e) {
-      const reason = e instanceof ProjectError ? t(e.code === 'newerVersion' ? 'err.newerVersion' : 'err.notProject') : String(e);
+      // a friendly reason for any failure, never a raw error message
+      const code = e instanceof ProjectError ? e.code : 'damaged';
+      const reason = t(code === 'newerVersion' ? 'err.newerVersion' : code === 'notProject' ? 'err.notProject' : 'err.damaged');
       alert(t('dlg.openFailed', { reason }));
     }
   };
@@ -83,6 +100,12 @@ export function TopBar() {
             >
               <Icon name="file" /> {t('top.new')}
             </button>
+            {/* the first-use tour (milestone 43): the same confirm as New design guards the current work */}
+            {!(s.viewPrefs.modeLocked && mode === 'quick') && (
+              <button role="menuitem" onClick={item(() => startTourConfirmed())} data-testid="menu-tour">
+                <Icon name="play" /> {t('top.tour')}
+              </button>
+            )}
             <button role="menuitem" onClick={item(() => fileRef.current?.click())}>
               <Icon name="open" /> {t('top.openProject')}
             </button>
@@ -110,11 +133,11 @@ export function TopBar() {
       </div>
       <button className="mat-pill" onClick={() => s.set({ drawerOpen: true })} aria-label={t('drawer.open')} title={t('drawer.open')} data-testid="material-pill">
         <span className={`swatch ${d.material.kind}`} />
-        <span>{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
+        <span className="mat-name">{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
         <Icon name="chevDown" size={16} />
       </button>
       {!s.viewPrefs.modeLocked && (
-        <div className="seg mode-seg" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
+        <div className="seg mode-seg tablet-hide" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
           {(['quick', 'workshop'] as const).map((m) => (
             <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(m === 'quick' ? 'mode.quickHelp' : 'mode.workshopHelp')} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
               {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
@@ -142,16 +165,41 @@ export function TopBar() {
         {s.saveState !== 'idle' && <Icon name={saveIcon} />}
         <span className="sr-only">{s.saveState !== 'idle' ? saveText : ''}</span>
       </span>
-      <button onClick={() => setSubmitOpen(true)} data-testid="open-submit">
-        {t('sub.button')}
+      <button className="submit-btn tablet-hide" onClick={() => setSubmitOpen(true)} title={t('sub.button')} aria-label={t('sub.button')} data-testid="open-submit">
+        <Icon name="send" />
+        <span className="full">{t('sub.button')}</span>
+        <span className="short">{t('sub.short')}</span>
       </button>
-      <button className="primary" onClick={() => s.set({ exportOpen: true })} data-testid="open-export">
-        {t('top.download')}
+      <button className="primary dl-btn" onClick={() => s.set({ exportOpen: true })} title={t('top.download')} aria-label={t('top.download')} data-testid="open-export">
+        <span className="full">{t('top.download')}</span>
+        <span className="short">{t('top.downloadShort')}</span>
       </button>
       {submitOpen && <SubmitDialog onClose={() => setSubmitOpen(false)} />}
-      <button className="lang" onClick={() => s.setLang(s.lang === 'en' ? 'he' : 'en')} title={t('lang.toggleTitle')} data-testid="lang-toggle" lang={s.lang === 'en' ? 'he' : 'en'}>
+      <button className="lang tablet-hide" onClick={() => s.setLang(s.lang === 'en' ? 'he' : 'en')} title={t('lang.toggleTitle')} data-testid="lang-toggle" lang={s.lang === 'en' ? 'he' : 'en'}>
         {t('lang.toggle')}
       </button>
+      <div className="more-wrap tablet-only" ref={moreRef}>
+        <button className="ghost icon-btn" aria-haspopup="menu" aria-expanded={more} aria-label={t('top.more')} title={t('top.more')} onClick={() => setMore((m) => !m)} data-testid="top-more">
+          <Icon name="more" />
+        </button>
+        {more && (
+          <div className="menu more-menu" role="menu">
+            <button role="menuitem" onClick={() => (setMore(false), setSubmitOpen(true))} data-testid="more-submit">
+              <Icon name="send" /> {t('sub.button')}
+            </button>
+            {!s.viewPrefs.modeLocked &&
+              (['quick', 'workshop'] as const).map((m) => (
+                <button key={m} role="menuitemradio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => (setMore(false), setMode(m))} data-testid={`more-mode-${m}`}>
+                  <Icon name={mode === m ? 'check' : 'box'} /> {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
+                </button>
+              ))}
+            <hr />
+            <button role="menuitem" onClick={() => (setMore(false), s.setLang(s.lang === 'en' ? 'he' : 'en'))} lang={s.lang === 'en' ? 'he' : 'en'} data-testid="more-lang">
+              {t('lang.toggle')}
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

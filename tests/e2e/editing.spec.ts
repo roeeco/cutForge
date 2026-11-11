@@ -1,6 +1,6 @@
 // Milestone 3: solo view, smart snapping with guides, multiple selection,
 // align/distribute, group move/duplicate/delete/resize, arrays, keyboard.
-import { setNum, pickPlane, shapeTool } from './util';
+import { setNum, drawBoard, shapeTool } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -37,13 +37,9 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('hints-dismiss').click();
-  await page.getByTestId('tool-panel').click();
+  await page.getByTestId('tour-nudge-dismiss').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
-  await pickPlane(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, 'flat');
-  await drag(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
-  // the panel is a ghost until ✓ (milestone 29)
-  await page.getByTestId('ghost-ok').click();
+  await drawBoard(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
   await setNum(page, 'panel-w', '200');
   await setNum(page, 'panel-h', '120');
   const base = (await design(page)).order[0];

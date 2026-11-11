@@ -14,13 +14,26 @@ export async function setNum(page: Page, testId: string, value: string) {
 /** A browser that has used CutForge before: it opens in the Workshop (milestone 37). */
 export const WORKSHOP_STATE = {
   cookies: [],
-  origins: ['http://localhost:5199', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })),
+  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })),
 };
 
-/** The Panel tool's first two clicks: the face (or floor) at a screen point, then flat or standing. The drag that follows draws. */
-export async function pickPlane(page: Page, at: { x: number; y: number }, pose: 'flat' | 'standing') {
-  await page.mouse.click(at.x, at.y);
-  await page.getByTestId(`pick-${pose}`).click();
+/**
+ * The Board tool in one drag (milestone 42): choose the tool, set the
+ * perpendicular button that slides out beside it, then drag from one screen
+ * point to the other; release makes the board.
+ */
+export async function drawBoard(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, opts: { standing?: boolean; steps?: number } = {}) {
+  const tool = page.getByTestId('tool-panel');
+  if ((await tool.getAttribute('aria-pressed')) !== 'true') await tool.click();
+  const fly = page.getByTestId('tool-panel-standing');
+  await expect(fly).toBeVisible();
+  if (((await fly.getAttribute('aria-pressed')) === 'true') !== !!opts.standing) await fly.click();
+  await expect(fly).toHaveAttribute('aria-pressed', String(!!opts.standing));
+  const n = opts.steps ?? 8;
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= n; i++) await page.mouse.move(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n);
+  await page.mouse.up();
 }
 
 /** Workshop's rectangle, rounded rectangle and circle sit under one Shapes button (the card shows them). */
@@ -38,5 +51,30 @@ export async function opPick(page: Page, op: 'add' | 'cut' | 'engrave' | 'score'
 /** A browser that chose Quick build (a new browser starts in the Workshop). */
 export const QUICK_STATE = {
   cookies: [],
-  origins: ['http://localhost:5199', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'quick' }) }] })),
+  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'quick' }) }] })),
 };
+
+/**
+ * Wait until the 3D camera has stopped moving (after fit-view or setCamera): a projected point stays
+ * put over a few frames. Clicks at projected points made before that can miss (BUGFIX_PLAN U4).
+ */
+export async function settle(page: Page) {
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const cf = (window as any).__cutforge;
+        if (!cf?.projectWorld) return resolve(false);
+        const at = () => JSON.stringify(cf.projectWorld(0, 0, 0));
+        const first = at();
+        let n = 0;
+        const tick = () => {
+          if (at() !== first) return resolve(false);
+          if (++n >= 6) return resolve(true);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    undefined,
+    { polling: 50, timeout: 10_000 },
+  );
+}

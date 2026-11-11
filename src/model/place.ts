@@ -15,6 +15,7 @@
 import type { Design, Frame, Panel, PanelPlace, V3 } from './types';
 import { frameNormal, matDir, toLocal, toWorld } from './frame';
 import { tOf } from './materials';
+import { pieceRoot, placementPiece } from './keys';
 import { v3add, v3clean, v3dot, v3mul, v3norm, v3sub } from '../geom/v3';
 
 /** The floor as a host: local x along world X, y along world −Z (as floor panels), material up. */
@@ -143,3 +144,31 @@ export function placeFromFrame(d: Design, p: Panel, f: Frame) {
   pl.y = l.y;
   void v3sub;
 }
+
+/**
+ * Remove a panel from the design and everything that names it (BUGFIX_PLAN B22): panels placed on it
+ * drop to the floor where they are, joints to it go, and so do its quantity and sheet placements.
+ * Every path that removes a panel uses it (deleting, tray and wall-set reconciliation), so no
+ * `place.host` is left naming a panel that is gone.
+ */
+export function removePanelRecord(d: Design, panelId: string) {
+  for (const id of hostedOn(d, panelId)) {
+    dropToFloor(d, d.panels[id]);
+    for (const c of Object.values(d.connections)) if (!c.grown && ((c.a.panelId === id && c.b.panelId === panelId) || (c.b.panelId === id && c.a.panelId === panelId))) delete d.connections[c.id];
+  }
+  for (const c of Object.values(d.connections)) if (c.a.panelId === panelId || c.b.panelId === panelId) delete d.connections[c.id];
+  delete d.panels[panelId];
+  delete d.pieces[panelId];
+  d.order = d.order.filter((id) => id !== panelId);
+  for (const k of Object.keys(d.placements)) if (pieceRoot(placementPiece(k)) === panelId) delete d.placements[k];
+}
+
+/** Panels placed on a host that is not there (an older file): they drop to the floor where they are. */
+export function dropOrphansToFloor(d: Design) {
+  for (const id of d.order) {
+    const p = d.panels[id];
+    const h = p?.place?.host;
+    if (h != null && !d.panels[h]) dropToFloor(d, p);
+  }
+}
+

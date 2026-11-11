@@ -20,6 +20,9 @@ function retry<T>(f: (g: number) => T): T {
 }
 
 export function safeUnion(polys: Polygon[]): MultiPolygon {
+  // nothing to join (a panel a cut removed completely): nothing, never [undefined]
+  polys = polys.filter((p) => p && p.length && p[0].length);
+  if (!polys.length) return [];
   if (polys.length === 1) return [polys[0]];
   try {
     return retry((g) => {
@@ -41,6 +44,7 @@ export function safeUnion(polys: Polygon[]): MultiPolygon {
 }
 
 export function safeDifference(base: MultiPolygon, cuts: Polygon[]): MultiPolygon {
+  if (!base.length) return [];
   if (!cuts.length) return base;
   try {
     return retry((g) => (g ? polygonClipping.difference(base.map((q) => snapPoly(q, g)), ...cuts.map((c) => snapPoly(c, g))) : polygonClipping.difference(base, ...cuts)));

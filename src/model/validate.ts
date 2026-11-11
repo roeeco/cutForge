@@ -5,10 +5,10 @@ import { segDir, segInward } from './edges';
 import { toWorld } from './frame';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
 import { throughHits, throughRegions } from './through';
-import { isRectSketch, segLength } from './edges';
+import { isRectSketch, segLength, sketchRing } from './edges';
 import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
-import { detailBBox, panelExtras, panelNotches, panelOutline } from './geometry';
+import { crossesItself, detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
 import { bboxOf } from '../geom/vec';
 import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
@@ -19,7 +19,7 @@ import { templateIssues } from '../templates/registry';
 import { detailInstances, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
-import { netOverlaps } from './pieces';
+import { netOverlaps, pieceRoot } from './pieces';
 import { applyX } from '../geom/vec';
 import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
@@ -44,17 +44,18 @@ export function validate(d: Design): Issue[] {
     if (!p || guides.has(id)) continue;
     // each board's own material: its web and its sheet
     const min = minWeb(d, id);
-    const pm = matOf(d, id);
     const notches = panelNotches(d, p);
-    const fitsW = Math.min(p.w, p.h) <= Math.min(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
-    const fitsL = Math.max(p.w, p.h) <= Math.max(pm.sheetW, pm.sheetH) - 2 * d.sheetMargin;
-    if (!fitsW || !fitsL) issues.push({ key: 'val.tooBig', vars: { panel: p.name }, target: { kind: 'panel', id } });
     const fit = panelFit(d, p);
     const { own } = fit;
     // a cut that splits the panel (its own shapes, or through-cuts from other panels), and pieces too thin to cut safely
     const hit = throughHits(d).get(id);
     const frags = hit ? fragmentsAfterThrough(d, id) : own.rings.length;
-    if (hit && frags === 0) issues.push({ key: 'val.removed', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // removed by a through-cut, or by its own shapes (a cut covering the whole board): flagged, not cut
+    if (frags === 0) {
+      issues.push({ key: 'val.removed', vars: { panel: p.name }, target: { kind: 'panel', id } });
+      if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
+      continue;
+    }
     else if (frags > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: frags }, target: { kind: 'panel', id } });
     if (hit?.approx && frags > 0) issues.push({ key: 'val.bevel', vars: { panel: p.name }, target: { kind: 'detail', id: hit.sources[0] } });
     for (const r of own.rings) {
@@ -63,8 +64,13 @@ export function validate(d: Design): Issue[] {
       if (per > 0 && (2 * Math.abs(polygonArea(pts))) / per < min / 2) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
     }
     if (p.broken) issues.push({ key: 'val.orphan', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // a sketch whose edges cross (BUGFIX_PLAN B10: edits refuse this; older files may have one)
+    if (crossesItself(sketchRing(p).map((e) => e.a))) issues.push({ key: 'val.selfCross', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    // joints on opposite edges that leave less than the web between them (a narrow wall with corner joints both sides, BUGFIX_PLAN B13)
+    if (thinBetweenJoints(p, notches, min)) issues.push({ key: 'val.sliver', vars: { panel: p.name, min }, target: { kind: 'panel', id } });
+    const band = jointBands(p, notches);
     for (const dt of p.details) {
-      const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id));
+      const k = shapeFit(fit, p, dt, isOutlineShape(p, dt.id)) ?? (cutNearJoint(band, dt, min) ? 'val.tooThin' : null);
       if (k) issues.push({ key: k, vars: k === 'val.tooThin' ? { panel: p.name, min } : { panel: p.name }, target: { kind: 'detail', id: dt.id } });
     }
     const outline = panelOutline(p, notches);
@@ -104,7 +110,7 @@ export function panelFit(d: Design, p: Panel): PanelFit {
   const lim = { x0: inset[3], y0: inset[0], x1: p.w - inset[1], y1: p.h - inset[2] };
   const own = ownOutline(p);
   const plainRect = own.rings.length === 1 && isRectSketch(p) && own.rings[0].length === 4 && own.rings[0].every((e, i) => e.key === `e${i}`);
-  return { min, lim, own, plainRect, outlines: own.rings.map((r) => panelOutline(p, notches, r)) };
+  return { min, lim, own, plainRect, outlines: own.rings.flatMap((r) => panelOutlines(p, notches, r)) };
 }
 
 /** A shape's place on its panel: outside the panel, too close to its edge, or fine (null). */
@@ -140,6 +146,62 @@ export function webTo(poly: P2[], ring: P2[]): number {
       best = Math.min(best, segDistPoint(poly[i], ring[j], ring[(j + 1) % ring.length]), segDistPoint(ring[j], poly[i], poly[(i + 1) % poly.length]));
     }
   return best;
+}
+
+/**
+ * On a rectangular board (a plain rectangle, or a wall without moved corners or points), do the
+ * cut-backs of two opposite edges come closer than the web at any height? e1 and e3 run in opposite
+ * directions (e1 up from the bottom right, e3 down from the top left), as do e0 and e2.
+ */
+function thinBetweenJoints(p: Panel, notches: Record<string, { s0: number; s1: number; depth: number }[]>, min: number): boolean {
+  const plain = p.sketch.kind === 'wall' ? !p.sketch.corners && !p.sketch.inserts?.length : isRectSketch(p);
+  if (!plain || p.details.length) return false;
+  const cutBacks = (k: string) => (notches[k] ?? []).filter((x) => x.depth > 1e-6);
+  for (const [ka, kb, across, along] of [['e1', 'e3', p.w, p.h], ['e0', 'e2', p.h, p.w]] as const) {
+    for (const x of cutBacks(ka))
+      for (const y of cutBacks(kb)) {
+        // y's range measured the same way as x's
+        const y0 = along - y.s1, y1 = along - y.s0;
+        if (Math.min(x.s1, y1) - Math.max(x.s0, y0) > 1e-6 && across - x.depth - y.depth < min - 1e-6) return true;
+      }
+  }
+  return false;
+}
+
+/** Where each joint notch cuts back into the panel (a cut-back's rectangle along its edge), with that edge. */
+function jointBands(p: Panel, notches: Record<string, { s0: number; s1: number; depth: number }[]>) {
+  const out: { a: P2; b: P2; band: P2[] }[] = [];
+  for (const e of ownOutline(p).rings.flat()) {
+    const dir = segDir(e), ie = segInward(e);
+    const at = (s: number, dd: number) => ({ x: e.a.x + dir.x * s + ie.x * dd, y: e.a.y + dir.y * s + ie.y * dd });
+    for (const x of notches[e.key] ?? []) if (x.depth > 1e-6) out.push({ a: e.a, b: e.b, band: [at(x.s0, 0), at(x.s1, 0), at(x.s1, x.depth), at(x.s0, x.depth)] });
+  }
+  return out;
+}
+
+const segsMeet = (p1: P2, p2: P2, q1: P2, q2: P2) => {
+  const cr = (o: P2, a: P2, b: P2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const d1 = cr(q1, q2, p1), d2 = cr(q1, q2, p2), d3 = cr(p1, p2, q1), d4 = cr(p1, p2, q2);
+  return d1 * d2 <= 0 && d3 * d4 <= 0 && Math.min(p1.x, p2.x) <= Math.max(q1.x, q2.x) + 1e-9 && Math.min(q1.x, q2.x) <= Math.max(p1.x, p2.x) + 1e-9 && Math.min(p1.y, p2.y) <= Math.max(q1.y, q2.y) + 1e-9 && Math.min(q1.y, q2.y) <= Math.max(p1.y, p2.y) + 1e-9;
+};
+
+/**
+ * A cut that comes into a joint's notch band, or closer to it than the
+ * material's web, without crossing that edge (BUGFIX_PLAN B9): a notch cut
+ * down from a wall's top into its bottom fingers. A cut across the jointed
+ * edge itself is laid out around by the joint (surviving contact) instead.
+ */
+function cutNearJoint(bands: ReturnType<typeof jointBands>, dt: Panel['details'][number], min: number): boolean {
+  if (dt.op !== 'cut' || dt.through || !bands.length) return false;
+  for (const poly of instancePolys(dt).flatMap((x) => x.polys)) {
+    for (const b of bands) {
+      const crosses = poly.some((q, i) => segsMeet(q, poly[(i + 1) % poly.length], b.a, b.b));
+      if (crosses) continue;
+      const inside = poly.some((q) => pointInPolygon(q, b.band)) || b.band.some((q) => pointInPolygon(q, poly));
+      if (inside || webTo(poly, b.band) < min - 1e-6) return true;
+    }
+  }
+  return false;
 }
 
 /** Does a cut shape reach the panel's material (it changed the outline)? */
@@ -252,7 +314,7 @@ function shapeIssues(d: Design): Issue[] {
   for (const id of d.order) {
     const p = d.panels[id];
     if (!p) continue;
-    const cuts: { id: string; poly: Poly; bb: [number, number, number, number] }[] = [];
+    const cuts: { id: string; inst: number; poly: Poly; bb: [number, number, number, number] }[] = [];
     for (const dt of p.details) {
       if (dt.shape === 'text' && dt.text) {
         const tb = textBox(dt);
@@ -263,17 +325,23 @@ function shapeIssues(d: Design): Issue[] {
         continue; // letters are allowed to touch each other
       }
       if (dt.op !== 'cut' || isOutlineShape(p, dt.id)) continue;
-      for (const inst of detailInstances(dt))
+      // a cut-out path (a sticker, an imported drawing) with outlines inside its outlines: those islands fall out
+      if (dt.shape === 'path' && dt.path && dt.path.polys.some((a, i) => dt.path!.polys.some((b, j) => i !== j && a.length && b.length >= 3 && pointInPolygon(a[0], b))))
+        out.push({ key: 'val.stencilShape', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
+      detailInstances(dt).forEach((inst, k) => {
         for (const c of shapeContours(inst)) {
           const pts = flattenContour(c, 0.05);
           const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-          cuts.push({ id: dt.id, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+          cuts.push({ id: dt.id, inst: k, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
         }
+      });
     }
     const flagged = new Set<string>();
     for (let i = 0; i < cuts.length; i++)
       for (let j = i + 1; j < cuts.length; j++) {
         const a = cuts[i], b = cuts[j];
+        // one shape's own outlines (a sticker's eyes inside its face) are not two shapes overlapping (BUGFIX_PLAN B17)
+        if (a.id === b.id && a.inst === b.inst) continue;
         if (a.bb[0] > b.bb[2] + 1e-6 || b.bb[0] > a.bb[2] + 1e-6 || a.bb[1] > b.bb[3] + 1e-6 || b.bb[1] > a.bb[3] + 1e-6) continue;
         const touching = overlapArea(a.poly, b.poly) > 1e-4;
         const key = `${a.id}|${b.id}`;
@@ -301,16 +369,33 @@ function sheetIssues(d: Design): Issue[] {
       const m = profileOf(d, pl[c.key].mat);
       return { c, sheet: `${pl[c.key].mat ?? ''}#${pl[c.key].sheet}`, W: m.sheetW, H: m.sheetH, poly: ring(pts), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
     });
-  const name = (k: string) => d.panels[k]?.name ?? '?';
+  const name = (k: string) => d.panels[pieceRoot(k)]?.name ?? '?';
+  // a piece (its whole folded net) that cannot fit inside the margin, turned only where the grain allows (BUGFIX_PLAN B15)
+  const big = new Set<string>(), named = new Set<string>();
+  for (const c of copies) {
+    if (c.copy) continue;
+    const prof = profileOf(d, c.mat);
+    const W = prof.sheetW - 2 * d.sheetMargin, H = prof.sheetH - 2 * d.sheetMargin;
+    const fits0 = c.w <= W + 1e-6 && c.h <= H + 1e-6, fits90 = c.h <= W + 1e-6 && c.w <= H + 1e-6;
+    const canTurn = prof.grain === 'none' || !!d.allowRotate;
+    if (fits0 || (canTurn && fits90)) continue;
+    big.add(c.pieceKey);
+    const root = pieceRoot(c.pieceKey);
+    if (named.has(root)) continue;
+    named.add(root);
+    out.push({ key: fits90 ? 'val.tooBigGrain' : 'val.tooBig', vars: { panel: name(root) }, target: { kind: 'panel', id: root } });
+  }
+  // a piece outside its sheet or in its margin (BUGFIX_PLAN B16); one too big for the sheet is reported as that instead
+  const M = d.sheetMargin;
   for (const a of placed)
-    if (a.bb[0] < -1e-6 || a.bb[1] < -1e-6 || a.bb[2] > a.W + 1e-6 || a.bb[3] > a.H + 1e-6)
-      out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: a.c.pieceKey } });
+    if (!big.has(a.c.pieceKey) && (a.bb[0] < M - 1e-6 || a.bb[1] < M - 1e-6 || a.bb[2] > a.W - M + 1e-6 || a.bb[3] > a.H - M + 1e-6))
+      out.push({ key: 'val.offSheet', vars: { panel: name(a.c.pieceKey), copy: a.c.copy + 1 }, target: { kind: 'panel', id: pieceRoot(a.c.pieceKey) } });
   for (let i = 0; i < placed.length; i++)
     for (let j = i + 1; j < placed.length; j++) {
       const a = placed[i], b = placed[j];
       if (a.sheet !== b.sheet || a.bb[0] > b.bb[2] || b.bb[0] > a.bb[2] || a.bb[1] > b.bb[3] || b.bb[1] > a.bb[3]) continue;
       if (overlapArea(a.poly, b.poly) > 1e-3)
-        out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: b.c.pieceKey } });
+        out.push({ key: 'val.piecesOverlap', vars: { a: name(a.c.pieceKey), b: name(b.c.pieceKey) }, target: { kind: 'panel', id: pieceRoot(b.c.pieceKey) } });
     }
   return out;
 }

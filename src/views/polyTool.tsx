@@ -486,7 +486,17 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
-  const corner = (name: 'tl' | 'tr', base: P2, now: P2) => drag(name, now, (l) => useStore.getState().preview((x) => setWallCorner(x, p.id, name, { dx: l.x - base.x, dy: l.y - base.y })));
+  const corner = (name: 'tl' | 'tr', base: P2, now: P2) => {
+    // a drag that would make the wall cross itself stops at the last place that did not (BUGFIX_PLAN B10)
+    let ok = { dx: now.x - base.x, dy: now.y - base.y };
+    return drag(name, now, (l) =>
+      useStore.getState().preview((x) => {
+        const off = { dx: l.x - base.x, dy: l.y - base.y };
+        if (setWallCorner(x, p.id, name, off)) ok = off;
+        else setWallCorner(x, p.id, name, ok);
+      }),
+    );
+  };
   // an insert's base edge (between the rectangle's corners, after their offsets)
   const baseEdge = (edge: 'e1' | 'e2' | 'e3') => {
     const i = Number(edge[1]);
