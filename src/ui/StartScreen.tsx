@@ -1,7 +1,7 @@
 // First screen of a new design: what are you making? Step 1 the material,
 // step 2 a template (drawn by the real renderer), then Start.
 import { useMemo, useState } from 'react';
-import { useStore, useT } from '../store/store';
+import { tourDone, useStore, useT } from '../store/store';
 import { TEMPLATES, defaults, generate, templateById } from '../templates/registry';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { setMaterial } from '../model/ops';
@@ -46,12 +46,37 @@ function BlankArt() {
   );
 }
 
+/** The tour's picture: the small box it builds, on the same grid as Blank's. */
+function TourArt() {
+  return (
+    <svg viewBox="0 0 260 150" aria-hidden>
+      <defs>
+        <pattern id="iso-tour" width="22" height="12.7" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)">
+          <path d="M0 0H22M0 0V12.7" stroke="#e4dccf" strokeWidth="1" fill="none" />
+        </pattern>
+      </defs>
+      <rect width="260" height="150" fill="#fbf8f3" />
+      <rect width="260" height="150" fill="url(#iso-tour)" />
+      <g stroke="#9a7a4f" strokeWidth="2" strokeLinejoin="round" fill="#e7cfa6">
+        <path d="M80 70 130 50 180 70 130 90Z" />
+        <path d="M80 70v34l50 20V90Z" fill="#d9bb8a" />
+        <path d="M130 90v34l50-20V70Z" fill="#cfae7a" />
+        <path d="M105 80 155 60" fill="none" />
+      </g>
+      <circle cx="155" cy="100" r="8" fill="#fbf8f3" stroke="#9a7a4f" strokeWidth="2" />
+    </svg>
+  );
+}
+
 export function StartScreen() {
   const t = useT();
   const lang = useStore((s) => s.lang);
   const setLang = useStore((s) => s.setLang);
   const [matId, setMatId] = useState(DEFAULT_MATERIAL.id);
   const [tpl, setTpl] = useState('');
+  // the first-use tour (milestone 43): a card until it was taken or ended, then a link; not when the class locks Quick build
+  const [toured] = useState(tourDone);
+  const tourOk = useStore((s) => !(s.viewPrefs.modeLocked && s.viewPrefs.mode === 'quick'));
   // Quick build offers missions next to the templates (milestone 40); a class may choose which
   const quick = useMode() === 'quick';
   const offered = useStore((s) => s.viewPrefs.missions);
@@ -85,6 +110,21 @@ export function StartScreen() {
       </div>
       <h1 id="start-title">{t('start.title')}</h1>
       <p className="lead">{t('mat.chooseHelp')}</p>
+
+      {tourOk && !toured && (
+        <div className="tour-offer" data-testid="tour-offer">
+          <span className="art">
+            <TourArt />
+          </span>
+          <span className="cap">
+            <strong>{t('tour.cardTitle')}</strong>
+            <small>{t('tour.pitch')}</small>
+          </span>
+          <button className="primary" onClick={() => useStore.getState().startTour()} data-testid="tour-start">
+            {t('tour.take')}
+          </button>
+        </div>
+      )}
 
       <p className="step-label">
         <b>{t('start.step', { n: 1 })}</b> {t('start.material')}
@@ -161,7 +201,14 @@ export function StartScreen() {
       )}
 
       <div className="start-foot">
-        <p className="note">{t('mat.calibrate')}</p>
+        <p className="note">
+          {t('mat.calibrate')}
+          {tourOk && toured && (
+            <button className="link tour-link" onClick={() => useStore.getState().startTour()} data-testid="tour-link">
+              {t('tour.link')}
+            </button>
+          )}
+        </p>
         <button className="primary go" onClick={start} data-testid="start-go">
           {t('start.go')}
         </button>

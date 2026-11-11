@@ -57,6 +57,8 @@ import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
 import { bundleSize, contentFit, objectById } from '../easy/objects';
 import { assembleFold, assembleLift, playAssembly } from '../easy/assemble';
 import { workshopOnly } from '../easy/mode';
+import { registerStage } from '../tour/stage';
+import { TOUR_STEPS } from '../tour/steps';
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
 const snap = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
@@ -147,6 +149,12 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const quick = useMode() === 'quick';
   const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
   const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
+  // the tour can leave panels off the stage for a step (the lid while drawing inside the box, milestone 43)
+  const tourHidden = useStore((s) => {
+    const st = s.tour && TOUR_STEPS[s.tour.step];
+    return st?.hide ? st.hide(s.design).join(',') : '';
+  });
+  const hiddenIds = useMemo(() => new Set(tourHidden ? tourHidden.split(',') : []), [tourHidden]);
   // with the Board tool over the floor: the snapped point under the pointer (milestone 42)
   const [floorHover, setFloorHover] = useState<V3 | null>(null);
   const inTxn = useStore((s) => !!s.txnBase);
@@ -494,6 +502,27 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   };
 
   const { camera, gl, invalidate, scene } = useThree();
+  // the first-use tour (milestone 43) points at places on the stage and starts from a known camera
+  useEffect(() => {
+    if (!controls) return;
+    const ctl = controls as unknown as { target: THREE.Vector3; update(): void };
+    registerStage({
+      project: (p) => {
+        const v = new THREE.Vector3(...p).project(camera);
+        if (v.z > 1) return null;
+        const r = gl.domElement.getBoundingClientRect();
+        return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+      },
+      setCamera: (pos, target) => {
+        camera.position.set(...pos);
+        ctl.target.set(...target);
+        ctl.update();
+        camera.updateMatrixWorld();
+        invalidate();
+      },
+    });
+    return () => registerStage(null);
+  }, [camera, gl, controls]);
   useEffect(() => {
     // Test hook: screen position of a point on a panel (local mm coordinates).
     const w = window as unknown as { __cutforge?: Record<string, unknown> };
@@ -640,7 +669,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       </mesh>
       {design.order.map((id, index) => {
         const p = design.panels[id];
-        if (!p) return null;
+        if (!p || hiddenIds.has(id)) return null;
         const selected = selPanel === id || selAlso.includes(id) || selDetailPanels.has(id) || selEdge?.panelId === id;
         return (
           <PanelObject

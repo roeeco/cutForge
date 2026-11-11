@@ -4,8 +4,9 @@ import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { produce, type Draft } from 'immer';
 import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
-import { connectionsFor, matOf } from '../model/materials';
-import { autoConnect, createDesign, findDetail, newId, solve } from '../model/ops';
+import { connectionsFor, matOf, MATERIALS } from '../model/materials';
+import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
+import { requestCamera, TOUR_CAMERA } from '../tour/stage';
 import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
@@ -143,6 +144,19 @@ function initialPrefs(): ViewPrefs {
   return { ...def, mode: 'workshop' };
 }
 
+/** The first-use tour (milestone 43): the step shown, and the design when it was entered (what the step compares with). Not saved. */
+export type TourState = { step: number; entry: Design };
+
+/** Set when the first-use tour was finished or ended (milestone 43). */
+export const TOUR_DONE_KEY = 'cutforge.tourDone';
+export function tourDone(): boolean {
+  try {
+    return localStorage.getItem(TOUR_DONE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 type State = {
   design: Design;
   past: Design[];
@@ -252,7 +266,17 @@ type State = {
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** The Board tool's perpendicular button: flat or standing boards, remembered with the view prefs (milestone 42). */
   setBoardPose: (pose: 'flat' | 'standing') => void;
+  /** The first-use tour (milestone 43), or null. */
+  tour: TourState | null;
+  /** Start the tour: Workshop, a new blank plywood 3 mm design (as Start with Blank), the welcome screen closed, a known camera. */
+  startTour: () => void;
+  tourNext: () => void;
+  tourBack: () => void;
+  /** End the tour (finished or not): the design stays, and the welcome screen offers the tour as a link from now on. */
+  endTour: () => void;
 };
+
+export type EditorState = State;
 
 const HISTORY_LIMIT = 200;
 
@@ -325,6 +349,33 @@ export const useStore = create<State>()((set, get) => ({
   pasting: false,
   spanPick: null,
   pointerHit: null,
+  tour: null,
+  startTour: () => {
+    const st = get();
+    if (st.viewPrefs.mode !== 'workshop') st.setPrefs({ mode: 'workshop' });
+    if (st.viewPrefs.joints) st.setPrefs({ joints: false });
+    // a new design, as Start with Blank makes it
+    st.replaceDesign(createDesign(), true);
+    get().apply((d) => setMaterial(d, MATERIALS.find((m) => m.id === 'ply-3') ?? d.material));
+    set({ past: [], future: [], needsMaterial: false, view: '3d', tool: 'select', extrude: null, drawerOpen: false, exportOpen: false, tour: { step: 0, entry: get().design } });
+    requestCamera(...TOUR_CAMERA);
+  },
+  tourNext: () => {
+    const t = get().tour;
+    if (t) set({ tour: { step: t.step + 1, entry: get().design } });
+  },
+  tourBack: () => {
+    const t = get().tour;
+    if (t) set({ tour: { step: Math.max(0, t.step - 1), entry: get().design } });
+  },
+  endTour: () => {
+    try {
+      localStorage.setItem(TOUR_DONE_KEY, '1');
+    } catch {
+      /* storage unavailable */
+    }
+    set({ tour: null });
+  },
   copyShapes: () => {
     const ids = selectedDetailIds(get().selection);
     const d = get().design;
