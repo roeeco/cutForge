@@ -37,7 +37,6 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
   const box = (await page.locator('[data-testid=view3d] canvas').boundingBox())!;
   await drawBoard(page, { x: box.x + box.width / 2 - 120, y: box.y + box.height / 2 - 50 }, { x: box.x + box.width / 2 + 120, y: box.y + box.height / 2 + 50 });
   await setNum(page, 'panel-w', '200');

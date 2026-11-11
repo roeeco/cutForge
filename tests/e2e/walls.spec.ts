@@ -12,7 +12,6 @@ test('gable wall by outline editing, then a roof from its sloped edge', async ({
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
   const front = await S<string>(page, () => {
     const cf = (window as any).__cutforge;
     let w = '';

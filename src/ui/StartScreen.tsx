@@ -1,6 +1,7 @@
 // First screen of a new design: what are you making? Step 1 the material,
 // step 2 a template (drawn by the real renderer), then Start.
 import { useMemo, useState } from 'react';
+import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
 import { TEMPLATES, defaults, generate, templateById } from '../templates/registry';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
@@ -76,7 +77,7 @@ export function StartScreen() {
   const [tpl, setTpl] = useState('');
   // the first-use tour (milestone 43): a card until it was taken or ended, then a link; not when the class locks Quick build
   const [toured] = useState(tourDone);
-  const tourOk = useStore((s) => !(s.viewPrefs.modeLocked && s.viewPrefs.mode === 'quick'));
+  const tourOk = useStore((s) => TOUR_OFFERED && !(s.viewPrefs.modeLocked && s.viewPrefs.mode === 'quick'));
   // Quick build offers missions next to the templates (milestone 40); a class may choose which
   const quick = useMode() === 'quick';
   const offered = useStore((s) => s.viewPrefs.missions);

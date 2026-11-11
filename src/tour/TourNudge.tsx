@@ -6,6 +6,9 @@ import { useState } from 'react';
 import { TOUR_DONE_KEY, tourDone, useStore, useT } from '../store/store';
 import { translate } from '../i18n';
 
+/** The tour is offered nowhere (welcome screen, "New here?" note, menu) until its issues are fixed; true puts it back. */
+export const TOUR_OFFERED = false;
+
 /** Start the tour on a new design, asking first (as New design does) when the current one has boards. */
 export function startTourConfirmed(): boolean {
   const s = useStore.getState();
@@ -18,7 +21,7 @@ export function TourNudge() {
   const t = useT();
   const touring = useStore((s) => !!s.tour);
   const [hidden, setHidden] = useState(tourDone);
-  if (hidden || touring || tourDone()) return null;
+  if (!TOUR_OFFERED || hidden || touring || tourDone()) return null;
   const dismiss = () => {
     try {
       localStorage.setItem(TOUR_DONE_KEY, '1');

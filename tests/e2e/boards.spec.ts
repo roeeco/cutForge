@@ -10,7 +10,6 @@ async function start(page: Page, mat: string) {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 }
 
 /** A plywood box (base and four finger-jointed walls); returns the base and wall ids. */

@@ -11,7 +11,6 @@ async function start(page: Page) {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 }
 
 test('a through-cut chamfer: live count while drawing, every panel updates, linked selection', async ({ page }) => {

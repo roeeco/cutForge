@@ -29,7 +29,6 @@ test('polygon base → extrude → push-pull → cut through a corner → warnin
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 
   // a polygon base: a typed 120 mm segment, a Shift-locked vertical one, an apex, back to the start
   await page.keyboard.press('g');

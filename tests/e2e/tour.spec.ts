@@ -2,6 +2,9 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { setNum } from './util';
 
+// the tour is off (TOUR_OFFERED in src/tour/TourNudge.tsx) until its issues are fixed
+test.skip(true, 'the tour is not offered for now');
+
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
 const world = (page: Page, x: number, y: number, z: number) => S<{ x: number; y: number }>(page, (a: number[]) => (window as any).__cutforge.projectWorld(a[0], a[1], a[2]), [x, y, z]);

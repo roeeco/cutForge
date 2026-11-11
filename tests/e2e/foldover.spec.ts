@@ -10,7 +10,6 @@ test('fold-over on a corrugated tray wall: lock tabs, a hem, and the net stays o
   await page.goto('/');
   await page.getByTestId('mat-corr-1.6').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
   const walls = await S<string[]>(page, () => {
     const cf = (window as any).__cutforge;
     let ws: string[] = [];

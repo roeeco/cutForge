@@ -11,7 +11,6 @@ async function start(page: Page, mat: string) {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 }
 
 /** Drag from a to b in a few steps. */

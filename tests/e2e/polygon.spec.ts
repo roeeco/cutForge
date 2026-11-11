@@ -12,7 +12,6 @@ async function start(page: Page, mat = 'ply-3') {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 }
 
 test('polygon base by clicks, n-gon, vertex editing and growing from a sloped edge', async ({ page }) => {

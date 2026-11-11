@@ -192,7 +192,6 @@ test.describe('Workshop', () => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
-    await page.getByTestId('tour-nudge-dismiss').click();
     const base = await S<string>(page, () => {
       const cf = (window as any).__cutforge;
       let b = '';
@@ -251,7 +250,6 @@ test.describe('Workshop to Quick build', () => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
-    await page.getByTestId('tour-nudge-dismiss').click();
     const p = await S<string>(page, () => {
       const cf = (window as any).__cutforge;
       let id = '';

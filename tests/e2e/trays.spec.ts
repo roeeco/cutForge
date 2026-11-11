@@ -12,7 +12,6 @@ test('card hexagon: extrude, one net, shared height, open a side and wall it aga
   await page.goto('/');
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
 
   // a regular hexagon base with the polygon tool
   await page.keyboard.press('g');
@@ -77,7 +76,6 @@ test('corrugated tray: tab-and-slot corners switched to through tabs on the tray
   await page.goto('/');
   await page.getByTestId('mat-corr-4').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
   const base = await S<string>(page, () => {
     const cf = (window as any).__cutforge;
     let b = '';

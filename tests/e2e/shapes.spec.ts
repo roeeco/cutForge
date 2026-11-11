@@ -20,7 +20,6 @@ test('a Cut across a walled edge notches the base and splits its wall; an Add jo
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tour-nudge-dismiss').click();
   // a base with a wall on its back edge (built through the model, then drawn on with the tools)
   const ids = await S<string[]>(page, () => {
     const cf = (window as any).__cutforge;
