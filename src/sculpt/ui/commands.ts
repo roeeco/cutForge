@@ -1,6 +1,7 @@
 // Waffle commands shared by the rail, the card and the keyboard (WAFFLE_MODE.md §5).
 import { selectedShapeIds, shapeSel, useStore } from '../../store/store';
 import type { Design } from '../../model/types';
+import { deleteSketchPoint } from '../sketch';
 import { deleteShapes, duplicateShapes, groupShapes, moveShapes, parentOf, setHole, ungroupShape } from '../ops';
 
 const st = () => useStore.getState();
@@ -69,6 +70,13 @@ export function sculptKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (mod) return false;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && s.sculpt.editSketch && s.sculpt.selPoint !== null) {
+    e.preventDefault();
+    const { editSketch: id, selPoint: i } = s.sculpt;
+    s.apply((d) => void deleteSketchPoint(d as Design, id, i));
+    s.setSculpt({ selPoint: null });
+    return true;
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault();
     if (s.selection?.kind === 'shape') deleteSelected();
@@ -76,7 +84,8 @@ export function sculptKey(e: KeyboardEvent): boolean {
   }
   if (e.key === 'Escape') {
     if (s.txnBase || s.pending) return true;
-    if (s.tool !== 'select') s.setTool('select');
+    if (s.sculpt.editSketch) s.setSculpt({ editSketch: null, selPoint: null });
+    else if (s.tool !== 'select') s.setTool('select');
     else if (s.selection) s.select(null);
     else if (s.sculpt.focus) s.setSculpt({ focus: null });
     return true;

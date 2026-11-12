@@ -957,6 +957,24 @@ Not verified
 - Safari, a real Chromebook and the deployed Worker (see the spike).
 - Dragging the gizmo's rings and arrows by hand, and the size arrows, were exercised only through the shared widgets' code paths (the gizmo is the existing one); the single e2e spec comes in milestone 54.
 
+## Milestone 50 — sketch, extrude, revolve, radius ✅
+
+Implemented
+- **Shared drawing** (`src/views/polyDraw.ts`): `nextPolyPoint` and `typedPoint`, now used by the box polygon tool (its 15°-with-Shift behaviour unchanged) and the sketch tool.
+- **Sketch tool** (K, `src/sculpt/ui/SketchLayer.tsx`, `SketchCard.tsx`): *Floor* or *Upright* on the card. An upright plane is a grid standing on the floor through the selection's centre (or the origin), facing the nearest 30° step towards the viewer, with its dashed axis, an arrow to move it along its normal (`plane-move`), a ring to turn it in 30° steps (`plane-turn`) and *Turn ±30°* buttons. Click corners; close on the first point or with Enter; Backspace removes a point; Esc cancels; typed numbers plus Enter set a length. Segments snap to **30° steps by default** from the plane's horizontal, **Alt draws freely**; points snap to the grid and to the axis line. An outline that crosses itself shows its closing line in red and is not made.
+- **Extrude | Revolve ghost**: the bar and the card offer *Extrude | Revolve* (Revolve preselected on an upright plane beside its axis); Extrude has a height arrow (through the plane to the other side) and field; Revolve has its angle (30°–360° in 30° steps) and its axis: the plane's line, or a straight edge of the outline clicked on the stage. An outline that crosses its axis is amber, *The outline crosses its axis: move it to one side*, and ✓ waits.
+- **Edit sketch** on an extrusion's or revolve's card: point handles (drag), + on each edge, the picked point as *Corner*, *Curve* or *Round* with its radius, *Delete point* (and Delete). The solid follows live; crossing outlines are refused.
+- **Radius tool** (F): *Radius* (default 5 mm) and *Sharp*; every roundable corner (extrusion and revolve outline points, box/prism footprint corners, pyramid base corners) lights up on hover; a click rounds it (Shift-click several); a clamped corner shows *5 mm → 3.2 mm here*. Rounded corners stay editable in Edit sketch and in a box's or prism's corner radii.
+- **Ops** (`src/sculpt/sketch.ts`): planes (`planeMatrix`, `facingPlane`), `sketchShape`, `setSketchMode`, `revolveSuits`, `revolveBlocked`, `moveSketchPoint`, `insertSketchPoint`, `deleteSketchPoint`, `setSketchPointKind`, `roundCorner`, `roundable`. The extrude and revolve builders (milestone 49) handle negative heights, outlines left of the axis, and edge axes.
+
+Verified
+- `npm run typecheck`; `npm test`: 570 passed, 7 skipped (`ezdxf`); golden exports unchanged.
+- `tests/sculptsketch.test.ts` (8 cases): **sketch → CrossSection with Round points stays within 0.02 mm of the true arc** (every vertex near a corner on its circle, every chord's middle within 0.02 mm, the area as the formula within 1 mm²); **the L-extrusion with a 30° chamfer** (volume to the formula, standing on the floor with the sketch's y towards −z); **a vase** revolved about an upright plane's axis (110 mm tall, centred on the axis); a revolve about an outline's edge (a cylinder within 0.5%); **an outline crossing its axis is refused** (and builds as an extrusion); Edit sketch moves, adds and removes points and refuses a crossing outline; **the radius clamp** (two 25 mm corners on a 40 mm edge both become 20 mm and meet; a box corner rounds); 30° snapping and Alt.
+- Dev server, Playwright-driven: K, six clicks and Enter make an L on the floor with 30° edges, the ghost bar shows *Extrude | Revolve* and ✓; *Upright* shows the plane, its axis, arrow and ring; F shows the corner marks on the L.
+
+Not verified
+- The vase, the rounded box and the chamfered L were made by hand only in the unit tests (ops), not by mouse on the stage; dragging Edit sketch handles and the axis edges by hand was not exercised.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

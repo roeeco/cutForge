@@ -2,7 +2,7 @@
 // shapes as solids and striped holes, the Shapes tool (drag a footprint, a
 // ghost with a height arrow, ✓), size arrows, the 3D gizmo and groups.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { gridSnap, noSmartSnap, selectedShapeIds, shapeSel, useStore, useT } from '../../store/store';
@@ -18,6 +18,8 @@ import { STAGE } from '../../views/palette';
 import { Icon } from '../../ui/icons';
 import { NumField } from '../../ui/NumField';
 import { SketchLayer } from './SketchLayer';
+import { SketchMode, stageCamera } from './SketchCard';
+import { revolveBlocked } from '../sketch';
 import { WaffleLayer } from '../../waffle/ui/WaffleLayer';
 
 const PRIMS = new Set(['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus']);
@@ -220,7 +222,9 @@ function ShapeGhostBar({ d, id }: { d: Design; id: string }) {
       {s.size && (
         <PushPull at={[pose.at[0], pose.at[1] + H, pose.at[2]]} axis={qRot(pose.q, [0, 1, 0])} value={H} min={1} onPreview={setH} onCommit={() => st().commit()} onCancel={() => st().cancel()} color={STAGE.ghost} testId="ghost-height" />
       )}
-      <ConfirmBar at={top} onOk={ok} onCancel={() => st().cancelPending()} testId="shape-ghost-bar">
+      <ConfirmBar at={top} onOk={ok} onCancel={() => st().cancelPending()} okDisabled={revolveBlocked(s)} testId="shape-ghost-bar">
+        {s.sketch && <SketchMode s={s} />}
+        {revolveBlocked(s) && <span className="warn">{t('sketch.crossesAxis')}</span>}
         {s.size && (
           <span className="ghost-num" onKeyDown={(e) => e.stopPropagation()}>
             <NumField label={t('sculpt.height')} value={H} unit={t('unit.mm')} min={1} onCommit={(v) => (setH(v), st().commit())} testId="ghost-height-field" />
@@ -379,9 +383,10 @@ function FitRig({ signal }: { signal: number }) {
   return null;
 }
 
-/** Re-renders the canvas when the kernel arrives (frameloop is on demand). */
+/** Re-renders the canvas when the kernel arrives (frameloop is on demand); records the camera for an upright plane. */
 function Invalidate() {
-  const { invalidate } = useThree();
+  const { invalidate, camera } = useThree();
+  useFrame(() => void (stageCamera.pos = [camera.position.x, camera.position.y, camera.position.z]));
   const d = useStore((s) => s.design);
   const ready = useStore((s) => s.sculpt.ready);
   useEffect(() => invalidate(), [d, ready]);

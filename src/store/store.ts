@@ -3,7 +3,7 @@ import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { produce, type Draft } from 'immer';
-import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, V3, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -185,6 +185,11 @@ export type SculptUi = {
   ready: boolean;
   /** The kernel failed to load. */
   failed: boolean;
+  /** The sketch tool's plane (milestone 50). */
+  plane: { kind: 'floor' } | { kind: 'upright'; o: V3; ang: number };
+  /** An extrusion or revolve whose outline is being edited, and its picked point. */
+  editSketch: string | null;
+  selPoint: number | null;
 };
 
 type State = {
@@ -346,7 +351,7 @@ function validSelection(d: Design, s: Selection): Selection {
 
 export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
-  sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false },
+  sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false, plane: { kind: 'floor' }, editSketch: null, selPoint: null },
   sculptRadius: 5,
   setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p } }),
   past: [],
@@ -533,7 +538,7 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, height: null }, tool: 'select', design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, height: null, editSketch: null, selPoint: null }, tool: 'select', design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'shape' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();

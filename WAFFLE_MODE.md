@@ -510,3 +510,8 @@ Once a mesh can come in, the waffle stage here slices it unchanged.
 - **Volume tolerance.** With a 0.02 mm chord error a 5 mm tube's torus is 0.6% under the formula. The test uses a 20 mm tube; the chord rule itself is unchanged.
 - **First-load time and size** were measured on the preview build in headless Chromium (§9 Milestone 49 in `PROGRESS.md`). Safari, a school Chromebook and the Worker's static assets (that `.wasm` is served as `application/wasm`) could not be checked here.
 - **Shape faces (§11.1)** are not kept yet: manifold's `originalID`/face ids are available on every shape built, but nothing reads them. Keeping them is a later step.
+
+### Milestone 50
+- **The floor plane has no axis line drawn**, but Revolve on a floor sketch uses its local line x = 0 (the world's z axis through the origin) unless an edge is chosen, so the choice is never empty.
+- **The extrusion's height arrow** is shown on the ghost and on a selected extrusion; dragging through the plane gives a negative height (the other side), and heights between −1 and 1 mm are kept at ±1 mm.
+- **Each radius-tool click is one undo step** rather than one ✓ for the session of clicks: there is no ghost for a corner, and the change is visible at once.

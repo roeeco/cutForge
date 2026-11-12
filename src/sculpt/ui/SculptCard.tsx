@@ -216,7 +216,8 @@ export function SculptCard() {
   const ids = selectedShapeIds(sel);
   let body: React.ReactElement | null;
   if (stage === 'waffle') body = <WaffleCard />;
-  else if (tool === 'shapes' && !ghost) body = <ShapesToolCard />;
+  else if (ghost && ids.length === 1) body = <ShapeCard id={ids[0]} />;
+  else if (tool === 'shapes') body = <ShapesToolCard />;
   else if (tool === 'sketch') body = <SketchToolCard />;
   else if (tool === 'radius') body = <RadiusToolCard />;
   else if (ids.length === 1) body = <ShapeCard id={ids[0]} />;
