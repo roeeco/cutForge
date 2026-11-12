@@ -938,6 +938,14 @@ export const en = {
   'fix.none': "No position nearby clears it: try fewer or more slices",
   'waffle.checks': "Checks",
   'waffle.allGood': "Every part is held and every slot slides together.",
+  'base.on': "Base plate",
+  'base.shape': "Shape",
+  'base.rect': "Rect",
+  'base.round': "Round",
+  'base.outline': "Outline",
+  'base.margin': "Margin",
+  'base.flat': "Cut flat at",
+  'base.help': "The slices stand in slots in the plate. Raise “Cut flat at” so a round shape stands on a flat bottom.",
 } as const;
 
 export type MsgKey = keyof typeof en;

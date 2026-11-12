@@ -5,7 +5,7 @@ import type { Issue } from '../model/validate';
 import { kernelNow } from '../sculpt/kernel';
 import { LETTER, type Fam } from './derive';
 import type { Problem } from './finish';
-import type { WaffleResult } from './pieces';
+import type { Finished } from './finish';
 
 export type WaffleFix =
   | { kind: 'addSlice'; fam: Fam; at: number }
@@ -39,7 +39,7 @@ export function lonelyHoles(d: Design): string[] {
   return sc ? sc.order.filter((id) => sc.shapes[id]?.hole) : [];
 }
 
-export function waffleChecks(d: Design, r: WaffleResult | null): WaffleIssue[] {
+export function waffleChecks(d: Design, r: Finished | null): WaffleIssue[] {
   const out: WaffleIssue[] = [];
   for (const id of lonelyHoles(d)) out.push({ key: 'sculpt.holeAlone', vars: {}, target: { kind: 'shape', id }, fix: { kind: 'groupHole', id } });
   if (!kernelNow() || !r) return out;

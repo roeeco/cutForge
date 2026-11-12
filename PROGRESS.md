@@ -1013,6 +1013,22 @@ Not verified
 - On a real Chromebook the per-edit time is probably two to three times Node's here; not measured (owner).
 - The *Move the slice* fix on a real split was exercised only through the nudge search in code (the fixtures at their defaults have none).
 
+## Milestone 53 — base plate and labels ✅
+
+Implemented
+- **Base plate** (`derive.ts`, `finish.ts`, `PlateFields`, `PlateView`): the *Base plate* tick on the waffle card; *Rect*, *Round* or *Outline* (the top view grown by the margin); *Margin* (10 mm); *Cut flat at* (0 = the lowest point), also an arrow beside the plate on the stage. The solid is trimmed there before slicing; parts that run along the plate's top get tabs (max(3t, 8 mm) wide, one per run under 60 mm, two above at 25% and 75%, t + 2 mm clear of B slot mouths, one thickness long); the plate gets a slot per tab (tab plus clearance) and is a piece `w:base` labelled *Base*. A part with tabs is held; one touching the plate only at a point gets none.
+- **Labels** (`labels.ts`): each part's label at its pole of inaccessibility (our own grid refinement), 8 mm shrinking to 3 mm to fit, else on the guide layer; partner labels (3 mm) beside each slot mouth, inside the part. Rubik outlines via `outlineText`, on the engrave layer (the material's engrave settings apply). The cut plan shows them exactly as engraved.
+- **Speed**: labels are made only with the pieces (cut plan, export); the stage and the checks use the unlabelled parts.
+
+Verified
+- `npm run typecheck`; `npm test`: 605 passed, 7 skipped (`ezdxf`); golden exports unchanged.
+- `tests/waffleplate.test.ts` (6 cases): **a sphere stands on a round plate in the export** (cut flat 20 mm above its lowest point; every part held; the plate has one outer ring and a slot per tab; tabs reach one thickness below the plate's top; the plate is the first piece; the SVG has an engrave layer); the three plate shapes' sizes; **tabs keep clear of B slot mouths** (at least t + 2 mm) and the tab counts per run length; the pole of a rectangle; **labels stay inside their part, at least 1 mm from every cut** (every engraved point of every part and of the plate, for a sphere and a box on a plate), with partner labels present.
+- `tests/waffleslots.test.ts` speed log now separates the stage (slots: about 40 ms per drag frame for 20 shapes and 2 × 8 slices after the first edit's ~125 ms) from building pieces and contours (about 53 ms, without fonts).
+- Dev server, Playwright-driven: a sphere on a round plate cut flat at 20 mm: the stage shows the plate under the slices; the cut plan shows *Base* with eight tab slots, the parts with tabs, their labels and the partners' labels beside each slot.
+
+Not verified
+- Engraving on card (scorch risk) and the label sizes on a real cut; the labels' look in LightBurn.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

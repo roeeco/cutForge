@@ -625,12 +625,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                       );
                     });
                 })}
-              {part && pl.copy.copy === 0 && (
-                <text x={pl.ox + pl.xf.tx + (pl.xf.rot ? -pl.copy.h / 2 : pl.copy.w / 2)} y={pl.H - pl.xf.ty - (pl.xf.rot ? pl.copy.w / 2 : pl.copy.h / 2)} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none" data-testid={`part-label-${part.label}`}>
-                  {part.label}
-                  {(d.pieces[pl.copy.pieceKey]?.quantity ?? 1) > 1 ? ` ${t('view.copies', { n: d.pieces[pl.copy.pieceKey]!.quantity })}` : ''}
-                </text>
-              )}
+              {/* waffle parts (milestone 53): their labels are engraved contours, drawn as they will be cut */}
               {pl.copy.copy === 0 &&
                 pl.copy.panels.map((n) => {
                   const panel = d.panels[n.panelId];

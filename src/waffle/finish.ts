@@ -11,6 +11,7 @@ import type { Design } from '../model/types';
 import type { TaggedContour } from '../geom/types';
 import { scope, type CrossSection, type Kernel } from '../sculpt/kernel';
 import { orderRings, type Fam, type Part, type Poly, type WaffleModel } from './derive';
+import { partLabel, partnerLabel } from './labels';
 
 /** A part ready to cut: its rings (slotted) and what is engraved on it. */
 export type CutPart = Part & { engrave: TaggedContour[]; held: boolean; bbox: { x0: number; y0: number; x1: number; y1: number } };
@@ -22,7 +23,14 @@ export type Problem =
   | { kind: 'thin'; part: string; fam: Fam; sliceId: string }
   | { kind: 'close'; fam: Fam; a: string; b: string; ids: [string, string] }
   | { kind: 'big'; part: string; fam: Fam; sliceId: string };
-export type Finished = { parts: CutPart[]; crossings: Crossing[]; problems: Problem[] };
+/** A tab down through the base plate: the part it is on, where along its slice, how wide. */
+export type Tab = { part: string; fam: Fam; at: number; x: number; w: number };
+/** The base plate as a part: its outline (floor coordinates x, −z) with a slot for every tab, and its label. */
+export type PlatePart = { key: 'w:base'; label: string; polys: Poly[]; engrave: TaggedContour[]; bbox: { x0: number; y0: number; x1: number; y1: number }; tabs: Tab[] };
+export type Finished = { parts: CutPart[]; crossings: Crossing[]; problems: Problem[]; plate: PlatePart | null };
+
+/** The base plate's engraved label (the same in both languages, like A and B). */
+export const BASE_LABEL = 'Base';
 
 /** Ratios of an interval tried for the split height, best first. */
 export const RATIOS = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65];
@@ -139,16 +147,40 @@ export function finishParts(k: Kernel, d: Design, m: WaffleModel): Finished {
       }
     }
     const problems: Problem[] = [];
+    const tabs: Tab[] = [];
     const out: CutPart[] = parts.map((p) => {
       const slots = slotsOf.get(p.key)!;
-      let polys = p.polys;
-      if (slots.length) {
-        const cut = cs.get(p.key)!.subtract(k.CrossSection.ofPolygons(slots, 'NonZero'));
-        polys = orderRings(cut.toPolygons().map((r) => r.map(([x, y]) => [x, y] as [number, number])));
-        if (cut.decompose().length > 1) problems.push({ kind: 'split', part: p.label, fam: p.fam, sliceId: p.sliceId });
+      let cut = cs.get(p.key)!;
+      if (slots.length) cut = cut.subtract(k.CrossSection.ofPolygons(slots, 'NonZero'));
+      if (slots.length && cut.decompose().length > 1) problems.push({ kind: 'split', part: p.label, fam: p.fam, sliceId: p.sliceId });
+      // tabs down through the base plate, on straight runs of the bottom outline along the plate's top
+      if (m.plateY !== null) {
+        const mine = placeTabs(polysOfCs(cut), m.plateY, m.t, w, crossings.filter((c) => c.bParts.includes(p.key)).map((c) => c.xb));
+        for (const x of mine) tabs.push({ part: p.key, fam: p.fam, at: p.at, x: x.c, w: x.w });
+        if (mine.length) {
+          cut = cut.add(k.CrossSection.ofPolygons(mine.map((x) => rect(x.c - x.w / 2, x.c + x.w / 2, m.plateY! - m.t, m.plateY! + 0.01)), 'NonZero'));
+          held.add(p.key);
+        }
       }
+      const polys = slots.length || tabs.some((x) => x.part === p.key) ? orderRings(polysOfCs(cut)) : p.polys;
       return { ...p, polys, engrave: [], held: held.has(p.key), bbox: bboxOf(polys) };
     });
+    // the base plate: its outline with a slot for every tab (the tab plus the clearance each way)
+    let plate: PlatePart | null = null;
+    if (m.plate && m.plateY !== null) {
+      const holes = tabs.map((tb) => {
+        const f = m.frames[tb.fam];
+        const hu = (tb.w + (w - m.t)) / 2, hv = w / 2;
+        return [[-hu, -hv], [hu, -hv], [hu, hv], [-hu, hv]].map(([u, v]) => {
+          const px = f.c[0] + f.s[0] * (tb.x + u) + f.n[0] * (tb.at + v), pz = f.c[2] + f.s[2] * (tb.x + u) + f.n[2] * (tb.at + v);
+          return [px, -pz] as [number, number];
+        });
+      });
+      let pc = k.CrossSection.ofPolygons(m.plate, 'NonZero');
+      if (holes.length) pc = pc.subtract(k.CrossSection.ofPolygons(holes, 'NonZero'));
+      const polys = orderRings(polysOfCs(pc));
+      plate = { key: 'w:base', label: BASE_LABEL, polys, engrave: [], bbox: bboxOf(polys), tabs };
+    }
     for (const c of crossings)
       if (c.thin)
         for (const key of [...c.aParts, ...c.bParts]) {
@@ -167,6 +199,74 @@ export function finishParts(k: Kernel, d: Design, m: WaffleModel): Finished {
       const pw = p.bbox.x1 - p.bbox.x0, ph = p.bbox.y1 - p.bbox.y0;
       if ((pw > W || ph > H) && (ph > W || pw > H)) problems.push({ kind: 'big', part: p.label, fam: p.fam, sliceId: p.sliceId });
     }
-    return { parts: out, crossings, problems };
+    return { parts: out, crossings, problems, plate };
   });
+}
+
+/**
+ * Engraved labels (milestone 53), added only when the pieces are built (the cut plan, the export):
+ * each part's label at its deepest point, the partner's beside each slot mouth, and the plate's.
+ */
+export function labelParts(m: WaffleModel, f: Finished): Finished {
+  const w = m.slot;
+  const crossings = f.crossings;
+  const parts = m.parts;
+  const out = f.parts.map((p) => ({ ...p, engrave: [...p.engrave] }));
+  const plate = f.plate ? { ...f.plate, engrave: [...f.plate.engrave] } : null;
+    // labels: each part's at its deepest point, the partner's beside each slot mouth
+    const sliceLabel = new Map(m.slices.map((sl) => [`${sl.fam}:${sl.id}`, sl.label]));
+    for (const p of out) {
+      p.engrave.push(...partLabel(p.polys, p.label, p.key));
+      let n = 0;
+      for (const c of crossings) {
+        const isA = c.aParts.includes(p.key), isB = c.bParts.includes(p.key);
+        if (!isA && !isB) continue;
+        const x = isA ? c.xa : c.xb;
+        const iv = lineIntervals(parts.find((q) => q.key === p.key)!.polys, x);
+        if (!iv.length) continue;
+        const mouth = isA ? Math.max(...iv.map((v) => v[1])) : Math.min(...iv.map((v) => v[0]));
+        const partner = sliceLabel.get(isA ? `b:${c.b}` : `a:${c.a}`) ?? '';
+        p.engrave.push(...partnerLabel(p.polys, partner, p.key, n++, x, w / 2, mouth, isA));
+      }
+    }
+    if (plate) plate.engrave.push(...partLabel(plate.polys, plate.label, plate.key));
+  return { ...f, parts: out, plate };
+}
+
+const polysOfCs = (c: CrossSection): Poly[] => c.toPolygons().map((r) => r.map(([x, y]) => [x, y] as [number, number]));
+
+/**
+ * Tabs on a part's bottom outline where it runs along the plate's top (y = Y) for more than 3t: width
+ * max(3t, 8 mm) clamped to the run, one per run under 60 mm and two above (at 25% and 75%), each
+ * keeping t + 2 mm from any B slot mouth (`mouths`: slot centres, `w` their width).
+ */
+export function placeTabs(polys: Poly[], Y: number, t: number, w: number, mouths: number[]): { c: number; w: number }[] {
+  const runs: [number, number][] = [];
+  for (const r of polys)
+    for (let i = 0; i < r.length; i++) {
+      const [x0, y0] = r[i], [x1, y1] = r[(i + 1) % r.length];
+      if (Math.abs(y0 - Y) < 1e-4 && Math.abs(y1 - Y) < 1e-4) runs.push([Math.min(x0, x1), Math.max(x0, x1)]);
+    }
+  const merged = unionIv(runs).filter(([a, b]) => b - a > 3 * t);
+  const out: { c: number; w: number }[] = [];
+  const keep = t + 2;
+  for (const [a, b] of merged) {
+    const len = b - a;
+    const tw = Math.min(Math.max(3 * t, 8), len);
+    const want = len < 60 ? [0.5] : [0.25, 0.75];
+    for (const f of want) {
+      let c = a + f * len;
+      // the stretches of the run where a tab's middle may sit
+      const lo = a + tw / 2, hi = b - tw / 2;
+      const banned = mouths.map((x) => [x - w / 2 - keep - tw / 2, x + w / 2 + keep + tw / 2] as [number, number]);
+      const ok = (x: number) => x >= lo - 1e-9 && x <= hi + 1e-9 && !banned.some(([p, q]) => x > p + 1e-9 && x < q - 1e-9);
+      if (!ok(c)) {
+        const options = [lo, hi, ...banned.flat()].filter(ok).sort((p, q) => Math.abs(p - c) - Math.abs(q - c));
+        if (!options.length) continue;
+        c = options[0];
+      }
+      if (!out.some((o) => Math.abs(o.c - c) < tw)) out.push({ c, w: tw });
+    }
+  }
+  return out;
 }

@@ -69,3 +69,10 @@ export function equalSpacing(d: Design, m: WaffleModel) {
   delete s.a.slices;
   delete s.b.slices;
 }
+
+/** The base plate: on (with its defaults), changed, or off. */
+export function setBase(d: Design, m: WaffleModel, base: Partial<NonNullable<WaffleSpec['base']>> | null) {
+  const s = ensureSpec(d, m);
+  if (base === null) delete s.base;
+  else s.base = { shape: 'rect', margin: 10, flat: 0, ...s.base, ...base };
+}

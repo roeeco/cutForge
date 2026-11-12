@@ -3,7 +3,7 @@ import { useStore } from '../../store/store';
 import type { Design } from '../../model/types';
 import { kernelNow } from '../../sculpt/kernel';
 import { deriveWaffle, type WaffleModel } from '../derive';
-import { waffleResult } from '../pieces';
+import { waffleParts } from '../pieces';
 import type { CutPart } from '../finish';
 
 export function modelOf(d: Design): WaffleModel | null {
@@ -19,5 +19,5 @@ export function useWaffle(): { model: WaffleModel | null; parts: CutPart[] } {
   const d = useStore((s) => s.design);
   useStore((s) => s.sculpt.ready);
   const model = modelOf(d);
-  return { model, parts: model ? waffleResult(d).parts : [] };
+  return { model, parts: model ? waffleParts(d).parts : [] };
 }

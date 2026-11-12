@@ -13,7 +13,8 @@ import { Gizmo, PushPull } from '../../views/widgets';
 import { planePoint, type FamFrame } from '../derive';
 import type { CutPart } from '../finish';
 import { familyPositions } from '../derive';
-import { deleteSlice, moveSlice, setTurn } from '../ops';
+import { deleteSlice, moveSlice, setBase, setTurn } from '../ops';
+import { waffleParts } from '../pieces';
 import { lazyHandlers } from '../../sculpt/ui/commands';
 import { baseModel, useWaffle } from './model';
 import { StepsLayer } from './StepsLayer';
@@ -98,6 +99,47 @@ function SliceArrow() {
   );
 }
 
+/** The base plate under the sculpture, with an arrow that raises where the sculpture is cut flat. */
+function PlateView() {
+  const { model } = useWaffle();
+  const plate = useStore((s) => waffleParts(s.design).plate);
+  const geo = useMemo(() => {
+    if (!plate) return null;
+    const ring = (r: [number, number][]) => r.map(([x, y]) => new THREE.Vector2(x, y));
+    const shape = new THREE.Shape(ring(plate.polys[0]));
+    for (const h of plate.polys.slice(1)) shape.holes.push(new THREE.Path(ring(h)));
+    return new THREE.ExtrudeGeometry(shape, { depth: model?.t ?? 3, bevelEnabled: false, curveSegments: 1 });
+  }, [plate, model?.t]);
+  useEffect(() => () => geo?.dispose(), [geo]);
+  const start = useRef<number | null>(null);
+  if (!model || !plate || !geo || model.plateY === null) return null;
+  const base = useStore.getState().design.waffle?.base;
+  const low = model.plateY - (base?.flat ?? 0);
+  const c = model.frames.a.c;
+  return (
+    <>
+      <mesh geometry={geo} rotation={[-Math.PI / 2, 0, 0]} position={[0, model.plateY - model.t, 0]} raycast={() => null}>
+        <meshStandardMaterial color="#c9a46a" roughness={0.85} />
+      </mesh>
+      <PushPull
+        at={[c[0] + (plate.bbox.x1 - plate.bbox.x0) / 2 + 12, model.plateY, c[2]]}
+        axis={[0, 1, 0]}
+        value={base?.flat ?? 0}
+        min={0}
+        max={Math.max(1, model.y1 - low - 1)}
+        color="#e0a21b"
+        onPreview={(v) => {
+          const m = baseModel();
+          if (m) st().preview((d) => setBase(d as Design, m, { flat: Math.max(0, v) }));
+        }}
+        onCommit={() => st().commit()}
+        onCancel={() => st().cancel()}
+        testId="plate-flat-arrow"
+      />
+    </>
+  );
+}
+
 /** The checks as badges on the stage, over the slice they name; a click selects it. */
 function ProblemBadges() {
   const t = useT();
@@ -152,6 +194,7 @@ export function WaffleLayer() {
       ))}
       <SliceArrow />
       <ProblemBadges />
+      <PlateView />
       <Gizmo
         at={[c[0], model.y0, c[2]]}
         ax={[1, 0, 0]}

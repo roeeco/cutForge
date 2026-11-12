@@ -4,7 +4,7 @@
 // settings, and cached under the solid's key, the settings and the material.
 import type { Design, P2, V3, WaffleFamily, WaffleSpec } from '../model/types';
 import { buildSolid, solidKey } from '../sculpt/build';
-import { scope, type CrossSection, type Kernel, type Manifold } from '../sculpt/kernel';
+import { circleSegments, scope, type CrossSection, type Kernel, type Manifold } from '../sculpt/kernel';
 import { matOf } from '../model/materials';
 
 export type Fam = 'a' | 'b';
@@ -29,9 +29,12 @@ export type WaffleModel = {
   /** Material thickness and slot width (thickness + clearance). */
   t: number;
   slot: number;
-  /** The solid's lowest and highest points (mm). */
+  /** The solid's lowest and highest points (mm), after a base plate cut it flat. */
   y0: number;
   y1: number;
+  /** With a base plate: the height of its top (the sculpture is cut flat there) and its outline in floor coordinates (x, −z). */
+  plateY: number | null;
+  plate: Poly[] | null;
 };
 
 export const LETTER: Record<Fam, string> = { a: 'A', b: 'B' };
@@ -118,7 +121,12 @@ export function deriveWaffle(k: Kernel, d: Design): WaffleModel {
   const hit = cache.get(key);
   if (hit) return hit;
   const model = scope(() => {
-    const solid = buildSolid(k, sc);
+    const whole = buildSolid(k, sc);
+    // a base plate: the sculpture is cut flat `flat` mm above its lowest point, and stands on the plate there
+    const base = d.waffle?.base;
+    const low = whole.isEmpty() ? 0 : whole.boundingBox().min[1];
+    const plateY = base ? low + Math.max(0, base.flat) : null;
+    const solid = base && base.flat > 0 ? whole.trimByPlane([0, 1, 0], plateY!) : whole;
     const empty = solid.isEmpty();
     const bb = empty ? { min: [0, 0, 0], max: [0, 0, 0] } : solid.boundingBox();
     const c: V3 = [(bb.min[0] + bb.max[0]) / 2, 0, (bb.min[2] + bb.max[2]) / 2];
@@ -162,7 +170,22 @@ export function deriveWaffle(k: Kernel, d: Design): WaffleModel {
         parts.push({ key: `w:${label}`, label, fam: sl.fam, sliceId: sl.id, sliceLabel: sl.label, at: sl.at, polys: r.polys, area: r.area });
       });
     }
-    return { spec, frames, ext, slices, parts, tiny, empty, t, slot: t + clearance, y0: bb.min[1], y1: bb.max[1] } as WaffleModel;
+    let plate: Poly[] | null = null;
+    if (base && !empty) {
+      // the top view: world (x, y, z) → floor (x, −z), up becomes the projection's depth
+      const foot = solid.transform([1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1] as never).project();
+      const fb = foot.bounds();
+      const mg = Math.max(0, base.margin);
+      if (base.shape === 'rect') plate = [[[fb.min[0] - mg, fb.min[1] - mg], [fb.max[0] + mg, fb.min[1] - mg], [fb.max[0] + mg, fb.max[1] + mg], [fb.min[0] - mg, fb.max[1] + mg]]];
+      else if (base.shape === 'round') {
+        const cx = (fb.min[0] + fb.max[0]) / 2, cy = (fb.min[1] + fb.max[1]) / 2;
+        let r = 0;
+        for (const ring of foot.toPolygons()) for (const [x, y] of ring) r = Math.max(r, Math.hypot(x - cx, y - cy));
+        r += mg;
+        plate = polysOf(k.CrossSection.circle(r, circleSegments(r)).translate([cx, cy]));
+      } else plate = orderRings(polysOf(foot.offset(mg, 'Round', 2, circleSegments(Math.max(mg, 1))).simplify(0.01)));
+    }
+    return { spec, frames, ext, slices, parts, tiny, empty, t, slot: t + clearance, y0: bb.min[1], y1: bb.max[1], plateY, plate } as WaffleModel;
   });
   cache.set(key, model);
   if (cache.size > 30) cache.delete(cache.keys().next().value as string);

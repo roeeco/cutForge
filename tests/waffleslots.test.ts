@@ -6,7 +6,7 @@ import { addShape, createWaffleDesign, primitiveShape } from '../src/sculpt/ops'
 import { sketchShape } from '../src/sculpt/sketch';
 import { deriveWaffle } from '../src/waffle/derive';
 import { finishParts, lineIntervals, minLigament } from '../src/waffle/finish';
-import { waffleResult } from '../src/waffle/pieces';
+import { waffleParts, waffleResult } from '../src/waffle/pieces';
 import { waffleChecks } from '../src/waffle/checks';
 import { applyFix } from '../src/waffle/fixes';
 import { pointInPolygon } from '../src/geom/vec';
@@ -187,16 +187,20 @@ describe('checks', () => {
     for (let i = 0; i < 20; i++) addShape(des, primitiveShape(i % 2 ? 'sphere' : 'box', { x: (i % 5) * 30 - 60, z: Math.floor(i / 5) * 30 - 45, w: 40, d: 40 }, 40 + (i % 3) * 10));
     des.waffle = { turn: 0, a: { spacing: { by: 'count', n: 8 } }, b: { spacing: { by: 'count', n: 8 } } };
     waffleResult(des);
-    const times: number[] = [];
+    const stage: number[] = [], pieces: number[] = [];
     let cur = des;
     // a drag: the same shape moved again and again (the other shapes' union is cached)
     for (let i = 0; i < 5; i++) {
       cur = produce(cur, (x) => void (x.sculpt!.shapes[x.sculpt!.order[3]].at[1] += 1));
       const t0 = performance.now();
+      waffleParts(cur);
+      const t1 = performance.now();
       waffleResult(cur);
-      times.push(performance.now() - t0);
+      stage.push(t1 - t0);
+      pieces.push(performance.now() - t1);
     }
-    console.log(`waffle edit with 20 shapes and 2 × 8 slices: ${times.map((x) => x.toFixed(0)).join(', ')} ms`);
-    expect(times.length).toBe(5);
+    const f = (xs: number[]) => xs.map((x) => x.toFixed(0)).join(', ');
+    console.log(`waffle edit with 20 shapes and 2 × 8 slices: slots ${f(stage)} ms; pieces and contours ${f(pieces)} ms (no fonts here: labels not timed)`);
+    expect(stage.length).toBe(5);
   });
 });

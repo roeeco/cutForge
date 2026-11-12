@@ -8,10 +8,11 @@ import { registerWaffle } from '../model/pieces';
 import { polygonContour } from '../geom/vec';
 import { refitArcs } from '../geom/arcfit';
 import { kernelNow } from '../sculpt/kernel';
+import { fontsVersion } from '../text/fonts';
 import { snapCircles } from './arcs';
 import { waffleChecks } from './checks';
 import { deriveWaffle, type Poly } from './derive';
-import { finishParts, type CutPart, type Finished } from './finish';
+import { finishParts, labelParts, type CutPart, type Finished } from './finish';
 
 /** A closed ring as a cut contour: circles snapped, arcs given back. */
 export function ringContour(r: Poly): TaggedContour['contour'] {
@@ -20,21 +21,38 @@ export function ringContour(r: Poly): TaggedContour['contour'] {
 }
 
 export type WaffleResult = Finished & { pieces: Piece[] };
-const memo = new WeakMap<object, Map<string, WaffleResult>>();
+const memo = new WeakMap<object, Map<string, Finished>>();
+const pieceMemo = new WeakMap<Finished, Map<number, WaffleResult>>();
 
-/** The design's waffle parts, slotted and labelled, with the contours to cut. */
-export function waffleResult(d: Design): WaffleResult {
+/** The design's waffle parts, slotted (and with tabs), and the problems found: what the stage and the checks need. */
+export function waffleParts(d: Design): Finished {
   const k = kernelNow();
-  if (!k || d.kind !== 'waffle') return { pieces: [], parts: [], crossings: [], problems: [] };
+  if (!k || d.kind !== 'waffle') return { parts: [], crossings: [], problems: [], plate: null };
   const holder = (d.sculpt ?? d) as object;
   const key = JSON.stringify([d.waffle ?? null, d.material]);
   let m = memo.get(holder);
   if (!m) memo.set(holder, (m = new Map()));
   const hit = m.get(key);
   if (hit) return hit;
-  const model = deriveWaffle(k, d);
-  const fin = finishParts(k, d, model);
-  const parts: CutPart[] = fin.parts;
+  const fin = finishParts(k, d, deriveWaffle(k, d));
+  m.clear();
+  m.set(key, fin);
+  return fin;
+}
+
+/** The parts with their labels, as pieces to cut (the cut plan and the export). */
+export function waffleResult(d: Design): WaffleResult {
+  const fin = waffleParts(d);
+  const k = kernelNow();
+  if (!k || d.kind !== 'waffle') return { ...fin, pieces: [] };
+  // the labels' font arrives in the background: its version is part of the key
+  let pm = pieceMemo.get(fin);
+  if (!pm) pieceMemo.set(fin, (pm = new Map()));
+  const fv = fontsVersion();
+  const done = pm.get(fv);
+  if (done) return done;
+  const labelled = labelParts(deriveWaffle(k, d), fin);
+  const parts: CutPart[] = labelled.parts;
   // corrugated: the flutes run up the slice; a sheet whose flutes run along x gets the parts turned
   const turn = d.material.kind === 'corrugated' && d.material.grain === 'x';
   const pieces: Piece[] = parts.map((p) => {
@@ -43,10 +61,16 @@ export function waffleResult(d: Design): WaffleResult {
     for (const e of p.engrave) contours.push({ ...e, contour: turn ? rotC(e.contour) : e.contour });
     return { key: p.key, panels: [], contours };
   });
-  const r: WaffleResult = { ...fin, pieces };
-  m.clear();
-  m.set(key, r);
-  return r;
+  if (labelled.plate) {
+    // the base plate is cut as it lies, seen from above
+    const pl = labelled.plate;
+    const contours: TaggedContour[] = pl.polys.map((r, i) => ({ op: 'cut', role: i === 0 ? 'outer' : 'hole', contour: ringContour(r), ref: { pieceKey: pl.key } }));
+    pieces.unshift({ key: pl.key, panels: [], contours: [...contours, ...pl.engrave] });
+  }
+  const res: WaffleResult = { ...labelled, pieces };
+  pm.clear();
+  pm.set(fv, res);
+  return res;
 }
 function rotC(c: TaggedContour['contour']): TaggedContour['contour'] {
   const R = (p: P2) => ({ x: p.y, y: -p.x });
@@ -59,8 +83,8 @@ export function wafflePieces(d: Design): Piece[] {
 
 /** The slice a piece belongs to (for selection across the cut plan and the stage). */
 export function partOf(d: Design, pieceKey: string) {
-  const p = waffleResult(d).parts.find((x) => x.key === pieceKey);
+  const p = waffleParts(d).parts.find((x) => x.key === pieceKey);
   return p ? { fam: p.fam, sliceId: p.sliceId, label: p.label } : null;
 }
 
-registerWaffle({ pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleResult(d) : null) });
+registerWaffle({ pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleParts(d) : null) });

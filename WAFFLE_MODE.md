@@ -525,3 +525,8 @@ Once a mesh can come in, the waffle stage here slices it unchanged.
 - **Ligaments beside a slot are not measured**: the *Thin beside the slot* check looks at the material beyond the slot's end on the crossing line (m to the end of its interval). A slot that runs close to a sloped outline can leave a thin sliver beside it unflagged. Measuring it needs an inward offset of the slotted part; left for later.
 - **Several stretches of material on one line** (a torus through its hole, a hollow, two blocks one above the other): one slot per crossing runs through every stretch, as §6.3 says. Where that cuts a part in two whatever the height, the crossing is listed (*A slot splits*); Lamina's one-slot-per-stretch would avoid some of these, at the cost of slices that no longer drop straight down.
 - **Speed**: 20 shapes and 2 × 8 slices are about 60 ms per drag frame in Node with the union cache (§10.2's target is 50 ms); the first change after loading is about 150 ms. No Worker yet; Chromebooks are likely slower and were not measured (`PROGRESS.md`).
+
+### Milestone 53
+- **Label fitting is a circle test** (the text box inside the circle about the pole, less 1 mm) rather than every glyph point against the outline: the point test made a drag frame about 300 ms. A label can therefore come out smaller than the outline strictly allows; it is never closer than 1 mm to a cut.
+- **The plate's slots** are the tab plus the clearance each way (§6.5 says *the tab plus clearance*; clearance here is the waffle's slot clearance).
+- **Stage 2's arrow for *Cut flat at*** sits beside the plate; dragging it raises the cut, and the slices and plate follow live.
