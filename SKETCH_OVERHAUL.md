@@ -1,6 +1,6 @@
 # Sketch and shape overhaul: a 2D sketcher, a scale frame, and a workbench ready for folding (milestones 55–60)
 
-Status: plan, not built (2026-11-12). Branch: `claude/waffle-mode`, on top of milestone 54 (`3977dad`).
+Status: built (milestones 55–60, 2026-11-12), on top of milestone 54 (`3977dad`). What was decided along the way is in `DECISIONS.md`; what was checked, in `PROGRESS.md`.
 
 This plan replaces the sketch tool of milestone 50, adds scaling to the Shape stage, and separates the shape workbench from the waffle so a second outcome (folded card or thick paper) can be added later. Read `WAFFLE_MODE.md` first; section numbers like "WM §5.5" point into it.
 
