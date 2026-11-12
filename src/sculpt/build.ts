@@ -167,7 +167,7 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
     }
     case 'extrude': {
       const H = s.height ?? 20;
-      if (!s.sketch || Math.abs(H) < 0.01) return Manifold.ofMesh(emptyMesh(k));
+      if (!s.sketch || Math.abs(H) < 0.01 || !sketchRings(s.sketch).length) return Manifold.ofMesh(emptyMesh(k));
       const cs = sketchSection(k, s.sketch);
       if (cs.isEmpty()) return Manifold.ofMesh(emptyMesh(k));
       const m = cs.extrude(Math.abs(H));

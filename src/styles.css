@@ -879,3 +879,10 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .sk-pillbox { position: absolute; z-index: 9; }
 .sk-pillbox input { width: 70px; min-height: 0; padding: 2px 4px; font-size: 12px; }
 @media (max-width: 1100px) { .sk-bar { max-width: calc(100% - 140px); top: 8px; } .sk-dock { inset-inline-end: 16px; bottom: 220px; } }
+.sk-shape-wrap { position: relative; display: contents; }
+.sk-rail .sk-menu { top: 0; }
+.sk-rail > .sk-shape-wrap > button { width: 44px; height: 44px; display: grid; place-items: center; border: none; background: transparent; color: var(--rail-ink); border-radius: var(--r-md); min-height: 0; padding: 0; position: relative; }
+.sk-rail > .sk-shape-wrap > button svg.ico { width: 22px; height: 22px; }
+.sk-rail > .sk-shape-wrap > button.on, .sk-rail > .sk-shape-wrap > button:hover { background: var(--rail-hover); color: white; }
+.sk-rail .sk-shape-wrap button:hover .tip { opacity: 1; }
+.sk-menu .note { margin: 0; font-size: 11px; }

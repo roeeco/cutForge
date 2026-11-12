@@ -121,3 +121,14 @@ describe('the sketch session', () => {
     expect(Object.keys(s().sketch!.draft.pts)).toHaveLength(8);
   });
 });
+
+describe('building an empty sketch', () => {
+  it('an extrusion or revolve with nothing drawn builds an empty body (no throw)', async () => {
+    const k = await kernel();
+    const d = createWaffleDesign();
+    const id = addShape(d, { kind: 'extrude', at: [0, 0, 0], q: [0, 0, 0, 1], height: 10, sketch: { plane: 'floor', v: 2, pts: {}, segs: {}, order: [] } });
+    expect(buildShape(k, d.sculpt!, id).isEmpty()).toBe(true);
+    const r = addShape(d, { kind: 'revolve', at: [0, 0, 0], q: [0, 0, 0, 1], sketch: { plane: 'upright', v: 2, pts: {}, segs: {}, order: [] } });
+    expect(buildShape(k, d.sculpt!, r).isEmpty()).toBe(true);
+  });
+});

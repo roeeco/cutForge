@@ -12,7 +12,7 @@ import { bounds, selPts } from '../../sketch/model';
 import { underlay } from '../underlay';
 import { kernelNow } from '../kernel';
 import { SketchRail } from './sketch2d/SketchRail';
-import { SketchOverlay, useSketchPointer } from './sketch2d/useSketchPointer';
+import { SketchOverlay, sketchViewInfo, useSketchPointer } from './sketch2d/useSketchPointer';
 import { SelectionLayer } from './sketch2d/SelectionLayer';
 import { SketchBar } from './sketch2d/SketchBar';
 import { Icon } from '../../ui/icons';
@@ -202,6 +202,10 @@ export function SketchView2D() {
   const { vb, setVB, mmPerPx, onWheel, zoom, fit } = view;
   const px = mmPerPx();
   const ptr = useSketchPointer(view);
+  useEffect(() => {
+    sketchViewInfo.canvas = svgRef.current;
+    return () => void (sketchViewInfo.canvas = null);
+  }, []);
   const fitAll = () => {
     const b = contentBox(k.draft, []);
     if (b) fit(b, 0.25);

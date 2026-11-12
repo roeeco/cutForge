@@ -343,3 +343,12 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A new sketch starts with the Line tool**; an existing one with Select.
 - **The preview builds the draft in the sketch's own frame** (a probe shape on an upright plane at the origin) and places it with the sketch's matrix, so it is right for shapes inside turned or stretched groups too.
 - **Leaving the sketch view by any other route** (the design's undo, a stage change, another view, a new design) drops the draft without asking; only Cancel asks.
+
+### Milestone 58: drawing tools
+- **A chain's first click places no point by itself**; the first segment makes both its ends. A lone click followed by Esc leaves nothing behind.
+- **Backspace in a chain is the sketch's undo of the last click**, so a crossing that click split is put back exactly.
+- **The typed fields are drawn in the sheet** (not HTML inputs), and every key goes to them while they are open; Enter places the point, so typed lengths never need the mouse.
+- **A Bezier segment whose two handles are both zero is made a straight line**: a run of plain clicks with the Bezier tool draws ordinary lines and corners.
+- **Erase removes a point with all its segments** (Add/remove points joins its two neighbours instead).
+- **Joining by dragging** is done only for an open end (a point on one non-construction segment); a dragged point that is part of an outline just moves.
+- **Shift's 15° steps** measure from the chain's last point, and the length is rounded to the grid step, so a typed-free drawing still has round lengths.

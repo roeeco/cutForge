@@ -18,7 +18,7 @@ The research behind this plan is in `MODEL_MODES_RESEARCH.md`: open-source slice
 | Combining shapes | Tinkercad-style **Solid / Hole** and **Group / Ungroup**. Everything stays editable. |
 | Radius tool | Type a radius in mm, then click a point. It rounds sketch corners and the footprint corners of shapes (a box becomes a rounded box). It does not round 3D edges. |
 | Sketch planes | The floor, and upright planes that can be turned and moved. Not the faces of shapes. |
-| Snap angles | Sketch lines snap to **30° steps** by default; hold Alt to draw freely. This keeps the straight sides of extrusions at angles a later *wrap with panels* step can join (§11.1). |
+| Snap angles | *Changed in milestone 58 (SKETCH_OVERHAUL.md §2).* Points land on the grid; **Shift** snaps a new line to **15° steps**. Alt keeps its CutForge meaning: no smart snaps, positions to 0.01 mm. Milestone 50 snapped to 30° by default. |
 | Waffle | Two crossing families at 90°. The pair turns about the vertical. Spacing is set by count or by distance, and any slice can be dragged, added or deleted. Family A's slots open from the top and family B's from the bottom, so every waffle can be assembled. |
 | Assembly aids | Engraved part labels (`A3`, with the partner's number beside each slot), an optional **base plate**, and an **assembly steps** view. No slot-fit test strip for now. |
 | Mode switch | One interface for waffle designs. The *Quick build / Workshop* switch is hidden for them for now. |
@@ -482,7 +482,7 @@ Testing follows the light routine for each milestone: `npm run typecheck`, `npm 
 
 ### 11.1 Wrapping a waffle with panels
 
-The 30° sketch snap keeps every straight side of an extrusion at an angle CutForge's angled joints know: 90°, 60° or 30° between neighbours. A later step could turn chosen flat faces of the solid into CutForge boards: the side faces of an extrusion, or a box's top. Those boards would be slotted onto tabs on the slices' outer edges, which would need two things:
+Since milestone 58 the sketcher no longer forces 30° steps (Shift gives 15° steps, which include 30°, 60° and 90°), so a wrapping step must check each side's angle against the joints CutForge knows and offer to square the ones it cannot join. A later step could turn chosen flat faces of the solid into CutForge boards: the side faces of an extrusion, or a box's top. Those boards would be slotted onto tabs on the slices' outer edges, which would need two things:
 - the solid's flat faces, with stable ids. Keep each shape's face groups from manifold (`originalID`/`faceID`) in the kernel from milestone 49, so they are there when needed;
 - a joint where a slice's edge meets a board face, much like a divider meeting a wall.
 
