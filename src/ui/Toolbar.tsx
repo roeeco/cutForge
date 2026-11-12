@@ -7,6 +7,7 @@ import type { MsgKey } from '../i18n';
 import { Icon } from './icons';
 import { shown, useFeature } from '../easy/features';
 import { QuickRail } from '../easy/QuickRail';
+import { LazySculptRail } from '../sculpt/ui/lazy';
 
 const TOOLS: { id: Tool; key: MsgKey; icon: string; kbd: string; only3d?: boolean }[] = [
   { id: 'select', key: 'tool.select', icon: 'select', kbd: 'V' },
@@ -40,7 +41,10 @@ function targetPanel(): string | null {
 
 /** The tool rail: Workshop's tools, or Quick build's five actions (milestone 37). */
 export function Toolbar() {
-  return shown(useFeature('rail.tools')) ? <WorkshopRail /> : <QuickRail />;
+  const waffle = useStore((s) => s.design.kind === 'waffle');
+  const workshop = shown(useFeature('rail.tools'));
+  if (waffle) return <LazySculptRail />;
+  return workshop ? <WorkshopRail /> : <QuickRail />;
 }
 
 function WorkshopRail() {

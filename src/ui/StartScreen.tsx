@@ -12,6 +12,7 @@ import { MaterialArt } from './MaterialArt';
 import { renderThumbnail } from '../views/thumbnail';
 import { MISSIONS, missionById, startMission } from '../easy/missions';
 import { useMode } from '../easy/features';
+import { createWaffleDesign } from '../sculpt/ops';
 
 const thumbCache = new Map<string, string | null>();
 function thumb(tplId: string, m: MaterialProfile): string | null {
@@ -43,6 +44,21 @@ function BlankArt() {
       <rect width="260" height="150" fill="url(#iso)" />
       <circle cx="130" cy="75" r="26" fill="#f1ebe1" />
       <path d="M130 62v26M117 75h26" stroke="#b9ad9b" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The waffle sculpture's picture: crossing slotted slices of a dome. */
+function WaffleArt() {
+  return (
+    <svg viewBox="0 0 260 150" aria-hidden>
+      <rect width="260" height="150" fill="#fbf8f3" />
+      <g stroke="#9a7a4f" strokeWidth="2" strokeLinejoin="round">
+        <path d="M70 112a60 60 0 0 1 120 0Z" fill="#e7cfa6" />
+        <path d="M95 112a35 50 0 0 1 70 0Z" fill="#d9bb8a" />
+        <path d="M118 112a12 44 0 0 1 24 0Z" fill="#cfae7a" />
+        <path d="M60 112h140" fill="none" />
+      </g>
     </svg>
   );
 }
@@ -83,14 +99,15 @@ export function StartScreen() {
   const offered = useStore((s) => s.viewPrefs.missions);
   const missions = quick ? MISSIONS.filter((m) => !offered || offered.includes(m.id)) : [];
   const mat = MATERIALS.find((m) => m.id === matId)!;
-  const tplOk = (id: string) => !id || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
+  const tplOk = (id: string) => !id || id === 'waffle' || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
   const effTpl = tplOk(tpl) ? tpl : '';
   const thumbs = useMemo(() => Object.fromEntries(TEMPLATES.map((tp) => [tp.id, tp.materials.includes(mat.kind) ? thumb(tp.id, mat) : null])), [mat]);
   const start = () => {
     const s = useStore.getState();
     const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
     const tp = effTpl && templateById(effTpl);
-    if (ms) s.replaceDesign(startMission(ms, mat), false);
+    if (effTpl === 'waffle') s.replaceDesign(createWaffleDesign(mat), false);
+    else if (ms) s.replaceDesign(startMission(ms, mat), false);
     else if (tp) s.replaceDesign(generate(tp, mat, defaults(tp)), false);
     else {
       s.apply((d) => setMaterial(d, mat));
@@ -158,6 +175,19 @@ export function StartScreen() {
           <span className="cap">
             <strong>{t('tpl.blank')}</strong>
             <small>{t('start.blankDesc')}</small>
+          </span>
+          <span className="tick-mark">
+            <Icon name="check" size={16} />
+          </span>
+        </button>
+        {/* a waffle sculpture (milestone 49): a second kind of design */}
+        <button className="pick-card waffle-card" role="radio" aria-checked={effTpl === 'waffle'} onClick={() => setTpl('waffle')} data-testid="tpl-waffle">
+          <span className="art">
+            <WaffleArt />
+          </span>
+          <span className="cap">
+            <strong>{t('start.waffle')}</strong>
+            <small>{t('start.waffleDesc')}</small>
           </span>
           <span className="tick-mark">
             <Icon name="check" size={16} />

@@ -215,7 +215,10 @@ export function groupShapes(d: Design, ids: string[]): string | null {
   const list = p ? sc.shapes[p].children! : sc.order;
   const at = Math.min(...live.map((id) => list.indexOf(id)));
   const gid = newId('s');
-  sc.shapes[gid] = { id: gid, name: '', kind: 'group', at: [0, 0, 0], q: [...Q_ID] as Quat, children: list.filter((id) => live.includes(id)) };
+  const kids = list.filter((id) => live.includes(id));
+  // the group shows the colour of its first Solid
+  const color = kids.map((id) => sc.shapes[id]).find((x) => !x.hole && x.color)?.color;
+  sc.shapes[gid] = { id: gid, name: '', kind: 'group', at: [0, 0, 0], q: [...Q_ID] as Quat, children: kids, ...(color ? { color } : {}) };
   const rest = list.filter((id) => !live.includes(id));
   rest.splice(Math.max(0, at), 0, gid);
   list.splice(0, list.length, ...rest);

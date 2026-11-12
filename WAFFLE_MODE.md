@@ -501,3 +501,12 @@ See `MODEL_MODES_RESEARCH.md`:
 - **Unfolding:** greedy joins with an overlap check at every join, randomised restarts, and tabs counted in the overlap check.
 
 Once a mesh can come in, the waffle stage here slices it unchanged.
+
+## 12. Notes from building
+
+### Milestone 49
+- **`getMesh(3)` crashes the WASM in Chromium** (not in Node). After `calculateNormals(0, …)` the normals are read with a plain `getMesh()`, as the 3.5.4 typings say the default slot is used then.
+- **Kernel methods live on the embind classes** the exported `Manifold` and `CrossSection` extend, and instances' prototypes are those embind classes. The tracking wraps along both prototype chains and wraps `delete` where embind defines it.
+- **Volume tolerance.** With a 0.02 mm chord error a 5 mm tube's torus is 0.6% under the formula. The test uses a 20 mm tube; the chord rule itself is unchanged.
+- **First-load time and size** were measured on the preview build in headless Chromium (§9 Milestone 49 in `PROGRESS.md`). Safari, a school Chromebook and the Worker's static assets (that `.wasm` is served as `application/wasm`) could not be checked here.
+- **Shape faces (§11.1)** are not kept yet: manifold's `originalID`/face ids are available on every shape built, but nothing reads them. Keeping them is a later step.

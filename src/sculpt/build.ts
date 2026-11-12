@@ -253,7 +253,7 @@ export function meshArrays(m: Manifold): MeshArrays {
   if (hit) return hit;
   const r = scope(() => {
     const withN = m.calculateNormals(0, 30);
-    const mesh = withN.getMesh(3);
+    const mesh = withN.getMesh();
     const np = mesh.numProp, n = mesh.vertProperties.length / np;
     const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {

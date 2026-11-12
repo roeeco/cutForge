@@ -18,6 +18,10 @@ export type Selection =
   | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
+  /** Waffle designs (milestone 49): one or more shapes; `id` is the last clicked. */
+  | { kind: 'shape'; id: string; ids: string[] }
+  /** Waffle designs (milestone 51): a slice of family A or B, by its id. */
+  | { kind: 'slice'; family: 'a' | 'b'; id: string }
   | null;
 
 /** Ids of the selected shapes (empty when none). */
@@ -42,9 +46,18 @@ export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
 }
 
-export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool;
+export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool | SculptTool;
+/** Waffle designs' tools (WAFFLE_MODE.md §5.1): place shapes, sketch an outline, round corners. */
+export type SculptTool = 'shapes' | 'sketch' | 'radius';
+/** Ids of the selected waffle shapes (empty when none). */
+export function selectedShapeIds(s: Selection): string[] {
+  return s?.kind === 'shape' ? s.ids : [];
+}
+export function shapeSel(ids: string[]): Selection {
+  return ids.length ? { kind: 'shape', id: ids[ids.length - 1], ids } : null;
+}
 /** Tools that work on the 3D stage only. */
-const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
+const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider', 'shapes', 'sketch', 'radius']);
 /** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
 export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
@@ -85,7 +98,7 @@ export type GrowOptions = {
 };
 
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
-export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
+export type Pending = { kind: 'shape' | 'panel' | 'sculpt'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
 /** Quick build grows at 90° on the whole edge, adapting, with the design's joint (feature 'grow.advanced' is 'auto', milestone 37). */
 const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, kind: undefined, sketch: null, editGhost: false };
@@ -95,6 +108,8 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
 function guarded(d: Design, base: Design) {
+  // waffle designs have no boards to solve or join (milestone 49)
+  if (d.kind === 'waffle') return;
   if (useStore.getState().viewPrefs.mode !== 'quick') {
     solve(d);
     autoConnect(d);
@@ -155,8 +170,29 @@ export function tourDone(): boolean {
   }
 }
 
+/** Waffle designs' editor state (milestones 49–54): not saved with the design. */
+export type SculptUi = {
+  /** The stage: 1 Shape or 2 Waffle. */
+  stage: 'shape' | 'waffle';
+  /** The Shapes tool's next shape, and whether it is a Hole. */
+  next: 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus';
+  nextHole: boolean;
+  /** The height a new shape starts at (the last one used); null the first time. */
+  height: number | null;
+  /** The group being worked inside (double-click), or null. */
+  focus: string | null;
+  /** The kernel has loaded. */
+  ready: boolean;
+  /** The kernel failed to load. */
+  failed: boolean;
+};
+
 type State = {
   design: Design;
+  sculpt: SculptUi;
+  /** The radius tool's radius (mm; 0 = sharp), also used by Round all corners. */
+  sculptRadius: number;
+  setSculpt: (p: Partial<SculptUi>) => void;
   past: Design[];
   future: Design[];
   /** Design at the start of an open transaction (drag in progress). */
@@ -256,6 +292,8 @@ type State = {
   closeSolo: () => void;
   /** Click on a shape: replace the selection, or toggle it with Shift/Ctrl. */
   clickDetail: (id: string, additive: boolean) => void;
+  /** Click on a waffle shape: select it, or toggle it with Shift/Ctrl. */
+  clickShape: (id: string, additive: boolean) => void;
   /** Click on a panel: select it, or (Shift/Ctrl) add it to or take it from the selected panels (milestone 31). */
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
@@ -300,12 +338,17 @@ function validSelection(d: Design, s: Selection): Selection {
   if (!s) return s;
   if (s.kind === 'panel') return panelSel(selectedPanelIds(s).filter((id) => d.panels[id]));
   if (s.kind === 'edge') return d.panels[s.panelId] ? s : null;
+  if (s.kind === 'shape') return shapeSel(s.ids.filter((id) => !!d.sculpt?.shapes[id]));
+  if (s.kind === 'slice') return d.kind === 'waffle' ? s : null;
   const ids = s.ids.filter((x) => d.order.some((id) => d.panels[id]?.details.some((y) => y.id === x)));
   return detailSel(ids);
 }
 
 export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
+  sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false },
+  sculptRadius: 5,
+  setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p } }),
   past: [],
   future: [],
   txnBase: null,
@@ -490,10 +533,10 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, height: null }, tool: 'select', design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
-    if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
+    if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'shape' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
     set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
@@ -513,6 +556,11 @@ export const useStore = create<State>()((set, get) => ({
     const cur = selectedPanelIds(get().selection);
     if (!additive) return get().select({ kind: 'panel', id });
     get().select(panelSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  },
+  clickShape: (id, additive) => {
+    const cur = selectedShapeIds(get().selection);
+    if (!additive) return get().select(shapeSel([id]));
+    get().select(shapeSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   },
   clickDetail: (id, additive) => {
     const cur = selectedDetailIds(get().selection);

@@ -36,6 +36,7 @@ export function TopBar() {
     };
   }, [more]);
   const d = s.design;
+  const waffle = d.kind === 'waffle';
   const builtIn = MATERIALS.find((m) => m.id === d.material.id);
   useEffect(() => {
     if (!menu) return;
@@ -136,7 +137,17 @@ export function TopBar() {
         <span className="mat-name">{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
         <Icon name="chevDown" size={16} />
       </button>
-      {!s.viewPrefs.modeLocked && (
+      {waffle && (
+        // waffle designs (milestone 49): the stage stepper instead of the mode switch
+        <div className="seg stage-seg" role="radiogroup" aria-label={t('stage.label')} data-testid="stage-stepper">
+          {(['shape', 'waffle'] as const).map((k) => (
+            <button key={k} role="radio" aria-checked={s.sculpt.stage === k} className={s.sculpt.stage === k ? 'on' : ''} disabled={k === 'waffle' && !d.sculpt?.order.length} onClick={() => (s.setSculpt({ stage: k }), s.setTool('select'), s.select(null))} data-testid={`stage-${k}`}>
+              {t(k === 'shape' ? 'stage.shape' : 'stage.waffle')}
+            </button>
+          ))}
+        </div>
+      )}
+      {!s.viewPrefs.modeLocked && !waffle && (
         <div className="seg mode-seg tablet-hide" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
           {(['quick', 'workshop'] as const).map((m) => (
             <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(m === 'quick' ? 'mode.quickHelp' : 'mode.workshopHelp')} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
@@ -188,6 +199,7 @@ export function TopBar() {
               <Icon name="send" /> {t('sub.button')}
             </button>
             {!s.viewPrefs.modeLocked &&
+              !waffle &&
               (['quick', 'workshop'] as const).map((m) => (
                 <button key={m} role="menuitemradio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => (setMore(false), setMode(m))} data-testid={`more-mode-${m}`}>
                   <Icon name={mode === m ? 'check' : 'box'} /> {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
