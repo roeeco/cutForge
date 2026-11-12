@@ -18,7 +18,12 @@ void loadBundledFonts();
 
 // Test hook for automated interaction tests (dev server or ?test in the URL).
 // `ops` gives scripted tests the model operations (dev only, so production stays lean).
-if (import.meta.env.DEV || location.search.includes('test')) (window as unknown as { __cutforge: unknown }).__cutforge = { store: useStore, ops: import.meta.env.DEV ? ops : undefined };
+if (import.meta.env.DEV || location.search.includes('test')) (window as unknown as { __cutforge: unknown }).__cutforge = {
+    store: useStore,
+    ops: import.meta.env.DEV ? ops : undefined,
+    // the waffle kernel (milestone 49): loaded on demand, so tests can time its first load
+    kernel: () => import('./sculpt/kernel').then((m) => m.kernel()),
+  };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

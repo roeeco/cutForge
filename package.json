@@ -22,6 +22,7 @@
     "bidi-js": "^1.1.0",
     "drizzle-orm": "^0.45.4",
     "immer": "^11.2.9",
+    "manifold-3d": "3.5.4",
     "opentype.js": "^2.0.0",
     "polygon-clipping": "^0.15.7",
     "react": "^19.3.1",

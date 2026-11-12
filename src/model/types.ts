@@ -308,6 +308,94 @@ export type Design = {
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
   joints?: JointChoices;
+  /**
+   * The design type (WAFFLE_MODE.md §3.1). Absent: a box design (every file made before
+   * milestone 49). A waffle design keeps `panels`, `connections` and `trays` empty.
+   */
+  kind?: 'waffle';
+  /** Waffle designs: the shapes the solid is built from. */
+  sculpt?: Sculpt;
+  /** Waffle designs: how the solid is sliced. Absent: the defaults (WAFFLE_MODE.md §6.1). */
+  waffle?: WaffleSpec;
+};
+
+/** A waffle design's shapes (WAFFLE_MODE.md §4). */
+export type Sculpt = {
+  shapes: Record<string, Shape3>;
+  /** Top-level shapes, in creation order (group members are listed by their group). */
+  order: string[];
+};
+
+export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'extrude' | 'revolve' | 'group';
+
+/** A unit quaternion [x, y, z, w]. */
+export type Quat = [number, number, number, number];
+
+export type Shape3 = {
+  id: string;
+  name: string;
+  kind: ShapeKind;
+  /** Tinkercad's Hole: inside a group it is subtracted from the group's solids; outside one it cuts nothing. */
+  hole?: true;
+  /** Position of its local origin (mm, world; a member's is in its group's frame) and its turn. */
+  at: V3;
+  q: Quat;
+  /** Size before turning (mm): x, up, z. Not for groups, extrudes or revolves. */
+  size?: V3;
+  /** Prism and pyramid sides (3–12). */
+  n?: number;
+  /** Cone and pyramid: top size as a fraction of the base (0 = a point). */
+  top?: number;
+  /** Torus: tube diameter (mm). */
+  tube?: number;
+  /** Box and prism: footprint corner radii by corner index (absent or 0 = sharp). */
+  corners?: number[];
+  /** Extrude and revolve: the outline. */
+  sketch?: ShapeSketch;
+  /** Extrude: height (mm; negative = the other side of an upright plane). */
+  height?: number;
+  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight edge of the outline). */
+  angle?: number;
+  axis?: { kind: 'plane' } | { kind: 'edge'; i: number };
+  /** Group: its members (each still a Shape3 with its own Solid/Hole). */
+  children?: string[];
+  color?: string;
+};
+
+/**
+ * A point of a waffle sketch: a Corner (neither field), a Curve (`curve: 'auto'`, as on main's
+ * base outlines), or a Round corner (`r` > 0 mm, a tangent arc; WAFFLE_MODE.md §3.5).
+ */
+export type SculptPt = { x: number; y: number; curve?: 'auto'; r?: number };
+/** A closed outline in the shape's local XY. */
+export type ShapeSketch = { plane: 'floor' | 'upright'; pts: SculptPt[] };
+
+export type WaffleSpec = {
+  /** Family A's direction in top view (degrees about the vertical); family B is at +90°. */
+  turn: number;
+  a: WaffleFamily;
+  b: WaffleFamily;
+  /** Slot width = thickness + clearance (mm). Absent: the material's clearance. */
+  clearance?: number;
+  base?: BasePlate;
+};
+
+export type WaffleFamily = {
+  /** Even spacing: how many slices, or the gap between them (mm). */
+  spacing: { by: 'count'; n: number } | { by: 'gap'; mm: number };
+  /**
+   * Set once the student moves, adds or deletes a slice: each slice's position (mm along the
+   * family's normal, from the solid's centre) and a stable id. Absent: evenly spaced.
+   */
+  slices?: { id: string; at: number }[];
+};
+
+export type BasePlate = {
+  shape: 'rect' | 'round' | 'outline';
+  /** How far it reaches beyond the sculpture's footprint (mm). */
+  margin: number;
+  /** The sculpture is cut flat this far above its lowest point (mm); the plate's top is there. */
+  flat: number;
 };
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };

@@ -3,6 +3,7 @@ import type { Design } from './types';
 import { SCHEMA_VERSION } from './types';
 import { solve } from './ops';
 import { checkDesign, checkSolved, DamagedError } from './check';
+import { checkSculpt } from '../sculpt/check';
 
 export const PROJECT_FORMAT = 'cutforge-project';
 
@@ -114,6 +115,8 @@ export function migrateDesign(raw: any): Design {
     d.trays ??= {};
     // every field the model reads, checked before solve sees it (BUGFIX_PLAN B3)
     checkDesign(d);
+    // a waffle design's shapes (milestone 49; no schema bump: the fields are optional)
+    checkSculpt(d);
     for (const id of d.order) if (!Object.prototype.hasOwnProperty.call(d.pieces, id)) d.pieces[id] = { quantity: 1 };
     // older files keep one flat set of joint choices: it belongs to the file's material (`solve` reads it in)
     solve(d);
