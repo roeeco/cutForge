@@ -1034,7 +1034,7 @@ Not verified
 Implemented
 - **Steps view** (`src/waffle/steps.ts`, `StepsLayer`, `StepsBar`): *Steps* on the waffle card opens ‹ *Step n of N* › with the step's line: the plate, the A slices standing in place one at a time, then each B slice shown above the sculpture with a down arrow and dropped into place; *Done* or Esc closes it. View only.
 - **Waffle picture** (`src/waffle/thumb.ts`): the slices standing on their plate as an SVG, sent as a waffle submission's preview, so the teacher's list shows the sculpture; the teacher view loads the kernel to regenerate a waffle's files (`src/waffle/load.ts`).
-- **Hebrew and English** for every new string (about 180 keys), reviewed; a few Hebrew words corrected (*תיבה* for box, *מאונך* for the upright plane).
+- **Hebrew and English** for every new string (128 keys in each language), reviewed; a few Hebrew words corrected (*תיבה* for box, *מאונך* for the upright plane).
 - **`README.md`**: a *Waffle mode* section. `DECISIONS.md` (*Waffle mode*, milestones 49–54), `THIRD_PARTY.md` (manifold-3d 3.5.4, the rounded-corner maths, `arcfit.ts`) and `WAFFLE_MODE.md` §12 are up to date.
 - **One e2e spec** (`tests/e2e/waffle.spec.ts`).
 
@@ -1063,7 +1063,7 @@ Everything below could not be checked from this session; the draft pull request 
 - **The deployed Worker**: that `manifold-*.wasm` is served as `application/wasm` from the static assets (nothing was deployed from this session).
 - **Real laser cuts**: a plywood waffle (3 mm, the profile's 0.1 mm clearance) and a corrugated one (the profile's clearance, flutes up the slices): that the slots slide together snugly, the tabs fit the base plate, and the arcs come out smooth in LightBurn.
 - **Engraved labels**: their size and legibility on a real cut, and scorching on card.
-- **Hebrew wording**: a native speaker's review of the new strings (about 90 keys under `start.waffle`, `stage.*`, `sculpt.*`, `sketch.*`, `radius.*`, `waffle.*`, `val.w.*`, `fix.*`, `base.*`, `steps.*` in `src/i18n/he.ts`).
+- **Hebrew wording**: a native speaker's review of the 128 new strings (under `start.waffle`, `stage.*`, `sculpt.*`, `sketch.*`, `radius.*`, `waffle.*`, `val.w.*`, `fix.*`, `base.*`, `steps.*` in `src/i18n/he.ts`).
 - **By hand on a real screen**: dragging the gizmo's rings and arrows, the size arrows, Edit sketch's handles, a revolve's axis edge, a slice's arrow and the turn ring (each uses the existing stage widgets; the unit tests cover the operations behind them).
 - **`ezdxf`**: the Python DXF checks were skipped here (not installed); worth one run where it is.
 
