@@ -2,10 +2,13 @@
 // A sketch lives in its shape's local XY: on the floor, (x, y) is world (x, −z);
 // on an upright plane turned by `ang` about the vertical, x runs along the
 // plane and y is up, and the plane's axis (for Revolve) is the line x = 0.
-import type { Design, P2, Quat, Sculpt, SculptPt, Shape3, V3 } from '../model/types';
-import { isSimplePolygon } from '../model/ops';
-import { crossesAxis, footprint, shapeMatrix } from './build';
-import { flattenSketch } from './round';
+import type { Design, P2, Quat, Sculpt, SculptPt, Shape3, SketchGraph, V3 } from '../model/types';
+import { axisOutline, crossesAxis, footprint, segFrame, shapeMatrix } from './build';
+import { outlineToGraph } from './round';
+import { sketchState } from '../sketch/regions';
+import { isLineCorner } from '../sketch/flatten';
+import { removePt, setCorner, setPt, setSmooth, splitSeg } from '../sketch/ops';
+import { segsAt } from '../sketch/model';
 import { parentMatrix, updateShape } from './ops';
 import { m4, m4Apply, m4InvAffine, m4Mul, qAxis, Q_ID, Z_TO_Y, type M4 } from './xform';
 
@@ -36,9 +39,9 @@ export function facingPlane(at: V3, camera: V3): SketchPlane {
   return { kind: 'upright', o: [at[0], 0, at[2]], ang: ((Math.round(a / 30) * 30) % 360 + 360) % 360 };
 }
 
-/** A closed outline can be built: three points or more and its flattened edges do not cross. */
-export function sketchOk(pts: SculptPt[]): boolean {
-  return pts.length >= 3 && isSimplePolygon(flattenSketch(pts));
+/** A sketch makes a body: it fills some area. */
+export function sketchOk(sk: SketchGraph | SculptPt[]): boolean {
+  return !sketchState(Array.isArray(sk) ? outlineToGraph(sk) : sk).empty;
 }
 
 /** Revolve suits an outline that touches or sits beside its plane's axis (within 10 mm) without crossing it. */
@@ -48,8 +51,9 @@ export function revolveSuits(pts: P2[]): boolean {
 }
 
 /** A new extrusion or revolve from a closed outline on a plane. */
-export function sketchShape(pl: SketchPlane, pts: SculptPt[], mode: 'extrude' | 'revolve', height = 20): Omit<Shape3, 'id' | 'name'> {
-  const base = { at: (pl.kind === 'floor' ? [0, 0, 0] : [...pl.o]) as V3, q: planeQuat(pl), sketch: { plane: pl.kind, pts: pts.map((p) => ({ ...p })) } };
+export function sketchShape(pl: SketchPlane, sk: SketchGraph | SculptPt[], mode: 'extrude' | 'revolve', height = 20): Omit<Shape3, 'id' | 'name'> {
+  const g: SketchGraph = Array.isArray(sk) ? outlineToGraph(sk) : JSON.parse(JSON.stringify(sk));
+  const base = { at: (pl.kind === 'floor' ? [0, 0, 0] : [...pl.o]) as V3, q: planeQuat(pl), sketch: { plane: pl.kind, v: 2 as const, ...g } };
   return mode === 'extrude' ? { ...base, kind: 'extrude', height } : { ...base, kind: 'revolve', angle: 360, axis: { kind: 'plane' } };
 }
 
@@ -67,71 +71,77 @@ export function setSketchMode(d: Design, id: string, mode: 'extrude' | 'revolve'
   }
 }
 
-/** The outline in the frame its axis gives crosses the axis (Revolve can't be built). */
+/** The sketch in the frame its axis gives crosses the axis (Revolve can't be built). */
 export function revolveBlocked(s: Shape3): boolean {
   if (s.kind !== 'revolve' || !s.sketch) return false;
-  let pts = flattenSketch(s.sketch.pts);
-  if (s.axis?.kind === 'edge') {
-    const n = s.sketch.pts.length, a = s.sketch.pts[s.axis.i % n], b = s.sketch.pts[(s.axis.i + 1) % n];
-    const ux = (b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1), uy = (b.y - a.y) / (Math.hypot(b.x - a.x, b.y - a.y) || 1);
-    // signed distance from the edge's line
-    pts = pts.map((p) => ({ x: (p.x - a.x) * uy - (p.y - a.y) * ux, y: 0 }));
-  }
-  return crossesAxis(pts);
+  if (s.axis?.kind === 'seg' && !segFrame(s.sketch, s.axis.id)) return false;
+  return crossesAxis(axisOutline(s));
 }
 
-// ---- outline edits (Edit sketch) ----------------------------------------------
+// ---- point edits (Edit sketch on the stage, until the 2D sketcher replaces it) ----
 
-function editPts(d: Design, id: string, fn: (pts: SculptPt[]) => SculptPt[] | null): boolean {
+function editSketch(d: Design, id: string, fn: (sk: SketchGraph) => unknown): boolean {
   const s = d.sculpt?.shapes[id];
   if (!s?.sketch) return false;
-  const next = fn(s.sketch.pts.map((p) => ({ ...p })));
-  // an outline that crosses itself is refused, as the polygon tool does
-  if (!next || !sketchOk(next)) return false;
-  s.sketch.pts = next;
-  // an edge axis that no longer exists falls back to the plane's axis
-  if (s.axis?.kind === 'edge' && s.axis.i >= next.length) s.axis = { kind: 'plane' };
+  const before = JSON.stringify(s.sketch);
+  if (fn(s.sketch) === false) return false;
+  // an edit that leaves nothing to build is undone
+  if (!sketchOk(s.sketch)) {
+    Object.assign(s.sketch, JSON.parse(before));
+    return false;
+  }
+  if (s.axis?.kind === 'seg' && s.sketch.segs[s.axis.id]?.k !== 'line') s.axis = { kind: 'plane' };
   return true;
 }
-export const moveSketchPoint = (d: Design, id: string, i: number, p: P2) => editPts(d, id, (pts) => (pts[i] ? ((pts[i] = { ...pts[i], x: p.x, y: p.y }), pts) : null));
-/** A new point on edge i (between point i and i + 1). */
-export const insertSketchPoint = (d: Design, id: string, i: number, p: P2) => editPts(d, id, (pts) => (pts.splice(i + 1, 0, { x: p.x, y: p.y }), pts));
-export const deleteSketchPoint = (d: Design, id: string, i: number) => editPts(d, id, (pts) => (pts.length > 3 ? (pts.splice(i, 1), pts) : null));
-/** Corner, Curve or Round (with a radius) at a point. */
-export function setSketchPointKind(d: Design, id: string, i: number, kind: 'corner' | 'curve' | 'round', r = 5): boolean {
-  return editPts(d, id, (pts) => {
-    const p = pts[i];
-    if (!p) return null;
-    delete p.curve;
-    delete p.r;
-    if (kind === 'curve') p.curve = 'auto';
-    if (kind === 'round' && r > 0) p.r = r;
-    return pts;
+export const moveSketchPoint = (d: Design, id: string, pt: string, p: P2) => editSketch(d, id, (sk) => setPt(sk, pt, p));
+/** A new point on a segment, at the segment's parameter t. */
+export const insertSketchPoint = (d: Design, id: string, seg: string, t = 0.5) => editSketch(d, id, (sk) => !!splitSeg(sk, seg, t));
+export const deleteSketchPoint = (d: Design, id: string, pt: string) => editSketch(d, id, (sk) => removePt(sk, pt));
+/** Corner, Curve (smooth) or Round (with a radius) at a point. */
+export function setSketchPointKind(d: Design, id: string, pt: string, kind: 'corner' | 'curve' | 'round', r = 5): boolean {
+  return editSketch(d, id, (sk) => {
+    const p = sk.pts[pt];
+    if (!p) return false;
+    if (kind === 'curve') {
+      setCorner(sk, [pt], null);
+      return setSmooth(sk, [pt], true);
+    }
+    setSmooth(sk, [pt], false);
+    if (kind === 'round') return setCorner(sk, [pt], r > 0 ? { r } : null) === 0;
+    setCorner(sk, [pt], null);
+    return true;
   });
 }
 
 /**
- * The radius tool on a corner: `r` mm (0 = sharp) at a sketch point of an
- * extrusion or revolve, or at a footprint corner of a box, prism or pyramid.
+ * The radius tool on a corner: `r` mm (0 = sharp) at a sketch point (by id) of an
+ * extrusion or revolve, or at a footprint corner (by index) of a box, prism or pyramid.
  */
-export function roundCorner(d: Design, id: string, i: number, r: number): boolean {
+export function roundCorner(d: Design, id: string, key: number | string, r: number): boolean {
   const s = d.sculpt?.shapes[id];
   if (!s) return false;
-  if (s.sketch) return setSketchPointKind(d, id, i, r > 0 ? 'round' : 'corner', r);
-  if (s.kind === 'box' || s.kind === 'prism' || s.kind === 'pyramid') {
+  if (s.sketch) return typeof key === 'string' && setSketchPointKind(d, id, key, r > 0 ? 'round' : 'corner', r);
+  if ((s.kind === 'box' || s.kind === 'prism' || s.kind === 'pyramid') && typeof key === 'number') {
     const n = footprint(s).length;
     const corners = Array.from({ length: n }, (_, j) => s.corners?.[j] ?? 0);
-    corners[i] = Math.max(0, r);
+    corners[key] = Math.max(0, r);
     updateShape(d, id, { corners });
     return true;
   }
   return false;
 }
 
-/** The corners the radius tool can round on a shape: the sketch's or footprint's points, in shape-local coordinates. */
-export function roundable(s: Shape3): SculptPt[] {
-  if (s.sketch) return s.sketch.pts;
-  if (s.kind === 'box' || s.kind === 'prism' || s.kind === 'pyramid') return footprint(s);
+/** A corner the radius tool can round: its key (a sketch point id or a footprint index), place in shape-local coordinates, and radius. */
+export type Roundable = { key: string | number; x: number; y: number; r: number };
+/** The corners the radius tool can round on a shape: a sketch's points where two straight lines meet, or a footprint's corners. */
+export function roundable(s: Shape3): Roundable[] {
+  if (s.sketch) {
+    const sk = s.sketch;
+    return Object.keys(sk.pts)
+      .filter((id) => isLineCorner(sk, id))
+      .map((id) => ({ key: id, x: sk.pts[id].x, y: sk.pts[id].y, r: sk.pts[id].r ?? 0 }));
+  }
+  if (s.kind === 'box' || s.kind === 'prism' || s.kind === 'pyramid') return footprint(s).map((p, i) => ({ key: i, x: p.x, y: p.y, r: p.r ?? 0 }));
   return [];
 }
 /** How tall a roundable corner's edge is (its vertical edge from z = 0 to this), 0 for a revolve's outline point. */
@@ -140,3 +150,5 @@ export function cornerHeight(s: Shape3): number {
   if (s.kind === 'revolve') return 0;
   return s.size?.[1] ?? 0;
 }
+
+export { segsAt };

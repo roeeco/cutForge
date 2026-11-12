@@ -93,14 +93,15 @@ export function SketchMode({ s }: { s: Shape3 }) {
 }
 
 /** The point picked in Edit sketch: Corner, Curve or Round with its radius, or removed. */
-function PointFields({ s, i }: { s: Shape3; i: number }) {
+function PointFields({ s, pt }: { s: Shape3; pt: string }) {
   const t = useT();
-  const p = s.sketch?.pts[i];
+  const p = s.sketch?.pts[pt];
   if (!p) return null;
-  const kind = p.r ? 'round' : p.curve ? 'curve' : 'corner';
+  const kind = p.r ? 'round' : p.smooth ? 'curve' : 'corner';
+  const n = Object.keys(s.sketch!.pts).indexOf(pt) + 1;
   return (
     <div className="subsection" data-testid="sketch-point-card">
-      <p className="kicker">{t('sketch.point', { n: i + 1 })}</p>
+      <p className="kicker">{t('sketch.point', { n })}</p>
       <Segmented
         value={kind}
         options={[
@@ -108,10 +109,10 @@ function PointFields({ s, i }: { s: Shape3; i: number }) {
           { value: 'curve', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve' },
           { value: 'round', label: t('sketch.round'), testId: 'point-round' },
         ]}
-        onChange={(v) => edit((d) => void setSketchPointKind(d, s.id, i, v as 'corner' | 'curve' | 'round', st().sculptRadius || 5))}
+        onChange={(v) => edit((d) => void setSketchPointKind(d, s.id, pt, v as 'corner' | 'curve' | 'round', st().sculptRadius || 5))}
       />
-      {p.r ? <NumField label={t('radius.value')} value={p.r} unit={t('unit.mm')} min={0} onCommit={(v) => edit((d) => void setSketchPointKind(d, s.id, i, v > 0 ? 'round' : 'corner', v))} testId="point-radius" /> : null}
-      <button className="danger" disabled={(s.sketch?.pts.length ?? 0) <= 3} onClick={() => (edit((d) => void deleteSketchPoint(d, s.id, i)), st().setSculpt({ selPoint: null }))} data-testid="point-delete">
+      {p.r ? <NumField label={t('radius.value')} value={p.r} unit={t('unit.mm')} min={0} onCommit={(v) => edit((d) => void setSketchPointKind(d, s.id, pt, v > 0 ? 'round' : 'corner', v))} testId="point-radius" /> : null}
+      <button className="danger" onClick={() => (edit((d) => void deleteSketchPoint(d, s.id, pt)), st().setSculpt({ selPoint: null }))} data-testid="point-delete">
         <Icon name="trash" /> {t('sketch.deletePoint')}
       </button>
     </div>
@@ -132,9 +133,9 @@ export function SketchShapeFields({ s }: { s: Shape3 }) {
         <>
           <Stepper label={t('sketch.angle')} value={s.angle ?? 360} min={30} max={360} step={30} onCommit={(v) => edit((d) => void (d.sculpt!.shapes[s.id].angle = Math.max(30, Math.min(360, Math.round(v / 30) * 30))))} testId="revolve-angle" />
           <p className="note" data-testid="revolve-axis">
-            {s.axis?.kind === 'edge' ? t('sketch.axisEdge', { n: s.axis.i + 1 }) : t('sketch.axisPlane')}
+            {s.axis?.kind === 'seg' ? t('sketch.axisEdge', { n: s.sketch!.order.indexOf(s.axis.id) + 1 }) : t('sketch.axisPlane')}
           </p>
-          {s.axis?.kind === 'edge' && (
+          {s.axis?.kind === 'seg' && (
             <button className="link" onClick={() => edit((d) => void (d.sculpt!.shapes[s.id].axis = { kind: 'plane' }))} data-testid="axis-plane">
               {t('sketch.usePlaneAxis')}
             </button>
@@ -149,7 +150,7 @@ export function SketchShapeFields({ s }: { s: Shape3 }) {
       <button className={editing ? 'on' : ''} onClick={() => st().setSculpt({ editSketch: editing ? null : s.id, selPoint: null })} data-testid="edit-sketch">
         {t(editing ? 'sketch.done' : 'sketch.edit')}
       </button>
-      {editing && selPoint !== null && <PointFields s={s} i={selPoint} />}
+      {editing && selPoint !== null && <PointFields s={s} pt={selPoint} />}
     </div>
   );
 }

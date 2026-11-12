@@ -1,9 +1,10 @@
 // Milestone 50: sketches, extrude, revolve and the radius tool.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { kernel, type Kernel } from '../src/sculpt/kernel';
-import { buildShape, sketchSection } from '../src/sculpt/build';
+import { buildShape, footprintSection as sketchSection } from '../src/sculpt/build';
+import { cornerCut } from '../src/sketch/flatten';
 import { addShape, createWaffleDesign } from '../src/sculpt/ops';
-import { fillets, actualRadii } from '../src/sculpt/round';
+import { fillets } from '../src/sculpt/round';
 import { deleteSketchPoint, insertSketchPoint, moveSketchPoint, revolveBlocked, revolveSuits, roundCorner, setSketchMode, sketchShape, type SketchPlane } from '../src/sculpt/sketch';
 import { nextPolyPoint } from '../src/views/polyDraw';
 import type { SculptPt } from '../src/model/types';
@@ -100,7 +101,7 @@ describe('extrude and revolve', () => {
       { x: 70, y: 30 },
       { x: 50, y: 30 },
     ];
-    const id = addShape(d, { ...sketchShape(upright, sq, 'revolve'), axis: { kind: 'edge', i: 3 } });
+    const id = addShape(d, { ...sketchShape(upright, sq, 'revolve'), axis: { kind: 'seg', id: 'g3' } });
     // a cylinder of radius 20, 30 tall, about the edge x = 50
     const v = buildShape(k, d.sculpt!, id).volume();
     expect(Math.abs(v - Math.PI * 400 * 30) / v).toBeLessThan(0.005);
@@ -123,30 +124,39 @@ describe('extrude and revolve', () => {
 });
 
 describe('edit sketch and radius', () => {
-  it('points move, are added and removed; an outline that crosses itself is refused', () => {
+  it('points move, are added and removed; an edit that leaves no area is refused', () => {
     const d = createWaffleDesign();
     const id = addShape(d, sketchShape(floor, L, 'extrude'));
-    expect(moveSketchPoint(d, id, 1, { x: 70, y: 0 })).toBe(true);
-    expect(insertSketchPoint(d, id, 0, { x: 35, y: -5 })).toBe(true);
-    expect(d.sculpt!.shapes[id].sketch!.pts.length).toBe(7);
-    // dragging a point across the far side makes the outline cross itself
-    expect(moveSketchPoint(d, id, 4, { x: 30, y: -20 })).toBe(false);
-    expect(deleteSketchPoint(d, id, 1)).toBe(true);
-    expect(d.sculpt!.shapes[id].sketch!.pts.length).toBe(6);
+    const sk = () => d.sculpt!.shapes[id].sketch!;
+    expect(moveSketchPoint(d, id, 'p1', { x: 70, y: 0 })).toBe(true);
+    expect(sk().pts.p1.x).toBe(70);
+    expect(insertSketchPoint(d, id, 'g0', 0.5)).toBe(true);
+    expect(Object.keys(sk().pts).length).toBe(7);
+    // an outline that crosses itself still fills an area (milestone 56): allowed
+    expect(moveSketchPoint(d, id, 'p4', { x: 30, y: -20 })).toBe(true);
+    expect(buildShape(k, d.sculpt!, id).volume()).toBeGreaterThan(0);
+    expect(deleteSketchPoint(d, id, 'p1')).toBe(true);
+    expect(Object.keys(sk().pts).length).toBe(6);
+    // down to a triangle, then one more point would leave nothing
+    for (const p of ['p2', 'p3', 'p4']) expect(deleteSketchPoint(d, id, p)).toBe(true);
+    const left = Object.keys(sk().pts);
+    expect(left.length).toBe(3);
+    expect(deleteSketchPoint(d, id, left[0])).toBe(false);
+    expect(Object.keys(sk().pts).length).toBe(3);
   });
   it('the radius clamp keeps neighbouring arcs from overlapping', () => {
     const d = createWaffleDesign();
     const id = addShape(d, sketchShape(floor, L, 'extrude'));
-    // the L's 40 mm inner edge with two 25 mm corners: both clamp to 20 mm and meet
-    roundCorner(d, id, 2, 25);
-    roundCorner(d, id, 3, 25);
-    const r = actualRadii(d.sculpt!.shapes[id].sketch!.pts);
-    expect(r[2]).toBeCloseTo(20, 9);
-    expect(r[2]).toBeCloseTo(r[3], 9);
-    const f = fillets(d.sculpt!.shapes[id].sketch!.pts);
-    expect(Math.hypot(f[2]!.t2.x - f[3]!.t1.x, f[2]!.t2.y - f[3]!.t1.y)).toBeLessThan(1e-9);
+    // the L's 40 mm inner edge with two 25 mm corners: each may take 45 % of it, so both clamp to 18 mm
+    expect(roundCorner(d, id, 'p2', 25)).toBe(true);
+    expect(roundCorner(d, id, 'p3', 25)).toBe(true);
+    const sk = d.sculpt!.shapes[id].sketch!;
+    const c2 = cornerCut(sk, 'p2')!, c3 = cornerCut(sk, 'p3')!;
+    expect(c2.r).toBeCloseTo(18, 9);
+    expect(c3.r).toBeCloseTo(18, 9);
+    expect(Math.hypot(c2.t2.x - c3.t1.x, c2.t2.y - c3.t1.y)).toBeCloseTo(4, 6);
     expect(buildShape(k, d.sculpt!, id).volume()).toBeGreaterThan(0);
-    // a box's footprint corners round too
+    // a box's footprint corners round too (by index)
     const b = addShape(d, { kind: 'box', at: [0, 0, 0], q: [0, 0, 0, 1], size: [40, 10, 20] });
     roundCorner(d, b, 0, 30);
     expect(buildShape(k, d.sculpt!, b).volume()).toBeLessThan(40 * 20 * 10);

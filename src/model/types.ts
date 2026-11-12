@@ -354,9 +354,9 @@ export type Shape3 = {
   sketch?: ShapeSketch;
   /** Extrude: height (mm; negative = the other side of an upright plane). */
   height?: number;
-  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight edge of the outline). */
+  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight segment of the sketch). */
   angle?: number;
-  axis?: { kind: 'plane' } | { kind: 'edge'; i: number };
+  axis?: { kind: 'plane' } | { kind: 'seg'; id: string };
   /** Group: its members (each still a Shape3 with its own Solid/Hole). */
   children?: string[];
   color?: string;
@@ -365,12 +365,25 @@ export type Shape3 = {
 };
 
 /**
- * A point of a waffle sketch: a Corner (neither field), a Curve (`curve: 'auto'`, as on main's
- * base outlines), or a Round corner (`r` > 0 mm, a tangent arc; WAFFLE_MODE.md §3.5).
+ * A point of a primitive's footprint outline: a Corner (neither field), a Curve (`curve: 'auto'`),
+ * or a Round corner (`r` > 0 mm, a tangent arc; WAFFLE_MODE.md §3.5). Milestone-50 sketches used it too.
  */
 export type SculptPt = { x: number; y: number; curve?: 'auto'; r?: number };
-/** A closed outline in the shape's local XY. */
-export type ShapeSketch = { plane: 'floor' | 'upright'; pts: SculptPt[] };
+
+/** A sketch point (SKETCH_OVERHAUL.md §5.1). `smooth`: its two curve handles stay in line. `r` / `ch`: a rounded or chamfered corner (mm), only where exactly two straight lines meet. */
+export type SkPt = { x: number; y: number; smooth?: true; r?: number; ch?: number; lock?: true };
+/** A sketch segment between two points; `cons`: a construction line (never part of the body). */
+export type SkSeg = { a: string; b: string; cons?: true } & (
+  | { k: 'line' }
+  /** A circular arc; bulge = tan(sweep / 4), positive = counter-clockwise from a to b (the DXF convention). */
+  | { k: 'arc'; bulge: number }
+  /** A cubic Bezier; handles are offsets from their own end point. */
+  | { k: 'bez'; ha: P2; hb: P2 }
+);
+/** A 2D sketch: a graph of points and segments (a point may carry any number). `order` lists segment ids in drawing order. */
+export type SketchGraph = { pts: Record<string, SkPt>; segs: Record<string, SkSeg>; order: string[] };
+/** A shape's sketch, in the shape's local XY. */
+export type ShapeSketch = { plane: 'floor' | 'upright'; v: 2 } & SketchGraph;
 
 export type WaffleSpec = {
   /** Family A's direction in top view (degrees about the vertical); family B is at +90°. */

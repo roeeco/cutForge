@@ -198,7 +198,7 @@ export type SculptUi = {
   plane: { kind: 'floor' } | { kind: 'upright'; o: V3; ang: number };
   /** An extrusion or revolve whose outline is being edited, and its picked point. */
   editSketch: string | null;
-  selPoint: number | null;
+  selPoint: string | null;
 };
 
 type State = {

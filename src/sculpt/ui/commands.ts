@@ -76,8 +76,8 @@ export function sculptKey(e: KeyboardEvent): boolean {
   if (mod) return false;
   if ((e.key === 'Delete' || e.key === 'Backspace') && s.sculpt.editSketch && s.sculpt.selPoint !== null) {
     e.preventDefault();
-    const { editSketch: id, selPoint: i } = s.sculpt;
-    s.apply((d) => void deleteSketchPoint(d as Design, id, i));
+    const { editSketch: id, selPoint: pt } = s.sculpt;
+    s.apply((d) => void deleteSketchPoint(d as Design, id, pt));
     s.setSculpt({ selPoint: null });
     return true;
   }

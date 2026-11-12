@@ -324,3 +324,14 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Snapping a frame side to other shapes' boxes** (optional in the plan) is not done; sizes snap to the grid.
 - **A clicked tile's shape** lands near the point the view orbits (projected to the floor), at the grid step; *Hole* on the card applies to it as to a footprint drag. It is placed inside the group being worked in, if any.
 - **The waffle top bar** collapses below 1240 px (the stage stepper is wider than the box designs' mode switch it replaces).
+
+### Milestone 56: the sketch model
+- **`SketchGraph`, not `Sketch`**: `src/model/types.ts` already has a `Sketch` type (a board's outline), so the graph is `SketchGraph`; inside `src/sketch/` it is aliased as `Sketch`.
+- **What a moved end carries** (`setLength`, `setAngle`): the points reached from it without passing the fixed point (or the corner) or a locked point, **less those that can also be reached from the fixed point without passing the moved end**. Read literally, the plan's flood fill moves every point of a closed outline except the fixed one, so on a rectangle a typed length would slant the far side and a typed angle would turn the whole outline (the angle could never change). With this rule an open run carries everything that hangs on it, and on a closed outline only the moved end moves. A locked point is never passed.
+- **The fillet clamp is 45 % of a line whose other end is also cut**, and all but a hair of one whose other end is not (the plan's rule); milestone 50 let two fillets meet at 50 %. Two 25 mm corners on a 40 mm side now get 18 mm each, not 20 mm.
+- **A milestone-50 Round point next to a Curve point** loses its `r` and becomes its arc, as it was drawn, because a fillet is defined only between two straight lines now. Everything else keeps its form; all three fixture bodies keep their volume within 0.1 %.
+- **Self-crossing outlines are allowed**: the old point edits refused an outline that crossed itself; regions now fill such an outline (its faces' union), so only an edit that leaves no area is refused.
+- **Crossings are exact**: a crossing found on the flattened segments is refined by Newton's method on both segments' parameters, so the shared point lies on both curves (on a circle, within 1e-9 mm).
+- **The region cache** is keyed on the sketch object and checked against its content, so a sketch edited in place (tests, `scaleShape` on a draft) is never served a stale region.
+- **Piece ids**: a split segment's pieces are its id with `a` and `b` added, in its place in the drawing order, so a sequence of splits can be followed without searching.
+- **Shift's 15° steps apply even with smart snapping off** (they are not a smart snap); everything else snaps to the grid only.

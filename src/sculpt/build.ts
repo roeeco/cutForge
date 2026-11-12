@@ -6,7 +6,8 @@
 // Results are cached under a key made from the shape tree, so an edit rebuilds
 // only the shapes it touched. Cached objects belong to the cache: callers must
 // never `.delete()` them.
-import type { P2, Sculpt, SculptPt, Shape3, V3 } from '../model/types';
+import type { P2, Sculpt, SculptPt, Shape3, SketchGraph, V3 } from '../model/types';
+import { sketchRegion } from '../sketch/regions';
 import { circleSegments, own, scope, type CrossSection, type Kernel, type Manifold } from './kernel';
 import { flattenSketch, withRadii } from './round';
 import { m4, m4Mul, m4Scale, Z_TO_Y, type M4 } from './xform';
@@ -55,39 +56,53 @@ export function footprint(s: Shape3): SculptPt[] {
 }
 export const clampSides = (n?: number) => Math.max(3, Math.min(12, Math.round(n ?? 6)));
 
-/** A sketch outline as a CrossSection (curves and rounded corners flattened within 0.02 mm). */
-export function sketchSection(k: Kernel, pts: SculptPt[]): CrossSection {
+/** A footprint outline as a CrossSection (curves and rounded corners flattened within 0.02 mm). */
+export function footprintSection(k: Kernel, pts: SculptPt[]): CrossSection {
   return k.CrossSection.ofPolygons([vec2(ccw(flattenSketch(pts)))], 'NonZero');
 }
 
-/** Does the outline lie on both sides of the line x = 0 (it crosses its axis)? */
-export function crossesAxis(pts: P2[]): boolean {
-  const flat = pts;
-  const lo = Math.min(...flat.map((p) => p.x)), hi = Math.max(...flat.map((p) => p.x));
+/** The rings of the area a sketch fills (outer rings counter-clockwise, holes clockwise). */
+export function sketchRings(sketch: SketchGraph, facets?: number): P2[][] {
+  return sketchRegion(sketch, facets ? { facets } : undefined).flat();
+}
+
+/** A sketch's area as a CrossSection. */
+export function sketchSection(k: Kernel, sketch: SketchGraph, facets?: number): CrossSection {
+  return k.CrossSection.ofPolygons(sketchRings(sketch, facets).map(vec2), 'Positive');
+}
+
+/** Does any ring lie on both sides of the line x = 0 (it crosses its axis)? */
+export function crossesAxis(rings: P2[][] | P2[]): boolean {
+  const pts = (rings as (P2 | P2[])[]).flat() as P2[];
+  if (!pts.length) return false;
+  const lo = Math.min(...pts.map((p) => p.x)), hi = Math.max(...pts.map((p) => p.x));
   return lo < -1e-6 && hi > 1e-6;
 }
 
-/** The 2D move that puts edge i of an outline on the +y axis (its start at the origin). */
-export function edgeFrame(pts: P2[], i: number): { o: P2; ang: number } {
-  const a = pts[i % pts.length], b = pts[(i + 1) % pts.length];
-  return { o: a, ang: Math.atan2(b.y - a.y, b.x - a.x) };
+/** The 2D move that puts a segment of the sketch on the +y axis (its a end at the origin). */
+export function segFrame(sketch: SketchGraph, segId: string): { o: P2; ang: number } | null {
+  const g = sketch.segs[segId];
+  const a = g && sketch.pts[g.a], b = g && sketch.pts[g.b];
+  if (!a || !b) return null;
+  return { o: { x: a.x, y: a.y }, ang: Math.atan2(b.y - a.y, b.x - a.x) };
 }
 const toEdge = (f: { o: P2; ang: number }, p: P2): P2 => {
   // rotate so the edge points along +y
   const r = Math.PI / 2 - f.ang, c = Math.cos(r), s = Math.sin(r), x = p.x - f.o.x, y = p.y - f.o.y;
   return { x: x * c - y * s, y: x * s + y * c };
 };
-/** The outline in the frame its revolve axis gives (the axis along +y through the origin). */
-export function axisOutline(s: Shape3): P2[] {
-  const pts = flattenSketch(s.sketch?.pts ?? []);
-  if (s.axis?.kind !== 'edge') return pts;
-  const f = edgeFrame(s.sketch!.pts, s.axis.i);
-  return pts.map((p) => toEdge(f, p));
+const axisFrameOf = (s: Shape3) => (s.axis?.kind === 'seg' && s.sketch ? segFrame(s.sketch, s.axis.id) : null);
+/** The sketch's rings in the frame its revolve axis gives (the axis along +y through the origin). */
+export function axisOutline(s: Shape3, facets?: number): P2[][] {
+  if (!s.sketch) return [];
+  const rings = sketchRings(s.sketch, facets);
+  const f = axisFrameOf(s);
+  return f ? rings.map((r) => r.map((p) => toEdge(f, p))) : rings;
 }
 /** Sketch-local 3D (x, y on the plane, z its normal) from the axis frame's 3D. */
 function fromEdgeM(s: Shape3): M4 {
-  if (s.axis?.kind !== 'edge') return m4([0, 0, 0], [0, 0, 0, 1]);
-  const f = edgeFrame(s.sketch!.pts, s.axis.i);
+  const f = axisFrameOf(s);
+  if (!f) return m4([0, 0, 0], [0, 0, 0, 1]);
   const r = -(Math.PI / 2 - f.ang), c = Math.cos(r), sn = Math.sin(r);
   return [c, sn, 0, 0, -sn, c, 0, 0, 0, 0, 1, 0, f.o.x, f.o.y, 0, 1];
 }
@@ -122,7 +137,7 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
     case 'pyramid': {
       if (!ok(w) || !ok(h) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
       const top = s.kind === 'pyramid' ? Math.max(0, Math.min(1, s.top ?? 0)) : 1;
-      return sketchSection(k, footprint(s)).extrude(h, 0, 0, [top, top]);
+      return footprintSection(k, footprint(s)).extrude(h, 0, 0, [top, top]);
     }
     case 'cylinder':
     case 'cone': {
@@ -151,26 +166,28 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
       return ring.scale([1, d / w, 1]).translate([0, 0, tube / 2]);
     }
     case 'extrude': {
-      const pts = s.sketch?.pts ?? [];
       const H = s.height ?? 20;
-      if (pts.length < 3 || Math.abs(H) < 0.01) return Manifold.ofMesh(emptyMesh(k));
-      const m = sketchSection(k, pts).extrude(Math.abs(H));
+      if (!s.sketch || Math.abs(H) < 0.01) return Manifold.ofMesh(emptyMesh(k));
+      const cs = sketchSection(k, s.sketch);
+      if (cs.isEmpty()) return Manifold.ofMesh(emptyMesh(k));
+      const m = cs.extrude(Math.abs(H));
       return H < 0 ? m.translate([0, 0, H]) : m;
     }
     case 'revolve': {
-      const pts = s.sketch?.pts ?? [];
-      if (pts.length < 3) return Manifold.ofMesh(emptyMesh(k));
-      let flat = axisOutline(s);
-      if (crossesAxis(flat)) return Manifold.ofMesh(emptyMesh(k));
-      const mirror = Math.max(...flat.map((p) => p.x)) <= 1e-9;
-      if (mirror) flat = flat.map((p) => ({ x: -p.x, y: p.y }));
-      const rmax = Math.max(...flat.map((p) => p.x));
+      let rings = axisOutline(s);
+      if (!rings.length || crossesAxis(rings)) return Manifold.ofMesh(emptyMesh(k));
+      const pts = rings.flat();
+      // an outline left of the axis is mirrored (and its rings turned back the right way round)
+      const mirror = Math.max(...pts.map((p) => p.x)) <= 1e-9;
+      if (mirror) rings = rings.map((r) => r.map((p) => ({ x: -p.x, y: p.y })).reverse());
+      const rmax = Math.max(...rings.flat().map((p) => p.x));
       const ang = Math.max(1, Math.min(360, s.angle ?? 360));
-      const cs = CrossSection.ofPolygons([vec2(ccw(flat))], 'NonZero');
+      const cs = CrossSection.ofPolygons(rings.map(vec2), 'Positive');
+      if (cs.isEmpty()) return Manifold.ofMesh(emptyMesh(k));
       // revolved about +y, which becomes +z; back to the axis frame: (x, y, z) → (x, z, −y)
       let m = cs.revolve(circleSegments(rmax), ang).transform(Z_TO_Y as never);
       if (mirror) m = m.mirror([1, 0, 0]);
-      return s.axis?.kind === 'edge' ? m.transform(fromEdgeM(s) as never) : m;
+      return axisFrameOf(s) ? m.transform(fromEdgeM(s) as never) : m;
     }
     default:
       return Manifold.ofMesh(emptyMesh(k));

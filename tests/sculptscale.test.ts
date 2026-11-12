@@ -92,7 +92,7 @@ describe('scaleShape', () => {
     const v0 = vol(d, id);
     scaleShape(d, id, [2, 1, 2], [0, 0, 0]);
     expect(d.sculpt!.shapes[id].stretch).toBeUndefined();
-    expect(d.sculpt!.shapes[id].sketch!.pts[1].x).toBeCloseTo(40, 6);
+    expect(d.sculpt!.shapes[id].sketch!.pts.p1.x).toBeCloseTo(40, 6);
     scaleShape(d, id, [1.5, 1, 1], [0, 0, 0]);
     const s = d.sculpt!.shapes[id];
     expect(s.stretch).toEqual([1.5, 1, 1]);

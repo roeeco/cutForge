@@ -1070,6 +1070,24 @@ Verified
 Not verified
 - Dragging the frame's handles by hand (the drag maths is unit-tested; the handles use the existing `ScreenSized`/`useHandleDrag` widgets).
 
+## Milestone 56 — the sketch model ✅
+
+Implemented (SKETCH_OVERHAUL.md §5; pure code in `src/sketch/`, which imports nothing from `src/sculpt`, `src/waffle`, React or the kernel)
+- **Types** (`src/model/types.ts`): `SkPt` (`smooth`, `r`, `ch`, `lock`), `SkSeg` (line, arc by bulge, cubic Bezier with handles as offsets; `cons`), `SketchGraph` and `ShapeSketch = { plane, v: 2 } & SketchGraph`. A revolve's axis is `{ kind: 'seg', id }`. `SculptPt` stays for primitive footprints.
+- **`model.ts`**: `emptySketch`, `addPt`, `addSeg`, `segsAt`, `degree`, `otherEnd`, `cloneSketch`, `bounds`, `selPts`, `chains`.
+- **`flatten.ts`**: `arcOf`, `bulgeThrough`, `arcPts` (every point on the circle, chords within 0.02 mm), Bezier flattening by subdivision, `bezSplit`, `segPoints`, `segAt`, `tangentAt`, `cornerCut` (fillet or chamfer where exactly two straight non-construction lines meet; at most 45 % of a line whose other end is cut too), `flatChain`.
+- **`regions.ts`**: the planar subdivision (crossings and touches become nodes; nodes within 1e-6 mm merge), dangling edges pruned, connected pieces, faces traced clockwise-next and kept when their area is over 0.01 mm², each piece's outline the union of its faces, pieces nested by containment, a piece's region its outline minus its children's regions; `sketchRegion` (outer rings counter-clockwise, holes clockwise), `openEnds`, `sketchState` (with a `fallback` flag when the union of closed chains had to be used).
+- **`ops.ts`**: `movePts`, `setPt`, `splitSeg`, `removePt`, `eraseSeg`, `weld`, `addLine`/`addArc`/`addBez` with `splitCrossings`, `setSegKind`, `setSmooth`, `curveThrough`, `setCorner`, `transform` (arcs become Beziers, one per 90°, under a map that is not a similarity), `scaleSel`, `rotateSel`, `scaleSketch`, `mirror`, `setLength`, `setAngle`, `align`, `duplicate`, `setCons`, `setLock`, `stamp` (rect, circle, oval, half circle, triangle, hexagon, polygon, star).
+- **`snap.ts`** (`snapTargets`, `snapPoint`: close 12 px → points 10 px → middles, centres, crossings, body corners 8 px → Shift's 15° steps → the grid) and **`dims.ts`** (`segLength`, `cornerAngle`, `parsePolar`, `polarPoint`).
+- **Loading** (`checkSculpt`): a milestone-50 outline becomes points `p0…pn` and segments `g0…gn` (`outlineToGraph` in `src/sculpt/round.ts`); Curve edges become Beziers with the exact control points `flattenSketch` drew (`autoEdges`); a Round point between two straight edges keeps its `r`, one next to a curve is drawn out as its arc; an edge axis becomes the segment it named. The v2 form is validated (finite numbers, ends that exist, bulge within ±50, every segment in `order` once); bad segments are dropped and a sketch with none fails its shape.
+- **Wiring**: `sketchSection` builds from `sketchRegion` with the Positive fill rule (holes and islands work); `axisOutline` and `crossesAxis` use every ring; a revolve mirrored to the right of its axis has its rings turned back. Primitive footprints keep the old path (`footprintSection`). `sketchOk` is "fills an area". The stage's Edit sketch, axis picker, radius marks and the point card address points and segments by id; the radius tool lists the corners `setCorner` accepts. `scaleShape` scales an extrusion's or revolve's sketch with `scaleSketch`.
+
+Verified
+- `npm run typecheck`; `npm test`: 703 passed, 7 skipped (`ezdxf`); `tests/golden.test.ts` unchanged and green.
+- `tests/sketchmodel.test.ts`, `tests/sketchregions.test.ts`, `tests/sketchops.test.ts` (34 tests): every item of §5.5, plus every stamp is closed with an area, snapping order, and a corner's chamfer and fillet areas. `tests/fixtures/m50-sketch.json` was made with the milestone-50 code before any of this changed (an extrusion with corner, curve and round points; a revolve about an edge; a revolve about its plane's axis): all three load and build within 0.1 % of their old volumes.
+- `tests/sculptsketch.test.ts` updated to the new form (points by id; a self-crossing outline is now allowed, an edit that leaves no area is refused; the clamp is 45 % per side).
+- Dev server: the fixture opened through `parseProject` shows the three bodies; no console errors.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

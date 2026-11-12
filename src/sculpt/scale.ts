@@ -5,6 +5,7 @@ import type { Design, Quat, Sculpt, Shape3, V3 } from '../model/types';
 import { buildShape, poseMatrix } from './build';
 import { kernelNow, scope } from './kernel';
 import { parentMatrix } from './tree';
+import { scaleSketch } from '../sketch/ops';
 import { m4, m4Apply, m4InvAffine, m4Mul, m4Unscaled, qRot } from './xform';
 
 const EPS = 1e-6;
@@ -51,15 +52,9 @@ export function shapeSize(sc: Sculpt, id: string): { min: V3; max: V3 } | null {
   });
 }
 
-/** Multiply the points of an outline (and their corner radii where the scale is the same both ways). */
+/** Scale a shape's sketch about its origin (arcs become curves when the two factors differ). */
 function scalePts(s: Shape3, sx: number, sy: number) {
-  if (!s.sketch) return;
-  const uni = same(sx, sy);
-  s.sketch.pts = s.sketch.pts.map((p) => {
-    const q = { ...p, x: r6(p.x * sx), y: r6(p.y * sy) };
-    if (q.r !== undefined && uni) q.r = r6(q.r * sx);
-    return q;
-  });
+  if (s.sketch) scaleSketch(s.sketch, sx, sy);
 }
 
 const mulStretch = (s: Shape3, f: V3) => {
@@ -121,7 +116,7 @@ export function scaleShape(d: Design, id: string, f: V3, anchor: V3): void {
       // the axis is sketch y: own up on an upright plane, own z on the floor
       const axial = up ? 1 : 2;
       const radial = [0, 1, 2].filter((i) => i !== axial);
-      if (s.axis?.kind === 'edge') {
+      if (s.axis?.kind === 'seg') {
         mulStretch(s, f);
         break;
       }

@@ -4,7 +4,7 @@
 // within 0.02 mm with every point on the circle, and where the arcs at the two
 // ends of an edge would overlap, both are scaled down until they meet. When that
 // branch merges, fold this file into its version (WAFFLE_MODE.md §10.5).
-import type { P2, SculptPt } from '../model/types';
+import type { P2, SculptPt, SketchGraph } from '../model/types';
 
 /** Arc and curve flattening tolerance (mm): the chord's largest distance from the curve. */
 export const ROUND_TOL = 0.02;
@@ -134,4 +134,80 @@ export function actualRadii(pts: SculptPt[]): number[] {
 /** Corner radii as sketch points: a footprint polygon with radius `radii[i]` at corner i. */
 export function withRadii(poly: P2[], radii: number[] | undefined): SculptPt[] {
   return poly.map((p, i) => (radii?.[i] && radii[i] > 0 ? { x: p.x, y: p.y, r: radii[i] } : { x: p.x, y: p.y }));
+}
+
+/**
+ * The straight edges of a closed outline between its corners' fillets, and for
+ * each edge next to a Curve point the cubic `flattenSketch` draws there (the
+ * same control points), so an old outline can become a sketch graph exactly.
+ */
+export function autoEdges(pts: SculptPt[]): { a: P2; b: P2; curve: boolean; c1: P2; c2: P2 }[] {
+  const n = pts.length;
+  const fs = fillets(pts);
+  const edges = pts.map((_, i) => {
+    const j = (i + 1) % n;
+    const a = fs[i]?.t2 ?? { x: pts[i].x, y: pts[i].y }, b = fs[j]?.t1 ?? { x: pts[j].x, y: pts[j].y };
+    return { a, b, sa: !fs[i] && pts[i].curve === 'auto', sb: !fs[j] && pts[j].curve === 'auto' };
+  });
+  return edges.map((e, i) => {
+    const A = e.a, B = e.b, Lh = Math.hypot(B.x - A.x, B.y - A.y);
+    if (!e.sa && !e.sb) return { a: A, b: B, curve: false, c1: A, c2: B };
+    const prev = edges[(i + n - 1) % n].a, next = edges[(i + 1) % n].b;
+    const tA = e.sa ? unit(B.x - prev.x, B.y - prev.y) : unit(B.x - A.x, B.y - A.y);
+    const tB = e.sb ? unit(next.x - A.x, next.y - A.y) : unit(B.x - A.x, B.y - A.y);
+    return { a: A, b: B, curve: true, c1: { x: A.x + (tA.x * Lh) / 3, y: A.y + (tA.y * Lh) / 3 }, c2: { x: B.x - (tB.x * Lh) / 3, y: B.y - (tB.y * Lh) / 3 } };
+  });
+}
+
+/**
+ * A closed outline of milestone 50 (corners, Curve points and Round points) as a
+ * sketch graph: points p0…pn and segments g0…gn (g i from point i to i + 1).
+ * Curved edges become Beziers with the control points `flattenSketch` used. A
+ * Round point between two straight edges keeps its `r`; one next to a curve
+ * becomes its arc (points p{i}a, p{i}b and arc g{i}r), as it was drawn.
+ */
+export function outlineToGraph(pts: SculptPt[]): SketchGraph {
+  const n = pts.length;
+  const sk: SketchGraph = { pts: {}, segs: {}, order: [] };
+  if (n < 2) return sk;
+  const fs = n >= 3 ? fillets(pts) : pts.map(() => null);
+  const edges = n >= 3 ? autoEdges(pts) : [];
+  const curved = (i: number) => !!edges[((i % n) + n) % n]?.curve;
+  // a fillet between two straight edges stays a property of its point; next to a curve it is drawn out
+  const explode = pts.map((_, i) => !!fs[i] && (curved(i - 1) || curved(i)));
+  pts.forEach((p, i) => {
+    if (explode[i]) {
+      const f = fs[i]!;
+      sk.pts[`p${i}a`] = { x: f.t1.x, y: f.t1.y };
+      sk.pts[`p${i}b`] = { x: f.t2.x, y: f.t2.y };
+      const a1 = Math.atan2(f.t1.y - f.c.y, f.t1.x - f.c.x), a2 = Math.atan2(f.t2.y - f.c.y, f.t2.x - f.c.x);
+      let da = a2 - a1;
+      while (da > Math.PI) da -= 2 * Math.PI;
+      while (da <= -Math.PI) da += 2 * Math.PI;
+      sk.segs[`g${i}r`] = { a: `p${i}a`, b: `p${i}b`, k: 'arc', bulge: Math.tan(da / 4) };
+    } else {
+      const q: SketchGraph['pts'][string] = { x: p.x, y: p.y };
+      if (p.r && p.r > 0) q.r = p.r;
+      if (p.curve === 'auto') q.smooth = true;
+      sk.pts[`p${i}`] = q;
+    }
+  });
+  const startOf = (i: number) => (explode[i] ? `p${i}b` : `p${i}`);
+  const endOf = (i: number) => (explode[i] ? `p${i}a` : `p${i}`);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (n === 2 && i === 1) break;
+    const a = startOf(i), b = endOf(j);
+    const e = edges[i];
+    if (e?.curve) sk.segs[`g${i}`] = { a, b, k: 'bez', ha: { x: e.c1.x - e.a.x, y: e.c1.y - e.a.y }, hb: { x: e.c2.x - e.b.x, y: e.c2.y - e.b.y } };
+    else sk.segs[`g${i}`] = { a, b, k: 'line' };
+    sk.order.push(`g${i}`);
+    if (explode[j]) sk.order.push(`g${j}r`);
+  }
+  // the arc of point 0 comes before g0
+  if (explode[0]) {
+    sk.order = sk.order.filter((g) => g !== 'g0r');
+    sk.order.unshift('g0r');
+  }
+  return sk;
 }
