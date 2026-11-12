@@ -911,6 +911,21 @@ export const en = {
   'sketch.point': "Point {n}",
   'sketch.round': "Round",
   'sketch.deletePoint': "Delete point",
+  'waffle.family': "Family {f}",
+  'waffle.spacing': "Spacing",
+  'waffle.count': "Count",
+  'waffle.gap': "Gap",
+  'waffle.slices': "Slices",
+  'waffle.gapMm': "Gap",
+  'waffle.addSlice': "Slice in {f}",
+  'waffle.slice': "Slice {label}",
+  'waffle.position': "Position",
+  'waffle.equal': "Equal spacing",
+  'waffle.turn': "Turn",
+  'waffle.clearance': "Clearance",
+  'waffle.clearanceReset': "Use the material’s ({mm} mm)",
+  'waffle.tiny': "{n} tiny bits left out",
+  'steps.open': "Steps",
 } as const;
 
 export type MsgKey = keyof typeof en;

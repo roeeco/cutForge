@@ -45,7 +45,7 @@ export function App() {
   const waffle = useStore((s) => s.design.kind === 'waffle');
   useEffect(() => {
     if (!waffle || useStore.getState().sculpt.ready) return;
-    kernel().then(
+    Promise.all([kernel(), import('./waffle/pieces')]).then(
       () => useStore.getState().setSculpt({ ready: true, failed: false }),
       () => useStore.getState().setSculpt({ failed: true }),
     );

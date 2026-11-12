@@ -1,4 +1,5 @@
 // Pre-export checks, explained in plain language by the UI.
+import { waffleHooksNow } from './pieces';
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
 import { segDir, segInward } from './edges';
@@ -35,6 +36,8 @@ export function minWeb(d: Design, panelId?: string): number {
 }
 
 export function validate(d: Design): Issue[] {
+  // waffle designs run their own checks only (milestone 52)
+  if (d.kind === 'waffle') return waffleHooksNow()?.checks?.(d) ?? [];
   const issues: Issue[] = [];
   const name = (id: string) => d.panels[id]?.name ?? '?';
   const guides = constructionSet(d);

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
-import { netOverlaps, panelPiece, pieceRoot } from '../model/pieces';
+import { netOverlaps, panelPiece, pieceRoot, waffleHooksNow } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
 import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
@@ -56,6 +56,11 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const textDir = useStore((s) => (s.lang === 'he' ? 'rtl' : 'ltr'));
   const svgRef = useRef<SVGSVGElement>(null);
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
+  // waffle designs (milestone 51): a placed piece selects its slice, not panels
+  const waffle = d.kind === 'waffle';
+  // waffle pieces appear once the kernel has loaded
+  const kernelReady = useStore((x) => x.sculpt.ready);
+  const partOf = (key: string) => (waffle ? waffleHooksNow()?.partOf(d, key) ?? null : null);
   const modeKey = solo ? `solo:${solo.id}` : 'sheets';
 
   const layout = useMemo(() => {
@@ -84,7 +89,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h), ox: k.ox, H: k.H };
       });
     return { placed, slots, placements, mixed: groups.length > 1 };
-  }, [d, solo]);
+  }, [d, solo, kernelReady]);
   // nets that would not lie flat (milestone 35): the overlap regions, in red on the piece
   const netBad = useMemo(() => (solo ? [] : netOverlaps(d)), [d, solo]);
   // pieces flagged by validation (overlapping or off the sheet) are drawn in red
@@ -402,7 +407,9 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       useStore.getState().select({ kind: 'panel', id: panelId });
       return;
     }
-    useStore.getState().select({ kind: 'panel', id: panelId });
+    const part = partOf(pl.copy.pieceKey);
+    if (part) useStore.getState().select({ kind: 'slice', family: part.fam, id: part.sliceId });
+    else useStore.getState().select({ kind: 'panel', id: panelId });
     useStore.getState().set({ sheetCopy: pl.copy.key });
     const start = layout.placements[pl.copy.key];
     if (start) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
@@ -433,7 +440,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     drag.current = { kind: 'marquee', a: svgPoint(ev), b: svgPoint(ev), additive, base: selectedDetailIds(st.selection) };
   };
   const onDouble = (pl: Placed) => (ev: React.MouseEvent) => {
-    if (solo) return;
+    if (solo || waffle) return;
     ev.stopPropagation();
     useStore.getState().openSolo(panelAt(pl, svgPoint(ev)));
   };
@@ -532,8 +539,9 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           })}
         {layout.placed.map((pl) => {
           const also = selectedPanelIds(sel);
-          const isSel = !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
-          const isHov = !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
+          const part = partOf(pl.copy.pieceKey);
+          const isSel = part ? sel?.kind === 'slice' && sel.family === part.fam && sel.id === part.sliceId : !!selPanelId && pl.copy.panels.some((n) => n.panelId === selPanelId || also.includes(n.panelId));
+          const isHov = part ? hoverPart === pl.copy.pieceKey : !!hoverPart && pl.copy.panels.some((n) => n.panelId === hoverPart);
           const tint = boardTintCss(d, pieceRoot(pl.copy.pieceKey), Math.max(0, d.order.indexOf(pl.copy.pieceKey)));
           return (
             <g
@@ -617,6 +625,12 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                       );
                     });
                 })}
+              {part && pl.copy.copy === 0 && (
+                <text x={pl.ox + pl.xf.tx + (pl.xf.rot ? -pl.copy.h / 2 : pl.copy.w / 2)} y={pl.H - pl.xf.ty - (pl.xf.rot ? pl.copy.w / 2 : pl.copy.h / 2)} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none" data-testid={`part-label-${part.label}`}>
+                  {part.label}
+                  {(d.pieces[pl.copy.pieceKey]?.quantity ?? 1) > 1 ? ` ${t('view.copies', { n: d.pieces[pl.copy.pieceKey]!.quantity })}` : ''}
+                </text>
+              )}
               {pl.copy.copy === 0 &&
                 pl.copy.panels.map((n) => {
                   const panel = d.panels[n.panelId];
@@ -743,7 +757,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         {solo && <span className="solo-title">{t('solo.title', { panel: panelLabel(d, solo.id, t) })}</span>}
       </div>
       <div className="view-hint" dir="auto">
-        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
+        {d.order.length === 0 && !waffle ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
       </div>
     </div>
   );

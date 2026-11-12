@@ -2,9 +2,13 @@
 import { selectedShapeIds, shapeSel, useStore } from '../../store/store';
 import type { Design } from '../../model/types';
 import { deleteSketchPoint } from '../sketch';
+
 import { deleteShapes, duplicateShapes, groupShapes, moveShapes, parentOf, setHole, ungroupShape } from '../ops';
 
 const st = () => useStore.getState();
+
+/** Handlers the lazily loaded waffle editor registers (so the keyboard code stays in the main chunk without it). */
+export const lazyHandlers: { deleteSlice?: () => void } = {};
 
 /** Shapes the selection can group: two or more with the same parent. */
 export function canGroup(d: Design, ids: string[]): boolean {
@@ -75,6 +79,11 @@ export function sculptKey(e: KeyboardEvent): boolean {
     const { editSketch: id, selPoint: i } = s.sculpt;
     s.apply((d) => void deleteSketchPoint(d as Design, id, i));
     s.setSculpt({ selPoint: null });
+    return true;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection?.kind === 'slice') {
+    e.preventDefault();
+    lazyHandlers.deleteSlice?.();
     return true;
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {

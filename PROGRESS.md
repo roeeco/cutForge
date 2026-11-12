@@ -975,6 +975,24 @@ Verified
 Not verified
 - The vase, the rounded box and the chamfered L were made by hand only in the unit tests (ops), not by mouse on the stage; dragging Edit sketch handles and the axis edges by hand was not exercised.
 
+## Milestone 51 — slices and parts ✅
+
+Implemented
+- **Derivation** (`src/waffle/derive.ts`): family frames from the turn (A face-on from the front at 0°, B from the side), extents along each normal, the settings in force (`effectiveSpec`: the saved ones or one slice per 35 mm, 3–9), slice positions (count, gap or the student's, with ids), each plane's section (`slice(0)` in the plane's frame, `simplify(0.01)`, `decompose()`), parts `A3` / `A3·1`, `A3·2`, tiny bits left out (under (3t)² or narrower than 2t everywhere) and counted. Cached under the solid's key, the settings and the material.
+- **Pieces** (`src/waffle/pieces.ts`): keys `w:A3`…, `panels: []`, cut contours with circles snapped (`src/waffle/arcs.ts`) and arcs refit (`src/geom/arcfit.ts`, copied byte-identical); corrugated parts turned so flutes run up the slice. They reach `buildPieces` (and later `validate`) through hooks the waffle module registers when it loads with the editor; `prepareExport` is unchanged.
+- **Ops** (`src/waffle/ops.ts`): `setSpacing`, `setTurn`, `setClearance`, `moveSlice` (stops t + 2 mm from neighbours), `addSlice` (halfway into the widest gap), `deleteSlice`, `equalSpacing`.
+- **Stage 2** (`WaffleLayer`): the solid see-through, slices as slabs t thick (A amber, B blue), click to select a slice, its arrow above the solid to drag it (1 mm steps, snapping to the equal positions and the centre), Delete removes it, a ring at the solid's centre turns both families (0–90°).
+- **Card** (`WaffleCard`): for A and B *Count | Gap* with the number and *+ Slice in A/B*; *Equal spacing* once slices were placed by hand; *Turn*; *Clearance* (the material's by default, with a link back to it); the selected slice's position and delete; the tiny-bits info line; *Steps* (milestone 54) and *Back to 1 Shape*.
+- **Cut plan adapter** (`Plan2D`): a waffle piece selects its slice; selection and hover highlight by part; the part's label in the middle; double-click and panel overlays stay box-only; the plan redraws once the kernel has loaded. Before stage 2 has been opened the cut plan shows the default waffle.
+
+Verified
+- `npm run typecheck`; `npm test`: 578 passed, 7 skipped (`ezdxf`); golden exports unchanged.
+- `tests/waffleslices.test.ts` (8 cases): default counts and positions (count and gap); **sections of a box** (rectangles of its cross-sections, A 120 × 60 and B 80 × 60), **a cylinder** (its middle chord), **a sphere** (circles; the middle one within 0.2% of πr²) and **a torus** (`A2·1`, `A2·2` through the hole, **part counts** 8); tiny bits left out and counted; **a sphere's slices export as circles within 0.05 mm of the true radius, every segment an arc, in SVG (arc commands, no polylines) and DXF (bulges, no lines)**; waffle pieces go through quantities, copies and packing.
+- Dev server, Playwright-driven: a sphere with a cylinder through it → *2 Waffle* shows the slabs, the card and the turn ring; *Cut plan* shows six labelled parts on one sheet.
+
+Not verified
+- Dragging a slice's arrow and the turn ring by hand (same widgets as elsewhere); the 3D slabs still overlap where they cross (slots come in milestone 52).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

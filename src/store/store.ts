@@ -197,6 +197,8 @@ type State = {
   sculpt: SculptUi;
   /** The radius tool's radius (mm; 0 = sharp), also used by Round all corners. */
   sculptRadius: number;
+  /** The waffle's assembly steps view (milestone 54): the step shown (0-based), or null. View only. */
+  steps: number | null;
   setSculpt: (p: Partial<SculptUi>) => void;
   past: Design[];
   future: Design[];
@@ -353,6 +355,7 @@ export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
   sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false, plane: { kind: 'floor' }, editSketch: null, selPoint: null },
   sculptRadius: 5,
+  steps: null,
   setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p } }),
   past: [],
   future: [],

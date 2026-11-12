@@ -150,7 +150,20 @@ function dropMicro(pts: P2[]): P2[] {
   return out;
 }
 
+/**
+ * Waffle designs (milestone 51) cut their parts from the shape kernel, which
+ * loads with the waffle editor: `src/waffle/pieces.ts` registers itself here,
+ * so box designs never load it. Until it has, a waffle design has no pieces.
+ */
+export type WaffleHooks = { checks?: (d: Design) => import('./validate').Issue[]; pieces: (d: Design) => Piece[]; partOf: (d: Design, pieceKey: string) => { fam: 'a' | 'b'; sliceId: string; label: string } | null };
+let waffleHooks: WaffleHooks | null = null;
+export function registerWaffle(h: WaffleHooks) {
+  waffleHooks = h;
+}
+export const waffleHooksNow = () => waffleHooks;
+
 export function buildPieces(d: Design): Piece[] {
+  if (d.kind === 'waffle') return waffleHooks?.pieces(d) ?? [];
   return netGroups(d).flatMap((g) => groupPieces(d, g));
 }
 

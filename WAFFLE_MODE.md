@@ -515,3 +515,8 @@ Once a mesh can come in, the waffle stage here slices it unchanged.
 - **The floor plane has no axis line drawn**, but Revolve on a floor sketch uses its local line x = 0 (the world's z axis through the origin) unless an edge is chosen, so the choice is never empty.
 - **The extrusion's height arrow** is shown on the ghost and on a selected extrusion; dragging through the plane gives a negative height (the other side), and heights between −1 and 1 mm are kept at ±1 mm.
 - **Each radius-tool click is one undo step** rather than one ✓ for the session of clicks: there is no ghost for a corner, and the change is visible at once.
+
+### Milestone 51
+- **Sections need a circle pre-pass before `refitArcs`.** A plane through a faceted sphere cuts its triangles, so the section's vertices sit up to the chord error (0.02 mm) inside the true circle; `refitArcs` only accepts vertices on one circle within 1e-5 mm. `src/waffle/arcs.ts` puts near-circular runs (within 0.03 mm of a fitted circle) exactly on it first. A sphere's slices then export as arcs within 0.05 mm of the true radius, as §9 asks. `arcfit.ts` itself is unchanged.
+- **DXF writes closed outlines as polylines with bulges**, also for a whole circle refit as three arcs of at most 170° (the writer's `CIRCLE` is for the two-half-arc circles boxes use). They are still true arcs in LightBurn.
+- **No per-slice cache of sections yet**: the whole model is cached under the solid's key and the settings, so a slice drag re-slices every plane. Measured in milestone 52.
