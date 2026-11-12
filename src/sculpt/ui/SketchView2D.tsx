@@ -16,6 +16,7 @@ import { SketchOverlay, sketchViewInfo, useSketchPointer } from './sketch2d/useS
 import { SelectionLayer } from './sketch2d/SelectionLayer';
 import { SketchBar } from './sketch2d/SketchBar';
 import { Icon } from '../../ui/icons';
+import './sketch2d/keys';
 
 const Preview3D = lazy(() => import('./sketch2d/Preview3D'));
 

@@ -10,6 +10,7 @@ import { detailSel, selectedDetailIds } from './store';
 import { validate } from '../model/validate';
 import { isBad, rememberGood } from './goodDesign';
 import { sculptKey, sketchKey } from '../sculpt/ui/commands';
+import { isSculpture } from '../sculpt/ops';
 
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
@@ -89,7 +90,7 @@ export function useKeyboard() {
       if (isTyping(e)) return;
       if (sketching) return void sketchKey(e);
       // waffle designs have their own keys (milestone 49)
-      if (s.design.kind === 'waffle') return void sculptKey(e);
+      if (isSculpture(s.design)) return void sculptKey(e);
       const sel = s.selection;
       const ids = selectedDetailIds(sel);
       // copy and paste shapes (milestone 33): the paste follows the pointer, a click puts it down, ✓ keeps it

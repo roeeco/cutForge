@@ -361,3 +361,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The frame of a straight line along an axis** has no side handles and no pill for the size it does not have.
 - **Duplicate (Ctrl+D) places the copy as Paste does** (10 mm away, then further until it touches nothing), not at a fixed offset.
 - **Mirror Left–right and Top–bottom** mirror across the selection's right and bottom edges, so the copy sits beside the original instead of on top of it.
+
+### Milestone 60: outcomes, and what folding will need
+- **The waffle's stage-2 editor registers itself** when `loadWaffle` runs (the same moment its pieces register), so the stage's card, layer and steps bar appear once the kernel is ready, as before. The teacher view also loads it (it calls `loadWaffle`); that costs one more lazy chunk there and nothing for box designs.
+- **Stage 2's button keeps the test id `stage-<outcome>`** (`stage-waffle`), so existing specs and the tour keep working.
+- **`faceID` in manifold 3.5.4 is per planar facet**, not per surface: a tessellated cylinder wall is dozens of faceIDs. Runs (`runOriginalID`) do survive the booleans, so faces are grouped per run first, and a curved surface's facets are merged into one face per shape by the shape's kind: for an extrusion, a wall facet is flat when it lies on a straight piece of the sketch (between corner cuts), else ruled; for a revolve, every non-planar or non-disc facet takes the profile's kind (curved if any segment is an arc or curve or any corner is cut, else ruled).
+- **`facets` on a Bezier** cuts it into four times that many pieces (a curve has no quarter turns of its own); on an arc, that many per quarter turn of its sweep.
+- **Unused strings removed**: `sketch.done`, `sketch.point`, `sketch.deletePoint`, `sketch.round` (the stage's old point card).

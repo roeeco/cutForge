@@ -151,19 +151,26 @@ function dropMicro(pts: P2[]): P2[] {
 }
 
 /**
- * Waffle designs (milestone 51) cut their parts from the shape kernel, which
- * loads with the waffle editor: `src/waffle/pieces.ts` registers itself here,
- * so box designs never load it. Until it has, a waffle design has no pieces.
+ * Sculpture designs (milestone 51; outcomes since milestone 60) cut their parts
+ * from the shape kernel, which loads with the editor: each outcome (the waffle's
+ * `src/waffle/pieces.ts`) registers its hooks here, so box designs never load it.
+ * Until it has, a sculpture design has no pieces.
  */
-export type WaffleHooks = { thumb?: (d: Design) => string | null; checks?: (d: Design) => import('./validate').Issue[]; pieces: (d: Design) => Piece[]; partOf: (d: Design, pieceKey: string) => { fam: 'a' | 'b'; sliceId: string; label: string } | null };
-let waffleHooks: WaffleHooks | null = null;
-export function registerWaffle(h: WaffleHooks) {
-  waffleHooks = h;
+export type OutcomeHooks = { thumb?: (d: Design) => string | null; checks?: (d: Design) => import('./validate').Issue[]; pieces: (d: Design) => Piece[]; partOf: (d: Design, pieceKey: string) => { fam: 'a' | 'b'; sliceId: string; label: string } | null };
+/** The waffle's hooks: an outcome's hooks under its old name. */
+export type WaffleHooks = OutcomeHooks;
+const outcomeHooksById = new Map<string, OutcomeHooks>();
+export function registerOutcome(id: string, h: OutcomeHooks) {
+  outcomeHooksById.set(id, h);
 }
-export const waffleHooksNow = () => waffleHooks;
+/** The hooks of a design's outcome (absent: the waffle's), or null before they load. */
+export const outcomeHooks = (d: Pick<Design, 'outcome'>): OutcomeHooks | null => outcomeHooksById.get(d.outcome ?? 'waffle') ?? null;
+/** Kept until its callers move to `registerOutcome` / `outcomeHooks`. */
+export const registerWaffle = (h: OutcomeHooks) => registerOutcome('waffle', h);
+export const waffleHooksNow = () => outcomeHooksById.get('waffle') ?? null;
 
 export function buildPieces(d: Design): Piece[] {
-  if (d.kind === 'waffle') return waffleHooks?.pieces(d) ?? [];
+  if (d.kind === 'waffle') return outcomeHooks(d)?.pieces(d) ?? [];
   return netGroups(d).flatMap((g) => groupPieces(d, g));
 }
 

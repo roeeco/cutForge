@@ -11,6 +11,7 @@ import { ReadyBadge } from '../easy/ReadyBadge';
 import { shown, useFeature } from '../easy/features';
 import { TOUR_OFFERED, startTourConfirmed } from '../tour/TourNudge';
 import { SketchTopBar } from './SketchTopBar';
+import { outcomeIds, outcomeOf } from '../sculpt/outcomes';
 
 export function TopBar() {
   const mode = useStore((x) => x.viewPrefs.mode ?? 'workshop');
@@ -142,9 +143,10 @@ export function TopBar() {
       {waffle && (
         // waffle designs (milestone 49): the stage stepper instead of the mode switch
         <div className="seg stage-seg" role="radiogroup" aria-label={t('stage.label')} data-testid="stage-stepper">
-          {(['shape', 'waffle'] as const).map((k) => (
-            <button key={k} role="radio" aria-checked={s.sculpt.stage === k} className={s.sculpt.stage === k ? 'on' : ''} disabled={sketching || (k === 'waffle' && !d.sculpt?.order.length)} onClick={() => (s.setSculpt({ stage: k }), s.setTool('select'), s.select(null))} data-testid={`stage-${k}`}>
-              {t(k === 'shape' ? 'stage.shape' : 'stage.waffle')}
+          {(['shape', 'make'] as const).map((k) => (
+            <button key={k} role="radio" aria-checked={s.sculpt.stage === k} className={s.sculpt.stage === k ? 'on' : ''} disabled={sketching || (k === 'make' && !d.sculpt?.order.length)} onClick={() => (s.setSculpt({ stage: k }), s.setTool('select'), s.select(null))} data-testid={`stage-${k === 'make' ? outcomeOf(d) : k}`}>
+              {/* 2 Waffle while the waffle is the only outcome; 2 Make once there is a choice */}
+              {t(k === 'shape' ? 'stage.shape' : outcomeIds().length > 1 ? 'stage.make' : 'stage.waffle')}
             </button>
           ))}
         </div>

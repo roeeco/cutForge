@@ -15,18 +15,9 @@ import type { CutPart } from '../finish';
 import { familyPositions } from '../derive';
 import { deleteSlice, moveSlice, setBase, setTurn } from '../ops';
 import { waffleParts } from '../pieces';
-import { lazyHandlers } from '../../sculpt/ui/commands';
 import { baseModel, useWaffle } from './model';
 import { StepsLayer } from './StepsLayer';
 
-lazyHandlers.deleteSlice = () => {
-  const s = st();
-  const sel = s.selection;
-  const m = baseModel();
-  if (sel?.kind !== 'slice' || !m) return;
-  s.apply((d) => deleteSlice(d as Design, m, sel.family, sel.id));
-  s.select(null);
-};
 
 export const FAM_COLOR = { a: '#e8a33d', b: '#4f9fd9' } as const;
 const st = () => useStore.getState();

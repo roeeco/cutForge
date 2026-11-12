@@ -126,10 +126,15 @@ export function shapeMatrix(s: Shape3): M4 {
   return base ? m4Mul(T, base) : T;
 }
 
+/** A shape's Faces count (3–64), or undefined for smooth. */
+export const facetsOf = (s: Pick<Shape3, 'facets'>) => (s.facets ? Math.max(3, Math.min(64, Math.round(s.facets))) : undefined);
+
 /** A leaf shape built in its own coordinates (before `shapeMatrix`). Empty when it cannot be built. */
 function leafBody(k: Kernel, s: Shape3): Manifold {
   const { Manifold, CrossSection } = k;
   const [w, h, d] = s.size ?? [40, 40, 40];
+  const fc = facetsOf(s);
+  const segs = (r: number) => fc ?? circleSegments(r);
   const ok = (x: number) => Number.isFinite(x) && x > 0.01;
   switch (s.kind) {
     case 'box':
@@ -143,7 +148,7 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
     case 'cone': {
       if (!ok(w) || !ok(h) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
       const r = Math.max(w, d) / 2;
-      const c = CrossSection.circle(r, circleSegments(r)).scale([w / 2 / r, d / 2 / r]);
+      const c = CrossSection.circle(r, segs(r)).scale([w / 2 / r, d / 2 / r]);
       const top = s.kind === 'cone' ? Math.max(0, Math.min(1, s.top ?? 0)) : 1;
       return c.extrude(h, 0, 0, [top, top]);
     }
@@ -153,28 +158,28 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
       const half = s.kind === 'halfsphere';
       const rz = half ? h : h / 2;
       const r = Math.max(w / 2, d / 2, rz);
-      const u = Manifold.sphere(1, circleSegments(r)).scale([w / 2, d / 2, rz]);
+      const u = Manifold.sphere(1, segs(r)).scale([w / 2, d / 2, rz]);
       return half ? u.trimByPlane([0, 0, 1], 0) : u.translate([0, 0, h / 2]);
     }
     case 'torus': {
       const tube = s.tube ?? h;
       const R = w / 2 - tube / 2;
       if (!ok(tube) || !ok(R) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
-      const ring = CrossSection.circle(tube / 2, circleSegments(tube / 2))
+      const ring = CrossSection.circle(tube / 2, segs(tube / 2))
         .translate([R, 0])
-        .revolve(circleSegments(w / 2));
+        .revolve(segs(w / 2));
       return ring.scale([1, d / w, 1]).translate([0, 0, tube / 2]);
     }
     case 'extrude': {
       const H = s.height ?? 20;
-      if (!s.sketch || Math.abs(H) < 0.01 || !sketchRings(s.sketch).length) return Manifold.ofMesh(emptyMesh(k));
-      const cs = sketchSection(k, s.sketch);
+      if (!s.sketch || Math.abs(H) < 0.01 || !sketchRings(s.sketch, fc).length) return Manifold.ofMesh(emptyMesh(k));
+      const cs = sketchSection(k, s.sketch, fc);
       if (cs.isEmpty()) return Manifold.ofMesh(emptyMesh(k));
       const m = cs.extrude(Math.abs(H));
       return H < 0 ? m.translate([0, 0, H]) : m;
     }
     case 'revolve': {
-      let rings = axisOutline(s);
+      let rings = axisOutline(s, fc);
       if (!rings.length || crossesAxis(rings)) return Manifold.ofMesh(emptyMesh(k));
       const pts = rings.flat();
       // an outline left of the axis is mirrored (and its rings turned back the right way round)
@@ -185,7 +190,7 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
       const cs = CrossSection.ofPolygons(rings.map(vec2), 'Positive');
       if (cs.isEmpty()) return Manifold.ofMesh(emptyMesh(k));
       // revolved about +y, which becomes +z; back to the axis frame: (x, y, z) → (x, z, −y)
-      let m = cs.revolve(circleSegments(rmax), ang).transform(Z_TO_Y as never);
+      let m = cs.revolve(segs(rmax), ang).transform(Z_TO_Y as never);
       if (mirror) m = m.mirror([1, 0, 0]);
       return axisFrameOf(s) ? m.transform(fromEdgeM(s) as never) : m;
     }
@@ -225,7 +230,7 @@ export function clearShapeCache() {
 }
 export const shapeCacheSize = () => cache.size;
 
-const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch'] as const;
+const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch', 'facets'] as const;
 
 /** The stable key of a shape's geometry in its parent's frame (its subtree for a group). */
 export function shapeKey(sc: Sculpt, id: string, seen = new Set<string>()): string {
@@ -253,9 +258,16 @@ export function buildShape(k: Kernel, sc: Sculpt, id: string): Manifold {
       if (solids.length && holes.length) m = m.subtract(k.Manifold.union(holes));
       return m.transform(poseMatrix(s) as never);
     }
-    return leafBody(k, s).transform(shapeMatrix(s) as never);
+    // marked as an original, so the solid's faces can say which shape they came from (milestone 60)
+    const body = leafBody(k, s).asOriginal();
+    originals.set(body.originalID(), s.id);
+    return body.transform(shapeMatrix(s) as never);
   });
 }
+
+/** Which shape each leaf body's original id belongs to (ids are per kernel session; set whenever a body is built). */
+const originals = new Map<number, string>();
+export const shapeOfOriginal = (originalID: number): string | undefined => originals.get(originalID);
 
 /** The key of the whole solid. */
 export function solidKey(sc: Sculpt): string {

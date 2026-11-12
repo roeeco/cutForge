@@ -21,6 +21,8 @@ export function createWaffleDesign(material: MaterialProfile = DEFAULT_MATERIAL)
   return { ...createDesign(material), kind: 'waffle', sculpt: { shapes: {}, order: [] } };
 }
 export const isWaffle = (d: Pick<Design, 'kind'>) => d.kind === 'waffle';
+/** A sculpture design: made of shapes (whatever its outcome makes of them). `kind` stays 'waffle' in files. */
+export const isSculpture = (d: Pick<Design, 'kind'>) => d.kind === 'waffle';
 
 /** The design's shapes (made when missing: a waffle file with no `sculpt` opens empty). */
 export function sculptOf(d: Design): Sculpt {

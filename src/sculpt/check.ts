@@ -1,7 +1,7 @@
 // Reading a waffle design from a file or autosave: every field the shape code
 // reads is checked; a bad shape is dropped rather than failing the whole file.
 import type { Design, Sculpt, Shape3 } from '../model/types';
-import { KINDS } from './ops';
+import { isSculpture, KINDS } from './ops';
 import { outlineToGraph } from './round';
 
 const isObj = (x: unknown): x is Record<string, any> => !!x && typeof x === 'object' && !Array.isArray(x);
@@ -33,6 +33,7 @@ function shapeOk(s: any, id: string): s is Shape3 {
   else delete s.children;
   if (s.hole !== undefined && s.hole !== true) delete s.hole;
   if (s.stretch !== undefined && !(vec(s.stretch, 3) && s.stretch.every((v: number) => v > 0))) delete s.stretch;
+  if (s.facets !== undefined && !(Number.isInteger(s.facets) && s.facets >= 3 && s.facets <= 64)) delete s.facets;
   return true;
 }
 
@@ -70,7 +71,7 @@ function graphOk(k: any): boolean {
 
 /** Make a loaded waffle design's shapes safe to build: bad shapes dropped, every shape listed exactly once. */
 export function checkSculpt(d: Design) {
-  if (d.kind !== 'waffle') return;
+  if (!isSculpture(d)) return;
   const raw = (d as any).sculpt;
   const sc: Sculpt = isObj(raw) && isObj(raw.shapes) ? (raw as Sculpt) : { shapes: {}, order: [] };
   for (const id of Object.keys(sc.shapes)) if (!shapeOk(sc.shapes[id], id)) delete sc.shapes[id];
@@ -87,4 +88,5 @@ export function checkSculpt(d: Design) {
   for (const id of Object.keys(sc.shapes)) if (!placed.has(id)) delete sc.shapes[id];
   d.sculpt = sc;
   if (d.waffle !== undefined && !isObj(d.waffle)) delete d.waffle;
+  if (d.outcome !== undefined && d.outcome !== 'waffle' && d.outcome !== 'fold') delete d.outcome;
 }

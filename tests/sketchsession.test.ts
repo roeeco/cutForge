@@ -105,7 +105,7 @@ describe('the sketch session', () => {
     expect(s().sketch).toBeNull();
     expect(s().view).toBe('3d');
     s().openSketch(ex);
-    s().setSculpt({ stage: 'waffle' });
+    s().setSculpt({ stage: 'make' });
     expect(s().sketch).toBeNull();
     s().setSculpt({ stage: 'shape' });
     s().openSketch(ex);

@@ -907,10 +907,6 @@ export const en = {
   'sketch.usePlaneAxis': "Use the plane’s axis",
   'sketch.crossesAxis': "The outline crosses its axis: move it to one side",
   'sketch.edit': "Edit sketch",
-  'sketch.done': "Done editing",
-  'sketch.point': "Point {n}",
-  'sketch.round': "Round",
-  'sketch.deletePoint': "Delete point",
   'waffle.family': "Family {f}",
   'waffle.spacing': "Spacing",
   'waffle.count': "Count",
@@ -1049,6 +1045,8 @@ export const en = {
   'sketch.bar.r': "R",
   'sketch.bar.ch': "C",
   'sketch.bar.align': "Align",
+  'stage.make': "2 Make",
+  'outcome.choose': "Make it as",
 } as const;
 
 export type MsgKey = keyof typeof en;

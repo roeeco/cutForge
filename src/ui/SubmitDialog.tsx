@@ -1,7 +1,7 @@
 // "Submit to class": class code + display name (remembered locally). If the
 // network or server fails, say so plainly and offer the download instead;
 // the student's local work is never touched by a failed submission.
-import { waffleHooksNow } from '../model/pieces';
+import { outcomeHooks } from '../model/pieces';
 import { applyClassMode } from '../easy/mode';
 import { missionState } from '../easy/missions';
 
@@ -56,7 +56,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
         title: title.trim() || design.name || '—',
         project: serializeProject(design),
         // a waffle sculpture (milestone 54): a picture of it assembled, else the first sheet
-        preview: (design.kind === 'waffle' ? waffleHooksNow()?.thumb?.(design) : null) ?? sheetPreviewSvg(prepareExport(design).sheets[0]),
+        preview: (design.kind === 'waffle' ? outcomeHooks(design)?.thumb?.(design) : null) ?? sheetPreviewSvg(prepareExport(design).sheets[0]),
         ...goalsOf(design),
       });
       setState({ kind: 'done' });

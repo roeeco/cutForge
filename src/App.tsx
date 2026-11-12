@@ -18,6 +18,7 @@ import { TeacherApp } from './teacher/TeacherApp';
 import { EditorBoundary } from './ui/ErrorBoundary';
 import { LazySculptView, LazySketchView } from './sculpt/ui/lazy';
 import { loadWaffle } from './waffle/load';
+import { isSculpture } from './sculpt/ops';
 
 export function App() {
   const t = useT();
@@ -43,7 +44,7 @@ export function App() {
   const teacher = route.startsWith('#/teacher');
   useAutosave(() => setLoaded(true));
   // a waffle design loads the shape kernel (milestone 49); box designs never do
-  const waffle = useStore((s) => s.design.kind === 'waffle');
+  const waffle = useStore((s) => isSculpture(s.design));
   useEffect(() => {
     if (!waffle || useStore.getState().sculpt.ready) return;
     loadWaffle().then(

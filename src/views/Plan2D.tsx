@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT } from '../store/store';
 import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
-import { netOverlaps, panelPiece, pieceRoot, waffleHooksNow } from '../model/pieces';
+import { netOverlaps, outcomeHooks, panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
 import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
@@ -55,7 +55,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const waffle = d.kind === 'waffle';
   // waffle pieces appear once the kernel has loaded
   const kernelReady = useStore((x) => x.sculpt.ready);
-  const partOf = (key: string) => (waffle ? waffleHooksNow()?.partOf(d, key) ?? null : null);
+  const partOf = (key: string) => (waffle ? outcomeHooks(d)?.partOf(d, key) ?? null : null);
   const modeKey = solo ? `solo:${solo.id}` : 'sheets';
 
   const layout = useMemo(() => {

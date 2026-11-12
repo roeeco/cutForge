@@ -909,10 +909,6 @@ export const he: Record<MsgKey, string> = {
   'sketch.usePlaneAxis': "להשתמש בציר של המישור",
   'sketch.crossesAxis': "הצורה חוצה את הציר: הזיזו אותה לצד אחד",
   'sketch.edit': "עריכת השרטוט",
-  'sketch.done': "סיום העריכה",
-  'sketch.point': "נקודה {n}",
-  'sketch.round': "מעוגלת",
-  'sketch.deletePoint': "מחיקת הנקודה",
   'waffle.family': "משפחה {f}",
   'waffle.spacing': "מרווח",
   'waffle.count': "מספר",
@@ -1051,4 +1047,6 @@ export const he: Record<MsgKey, string> = {
   'sketch.bar.r': "R",
   'sketch.bar.ch': "C",
   'sketch.bar.align': "יישור",
+  'stage.make': "2 יצירה",
+  'outcome.choose': "ליצור כ־",
 };

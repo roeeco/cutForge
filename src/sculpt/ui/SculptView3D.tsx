@@ -21,8 +21,7 @@ import { NumField } from '../../ui/NumField';
 import { SketchLayer } from './SketchLayer';
 import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
-import { WaffleLayer } from '../../waffle/ui/WaffleLayer';
-import { StepsBar } from '../../waffle/ui/StepsLayer';
+import { outcomeOf, outcomeUi } from '../outcomes';
 
 /** The shapes on the stage: the top level, or the members of the group being worked inside. */
 export function visibleShapes(d: Design, focus: string | null): { id: string; dim: boolean }[] {
@@ -254,6 +253,18 @@ export function placePrimitive(kind: Primitive, at: V3) {
   st.select(shapeSel([id]));
 }
 
+/** The design's outcome's stage-2 layer and bar (the waffle's slices and its steps). */
+function OutcomeLayer() {
+  const id = useStore((s) => outcomeOf(s.design));
+  const L = outcomeUi(id)?.Layer;
+  return L ? <L /> : null;
+}
+function OutcomeBar() {
+  const id = useStore((s) => outcomeOf(s.design));
+  const B = outcomeUi(id)?.Bar;
+  return B ? <B /> : null;
+}
+
 type Draw = { y: number; a: THREE.Vector3; b: THREE.Vector3; moved: boolean; px: { x: number; y: number }; into: string | null };
 
 function SculptScene() {
@@ -369,7 +380,7 @@ function SculptScene() {
       </mesh>
       {shown.map(({ id, dim }, i) =>
         sc.shapes[id] ? (
-          <ShapeMesh key={id} d={d} id={id} index={sc.order.indexOf(id) >= 0 ? sc.order.indexOf(id) : i} dim={dim || ui.stage === 'waffle'} selected={ids.includes(id) && !ghostIds.includes(id)} ghost={ghostIds.includes(id)} onDown={onShapeDown(id, dim)} onDouble={onShapeDouble(id)} />
+          <ShapeMesh key={id} d={d} id={id} index={sc.order.indexOf(id) >= 0 ? sc.order.indexOf(id) : i} dim={dim || ui.stage === 'make'} selected={ids.includes(id) && !ghostIds.includes(id)} ghost={ghostIds.includes(id)} onDown={onShapeDown(id, dim)} onDouble={onShapeDouble(id)} />
         ) : null,
       )}
       {footBox && (
@@ -383,7 +394,7 @@ function SculptScene() {
       {ui.dragKind && <TileDrag kind={ui.dragKind} />}
       {ghostIds.length === 1 && <ShapeGhostBar d={d} id={ghostIds[0]} />}
       {ui.stage === 'shape' && <SketchLayer />}
-      {ui.stage === 'waffle' && <WaffleLayer />}
+      {ui.stage === 'make' && <OutcomeLayer />}
     </>
   );
 }
@@ -434,7 +445,7 @@ export function SculptView3D() {
   const ghost = useStore((s) => s.pending?.kind === 'sculpt');
   const [fit, setFit] = useState(0);
   const overlay = useRef<HTMLDivElement>(null);
-  const hint = ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'waffle' ? 'waffle.hint' : empty ? 'sculpt.empty' : 'sculpt.hint.select';
+  const hint = ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'waffle.hint' : empty ? 'sculpt.empty' : 'sculpt.hint.select';
   return (
     <div className="view3d sculpt-view" dir="ltr" data-testid="sculpt-view">
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
@@ -462,7 +473,7 @@ export function SculptView3D() {
           </button>
         </div>
       )}
-      {stage === 'waffle' && <StepsBar />}
+      {stage === 'make' && <OutcomeBar />}
       <div className="view-dock" dir="auto">
         <div className="cluster">
           <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">

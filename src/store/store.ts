@@ -11,7 +11,7 @@ import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
-import type { Heights } from '../sculpt/ops';
+import { isSculpture, type Heights } from '../sculpt/ops';
 import type { SketchGraph } from './../model/types';
 import type { SketchPlane } from '../sculpt/sketch';
 import { draftOf, finishBlock, planeFrame, shapeFrame, writeSketch } from '../sculpt/session';
@@ -148,8 +148,8 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
 function guarded(d: Design, base: Design) {
-  // waffle designs have no boards to solve or join (milestone 49)
-  if (d.kind === 'waffle') return;
+  // sculpture designs have no boards to solve or join (milestone 49)
+  if (isSculpture(d)) return;
   if (useStore.getState().viewPrefs.mode !== 'quick') {
     solve(d);
     autoConnect(d);
@@ -214,8 +214,8 @@ export function tourDone(): boolean {
 
 /** Waffle designs' editor state (milestones 49–54): not saved with the design. */
 export type SculptUi = {
-  /** The stage: 1 Shape or 2 Waffle. */
-  stage: 'shape' | 'waffle';
+  /** The stage: 1 Shape, or 2 Make (what the design's outcome makes: the waffle). */
+  stage: 'shape' | 'make';
   /** The Shapes tool's next shape, and whether it is a Hole. */
   next: 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus';
   nextHole: boolean;

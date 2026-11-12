@@ -4,7 +4,7 @@
 import type { Design, P2 } from '../model/types';
 import type { TaggedContour } from '../geom/types';
 import type { Piece } from '../model/pieces';
-import { registerWaffle } from '../model/pieces';
+import { registerOutcome } from '../model/pieces';
 import { polygonContour } from '../geom/vec';
 import { refitArcs } from '../geom/arcfit';
 import { kernelNow } from '../sculpt/kernel';
@@ -88,4 +88,4 @@ export function partOf(d: Design, pieceKey: string) {
   return p ? { fam: p.fam, sliceId: p.sliceId, label: p.label } : null;
 }
 
-registerWaffle({ thumb: (d) => waffleThumbSvg(d), pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleParts(d) : null) });
+registerOutcome('waffle', { thumb: (d) => waffleThumbSvg(d), pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleParts(d) : null) });

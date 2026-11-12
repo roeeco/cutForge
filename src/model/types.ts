@@ -310,13 +310,16 @@ export type Design = {
   joints?: JointChoices;
   /**
    * The design type (WAFFLE_MODE.md §3.1). Absent: a box design (every file made before
-   * milestone 49). A waffle design keeps `panels`, `connections` and `trays` empty.
+   * milestone 49). 'waffle' means a sculpture design (made of shapes; its `outcome` says
+   * what it becomes); it keeps `panels`, `connections` and `trays` empty.
    */
   kind?: 'waffle';
   /** Waffle designs: the shapes the solid is built from. */
   sculpt?: Sculpt;
   /** Waffle designs: how the solid is sliced. Absent: the defaults (WAFFLE_MODE.md §6.1). */
   waffle?: WaffleSpec;
+  /** A sculpture design's outcome (SKETCH_OVERHAUL.md §9.1): what its shapes become. Absent: 'waffle'. */
+  outcome?: 'waffle' | 'fold';
 };
 
 /** A waffle design's shapes (WAFFLE_MODE.md §4). */
@@ -362,6 +365,12 @@ export type Shape3 = {
   color?: string;
   /** Stretch along the shape's own axes (x, up, z), applied to the built body before it is placed. Absent = [1, 1, 1]. */
   stretch?: V3;
+  /**
+   * Faces (3–64): a cylinder, cone, sphere, half sphere, ring or revolve goes round in this many
+   * flat pieces, and an extrusion's arcs and curves are cut into this many per quarter turn,
+   * in place of the 0.02 mm rule (SKETCH_OVERHAUL.md §9.3; for folding later). Absent: smooth.
+   */
+  facets?: number;
 };
 
 /**
