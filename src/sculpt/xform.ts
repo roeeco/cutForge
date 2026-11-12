@@ -76,3 +76,37 @@ export function m4Quat(m: M4): Quat {
 
 /** Built z-up (manifold's extrude and revolve axis) to the world's y-up: (x, y, z) → (x, z, −y). */
 export const Z_TO_Y: M4 = [1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1];
+
+/** A scale along the axes. */
+export function m4Scale(v: V3): M4 {
+  return [v[0], 0, 0, 0, 0, v[1], 0, 0, 0, 0, v[2], 0, 0, 0, 0, 1];
+}
+/** Inverse of any affine transform (rotation, scale and shear allowed). */
+export function m4InvAffine(m: M4): M4 {
+  const M = (r: number, c: number) => m[c * 4 + r];
+  const cof = (r: number, c: number) => {
+    const rs = [0, 1, 2].filter((x) => x !== r), cs = [0, 1, 2].filter((x) => x !== c);
+    const v = M(rs[0], cs[0]) * M(rs[1], cs[1]) - M(rs[0], cs[1]) * M(rs[1], cs[0]);
+    return (r + c) % 2 ? -v : v;
+  };
+  const det = M(0, 0) * cof(0, 0) + M(0, 1) * cof(0, 1) + M(0, 2) * cof(0, 2);
+  if (Math.abs(det) < 1e-15) return m4Inv(m);
+  const r = new Array<number>(16).fill(0);
+  r[15] = 1;
+  // inverse[i][j] = cof(j, i) / det, stored column-major
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r[j * 4 + i] = cof(j, i) / det;
+  const t = m4Apply(r, [m[12], m[13], m[14]]);
+  r[12] = -t[0];
+  r[13] = -t[1];
+  r[14] = -t[2];
+  return r;
+}
+/** The matrix with its three columns made unit length (the turn of a scaled turn). */
+export function m4Unscaled(m: M4): M4 {
+  const o = [...m];
+  for (let c = 0; c < 3; c++) {
+    const l = Math.hypot(m[c * 4], m[c * 4 + 1], m[c * 4 + 2]) || 1;
+    for (let r = 0; r < 3; r++) o[c * 4 + r] = m[c * 4 + r] / l;
+  }
+  return o;
+}

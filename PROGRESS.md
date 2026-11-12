@@ -1048,6 +1048,28 @@ Verified
 Not verified
 - The full e2e suite was not run (the owner's standing preference: only the waffle spec); the classroom specs need the Worker.
 
+## Milestone 55 — placing shapes, and the scale frame ✅
+
+Implemented (SKETCH_OVERHAUL.md §4)
+- **Tiles place shapes.** A click on a Shapes tile adds a 40 × 40 shape (`defaultPrimitive`) on a free spot near the point the view orbits (`freeSpot`, `stageCamera.target`), selects it and picks the Select tool; a drag from a tile shows a see-through shape at the pointer's floor point and places it where it is dropped (Esc or a drop off the stage cancels). The tile still sets the next shape, so S and a footprint drag work as before. Tiles are plain buttons with `aria-pressed`, and the card says *Click to add, or drag onto the stage*.
+- **Heights by kind** (`SculptUi.heights`): ✓ on a ghost remembers the height for box, cylinder, cone, prism, pyramid and extrusion; sphere, half sphere and ring never store or read one (`startHeight`, `HEIGHT_KINDS`).
+- **`stretch`** on a shape (optional, no schema bump), used only where a shape has no number of its own to change: a group, or a revolve stretched radially by two different factors. `poseMatrix` puts it in `shapeMatrix`, a group's body and `parentMatrix`; `worldPose` drops the scale from the turn; `moveShapes`, `turnShapes` and `addShape` into a group use an affine inverse (`m4InvAffine`); a shape added into a stretched group gets the stretch that undoes it. `checkSculpt` drops a bad stretch.
+- **`src/sculpt/scale.ts`**: `scaleShape` (own axes, about a shape-local anchor, nothing under 1 mm), `scaleShapes` (world axes; a shape not turned onto the world's axes only scales alike, else `false` and nothing changes), `shapeSize`, `canStretch`. **Ungroup** bakes a uniform stretch into every member, a non-uniform one into members turned onto the group's axes, and wraps any other member in a group of one that carries it.
+- **`worldBox`/`unionBox`/`freeSpot` moved to `src/sculpt/box.ts`** (re-exported from `ui/geom.ts`); `parentOf`, `parentMatrix` and `worldPose` to `src/sculpt/tree.ts` (re-exported from `ops.ts`); `src/waffle/fixes.ts` no longer imports from `ui/`.
+- **The scale frame** (`src/sculpt/ui/ScaleFrame.tsx`, replacing `SizeArrows`): one shape's own box in its own axes, or several shapes' world box; four white bottom corners (width and depth), four dark side middles (one direction), a white cone on top (height). Shift or *Keep proportions* scales all three alike; Alt about the middle; sizes snap to the grid; every move previews from the drag's start and commits once (Esc cancels). W, D and H labels can be typed. With a shape turned off the world's axes among several, the side handles hide and *Group these shapes to stretch them* shows.
+- **The card**: Width, Depth and Height for every kind, groups and several shapes, through the same maths, with *Keep proportions* (`viewPrefs.keepRatio`, saved per browser).
+- **Percent**: `evalNumber(text, base)` reads `150%` as 1.5 × the current value in every number field and stage label; sums still work.
+- **Layout**: a waffle design's top bar at 1024 px wide hid nothing and scrolled sideways by 148 px; it now collapses into the ⋯ menu below 1240 px as Quick build's does (no sideways scroll at 1024 × 768 in English or Hebrew).
+
+Verified
+- `npm run typecheck`; `npm test`: 669 passed, 7 skipped (`ezdxf`); `tests/golden.test.ts` unchanged and green.
+- `tests/sculptscale.test.ts` (61 tests): every kind (primitives, a floor and an upright extrusion, a revolve) scaled by (2, 1, 1), (1, 3, 1), (1, 1, 0.5) and (2, 2, 2) about a corner: the body's box within 0.05 mm, the volume by the product within 0.5 % (a ring only when scaled alike: its tube stays round); the revolve's stretch; a stretched group with a 25°-turned cylinder (box doubles; ungroup keeps the solid's volume and box, the cylinder in a group of one); a uniform stretch baked on ungroup; moving and turning a stretched group and a member; a shape added into a stretched group; `scaleShapes` refusing and a 90° turn taking permuted factors; `freeSpot`; heights; save/open of `stretch`; percent; the frame's drag maths.
+- `tests/e2e/waffle.spec.ts` updated (the box by a tile click and typed sizes, the cylinder hole dragged from its tile) and passing (`npx playwright test -c pw-app.config.ts tests/e2e/waffle.spec.ts`, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`, 12 s).
+- Dev server at 1024 × 768: a tile click places a box at the origin with the frame and its W/D/H labels; `scrollWidth` 1024 in both languages.
+
+Not verified
+- Dragging the frame's handles by hand (the drag maths is unit-tested; the handles use the existing `ScreenSized`/`useHandleDrag` widgets).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

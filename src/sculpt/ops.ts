@@ -4,7 +4,14 @@ import type { Design, Quat, Sculpt, Shape3, ShapeKind, V3 } from '../model/types
 import type { MaterialProfile } from '../model/types';
 import { createDesign, newId } from '../model/ops';
 import { DEFAULT_MATERIAL } from '../model/materials';
-import { m4, m4Apply, m4Inv, m4Mul, m4Quat, qAxis, qMul, qNorm, Q_ID, type M4 } from './xform';
+import { m4, m4Apply, m4InvAffine, m4Mul, m4Quat, m4Unscaled, qAxis, qConj, qMul, qNorm, qRot, Q_ID } from './xform';
+import { poseMatrix, stretchOf } from './build';
+import { parentMatrix, parentOf, worldPose } from './tree';
+import { alignedAxes, scaleShape } from './scale';
+export { alignedAxes };
+
+export { parentMatrix, parentOf, worldPose };
+export { freeSpot } from './box';
 
 export const PRIMITIVES = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus'] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
@@ -21,29 +28,10 @@ export function sculptOf(d: Design): Sculpt {
   return d.sculpt;
 }
 
-/** The group a shape belongs to, or null at the top level. */
-export function parentOf(sc: Sculpt, id: string): string | null {
-  for (const s of Object.values(sc.shapes)) if (s.kind === 'group' && s.children?.includes(id)) return s.id;
-  return null;
-}
 /** The list a shape is in: its group's members or the top-level order. */
 function siblings(sc: Sculpt, id: string): string[] {
   const p = parentOf(sc, id);
   return p ? (sc.shapes[p].children ??= []) : sc.order;
-}
-
-/** Parent frame → world for a shape (its group's chain); identity at the top level. */
-export function parentMatrix(sc: Sculpt, id: string): M4 {
-  const p = parentOf(sc, id);
-  if (!p) return m4([0, 0, 0], Q_ID);
-  const g = sc.shapes[p];
-  return m4Mul(parentMatrix(sc, p), m4(g.at, g.q));
-}
-/** The shape's origin and turn in the world. */
-export function worldPose(sc: Sculpt, id: string): { at: V3; q: Quat } {
-  const s = sc.shapes[id];
-  const M = m4Mul(parentMatrix(sc, id), m4(s.at, s.q));
-  return { at: [M[12], M[13], M[14]], q: m4Quat(M) };
 }
 
 /** The default size of a new primitive on a footprint w × d, h tall. */
@@ -72,6 +60,30 @@ export function primitiveShape(kind: Primitive, foot: { x: number; z: number; w:
   }
 }
 
+/** The heights the last confirmed shapes of each kind used (milestone 55). */
+export type Heights = Partial<Record<Primitive | 'extrude', number>>;
+/** Kinds whose height is remembered; a sphere, half sphere and ring never store or read one. */
+export const HEIGHT_KINDS: readonly (Primitive | 'extrude')[] = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'extrude'];
+/** The height a new shape of this kind starts at: the remembered one, else min(w, d) (20 for an extrusion). */
+export function startHeight(kind: Primitive | 'extrude', heights: Heights, w = 40, d = 40): number {
+  const h = HEIGHT_KINDS.includes(kind) ? heights[kind] : undefined;
+  if (h !== undefined && h > 0) return h;
+  if (kind === 'extrude') return 20;
+  if (kind === 'sphere' || kind === 'torus') return Math.max(w, d);
+  if (kind === 'halfsphere') return Math.max(w, d);
+  return Math.min(w, d);
+}
+/** The value `primitiveShape` takes as its height for this kind, from the shape's start height. */
+export function primitiveHeightArg(kind: Primitive, h: number, w: number, d: number): number {
+  return kind === 'halfsphere' ? h / 2 : kind === 'torus' ? Math.max(2, Math.round(Math.min(w, d) / 4)) : h;
+}
+
+/** A primitive with a 40 × 40 footprint centred at `at` (its bottom at at.y), at its start height. */
+export function defaultPrimitive(kind: Primitive, at: V3, heights: Heights = {}): Omit<Shape3, 'id' | 'name'> {
+  const h = startHeight(kind, heights);
+  return primitiveShape(kind, { x: at[0], z: at[2], y: at[1], w: 40, d: 40 }, primitiveHeightArg(kind, h, 40, 40));
+}
+
 /** Add a shape at the top level (or into a group); returns its id. */
 export function addShape(d: Design, s: Omit<Shape3, 'id' | 'name'> & { name?: string }, into?: string | null): string {
   const sc = sculptOf(d);
@@ -80,10 +92,13 @@ export function addShape(d: Design, s: Omit<Shape3, 'id' | 'name'> & { name?: st
   if (into && sc.shapes[into]?.kind === 'group') {
     const g = sc.shapes[into];
     // given in world coordinates: into the group's frame
-    const inv = m4Inv(m4Mul(parentMatrix(sc, into), m4(g.at, g.q)));
+    const inv = m4InvAffine(m4Mul(parentMatrix(sc, into), poseMatrix(g)));
     const M = m4Mul(inv, m4(s.at, s.q));
     sc.shapes[id].at = [M[12], M[13], M[14]];
-    sc.shapes[id].q = m4Quat(M);
+    sc.shapes[id].q = m4Quat(m4Unscaled(M));
+    // in a stretched group: a stretch that undoes it, so the shape looks as it was made
+    const cols = [0, 1, 2].map((c) => Math.hypot(M[c * 4], M[c * 4 + 1], M[c * 4 + 2]));
+    if (cols.some((x) => Math.abs(x - 1) > 1e-9)) sc.shapes[id].stretch = cols.map((x, i) => x * (s.stretch?.[i] ?? 1)) as V3;
     (g.children ??= []).push(id);
   } else sc.order.push(id);
   return id;
@@ -162,8 +177,8 @@ export function moveShapes(d: Design, ids: string[], off: V3) {
     const s = sc.shapes[id];
     if (!s) continue;
     const P = parentMatrix(sc, id);
-    // a direction: the inverse turn only
-    const inv = m4Inv(P);
+    // a direction: the inverse of the parent's turn and stretch, without its move
+    const inv = m4InvAffine(P);
     const o = m4Apply([...inv.slice(0, 12), 0, 0, 0, 1], off);
     s.at = [round6(s.at[0] + o[0]), round6(s.at[1] + o[1]), round6(s.at[2] + o[2])];
   }
@@ -187,13 +202,14 @@ export function turnShapes(d: Design, ids: string[], axis: V3, deg: number, pivo
   for (const id of ids) {
     const s = sc.shapes[id];
     if (!s) continue;
-    const P = parentMatrix(sc, id), Pinv = m4Inv(P);
+    const P = parentMatrix(sc, id), Pinv = m4InvAffine(P);
     // world turn about the pivot, expressed in the parent's frame
     const W = m4Mul(P, m4(s.at, s.q));
     const T = m4Mul(m4(pivot, Q_ID), m4Mul(m4([0, 0, 0], R), m4([-pivot[0], -pivot[1], -pivot[2]], Q_ID)));
     const L = m4Mul(Pinv, m4Mul(T, W));
     s.at = [round6(L[12]), round6(L[13]), round6(L[14])];
-    s.q = qNorm(m4Quat(L));
+    // inside a stretched group the turn is the nearest rigid one
+    s.q = qNorm(m4Quat(m4Unscaled(L)));
   }
 }
 
@@ -225,26 +241,45 @@ export function groupShapes(d: Design, ids: string[]): string | null {
   return gid;
 }
 
-/** Ungroup: the members come back exactly where they were (the group's move and turn baked in). */
+/** Ungroup: the members come back exactly where they were (the group's move, turn and stretch baked in). */
 export function ungroupShape(d: Design, gid: string): string[] {
   const sc = d.sculpt;
   const g = sc?.shapes[gid];
   if (!sc || !g || g.kind !== 'group') return [];
   const G = m4(g.at, g.q);
+  const S = stretchOf(g);
   const kids = (g.children ?? []).filter((c) => sc.shapes[c]);
+  const out: string[] = [];
   for (const c of kids) {
     const s = sc.shapes[c];
+    // a hole group's members stay holes: its Solids become Holes too
+    if (g.hole && !s.hole) s.hole = true;
+    let keep = c;
+    if (S) {
+      const uniform = Math.abs(S[0] - S[1]) < 1e-6 && Math.abs(S[1] - S[2]) < 1e-6;
+      const ax = uniform ? ([0, 1, 2] as [number, number, number]) : alignedAxes(s.q);
+      if (ax) {
+        // the group's origin in the member's own frame, and the stretch along the member's own axes
+        const anchor = qRot(qConj(s.q), [-s.at[0], -s.at[1], -s.at[2]]);
+        scaleShape(d, c, [S[ax[0]], S[ax[1]], S[ax[2]]], anchor);
+      } else {
+        // turned some other way: wrapped in a group of one that carries the stretch
+        const wid = newId('s');
+        sc.shapes[wid] = { id: wid, name: '', kind: 'group', at: [...g.at] as V3, q: [...g.q] as Quat, stretch: [...S] as V3, children: [c], ...(s.hole ? { hole: true as const } : {}), ...(s.color ? { color: s.color } : {}) };
+        out.push(wid);
+        continue;
+      }
+    }
     const M = m4Mul(G, m4(s.at, s.q));
     s.at = [round6(M[12]), round6(M[13]), round6(M[14])];
     s.q = qNorm(qMul(g.q, s.q));
-    // a hole group's members stay holes: its Solids become Holes too
-    if (g.hole && !s.hole) s.hole = true;
+    out.push(keep);
   }
   const list = siblings(sc, gid);
   const i = list.indexOf(gid);
-  list.splice(i, 1, ...kids);
+  list.splice(i, 1, ...out);
   delete sc.shapes[gid];
-  return kids;
+  return out;
 }
 
 /** A shape's kind label key suffix and its number among shapes of that kind (creation order). */

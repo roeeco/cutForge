@@ -6,12 +6,13 @@ import { Icon } from '../../ui/icons';
 import { deleteSketchPoint, facingPlane, revolveBlocked, setSketchMode, setSketchPointKind } from '../sketch';
 import { selectedShapeIds } from '../../store/store';
 import { worldBox, unionBox } from './geom';
+import { startHeight } from '../ops';
 
 const st = () => useStore.getState();
 const edit = (fn: (d: Design) => void) => st().apply((d) => fn(d as Design));
 
-/** The camera's position, registered by the stage (for an upright plane facing the viewer). */
-export const stageCamera: { pos: [number, number, number] } = { pos: [0, 260, 330] };
+/** The camera's position and the point it orbits, registered by the stage (an upright plane faces the viewer; a clicked tile's shape lands near the target). */
+export const stageCamera: { pos: [number, number, number]; target: [number, number, number] } = { pos: [0, 260, 330], target: [0, 0, 0] };
 
 export function SketchToolCard() {
   const t = useT();
@@ -86,7 +87,7 @@ export function SketchMode({ s }: { s: Shape3 }) {
         { value: 'extrude', label: t('sketch.extrude'), testId: 'mode-extrude' },
         { value: 'revolve', label: t('sketch.revolve'), testId: 'mode-revolve' },
       ]}
-      onChange={(v) => edit((d) => setSketchMode(d, s.id, v as 'extrude' | 'revolve', st().sculpt.height ?? 20))}
+      onChange={(v) => edit((d) => setSketchMode(d, s.id, v as 'extrude' | 'revolve', startHeight('extrude', st().sculpt.heights)))}
     />
   );
 }

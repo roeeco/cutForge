@@ -7,10 +7,11 @@ import { Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { gridSnap, noSmartSnap, selectedShapeIds, shapeSel, useStore, useT } from '../../store/store';
 import type { Design, Shape3, V3 } from '../../model/types';
-import { buildShape } from '../build';
+import { buildShape, shapeMatrix } from '../build';
 import { kernelNow } from '../kernel';
-import { addShape, moveShapes, parentMatrix, primitiveShape, turnShapes, updateShape, worldPose, type Primitive } from '../ops';
-import { qRot } from '../xform';
+import { addShape, defaultPrimitive, HEIGHT_KINDS, moveShapes, parentMatrix, primitiveHeightArg, primitiveShape, startHeight, turnShapes, updateShape, worldPose, type Primitive } from '../ops';
+import { ScaleFrame } from './ScaleFrame';
+import { m4, m4Mul, qRot, Q_ID } from '../xform';
 import { holeMaterial, shapeColor, snapLift, snapMove, toGeometry, toMatrix, unionBox, worldBox, type Box3 } from './geom';
 import { Gizmo, OverlayContext, PushPull, mmPerPx, useRayFromScreen } from '../../views/widgets';
 import { ConfirmBar } from '../../views/panelTool';
@@ -22,8 +23,6 @@ import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
 import { WaffleLayer } from '../../waffle/ui/WaffleLayer';
 import { StepsBar } from '../../waffle/ui/StepsLayer';
-
-const PRIMS = new Set(['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus']);
 
 /** The shapes on the stage: the top level, or the members of the group being worked inside. */
 export function visibleShapes(d: Design, focus: string | null): { id: string; dim: boolean }[] {
@@ -65,54 +64,6 @@ function ShapeMesh({ d, id, index, dim, selected, ghost, onDown, onDouble }: { d
       )}
     </group>
   );
-}
-
-/** Teal arrows on a primitive's sides (width, depth) and top (height), as for board sizes. */
-function SizeArrows({ d, id }: { d: Design; id: string }) {
-  const sc = d.sculpt!;
-  const s = sc.shapes[id];
-  const pose = worldPose(sc, id);
-  if (!s.size || !PRIMS.has(s.kind)) return null;
-  const [W, H, D] = s.size;
-  const R = (v: V3) => qRot(pose.q, v);
-  const P = (v: V3): V3 => {
-    const r = R(v);
-    return [pose.at[0] + r[0], pose.at[1] + r[1], pose.at[2] + r[2]];
-  };
-  const st = useStore.getState;
-  const arrow = (axis: 0 | 1 | 2, testId: string) => {
-    const dir: V3 = axis === 0 ? [1, 0, 0] : axis === 1 ? [0, 1, 0] : [0, 0, 1];
-    const at = axis === 0 ? P([W / 2, H / 2, 0]) : axis === 1 ? P([0, H, 0]) : P([0, H / 2, D / 2]);
-    const value = s.size![axis];
-    return (
-      <PushPull
-        key={testId}
-        at={at}
-        axis={R(dir)}
-        value={value}
-        min={1}
-        onPreview={(v) =>
-          st().preview((dd) => {
-            const x = dd.sculpt!.shapes[id];
-            if (!x?.size) return;
-            const size = [...x.size] as V3;
-            const dv = v - size[axis];
-            size[axis] = v;
-            // a sphere keeps its proportions with Shift (all sizes grow together); others keep the far side in place
-            updateShape(dd as Design, id, { size });
-            if (axis !== 1) {
-              const off = R(dir).map((c) => (c * dv) / 2) as V3;
-              moveShapes(dd as Design, [id], off);
-            }
-          })
-        }
-        onCommit={() => st().commit()}
-        onCancel={() => st().cancel()}
-        testId={testId}
-      />
-    );
-  };
-  return <>{[arrow(0, 'size-w'), arrow(2, 'size-d'), arrow(1, 'size-h')]}</>;
 }
 
 /** The 3D gizmo for the selected shapes: a square and two arrows on the floor, a lift arrow, and three rings. */
@@ -215,7 +166,9 @@ function ShapeGhostBar({ d, id }: { d: Design; id: string }) {
     });
   };
   const ok = () => {
-    st().setSculpt({ height: H });
+    // remembered by kind (a sphere, half sphere and ring never store one)
+    const kind = s.kind as Primitive | 'extrude';
+    if (HEIGHT_KINDS.includes(kind)) st().setSculpt({ heights: { ...st().sculpt.heights, [kind]: H } });
     st().confirmPending();
   };
   return (
@@ -234,6 +187,71 @@ function ShapeGhostBar({ d, id }: { d: Design; id: string }) {
       </ConfirmBar>
     </>
   );
+}
+
+/** A shape dragged from its tile: a see-through copy at the pointer's floor point; released over the stage, it is placed there. */
+function TileDrag({ kind }: { kind: Primitive }) {
+  const ray = useRayFromScreen();
+  const { gl, invalidate } = useThree();
+  const [at, setAt] = useState<V3 | null>(null);
+  const atRef = useRef<V3 | null>(null);
+  const shape = useMemo(() => {
+    const st = useStore.getState();
+    return defaultPrimitive(kind, [0, 0, 0], st.sculpt.heights);
+  }, [kind]);
+  const geo = useMemo(() => {
+    const k = kernelNow();
+    if (!k) return null;
+    const tmp = { shapes: { tmp: { ...shape, id: 'tmp', name: '' } as Shape3 }, order: ['tmp'] };
+    return toGeometry(buildShape(k, tmp, 'tmp'));
+  }, [shape]);
+  useEffect(() => () => geo?.dispose(), [geo]);
+  useEffect(() => {
+    const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const over = (ev: PointerEvent) => document.elementFromPoint(ev.clientX, ev.clientY) === gl.domElement;
+    const move = (ev: PointerEvent) => {
+      const hit = over(ev) ? ray(ev.clientX, ev.clientY).intersectPlane(floor, new THREE.Vector3()) : null;
+      const p: V3 | null = hit ? [gridSnap(hit.x, ev), 0, gridSnap(hit.z, ev)] : null;
+      atRef.current = p;
+      setAt(p);
+      invalidate();
+    };
+    const stop = () => useStore.getState().setSculpt({ dragKind: null });
+    const up = (ev: PointerEvent) => {
+      move(ev);
+      const p = atRef.current;
+      stop();
+      if (p) placePrimitive(kind, p);
+    };
+    const key = (ev: KeyboardEvent) => ev.key === 'Escape' && stop();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', key);
+    };
+  }, [kind]);
+  if (!at || !geo) return null;
+  return (
+    <mesh geometry={geo} matrixAutoUpdate={false} matrix={toMatrix(m4Mul(m4(at, Q_ID), shapeMatrix({ ...shape, at: [0, 0, 0] } as Shape3)))} raycast={() => null} data-testid="tile-drag-ghost">
+      <meshStandardMaterial color={STAGE.ghost} transparent opacity={0.5} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** Add a primitive at a floor point (a tile clicked or dropped): selected, with the Select tool. */
+export function placePrimitive(kind: Primitive, at: V3) {
+  const st = useStore.getState();
+  let id = '';
+  st.cancelPending();
+  st.apply((x) => {
+    id = addShape(x as Design, { ...defaultPrimitive(kind, at, st.sculpt.heights), color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length), ...(st.sculpt.nextHole ? { hole: true as const } : {}) }, st.sculpt.focus);
+  });
+  if (!id) return;
+  st.setTool('select');
+  st.select(shapeSel([id]));
 }
 
 type Draw = { y: number; a: THREE.Vector3; b: THREE.Vector3; moved: boolean; px: { x: number; y: number }; into: string | null };
@@ -282,12 +300,11 @@ function SculptScene() {
       if (w < 1 || dd < 1) return;
       const cx = g.moved ? (g.a.x + g.b.x) / 2 : g.a.x, cz = g.moved ? (g.a.z + g.b.z) / 2 : g.a.z;
       const kind = st.sculpt.next as Primitive;
-      const round = kind === 'sphere' || kind === 'torus' || kind === 'halfsphere';
-      const h = st.sculpt.height ?? (round ? Math.max(w, dd) : Math.min(w, dd));
+      const h = startHeight(kind, st.sculpt.heights, w, dd);
       let id = '';
       st.cancelPending();
       st.apply((x) => {
-        const shape = primitiveShape(kind, { x: cx, z: cz, w, d: dd, y: g.y }, kind === 'halfsphere' ? h / 2 : kind === 'torus' ? Math.max(2, Math.round(Math.min(w, dd) / 4)) : h);
+        const shape = primitiveShape(kind, { x: cx, z: cz, w, d: dd, y: g.y }, primitiveHeightArg(kind, h, w, dd));
         id = addShape(x as Design, { ...shape, color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length), ...(st.sculpt.nextHole ? { hole: true } : {}) }, g.into);
       });
       if (!id) return;
@@ -355,7 +372,8 @@ function SculptScene() {
         </mesh>
       )}
       {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && <ShapeGizmo d={d} ids={ids} />}
-      {ui.stage === 'shape' && tool === 'select' && single && <SizeArrows d={d} id={single.id} />}
+      {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && <ScaleFrame d={d} ids={ids} />}
+      {ui.dragKind && <TileDrag kind={ui.dragKind} />}
       {ghostIds.length === 1 && <ShapeGhostBar d={d} id={ghostIds[0]} />}
       {ui.stage === 'shape' && <SketchLayer />}
       {ui.stage === 'waffle' && <WaffleLayer />}
@@ -386,8 +404,11 @@ function FitRig({ signal }: { signal: number }) {
 
 /** Re-renders the canvas when the kernel arrives (frameloop is on demand); records the camera for an upright plane. */
 function Invalidate() {
-  const { invalidate, camera } = useThree();
-  useFrame(() => void (stageCamera.pos = [camera.position.x, camera.position.y, camera.position.z]));
+  const { invalidate, camera, controls } = useThree() as unknown as { invalidate: () => void; camera: THREE.Camera; controls: { target: THREE.Vector3 } | null };
+  useFrame(() => {
+    stageCamera.pos = [camera.position.x, camera.position.y, camera.position.z];
+    if (controls) stageCamera.target = [controls.target.x, controls.target.y, controls.target.z];
+  });
   const d = useStore((s) => s.design);
   const ready = useStore((s) => s.sculpt.ready);
   useEffect(() => invalidate(), [d, ready]);

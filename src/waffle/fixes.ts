@@ -3,7 +3,7 @@ import { produce } from 'immer';
 import type { Design } from '../model/types';
 import { kernelNow } from '../sculpt/kernel';
 import { groupShapes } from '../sculpt/ops';
-import { worldBox } from '../sculpt/ui/geom';
+import { worldBox } from '../sculpt/box';
 import { newId } from '../model/ops';
 import { deriveWaffle, type Fam, type WaffleModel } from './derive';
 import { ensureSpec, minGap, moveSlice } from './ops';

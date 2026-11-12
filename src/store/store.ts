@@ -11,6 +11,7 @@ import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
+import type { Heights } from '../sculpt/ops';
 
 export type Selection =
   /** `ids`: every selected panel (milestone 31), `id` the last clicked; absent: just `id`. */
@@ -138,6 +139,8 @@ export type ViewPrefs = {
   gridStep: number;
   /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
   turnStep: number;
+  /** Scaling keeps proportions (the scale frame, the size fields and the sketch's frame; milestone 55). */
+  keepRatio?: boolean;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
   /** Quick build or Workshop (milestone 37): a viewer preference, never part of the design. */
@@ -181,8 +184,10 @@ export type SculptUi = {
   /** The Shapes tool's next shape, and whether it is a Hole. */
   next: 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus';
   nextHole: boolean;
-  /** The height a new shape starts at (the last one used); null the first time. */
-  height: number | null;
+  /** A shape being dragged from its tile onto the stage (milestone 55), or null. */
+  dragKind: SculptUi['next'] | null;
+  /** The heights new shapes start at, by kind (the last one confirmed); empty the first time. */
+  heights: Heights;
   /** The group being worked inside (double-click), or null. */
   focus: string | null;
   /** The kernel has loaded. */
@@ -357,7 +362,7 @@ function validSelection(d: Design, s: Selection): Selection {
 
 export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
-  sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false, plane: { kind: 'floor' }, editSketch: null, selPoint: null },
+  sculpt: { stage: 'shape', next: 'box', nextHole: false, dragKind: null, heights: {}, focus: null, ready: false, failed: false, plane: { kind: 'floor' }, editSketch: null, selPoint: null },
   sculptRadius: 5,
   steps: null,
   // a stage change closes the assembly steps view
@@ -546,7 +551,7 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, height: null, editSketch: null, selPoint: null }, tool: 'select', design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, dragKind: null, heights: {}, editSketch: null, selPoint: null }, tool: 'select', design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'shape' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();

@@ -886,7 +886,7 @@ export const en = {
   'sculpt.toShape': "Back to 1 Shape",
   'sculpt.shapesCard': "Shapes",
   'sculpt.holeAlone': "This hole isn’t grouped, so it cuts nothing",
-  'sculpt.tile': "{kind}: drag on the floor",
+  'sculpt.tile': "{kind}: click to add, or drag onto the stage",
   'sketch.hint.draw': "Click corners on the plane. Click the first point or press Enter to close. Lines snap to 30°; hold Alt to draw freely.",
   'radius.hint': "Click a corner to round it. Shift-click rounds several.",
   'waffle.hint': "Click a slice to select it; drag its arrow to move it.",
@@ -955,6 +955,10 @@ export const en = {
   'steps.prev': "Previous step",
   'steps.next': "Next step",
   'steps.close': "Done",
+  'sculpt.tile.hint': "Click to add, or drag onto the stage",
+  'scale.groupFirst': "Group these shapes to stretch them",
+  'scale.keepRatio': "Keep proportions",
+  'scale.size': "Size",
 } as const;
 
 export type MsgKey = keyof typeof en;

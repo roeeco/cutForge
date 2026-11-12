@@ -28,6 +28,7 @@ function shapeOk(s: any, id: string): s is Shape3 {
   if (s.kind === 'group') s.children = Array.isArray(s.children) ? s.children.filter((c: unknown) => typeof c === 'string') : [];
   else delete s.children;
   if (s.hole !== undefined && s.hole !== true) delete s.hole;
+  if (s.stretch !== undefined && !(vec(s.stretch, 3) && s.stretch.every((v: number) => v > 0))) delete s.stretch;
   return true;
 }
 

@@ -784,6 +784,20 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 }
 
 /* ---- waffle designs (milestones 49–54) ---- */
+/* the stage stepper and both view tabs: the ⋯ menu takes over sooner (milestone 55: no sideways scroll at 1024 px) */
+@media (max-width: 1240px) {
+  .topbar:has(.stage-seg) { gap: 6px; padding: 0 10px; }
+  .topbar:has(.stage-seg) .tablet-hide { display: none !important; }
+  .topbar:has(.stage-seg) .tablet-only { display: inline-flex; }
+  .topbar:has(.stage-seg) .dl-btn .full { display: none; }
+  .topbar:has(.stage-seg) .dl-btn .short { display: inline; }
+  .topbar:has(.stage-seg) .sep { display: none; }
+  .topbar:has(.stage-seg) .design-name { width: 96px; }
+}
+@media (max-width: 1100px) {
+  .topbar:has(.stage-seg) .brand { display: none; }
+  .topbar:has(.stage-seg) .mat-pill > svg { display: none; }
+}
 .stage-seg button { white-space: nowrap; }
 .shape-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 8px; }
 .shape-tile { display: grid; justify-items: center; gap: 2px; min-height: 0; padding: 4px 2px; font-size: 11px; border-radius: var(--r-md); }

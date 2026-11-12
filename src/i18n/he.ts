@@ -888,7 +888,7 @@ export const he: Record<MsgKey, string> = {
   'sculpt.toShape': "חזרה ל־1 צורה",
   'sculpt.shapesCard': "צורות",
   'sculpt.holeAlone': "החור הזה לא בקבוצה, לכן הוא לא חותך כלום",
-  'sculpt.tile': "{kind}: גררו על הרצפה",
+  'sculpt.tile': "{kind}: לחצו להוספה, או גררו אל הבמה",
   'sketch.hint.draw': "לחצו על הפינות במישור. לחיצה על הנקודה הראשונה או Enter סוגרת את הצורה. הקווים נצמדים ל־30°; החזקת Alt מאפשרת לצייר חופשי.",
   'radius.hint': "לחצו על פינה כדי לעגל אותה. ‏Shift ולחיצה מעגלים כמה פינות.",
   'waffle.hint': "לחצו על פרוסה כדי לבחור אותה; גררו את החץ שלה כדי להזיז אותה.",
@@ -957,4 +957,8 @@ export const he: Record<MsgKey, string> = {
   'steps.prev': "השלב הקודם",
   'steps.next': "השלב הבא",
   'steps.close': "סיום",
+  'sculpt.tile.hint': "לחצו להוספה, או גררו אל הבמה",
+  'scale.groupFirst': "קבצו את הצורות כדי למתוח אותן",
+  'scale.keepRatio': "שמירה על פרופורציות",
+  'scale.size': "גודל",
 };

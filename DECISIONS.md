@@ -311,3 +311,16 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The waffle's picture for submissions and the teacher view** is an SVG of the slices standing in place, drawn in a three-quarter view back to front with the plate under them (`src/waffle/thumb.ts`), sent as the submission's preview instead of the first sheet. It is the same kind of file the teacher's list already shows, so the Worker is unchanged. It lives in `src/waffle/` and reaches `SubmitDialog` through the waffle hooks, not in `src/views/thumbnail.ts` (which draws the start screen's WebGL cards and would pull the kernel into the main bundle).
 - **The teacher view loads the kernel** when it opens a submitted waffle design (`loadWaffle`), so downloads and batches are regenerated from the project file as for boxes.
 - **Hebrew review**: a box is *תיבה* (not *קובייה*, a cube), the upright plane *מאונך*; families and checks use the feminine for slices (*פרוסה*) and the masculine for parts (*חלק*).
+
+## Sketch and shape overhaul (SKETCH_OVERHAUL.md, milestones 55–60)
+
+### Milestone 55: placing shapes, and the scale frame
+- **Shape-local** means the frame of the shape's move and turn, after its stretch: `shapeSize`, the frame of one shape and `scaleShape`'s anchor all use it, so a stretched group's frame shows its stretched size.
+- **A ring scales its width and depth, and its tube by the height factor**, as the plan says; its tube stays round, so a non-uniform scale of a ring does not multiply its volume by the factors' product (its box does follow). The volume test checks a ring only when scaled alike.
+- **Corner radii** of a box, prism or outline are multiplied only when the in-plane factors agree, otherwise kept (the fillet clamp trims them).
+- **A shape added into a stretched group** gets a stretch that undoes the group's, so it looks as it was made; when its turn is not along the group's axes that is the nearest rigid turn (the shear cannot be undone exactly), and the same holds for turning a member inside a non-uniformly stretched group.
+- **A corner drag** takes each direction's factor from where the pointer meets the frame's bottom plane; with proportions kept the factor of the direction moved furthest is used for all three.
+- **The frame's typed sizes and the card's fields** scale about the middle of the bottom, so a typed width grows both ways and the shape stays on what it stands on.
+- **Snapping a frame side to other shapes' boxes** (optional in the plan) is not done; sizes snap to the grid.
+- **A clicked tile's shape** lands near the point the view orbits (projected to the floor), at the grid step; *Hole* on the card applies to it as to a footprint drag. It is placed inside the group being worked in, if any.
+- **The waffle top bar** collapses below 1240 px (the stage stepper is wider than the box designs' mode switch it replaces).

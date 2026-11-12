@@ -7,11 +7,14 @@ import { NumField, Segmented, Stepper } from '../../ui/NumField';
 import { Icon } from '../../ui/icons';
 import { clampSides } from '../build';
 import { onKernel } from '../kernel';
-import { PRIMITIVES, moveShapes, resetTurn, setHole, shapeNumber, updateShape, worldPose, type Primitive } from '../ops';
+import { PRIMITIVES, freeSpot, moveShapes, resetTurn, setHole, shapeNumber, updateShape, worldPose, type Primitive } from '../ops';
+import { canStretch } from '../scale';
+import { scaleSelection, selectionFrame } from './ScaleFrame';
+import { placePrimitive } from './SculptView3D';
 import { shapeColor } from './geom';
 import { shapeTile } from './tiles';
 import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, ungroupSelected } from './commands';
-import { RadiusToolCard, SketchShapeFields, SketchToolCard } from './SketchCard';
+import { RadiusToolCard, SketchShapeFields, SketchToolCard, stageCamera } from './SketchCard';
 import { WaffleCard } from '../../waffle/ui/WaffleCard';
 
 type T = ReturnType<typeof useT>;
@@ -41,6 +44,38 @@ function SolidHole({ hole, onChange, testId }: { hole: boolean; onChange: (h: bo
   );
 }
 
+/** A tile clicked: its shape is placed near the middle of the view, on a free spot. */
+function clickTile(k: Primitive) {
+  const s = st();
+  s.setSculpt({ next: k });
+  const sc = s.design.sculpt ?? { shapes: {}, order: [] };
+  const [tx, , tz] = stageCamera.target;
+  const spot = freeSpot(sc, 40, 40, { x: tx, z: tz }, s.viewPrefs.gridStep > 0 ? s.viewPrefs.gridStep : 1);
+  placePrimitive(k, [spot.x, 0, spot.z]);
+}
+/** Pointer down on a tile: up within 4 px is a click; further is a drag onto the stage. */
+function tileDown(e: React.PointerEvent, k: Primitive) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const x0 = e.clientX, y0 = e.clientY;
+  st().setSculpt({ next: k });
+  const done = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  };
+  const move = (ev: PointerEvent) => {
+    if (Math.hypot(ev.clientX - x0, ev.clientY - y0) <= 4) return;
+    done();
+    st().setSculpt({ dragKind: k });
+  };
+  const up = () => {
+    done();
+    clickTile(k);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
 function ShapesToolCard() {
   const t = useT();
   const next = useStore((s) => s.sculpt.next);
@@ -52,44 +87,63 @@ function ShapesToolCard() {
       <div className="card-head">
         <h3>{t('sculpt.shapesCard')}</h3>
       </div>
-      <div className="shape-tiles" role="radiogroup" aria-label={t('sculpt.shapesCard')}>
+      <div className="shape-tiles" role="group" aria-label={t('sculpt.shapesCard')}>
         {PRIMITIVES.map((k, i) => {
           const src = shapeTile(k, nextHole ? '#9aa3ad' : shapeColor(i));
           return (
-            <button key={k} role="radio" aria-checked={next === k} className={`shape-tile ${next === k ? 'on' : ''}`} title={t('sculpt.tile', { kind: t(`sculpt.kind.${k}`) })} onClick={() => st().setSculpt({ next: k })} data-testid={`shape-tile-${k}`}>
-              {src ? <img src={src} alt="" /> : <Icon name="box" />}
+            <button key={k} type="button" aria-pressed={next === k} className={`shape-tile ${next === k ? 'on' : ''}`} title={t('sculpt.tile', { kind: t(`sculpt.kind.${k}`) })} onPointerDown={(e) => tileDown(e, k)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), clickTile(k))} data-testid={`shape-tile-${k}`}>
+              {src ? <img src={src} alt="" draggable={false} /> : <Icon name="box" />}
               <span>{t(`sculpt.kind.${k}`)}</span>
             </button>
           );
         })}
       </div>
+      <p className="note">{t('sculpt.tile.hint')}</p>
       <p className="step-label">{t('sculpt.nextAs')}</p>
       <SolidHole hole={nextHole} onChange={(h) => st().setSculpt({ nextHole: h })} testId="next" />
     </section>
   );
 }
 
-function SizeFields({ s, t }: { s: Shape3; t: T }) {
-  const mm = t('unit.mm');
-  if (!s.size) return null;
-  const [W, H, D] = s.size;
-  const setSize = (i: 0 | 1 | 2, v: number) =>
-    edit((d) => {
-      const x = d.sculpt!.shapes[s.id];
-      const size = [...x.size!] as V3;
-      size[i] = Math.max(1, v);
-      updateShape(d, s.id, { size });
-    });
+/** Keep proportions: the switch shared by the scale frame, these fields and the sketch's frame. */
+function KeepRatio() {
+  const t = useT();
+  const on = useStore((s) => !!s.viewPrefs.keepRatio);
   return (
-    <div className="field-grid">
-      <NumField label={t('sculpt.width')} value={W} unit={mm} min={1} onCommit={(v) => setSize(0, v)} testId="shape-w" />
-      <NumField label={t('sculpt.depth')} value={D} unit={mm} min={1} onCommit={(v) => setSize(2, v)} testId="shape-d" />
-      {s.kind === 'torus' ? (
-        <NumField label={t('sculpt.tube')} value={H} unit={mm} min={1} onCommit={(v) => setSize(1, v)} testId="shape-tube" />
-      ) : (
-        <NumField label={t('sculpt.height')} value={H} unit={mm} min={1} onCommit={(v) => setSize(1, v)} testId="shape-h" />
-      )}
-    </div>
+    <label className="check">
+      <input type="checkbox" checked={on} onChange={(e) => st().setPrefs({ keepRatio: e.target.checked })} data-testid="keep-ratio" /> {t('scale.keepRatio')}
+    </label>
+  );
+}
+
+/** Width, depth and height of one shape (its own box) or several (their box), typed through the scale frame's maths. */
+function ScaleFields({ ids, torus }: { ids: string[]; torus?: boolean }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const keep = useStore((s) => !!s.viewPrefs.keepRatio);
+  const fr = selectionFrame(d, ids);
+  if (!fr) return null;
+  const b = fr.box;
+  const L = (i: number) => Math.round((b.max[i] - b.min[i]) * 100) / 100;
+  const stretchable = !!fr.one || canStretch(d.sculpt!, ids);
+  const set = (i: number, v: number) => {
+    const old = b.max[i] - b.min[i];
+    if (!(old > 0)) return;
+    const k = Math.max(1, v) / old;
+    const f: V3 = keep || !stretchable ? [k, k, k] : i === 0 ? [k, 1, 1] : i === 1 ? [1, k, 1] : [1, 1, k];
+    edit((x) => void scaleSelection(x, fr, ids, f, [(b.min[0] + b.max[0]) / 2, b.min[1], (b.min[2] + b.max[2]) / 2]));
+  };
+  const mm = t('unit.mm');
+  return (
+    <>
+      <div className="field-grid">
+        <NumField label={t('sculpt.width')} value={L(0)} unit={mm} min={1} onCommit={(v) => set(0, v)} testId="shape-w" />
+        <NumField label={t('sculpt.depth')} value={L(2)} unit={mm} min={1} onCommit={(v) => set(2, v)} testId="shape-d" />
+        <NumField label={t(torus ? 'sculpt.tube' : 'sculpt.height')} value={L(1)} unit={mm} min={1} onCommit={(v) => set(1, v)} testId={torus ? 'shape-tube' : 'shape-h'} />
+      </div>
+      <KeepRatio />
+      {!stretchable && <p className="note">{t('scale.groupFirst')}</p>}
+    </>
   );
 }
 
@@ -137,7 +191,7 @@ function ShapeCard({ id }: { id: string }) {
         </button>
       </div>
       <SolidHole hole={!!s.hole} onChange={(h) => edit((x) => setHole(x, [id], h))} testId="shape" />
-      <SizeFields s={s} t={t} />
+      <ScaleFields ids={[id]} torus={s.kind === 'torus'} />
       {(s.kind === 'prism' || s.kind === 'pyramid') && <Stepper label={t('sculpt.sides')} value={clampSides(s.n)} min={3} max={12} onCommit={(v) => edit((x) => updateShape(x, id, { n: v }))} testId="shape-sides" />}
       {(s.kind === 'cone' || s.kind === 'pyramid') && <NumField label={t('sculpt.top')} value={Math.round((s.top ?? 0) * 100)} unit="%" min={0} max={100} decimals={0} onCommit={(v) => edit((x) => updateShape(x, id, { top: Math.max(0, Math.min(1, v / 100)) }))} testId="shape-top" />}
       {(s.kind === 'box' || s.kind === 'prism') && <CornerFields s={s} t={t} />}
@@ -181,6 +235,7 @@ function MultiCard({ ids }: { ids: string[] }) {
         </button>
       </div>
       <SolidHole hole={holes} onChange={(h) => edit((x) => setHole(x, ids, h))} testId="multi" />
+      <ScaleFields ids={ids} />
       {canGroup(d, ids) && (
         <button className="primary" onClick={groupSelected} data-testid="multi-group">
           <Icon name="group" /> {t('sculpt.groupBtn')}

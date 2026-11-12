@@ -360,6 +360,8 @@ export type Shape3 = {
   /** Group: its members (each still a Shape3 with its own Solid/Hole). */
   children?: string[];
   color?: string;
+  /** Stretch along the shape's own axes (x, up, z), applied to the built body before it is placed. Absent = [1, 1, 1]. */
+  stretch?: V3;
 };
 
 /**

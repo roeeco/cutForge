@@ -7,7 +7,7 @@ import { isSimplePolygon } from '../model/ops';
 import { crossesAxis, footprint, shapeMatrix } from './build';
 import { flattenSketch } from './round';
 import { parentMatrix, updateShape } from './ops';
-import { m4, m4Apply, m4Inv, m4Mul, qAxis, Q_ID, Z_TO_Y, type M4 } from './xform';
+import { m4, m4Apply, m4InvAffine, m4Mul, qAxis, Q_ID, Z_TO_Y, type M4 } from './xform';
 
 export type SketchPlane = { kind: 'floor' } | { kind: 'upright'; o: V3; ang: number };
 
@@ -23,7 +23,7 @@ export function sketchMatrix(sc: Sculpt, id: string): M4 {
 }
 /** A world point onto a sketch's plane (its local x, y). */
 export function toSketch(M: M4, w: V3): P2 {
-  const l = m4Apply(m4Inv(M), w);
+  const l = m4Apply(m4InvAffine(M), w);
   return { x: l[0], y: l[1] };
 }
 export const fromSketch = (M: M4, p: P2, z = 0): V3 => m4Apply(M, [p.x, p.y, z]);

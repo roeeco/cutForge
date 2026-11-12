@@ -9,7 +9,7 @@
 import type { P2, Sculpt, SculptPt, Shape3, V3 } from '../model/types';
 import { circleSegments, own, scope, type CrossSection, type Kernel, type Manifold } from './kernel';
 import { flattenSketch, withRadii } from './round';
-import { m4, m4Mul, Z_TO_Y, type M4 } from './xform';
+import { m4, m4Mul, m4Scale, Z_TO_Y, type M4 } from './xform';
 
 const SQ = (n: number) => n * n;
 
@@ -92,10 +92,22 @@ function fromEdgeM(s: Shape3): M4 {
   return [c, sn, 0, 0, -sn, c, 0, 0, 0, 0, 1, 0, f.o.x, f.o.y, 0, 1];
 }
 
-/** The shape's own transform: sketch-local or built z-up → its parent's frame. */
+/** A shape's stretch, or null when it has none (or it is [1, 1, 1]). */
+export function stretchOf(s: Pick<Shape3, 'stretch'>): V3 | null {
+  const v = s.stretch;
+  return v && v.some((x) => Math.abs(x - 1) > 1e-9) ? v : null;
+}
+/** Its move and turn, with its stretch (along its own axes) applied first. */
+export function poseMatrix(s: Shape3): M4 {
+  const T = m4(s.at, s.q);
+  const st = stretchOf(s);
+  return st ? m4Mul(T, m4Scale(st)) : T;
+}
+
+/** The shape's own transform: sketch-local or built z-up → its parent's frame (its stretch included). */
 export function shapeMatrix(s: Shape3): M4 {
   const base = s.kind === 'group' ? null : s.kind === 'extrude' || s.kind === 'revolve' ? (s.sketch?.plane === 'upright' ? null : Z_TO_Y) : Z_TO_Y;
-  const T = m4(s.at, s.q);
+  const T = poseMatrix(s);
   return base ? m4Mul(T, base) : T;
 }
 
@@ -196,7 +208,7 @@ export function clearShapeCache() {
 }
 export const shapeCacheSize = () => cache.size;
 
-const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis'] as const;
+const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch'] as const;
 
 /** The stable key of a shape's geometry in its parent's frame (its subtree for a group). */
 export function shapeKey(sc: Sculpt, id: string, seen = new Set<string>()): string {
@@ -222,7 +234,7 @@ export function buildShape(k: Kernel, sc: Sculpt, id: string): Manifold {
       // a group of holes only is one complex hole: its holes joined
       let m = solids.length ? k.Manifold.union(solids) : holes.length ? k.Manifold.union(holes) : k.Manifold.ofMesh(emptyMesh(k));
       if (solids.length && holes.length) m = m.subtract(k.Manifold.union(holes));
-      return m.transform(m4(s.at, s.q) as never);
+      return m.transform(poseMatrix(s) as never);
     }
     return leafBody(k, s).transform(shapeMatrix(s) as never);
   });

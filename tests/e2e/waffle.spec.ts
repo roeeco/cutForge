@@ -39,24 +39,31 @@ test('waffle sculpture: a box with a cylinder hole, grouped, sliced and exported
   await expect(page.getByTestId('stage-stepper')).toBeVisible();
   await expect(page.getByTestId('sculpt-loading')).toBeHidden({ timeout: 20_000 });
 
-  // a box: the Shapes tool, drag a footprint, then ✓
+  // a box: the Shapes tool, click its tile (milestone 55: placed at once), then type its size
   await page.keyboard.press('s');
   await page.getByTestId('shape-tile-box').click();
-  await drag(page, [-110, -70], [110, 110]);
-  await expect(page.getByTestId('shape-ghost-bar')).toBeVisible();
-  await page.getByTestId('ghost-height-field').fill('50');
-  await page.getByTestId('ghost-height-field').press('Enter');
-  await page.getByTestId('ghost-ok').click();
+  await expect(page.getByTestId('shape-card')).toBeVisible();
+  for (const [f, v] of [['shape-w', '120'], ['shape-d', '120'], ['shape-h', '50']] as const) {
+    await page.getByTestId(f).fill(v);
+    await page.getByTestId(f).press('Enter');
+  }
   expect((await shapes(page)).map((s) => s.kind)).toEqual(['box']);
+  expect(await S(page, () => Object.values((window as any).__cutforge.store.getState().design.sculpt.shapes).map((s: any) => s.size)[0])).toEqual([120, 50, 120]);
 
-  // a cylinder hole in its middle, taller than the box
+  // a cylinder hole in its middle, taller than the box: dragged from its tile onto the stage
   await page.keyboard.press('s');
-  await page.getByTestId('shape-tile-cylinder').click();
   await page.getByTestId('next-hole').click();
-  await drag(page, [-25, -5], [25, 45]);
-  await page.getByTestId('ghost-height-field').fill('80');
-  await page.getByTestId('ghost-height-field').press('Enter');
-  await page.getByTestId('ghost-ok').click();
+  const tile = (await page.getByTestId('shape-tile-cylinder').boundingBox())!;
+  const c = (await page.getByTestId('sculpt-view').locator('canvas').boundingBox())!;
+  await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2 + 40, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.getByTestId('shape-card')).toBeVisible();
+  for (const [f, v] of [['shape-w', '50'], ['shape-d', '50'], ['shape-h', '80']] as const) {
+    await page.getByTestId(f).fill(v);
+    await page.getByTestId(f).press('Enter');
+  }
   const made = await shapes(page);
   expect(made.map((s) => [s.kind, !!s.hole])).toEqual([
     ['box', false],

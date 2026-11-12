@@ -7,7 +7,7 @@ import { gridSnap, noSmartSnap, selectedShapeIds, shapeSel, useStore, useT } fro
 import type { Design, P2, SculptPt, V3 } from '../../model/types';
 import { fmtNum } from '../../i18n';
 import { flattenSketch, actualRadii } from '../round';
-import { addShape, parentMatrix, worldPose } from '../ops';
+import { addShape, parentMatrix, startHeight, worldPose } from '../ops';
 import { shapeMatrix } from '../build';
 import { cornerHeight, deleteSketchPoint, fromSketch, insertSketchPoint, moveSketchPoint, planeMatrix, revolveSuits, roundable, roundCorner, sketchMatrix, sketchNormal, sketchOk, sketchShape, toSketch, type SketchPlane } from '../sketch';
 import { m4Apply, m4Mul, type M4 } from '../xform';
@@ -114,7 +114,7 @@ function SketchDraw({ pl }: { pl: SketchPlane }) {
     const mode = pl.kind === 'upright' && revolveSuits(pts) ? 'revolve' : 'extrude';
     let id = '';
     s.setTool('select');
-    s.apply((x) => void (id = addShape(x as Design, { ...sketchShape(pl, pts, mode, s.sculpt.height ?? 20), color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length) }, s.sculpt.focus)));
+    s.apply((x) => void (id = addShape(x as Design, { ...sketchShape(pl, pts, mode, startHeight('extrude', s.sculpt.heights)), color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length) }, s.sculpt.focus)));
     if (!id) return true;
     s.select(shapeSel([id]));
     s.beginPending({ kind: 'sculpt', ids: [id], panelId: '' });

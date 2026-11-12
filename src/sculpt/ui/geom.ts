@@ -1,35 +1,11 @@
 // Waffle shapes on the stage: world boxes, meshes for three.js, snapping.
 import * as THREE from 'three';
-import type { Sculpt, V3 } from '../../model/types';
-import { buildShape, meshArrays } from '../build';
-import { kernelNow, type Manifold } from '../kernel';
-import { parentMatrix } from '../ops';
-import { m4Apply, type M4 } from '../xform';
+import { meshArrays } from '../build';
+import type { Manifold } from '../kernel';
+import type { M4 } from '../xform';
 
-export type Box3 = { min: V3; max: V3 };
-
-/** A shape's box in the world (its parent's turn applied to its own box's corners). */
-export function worldBox(sc: Sculpt, id: string): Box3 | null {
-  const k = kernelNow();
-  if (!k || !sc.shapes[id]) return null;
-  const m = buildShape(k, sc, id);
-  if (m.isEmpty()) return null;
-  const bb = m.boundingBox();
-  const P = parentMatrix(sc, id);
-  const min: V3 = [Infinity, Infinity, Infinity], max: V3 = [-Infinity, -Infinity, -Infinity];
-  for (const x of [bb.min[0], bb.max[0]])
-    for (const y of [bb.min[1], bb.max[1]])
-      for (const z of [bb.min[2], bb.max[2]]) {
-        const p = m4Apply(P, [x, y, z]);
-        for (let i = 0; i < 3; i++) (min[i] = Math.min(min[i], p[i])), (max[i] = Math.max(max[i], p[i]));
-      }
-  return { min, max };
-}
-export function unionBox(boxes: (Box3 | null)[]): Box3 | null {
-  const bs = boxes.filter((b): b is Box3 => !!b);
-  if (!bs.length) return null;
-  return { min: [0, 1, 2].map((i) => Math.min(...bs.map((b) => b.min[i]))) as V3, max: [0, 1, 2].map((i) => Math.max(...bs.map((b) => b.max[i]))) as V3 };
-}
+export { worldBox, unionBox, type Box3 } from '../box';
+import type { Box3 } from '../box';
 
 /** three.js geometry of a kernel solid (the caller disposes it). */
 export function toGeometry(m: Manifold): THREE.BufferGeometry {
