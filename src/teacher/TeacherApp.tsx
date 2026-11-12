@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, type ApiError, type Submission, type TeacherClass } from '../net/api';
 import { parseProject } from '../model/serialize';
+import { loadWaffle } from '../waffle/load';
 import { prepareExport } from '../export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../export/svg';
 import { sheetsToDxf } from '../export/dxf';
@@ -264,7 +265,12 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
 
 const projects = new Map<string, Design>();
 async function loadDesign(id: string): Promise<Design> {
-  if (!projects.has(id)) projects.set(id, parseProject(await api.project(id)));
+  if (!projects.has(id)) {
+    const d = parseProject(await api.project(id));
+    // a waffle sculpture (milestone 54): its pieces need the shape kernel and the waffle code
+    if (d.kind === 'waffle') await loadWaffle();
+    projects.set(id, d);
+  }
   return projects.get(id)!;
 }
 

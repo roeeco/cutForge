@@ -33,7 +33,7 @@ function useNumInput(props: NumProps) {
   }, [value, decimals, editing]);
   const commit = (raw: string) => {
     setEditing(false);
-    const v = evalNumber(raw);
+    const v = evalNumber(raw, value);
     if (v === null) return setText(fmtNum(value, decimals));
     const c = clamp(v, props.min, props.max);
     if (Math.abs(c - value) > 1e-9) props.onCommit(c);
@@ -197,8 +197,10 @@ export function Segmented<T extends string | number>(props: {
   );
 }
 
-export function evalNumber(s: string): number | null {
-  const clean = s.replace(/,/g, '.').replace(/\s/g, '');
+export function evalNumber(s: string, base?: number): number | null {
+  let clean = s.replace(/,/g, '.').replace(/\s/g, '');
+  // a percent of the current value: "150%" is 1.5 × base
+  if (base !== undefined && Number.isFinite(base)) clean = clean.replace(/(\d+(?:\.\d*)?|\.\d+)%/g, (_m, n) => `(${n}*${base.toFixed(9)}/100)`);
   if (!/^[-+*/().\d]+$/.test(clean)) return null;
   try {
     // Only digits and arithmetic operators reach here.

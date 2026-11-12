@@ -308,6 +308,118 @@ export type Design = {
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
   joints?: JointChoices;
+  /**
+   * The design type (WAFFLE_MODE.md §3.1). Absent: a box design (every file made before
+   * milestone 49). 'waffle' means a sculpture design (made of shapes; its `outcome` says
+   * what it becomes); it keeps `panels`, `connections` and `trays` empty.
+   */
+  kind?: 'waffle';
+  /** Waffle designs: the shapes the solid is built from. */
+  sculpt?: Sculpt;
+  /** Waffle designs: how the solid is sliced. Absent: the defaults (WAFFLE_MODE.md §6.1). */
+  waffle?: WaffleSpec;
+  /** A sculpture design's outcome (SKETCH_OVERHAUL.md §9.1): what its shapes become. Absent: 'waffle'. */
+  outcome?: 'waffle' | 'fold';
+};
+
+/** A waffle design's shapes (WAFFLE_MODE.md §4). */
+export type Sculpt = {
+  shapes: Record<string, Shape3>;
+  /** Top-level shapes, in creation order (group members are listed by their group). */
+  order: string[];
+};
+
+export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'extrude' | 'revolve' | 'group';
+
+/** A unit quaternion [x, y, z, w]. */
+export type Quat = [number, number, number, number];
+
+export type Shape3 = {
+  id: string;
+  name: string;
+  kind: ShapeKind;
+  /** Tinkercad's Hole: inside a group it is subtracted from the group's solids; outside one it cuts nothing. */
+  hole?: true;
+  /** Position of its local origin (mm, world; a member's is in its group's frame) and its turn. */
+  at: V3;
+  q: Quat;
+  /** Size before turning (mm): x, up, z. Not for groups, extrudes or revolves. */
+  size?: V3;
+  /** Prism and pyramid sides (3–12). */
+  n?: number;
+  /** Cone and pyramid: top size as a fraction of the base (0 = a point). */
+  top?: number;
+  /** Torus: tube diameter (mm). */
+  tube?: number;
+  /** Box and prism: footprint corner radii by corner index (absent or 0 = sharp). */
+  corners?: number[];
+  /** Extrude and revolve: the outline. */
+  sketch?: ShapeSketch;
+  /** Extrude: height (mm; negative = the other side of an upright plane). */
+  height?: number;
+  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight segment of the sketch). */
+  angle?: number;
+  axis?: { kind: 'plane' } | { kind: 'seg'; id: string };
+  /** Group: its members (each still a Shape3 with its own Solid/Hole). */
+  children?: string[];
+  color?: string;
+  /** Stretch along the shape's own axes (x, up, z), applied to the built body before it is placed. Absent = [1, 1, 1]. */
+  stretch?: V3;
+  /**
+   * Faces (3–64): a cylinder, cone, sphere, half sphere, ring or revolve goes round in this many
+   * flat pieces, and an extrusion's arcs and curves are cut into this many per quarter turn,
+   * in place of the 0.02 mm rule (SKETCH_OVERHAUL.md §9.3; for folding later). Absent: smooth.
+   */
+  facets?: number;
+};
+
+/**
+ * A point of a primitive's footprint outline: a Corner (neither field), a Curve (`curve: 'auto'`),
+ * or a Round corner (`r` > 0 mm, a tangent arc; WAFFLE_MODE.md §3.5). Milestone-50 sketches used it too.
+ */
+export type SculptPt = { x: number; y: number; curve?: 'auto'; r?: number };
+
+/** A sketch point (SKETCH_OVERHAUL.md §5.1). `smooth`: its two curve handles stay in line. `r` / `ch`: a rounded or chamfered corner (mm), only where exactly two straight lines meet. */
+export type SkPt = { x: number; y: number; smooth?: true; r?: number; ch?: number; lock?: true };
+/** A sketch segment between two points; `cons`: a construction line (never part of the body). */
+export type SkSeg = { a: string; b: string; cons?: true } & (
+  | { k: 'line' }
+  /** A circular arc; bulge = tan(sweep / 4), positive = counter-clockwise from a to b (the DXF convention). */
+  | { k: 'arc'; bulge: number }
+  /** A cubic Bezier; handles are offsets from their own end point. */
+  | { k: 'bez'; ha: P2; hb: P2 }
+);
+/** A 2D sketch: a graph of points and segments (a point may carry any number). `order` lists segment ids in drawing order. */
+export type SketchGraph = { pts: Record<string, SkPt>; segs: Record<string, SkSeg>; order: string[] };
+/** A shape's sketch, in the shape's local XY. */
+export type ShapeSketch = { plane: 'floor' | 'upright'; v: 2 } & SketchGraph;
+
+export type WaffleSpec = {
+  /** Family A's direction in top view (degrees about the vertical); family B is at +90°. */
+  turn: number;
+  a: WaffleFamily;
+  b: WaffleFamily;
+  /** Slot width = thickness + clearance (mm). Absent: the material's clearance. */
+  clearance?: number;
+  base?: BasePlate;
+};
+
+export type WaffleFamily = {
+  /** Even spacing: how many slices, or the gap between them (mm). */
+  spacing: { by: 'count'; n: number } | { by: 'gap'; mm: number };
+  /**
+   * Set once the student moves, adds or deletes a slice: each slice's position (mm along the
+   * family's normal, from the solid's centre) and a stable id. Absent: evenly spaced.
+   */
+  slices?: { id: string; at: number }[];
+};
+
+export type BasePlate = {
+  shape: 'rect' | 'round' | 'outline';
+  /** How far it reaches beyond the sculpture's footprint (mm). */
+  margin: number;
+  /** The sculpture is cut flat this far above its lowest point (mm); the plate's top is there. */
+  flat: number;
 };
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };

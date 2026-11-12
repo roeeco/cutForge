@@ -1,4 +1,5 @@
 // Pre-export checks, explained in plain language by the UI.
+import { outcomeHooks } from './pieces';
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
 import { segDir, segInward } from './edges';
@@ -26,7 +27,7 @@ import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
 
-export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
+export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string } | { kind: 'slice'; family: 'a' | 'b'; id: string } | { kind: 'shape'; id: string } | { kind: 'none'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
 export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget; pair?: [string, string] };
 
@@ -35,6 +36,8 @@ export function minWeb(d: Design, panelId?: string): number {
 }
 
 export function validate(d: Design): Issue[] {
+  // waffle designs run their own checks only (milestone 52)
+  if (d.kind === 'waffle') return outcomeHooks(d)?.checks?.(d) ?? [];
   const issues: Issue[] = [];
   const name = (id: string) => d.panels[id]?.name ?? '?';
   const guides = constructionSet(d);

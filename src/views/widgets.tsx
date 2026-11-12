@@ -332,7 +332,7 @@ export function DimLabel(props: { at: V3; k: string; value: number; unit: string
   const [edit, setEdit] = useState<string | null>(null);
   const commit = (raw: string) => {
     setEdit(null);
-    const v = evalNumber(raw);
+    const v = evalNumber(raw, props.value);
     if (v === null || !props.onCommit) return;
     const c = Math.max(props.min ?? 5, v);
     if (Math.abs(c - props.value) > 1e-9) props.onCommit(c);

@@ -145,6 +145,29 @@ const P: Record<string, ReactElement> = {
       <path d="M10 5v14M10 12h10.5" />
     </>
   ),
+  // waffle designs (milestone 49): two shapes in one dashed box, and apart again
+  group: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3 2.5" />
+      <rect x="6.5" y="6.5" width="7" height="7" rx="1" />
+      <circle cx="15" cy="15" r="3.5" />
+    </>
+  ),
+  ungroup: (
+    <>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <circle cx="16.5" cy="16.5" r="4" />
+      <path d="M14 6h6M17 3v6" />
+    </>
+  ),
+  // two crossing slotted slices
+  waffle: (
+    <>
+      <path d="M3 16 12 20 21 16 12 12Z" />
+      <path d="M7 8.5v9.3M12 6v6M17 8.5v9.3" />
+      <path d="M7 8.5 12 6 17 8.5" />
+    </>
+  ),
   hole: (
     <>
       <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />

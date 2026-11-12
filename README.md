@@ -111,6 +111,23 @@ A new browser starts in the **Workshop** (everything above); **Quick build** is 
 4. **You can't make a file the laser can't cut**: shapes stop a safe distance from edges, joints and each other while you drag them (a faint amber line shows the limits, a note says why), and text stays readable. The **Ready to cut ✓** badge in the top bar turns into *1 thing to fix* when something still needs it (say, a panel made smaller in Workshop): open it and press **Fix**. Next to it the **sheet meter** shows how many sheets and how much of them the pieces use.
 5. **What goes inside**: the box's card adds pencils, markers, dice, a deck of cards, a phone, a coin or your own size to a compartment. Each shows on the stage resting inside: green when it fits, amber with how much more room it needs. Drag it to another compartment. **Show how it goes together** (the play button by the view settings) folds the box up and brings each piece in, one at a time.
 
+## Waffle mode
+
+A second kind of design: a **waffle sculpture**. You build a solid, and CutForge cuts it into two crossing families of slotted slices that slide together, optionally standing in a base plate. Choose *Waffle sculpture* on the start screen, next to the templates; every material works. The shape tools (`manifold-3d`, about 210 KB gzipped) load only when a waffle design opens.
+
+1. **1 Shape** (the stepper in the top bar). The rail has its own keys:
+   - **Shapes** (`S`): pick one of eight tiles (box, cylinder, cone, prism, pyramid, sphere, half sphere, ring), then drag its footprint on the floor or on top of another shape; Shift keeps it square, a click makes a 40 mm one. It is a ghost at the last height used: drag its top arrow or type the height, then ✓ (Enter).
+   - **Sketch** (`K`): on the *Floor* or an *Upright* plane (move it with its arrow, turn it in 30° steps with its ring; the dashed line is its axis). Click corners; lines snap to 30° (Alt draws freely), typed numbers set a length, Enter or the first point closes. Then *Extrude* (a height) or *Revolve* (about the plane's axis or an edge you click; 360° or 30° steps). *Edit sketch* on its card moves, adds and removes points and makes them corners, curves or rounds.
+   - **Radius** (`F`): type a radius, then click corners of sketches or of boxes, prisms and pyramids to round them. A radius too big for its corner is shrunk to fit, and a badge says so.
+   - **Solid / Hole** (`H`): a hole cuts only the shapes it is **grouped** with (Ctrl+G; Ctrl+Shift+G ungroups). Double-click a group to work inside it; Esc leaves.
+   - Select (`V`): the gizmo moves (floor square and arrows, lift arrow) and turns (three rings, 15° steps); teal arrows change the size; Ctrl+D duplicates; arrow keys nudge 1 mm (Shift 10 mm).
+2. **2 Waffle**: the slices appear as slabs in the see-through solid, family A in amber and B in blue. The card sets each family's *Count* or *Gap*, the *Turn* of both (also the ring on the stage), the slot *Clearance* (the material's by default) and the **base plate** (*Rect*, *Round* or *Outline*, a margin, and *Cut flat at* so a round shape stands). Click a slice to drag it, Delete removes it, *+ Slice* adds one in the widest gap, *Equal spacing* goes back to even spacing.
+   - **Slots that always go together**: A's slots open from the top and B's from the bottom, at one height per crossing chosen so nothing is cut in two where that can be avoided. Every B slice drops straight down onto the A slices.
+   - **Checks** name the part (*A3·2 isn't held by anything*, *A slot splits A3*, *Thin beside the slot in B2*, *A2 and A3 are too close*, *B4 is larger than the sheet*, *This hole isn't grouped*), with a fix button where there is one. The file is always made.
+   - **Labels** are engraved: each part's name (`A3`) where it is widest inside, and beside each slot the name of the part that slides into it.
+   - **Steps** shows the order to put it together: the plate, the A slices, then each B slice dropped from above.
+3. **Cut plan and download** work as for boxes: each part is a piece (packing, quantities, kerf, SVG and DXF). Curves are cut as true arcs. Clicking a part selects its slice in 3D.
+
 ## LightBurn
 
 Files open at true size: SVG `width`/`height` are in `mm` with a matching `viewBox`; DXF is R12 in millimetres (`$INSUNITS` = 4). Circles and arcs stay circles and arcs (SVG `A` commands; DXF `CIRCLE` and bulged closed `POLYLINE`s).

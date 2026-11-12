@@ -16,6 +16,9 @@ import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
 import { EditorBoundary } from './ui/ErrorBoundary';
+import { LazySculptView, LazySketchView } from './sculpt/ui/lazy';
+import { loadWaffle } from './waffle/load';
+import { isSculpture } from './sculpt/ops';
 
 export function App() {
   const t = useT();
@@ -23,6 +26,7 @@ export function App() {
   const lang = useStore((s) => s.lang);
   const view = useStore((s) => s.view);
   const soloPanel = useStore((s) => s.soloPanel);
+  const sketching = useStore((s) => !!s.sketch);
   const soloExists = useStore((s) => !!(s.soloPanel && s.design.panels[s.soloPanel]));
   useEffect(() => {
     if (view === 'solo' && !soloExists) useStore.getState().closeSolo();
@@ -39,6 +43,15 @@ export function App() {
   }, []);
   const teacher = route.startsWith('#/teacher');
   useAutosave(() => setLoaded(true));
+  // a waffle design loads the shape kernel (milestone 49); box designs never do
+  const waffle = useStore((s) => isSculpture(s.design));
+  useEffect(() => {
+    if (!waffle || useStore.getState().sculpt.ready) return;
+    loadWaffle().then(
+      () => useStore.getState().setSculpt({ ready: true, failed: false }),
+      () => useStore.getState().setSculpt({ failed: true }),
+    );
+  }, [waffle]);
   useKeyboard();
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -52,7 +65,7 @@ export function App() {
       <TopBar />
       <div className="main">
         <EditorBoundary>
-          <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+          <main className="viewport">{view === 'sketch' && sketching ? <LazySketchView /> : view === '3d' && waffle ? <LazySculptView /> : view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
           <Toolbar />
           <Inspector />
           {view === '3d' && <MissionPanel />}

@@ -25,7 +25,8 @@ export function ExportDialog() {
   const prepared = useMemo(() => prepareExport(d, mode), [d, mode]);
   const issues = useMemo(() => validate(d), [d]);
   const check = shown(useFeature('exportCheck'));
-  const pieces = Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);
+  // a waffle design's parts are not boards (milestone 52): count what is cut
+  const pieces = d.kind === 'waffle' ? prepared.sheets.reduce((a, s) => a + s.contours.filter((c) => c.role === 'outer').length, 0) : Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);
   const blocked = prepared.errors.length > 0;
   // one file per material (milestone 36), each with its own kerf; one material keeps the old names
   const files = exportFiles(d.name, prepared, mode);
@@ -127,7 +128,7 @@ export function ExportDialog() {
         )}
         <div className="modal-actions">
           <button onClick={close} data-testid="export-cancel">{t('export.cancel')}</button>
-          <button className="primary" onClick={go} data-testid="export-go" disabled={!d.order.length || blocked}>
+          <button className="primary" onClick={go} data-testid="export-go" disabled={(!d.order.length && !(d.kind === 'waffle' && pieces > 0)) || blocked}>
             {issues.length ? t('export.anyway') : t('export.go')}
           </button>
         </div>

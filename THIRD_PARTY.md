@@ -7,7 +7,7 @@ No source code has been copied from the reference repositories (MocknSlice, Fold
 When code is copied or adapted, record it here with repository, commit and license (and keep the MIT notices for Die Cut Studio and Extrudo `packages/io`). Extrudo's GPL code and SketchForge-3D's AGPL code are behaviour references only and must not be copied or translated.
 
 ## npm dependencies
-Runtime: react, react-dom (MIT), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). opentype.js (MIT), bidi-js (MIT), drizzle-orm (Apache-2.0). Tooling: wrangler (MIT/Apache-2.0), drizzle-kit, @cloudflare/workers-types. Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
+Runtime: react, react-dom (MIT), manifold-3d **3.5.4, pinned exactly** (Apache-2.0, the waffle designs' shape kernel: WASM, loaded with a dynamic import only when a waffle design opens; see `WAFFLE_MODE.md` §3.2), three (MIT), @react-three/fiber and @react-three/drei (MIT), zustand (MIT), immer (MIT), polygon-clipping (MIT, outline union for folded nets and flaps). opentype.js (MIT), bidi-js (MIT), drizzle-orm (Apache-2.0). Tooling: wrangler (MIT/Apache-2.0), drizzle-kit, @cloudflare/workers-types. Test tooling: vitest, @playwright/test (Apache-2.0), fake-indexeddb, jsdom. Python test helpers (not shipped): ezdxf (MIT), svgpathtools (MIT).
 
 ## Stickers
 Quick build's stickers (`src/easy/stickers.ts`: star, heart, house, lightning, moon, flower, smile, tree) were drawn for CutForge as simple closed outlines generated in code; no icon set was copied. They are released with the project under its own license (and may be used as public domain, CC0 1.0). Nothing is fetched at run time.
@@ -19,3 +19,8 @@ Bundled in `public/fonts/` (Hebrew and Latin subsets, WOFF, from the @fontsource
 - Amatic SC — see `amatic-sc-LICENSE.txt`
 
 Text layout and outlines use bidi-js (MIT) and opentype.js (MIT).
+
+## Waffle mode (milestones 49–54)
+- **manifold-3d 3.5.4** (Apache-2.0, https://github.com/elalish/manifold): used as a library through its published npm package (`manifold.js` and `manifold.wasm`), unmodified. Pinned to the exact version in `package.json`. Its licence text ships in `node_modules/manifold-3d/LICENSE`.
+- **Rounded-corner maths** (`src/sculpt/round.ts`): re-written from this project's own parked branch `claude/charming-einstein-lqhfxq` (milestone 45, commit `3d19686`, `src/model/edges.ts`): the owner's code, no third-party source.
+- Lamina (AGPL), MakeSlice (GPL-3), OpenSlicer Studio (GPL-3) and the Blender add-ons were not opened; their behaviour is described in `MODEL_MODES_RESEARCH.md` and only that description was used.

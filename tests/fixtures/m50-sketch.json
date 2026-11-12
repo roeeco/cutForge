@@ -1,0 +1,178 @@
+{
+ "made": "3977dad sketch code (milestone 50)",
+ "design": {
+  "schemaVersion": 9,
+  "id": "d_xlvz741",
+  "name": "",
+  "material": {
+   "id": "ply-3",
+   "kind": "plywood",
+   "nameKey": "mat.ply3",
+   "thickness": 3,
+   "kerf": 0.15,
+   "clearance": 0.1,
+   "foldAllowance": 0,
+   "sheetW": 600,
+   "sheetH": 400,
+   "grain": "x"
+  },
+  "panels": {},
+  "order": [],
+  "connections": {},
+  "pieces": {},
+  "placements": {},
+  "trays": {},
+  "sheetSpacing": 3,
+  "sheetMargin": 5,
+  "kind": "waffle",
+  "sculpt": {
+   "shapes": {
+    "s_vq0zne2": {
+     "name": "",
+     "at": [
+      0,
+      0,
+      0
+     ],
+     "q": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "sketch": {
+      "plane": "floor",
+      "pts": [
+       {
+        "x": 0,
+        "y": 0
+       },
+       {
+        "x": 40,
+        "y": 0,
+        "r": 6
+       },
+       {
+        "x": 45,
+        "y": 25,
+        "curve": "auto"
+       },
+       {
+        "x": 20,
+        "y": 35,
+        "curve": "auto"
+       },
+       {
+        "x": -5,
+        "y": 20
+       }
+      ]
+     },
+     "kind": "extrude",
+     "height": 18,
+     "id": "s_vq0zne2"
+    },
+    "s_a4dj9w3": {
+     "name": "",
+     "at": [
+      80,
+      0,
+      0
+     ],
+     "q": [
+      0,
+      0.25881904510252074,
+      0,
+      0.9659258262890683
+     ],
+     "sketch": {
+      "plane": "upright",
+      "pts": [
+       {
+        "x": 10,
+        "y": 0
+       },
+       {
+        "x": 30,
+        "y": 0,
+        "r": 3
+       },
+       {
+        "x": 25,
+        "y": 15,
+        "curve": "auto"
+       },
+       {
+        "x": 30,
+        "y": 30
+       },
+       {
+        "x": 10,
+        "y": 30
+       }
+      ]
+     },
+     "kind": "revolve",
+     "angle": 360,
+     "axis": {
+      "kind": "edge",
+      "i": 4
+     },
+     "id": "s_a4dj9w3"
+    },
+    "s_mlm3vz4": {
+     "name": "",
+     "at": [
+      -80,
+      0,
+      0
+     ],
+     "q": [
+      0,
+      0,
+      0,
+      1
+     ],
+     "sketch": {
+      "plane": "upright",
+      "pts": [
+       {
+        "x": 0,
+        "y": 0
+       },
+       {
+        "x": 20,
+        "y": 0
+       },
+       {
+        "x": 15,
+        "y": 20,
+        "curve": "auto"
+       },
+       {
+        "x": 0,
+        "y": 30
+       }
+      ]
+     },
+     "kind": "revolve",
+     "angle": 360,
+     "axis": {
+      "kind": "plane"
+     },
+     "id": "s_mlm3vz4"
+    }
+   },
+   "order": [
+    "s_vq0zne2",
+    "s_a4dj9w3",
+    "s_mlm3vz4"
+   ]
+  }
+ },
+ "volumes": {
+  "s_vq0zne2": 25888.13889148107,
+  "s_a4dj9w3": 27551.314071689372,
+  "s_mlm3vz4": 23594.878878073734
+ }
+}

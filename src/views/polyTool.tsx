@@ -25,6 +25,7 @@ import { panelsCutBy } from '../model/through';
 import { STAGE } from './palette';
 import { frameMatrix, faceZ } from './three-geom';
 import { tOf } from '../model/materials';
+import { nextPolyPoint, typedPoint } from './polyDraw';
 
 const FLOOR = GROUND_FRAME(0, 0);
 
@@ -76,16 +77,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
   const pxTol = (d: Draft) => 10 * mmPerPx(camera, gl.domElement.clientHeight || 600, new THREE.Vector3(...toWorld(d.frame, d.pts[0]?.x ?? 0, d.pts[0]?.y ?? 0)));
 
   /** Snapped next vertex for a pointer position. */
-  const nextPoint = (d: Draft, raw: P2, shift: boolean): P2 => {
-    const last = d.pts[d.pts.length - 1];
-    if (d.pts.length >= 3 && Math.hypot(raw.x - d.pts[0].x, raw.y - d.pts[0].y) < pxTol(d)) return d.pts[0];
-    if (last && shift) {
-      const a = Math.round(Math.atan2(raw.y - last.y, raw.x - last.x) / STEP) * STEP;
-      const len = Math.round(Math.hypot(raw.x - last.x, raw.y - last.y));
-      return { x: last.x + Math.cos(a) * len, y: last.y + Math.sin(a) * len };
-    }
-    return { x: snap1(raw.x), y: snap1(raw.y) };
-  };
+  // Shift: 15° steps (the waffle sketch tool shares this with 30° by default, src/views/polyDraw.ts)
+  const nextPoint = (d: Draft, raw: P2, shift: boolean): P2 => nextPolyPoint(d.pts, raw, { angle: shift ? STEP : null, grid: snap1, closeTol: pxTol(d) });
 
   const ngonPts = (d: Draft, to: P2, shift: boolean): P2[] | null => {
     if (!d.centre) return null;
@@ -202,12 +195,9 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       } else if (ev.key === 'Enter' && !d.centre) {
         ev.preventDefault();
         ev.stopPropagation();
-        const len = parseFloat(d.typed);
-        const last = d.pts[d.pts.length - 1];
-        if (d.typed && len > 0 && last && d.cur) {
-          const a = Math.atan2(d.cur.y - last.y, d.cur.x - last.x);
-          setDraft({ ...d, pts: [...d.pts, { x: last.x + Math.cos(a) * len, y: last.y + Math.sin(a) * len }], typed: '' });
-        } else if (d.pts.length >= 3) finish(d.pts);
+        const q = typedPoint(d.pts, d.cur, d.typed);
+        if (q) setDraft({ ...d, pts: [...d.pts, q], typed: '' });
+        else if (d.pts.length >= 3) finish(d.pts);
       }
     };
     el.addEventListener('pointerdown', down, true);
