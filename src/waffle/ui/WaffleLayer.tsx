@@ -4,7 +4,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useStore } from '../../store/store';
+import { issueSelection, useStore, useT } from '../../store/store';
+import { validate } from '../../model/validate';
+import type { WaffleIssue } from '../checks';
+import { StageHtml } from '../../views/widgets';
 import type { Design } from '../../model/types';
 import { Gizmo, PushPull } from '../../views/widgets';
 import { planePoint, type FamFrame } from '../derive';
@@ -95,6 +98,34 @@ function SliceArrow() {
   );
 }
 
+/** The checks as badges on the stage, over the slice they name; a click selects it. */
+function ProblemBadges() {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const { model } = useWaffle();
+  if (!model) return null;
+  const issues = validate(d) as WaffleIssue[];
+  const seen = new Set<string>();
+  return (
+    <>
+      {issues.map((i, n) => {
+        if (i.target.kind !== 'slice') return null;
+        const tg = i.target;
+        const sl = model.slices.find((s) => s.fam === tg.family && s.id === tg.id);
+        if (!sl || seen.has(sl.id)) return null;
+        seen.add(sl.id);
+        return (
+          <StageHtml key={n} position={planePoint(model.frames[sl.fam], sl.at, { x: 0, y: model.y1 + 28 })} center>
+            <span className="slice-badge" onClick={() => st().select(issueSelection(i))} data-testid="slice-badge">
+              {t(i.key, i.vars)}
+            </span>
+          </StageHtml>
+        );
+      })}
+    </>
+  );
+}
+
 export function WaffleLayer() {
   const { model, parts } = useWaffle();
   const sel = useStore((s) => s.selection);
@@ -120,6 +151,7 @@ export function WaffleLayer() {
         />
       ))}
       <SliceArrow />
+      <ProblemBadges />
       <Gizmo
         at={[c[0], model.y0, c[2]]}
         ax={[1, 0, 0]}

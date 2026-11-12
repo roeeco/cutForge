@@ -29,7 +29,11 @@ export function selectedDetailIds(s: Selection): string[] {
   return s?.kind === 'detail' ? s.ids : [];
 }
 /** What clicking an export-check message selects: the shape, the panel, or both panels of a joint message. */
-export function issueSelection(i: { target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }): Selection {
+export function issueSelection(i: { target: { kind: 'panel' | 'detail' | 'slice' | 'shape' | 'none'; id: string; family?: 'a' | 'b' }; pair?: [string, string] }): Selection {
+  // waffle checks (milestone 52) select a slice or a shape
+  if (i.target.kind === 'slice') return { kind: 'slice', family: i.target.family ?? 'a', id: i.target.id };
+  if (i.target.kind === 'shape') return { kind: 'shape', id: i.target.id, ids: [i.target.id] };
+  if (i.target.kind === 'none') return null;
   if (i.target.kind === 'detail') return { kind: 'detail', id: i.target.id, ids: [i.target.id] };
   if (i.pair) return { kind: 'panel', id: i.pair[0], ids: [i.pair[0], i.pair[1]] };
   return { kind: 'panel', id: i.target.id };

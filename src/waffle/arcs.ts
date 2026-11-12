@@ -67,6 +67,8 @@ export function snapCircles(pts: P2[]): P2[] {
   // start where a run cannot extend backwards (so a run is not cut in two), else anywhere
   let start = 0;
   for (let i = 0; i < n; i++) if (!ok(i, Math.sign(tn[i]) || 1) || Math.sign(tn[i]) !== Math.sign(tn[(i + n - 1) % n])) { start = i; break; }
+  // pass 1: runs that each fit one circle
+  const runs: { i: number; len: number; c: { c: P2; r: number } }[] = [];
   let k = 0;
   while (k < n) {
     const i = start + k;
@@ -86,12 +88,36 @@ export function snapCircles(pts: P2[]): P2[] {
       }
     }
     if (best) {
-      for (let j = 0; j <= best.len; j++) {
-        const p = at(i + j), dx = p.x - best.c.c.x, dy = p.y - best.c.c.y, l = Math.hypot(dx, dy) || 1;
-        out[((i + j) % n + n) % n] = { x: best.c.c.x + (dx / l) * best.c.r, y: best.c.c.y + (dy / l) * best.c.r };
-      }
+      runs.push({ i, ...best });
       k += best.len;
     } else k++;
+  }
+  // pass 2: runs on one circle (a circle broken by slots) are fitted together, so short runs keep the true radius
+  const used = new Set<number>();
+  for (let a = 0; a < runs.length; a++) {
+    if (used.has(a)) continue;
+    const group = [a];
+    for (let b = a + 1; b < runs.length; b++) {
+      if (used.has(b)) continue;
+      const A = runs[a].c, B = runs[b].c;
+      if (Math.hypot(A.c.x - B.c.x, A.c.y - B.c.y) < 0.05 * Math.max(A.r, 1) + 0.5 && Math.abs(A.r - B.r) < 0.05 * Math.max(A.r, 1) + 0.3) group.push(b);
+    }
+    const pts = group.flatMap((g) => Array.from({ length: runs[g].len + 1 }, (_, j) => at(runs[g].i + j)));
+    let c = runs[a].c;
+    if (group.length > 1) {
+      const all = fitCircle(pts);
+      if (all && pts.every((p) => Math.abs(Math.hypot(p.x - all.c.x, p.y - all.c.y) - all.r) <= CIRCLE_TOL)) {
+        c = all;
+        for (const g of group) used.add(g);
+      } else group.splice(1);
+    }
+    for (const g of group) {
+      const cc = group.length > 1 ? c : runs[g].c;
+      for (let j = 0; j <= runs[g].len; j++) {
+        const p = at(runs[g].i + j), dx = p.x - cc.c.x, dy = p.y - cc.c.y, l = Math.hypot(dx, dy) || 1;
+        out[((runs[g].i + j) % n + n) % n] = { x: cc.c.x + (dx / l) * cc.r, y: cc.c.y + (dy / l) * cc.r };
+      }
+    }
   }
   return out;
 }

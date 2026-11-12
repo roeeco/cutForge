@@ -139,9 +139,11 @@ export function deriveWaffle(k: Kernel, d: Design): WaffleModel {
       const pos = familyPositions(fam, spec[fam], ext[fam]);
       pos.forEach((p, i) => slices.push({ fam, id: p.id, at: p.at, num: i + 1, label: `${LETTER[fam]}${i + 1}` }));
     }
+    // the solid turned once per family (the transform builds its search structure once), then cut at each height
+    const turned = empty ? null : { a: solid.transform(planeXform(frames.a, 0) as never), b: solid.transform(planeXform(frames.b, 0) as never) };
     for (const sl of slices) {
-      if (empty) break;
-      const sec = sectionAt(solid, frames[sl.fam], sl.at);
+      if (!turned) break;
+      const sec = turned[sl.fam].slice(sl.at).simplify(0.01);
       const regions = sec.decompose();
       const kept: { polys: Poly[]; area: number; x: number }[] = [];
       for (const r of regions) {

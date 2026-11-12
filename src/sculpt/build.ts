@@ -236,11 +236,25 @@ export function solidKey(sc: Sculpt): string {
 /** The solid: every top-level Solid joined (Holes outside a group cut nothing). Owned by the cache. */
 export function buildSolid(k: Kernel, sc: Sculpt | undefined): Manifold {
   if (!sc) return cached('[]', () => k.Manifold.ofMesh(emptyMesh(k)));
-  return cached(`solid:${solidKey(sc)}`, () => {
-    const parts = sc.order.filter((id) => sc.shapes[id] && !sc.shapes[id].hole).map((id) => buildShape(k, sc, id));
-    return parts.length ? k.Manifold.union(parts) : k.Manifold.ofMesh(emptyMesh(k));
+  const ids = sc.order.filter((id) => sc.shapes[id] && !sc.shapes[id].hole);
+  const keys = ids.map((id) => shapeKey(sc, id));
+  const solid = cached(`solid:${JSON.stringify(keys)}`, () => {
+    if (!ids.length) return k.Manifold.ofMesh(emptyMesh(k));
+    // an edit usually changes one shape: join it to the cached union of all the others (WAFFLE_MODE.md §10.2)
+    const prev = lastSolid.keys;
+    const changed = prev && prev.length === keys.length ? keys.map((x, i) => (x === prev[i] ? -1 : i)).filter((i) => i >= 0) : null;
+    if (changed && changed.length === 1 && keys.length > 2) {
+      const j = changed[0];
+      const restKey = `rest:${JSON.stringify(keys.filter((_, i) => i !== j))}`;
+      const rest = cached(restKey, () => k.Manifold.union(ids.filter((_, i) => i !== j).map((id) => buildShape(k, sc, id))));
+      return rest.add(buildShape(k, sc, ids[j]));
+    }
+    return k.Manifold.union(ids.map((id) => buildShape(k, sc, id)));
   });
+  lastSolid.keys = keys;
+  return solid;
 }
+const lastSolid: { keys: string[] | null } = { keys: null };
 
 /** Volume of a solid (mm³). */
 export const volumeOf = (m: Manifold) => m.volume();

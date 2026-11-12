@@ -97,18 +97,20 @@ describe('pieces and export', () => {
       const at = m.parts.find((x) => x.key === p.key)!.at;
       const r = Math.sqrt(R * R - at * at);
       const outer = p.contours.find((c) => c.role === 'outer')!.contour;
-      // every segment is an arc of the circle the plane cuts from the sphere
-      expect(outer.segs.every((s) => s.k === 'A')).toBe(true);
-      for (const s of outer.segs) if (s.k === 'A') expect(Math.abs(s.r - r)).toBeLessThan(0.05);
+      // every curved stretch is an arc of the circle the plane cuts from the sphere; the only straight
+      // edges are the slots' (milestone 52), upright or level
+      expect(outer.segs.filter((s) => s.k === 'A').length).toBeGreaterThan(3);
+      for (const s of outer.segs) {
+        if (s.k === 'A') expect(Math.abs(s.r - r)).toBeLessThan(0.05);
+        else expect(Math.min(Math.abs(s.a.x - s.b.x), Math.abs(s.a.y - s.b.y))).toBeLessThan(0.05);
+      }
     }
     const prep = prepareExport(d);
     const svg = sheetsToSvg(prep.sheets);
     expect((svg.match(/ A/g) ?? []).length).toBeGreaterThanOrEqual(12);
-    expect(svg).not.toMatch(/<path d="M[^"]* L[^"]* L[^"]* L[^"]* L/);
     const dxf = sheetsToDxf(prep.sheets);
-    // closed outlines are polylines whose arcs are bulges (group 42), never straight lines
+    // closed outlines are polylines whose arcs are bulges (group 42)
     expect(dxf).toMatch(/\n42\n/);
-    expect(dxf).not.toMatch(/\nLINE\n/);
   });
   it('waffle pieces go through copies and packing like any piece', () => {
     const d = one('box', 120, 60, 80);

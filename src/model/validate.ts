@@ -27,7 +27,7 @@ import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
 
-export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
+export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string } | { kind: 'slice'; family: 'a' | 'b'; id: string } | { kind: 'shape'; id: string } | { kind: 'none'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
 export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget; pair?: [string, string] };
 

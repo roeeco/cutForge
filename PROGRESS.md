@@ -993,6 +993,26 @@ Verified
 Not verified
 - Dragging a slice's arrow and the turn ring by hand (same widgets as elsewhere); the 3D slabs still overlap where they cross (slots come in milestone 52).
 
+## Milestone 52 — slots that slide together ✅
+
+Implemented
+- **Slots** (`src/waffle/finish.ts`): for every A slice and B slice, the crossing line (x = at_B on A's plane, −at_A on B's), J = the heights both keep on it, and one split height m from the candidates 0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65 of each interval (tallest first), ranked by parts split, thin ligaments, then |r − 0.5|. A's slot runs from m up through 1 mm past its top, B's from m down through 1 mm past its bottom, t + clearance wide (the waffle's clearance or the material's: plywood about 0.1 mm, card and corrugated the profile's). Slot directions never alternate.
+- **Checks and fixes** (`src/waffle/checks.ts`, `fixes.ts`): *isn't held by anything* → **Add a slice through it**; *A slot splits* and *Thin beside the slot* → **Move the slice** (nudges ±t to ±10 mm, nearest first); *are too close*; *is larger than the sheet*; *This hole isn't grouped* → **Group it with what it touches**; *Nothing to slice*. They replace the box checks for waffle designs, appear on the waffle card (with fix buttons), as badges over the slices on the stage, and in the export dialog; clicking one selects the slice (or the shape). The file is always made.
+- **Arcs on slotted circles** (`src/waffle/arcs.ts`): runs of one circle broken by slots are fitted together, so each stays on the true radius.
+- **Speed** (`buildSolid`): an edit that changes one shape joins it to the cached union of the others.
+- **Export dialog**: enabled for waffle designs (they have no boards), counting the parts on the sheets.
+
+Verified
+- `npm run typecheck`; `npm test`: 599 passed, 7 skipped (`ezdxf`); golden exports unchanged.
+- `tests/waffleslots.test.ts` (21 cases) over the fixtures **sphere, torus, L-extrusion with a 30° chamfer, vase, and a shape with a neck**: **the assembly property** (on every crossing line, each A part's material lies at or below m and each B part's at or above, read from the final slotted outlines); **every slot opens through its part's outline in its family's direction** (no material from m to past the top for A, to past the bottom for B); **the sphere, torus, L and vase export at default spacing with no problems listed**; **the split-height ranking on the neck** (0.5 and 0.45 fall in a 3 mm neck and would cut A's part in two; 0.55 is chosen, and the outer crossings with two stretches are listed as splitting); the ligament minimum by material; a torus's parts are all held; a lonely hole is listed and its fix groups it; a part nothing holds gets a slice through it and is then held; speed logged.
+- **Speed** (logged by the test, Node on this machine): 20 shapes and 2 × 8 slices, a drag: **135–150 ms** per frame before the union cache, **about 60 ms** after (35 ms to re-slice, 25 ms for slots and contours); the first edit after loading about 150 ms.
+- `tests/waffleslices.test.ts`: the sphere's slices, now slotted, still export every curve as an arc within 0.05 mm of the true radius; the straight edges are the slots'.
+- Dev server, Playwright-driven: a sphere with a cylinder through it at the defaults: the card says every part is held; the cut plan shows A parts slotted from the top and B parts from the bottom; the export dialog's button is enabled.
+
+Not verified
+- On a real Chromebook the per-edit time is probably two to three times Node's here; not measured (owner).
+- The *Move the slice* fix on a real split was exercised only through the nudge search in code (the fixtures at their defaults have none).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

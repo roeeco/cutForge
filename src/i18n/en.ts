@@ -926,6 +926,18 @@ export const en = {
   'waffle.clearanceReset': "Use the material’s ({mm} mm)",
   'waffle.tiny': "{n} tiny bits left out",
   'steps.open': "Steps",
+  'val.w.unheld': "{part} isn’t held by anything",
+  'val.w.split': "A slot splits {part}",
+  'val.w.thin': "Thin beside the slot in {part}",
+  'val.w.close': "{a} and {b} are too close",
+  'val.w.big': "{part} is larger than the sheet",
+  'val.w.empty': "Nothing to slice",
+  'fix.addSlice': "Add a slice through it",
+  'fix.moveSlice': "Move the slice",
+  'fix.groupHole': "Group it with what it touches",
+  'fix.none': "No position nearby clears it: try fewer or more slices",
+  'waffle.checks': "Checks",
+  'waffle.allGood': "Every part is held and every slot slides together.",
 } as const;
 
 export type MsgKey = keyof typeof en;
