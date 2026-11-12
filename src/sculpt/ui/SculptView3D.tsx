@@ -345,7 +345,14 @@ function SculptScene() {
   };
   const onShapeDouble = (id: string) => (e: ThreeEvent<MouseEvent>) => {
     const s = sc?.shapes[id];
-    if (!s || s.kind !== 'group' || tool !== 'select') return;
+    if (!s || tool !== 'select') return;
+    // an extrusion or revolve opens its sketch (milestone 57); a group is worked inside
+    if ((s.kind === 'extrude' || s.kind === 'revolve') && s.sketch && ui.stage === 'shape') {
+      e.stopPropagation();
+      useStore.getState().openSketch(id);
+      return;
+    }
+    if (s.kind !== 'group') return;
     e.stopPropagation();
     useStore.getState().setSculpt({ focus: id });
     useStore.getState().select(null);

@@ -37,10 +37,11 @@ export function Inspector() {
   const d = useStore((s) => s.design);
   const quick = useMode() === 'quick';
   const waffle = d.kind === 'waffle';
+  const view = useStore((s) => s.view);
   // More… shows a card's Workshop version until the selection changes (milestone 37)
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [sel]);
-  if (waffle) return <LazySculptCard />;
+  if (waffle) return view === 'sketch' ? null : <LazySculptCard />;
   if (!quick || !sel || sel.kind === 'edge' || sel.kind === 'shape' || sel.kind === 'slice') return <InspectorBody />;
   const multi = (sel.kind === 'detail' && sel.ids.length > 1) || (sel.kind === 'panel' && (sel.ids?.length ?? 0) > 1);
   const panelId = sel.kind === 'panel' ? sel.id : findDetail(d, sel.id)?.panel.id;

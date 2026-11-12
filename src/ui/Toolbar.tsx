@@ -42,8 +42,9 @@ function targetPanel(): string | null {
 /** The tool rail: Workshop's tools, or Quick build's five actions (milestone 37). */
 export function Toolbar() {
   const waffle = useStore((s) => s.design.kind === 'waffle');
+  const view = useStore((s) => s.view);
   const workshop = shown(useFeature('rail.tools'));
-  if (waffle) return <LazySculptRail />;
+  if (waffle) return view === 'sketch' ? null : <LazySculptRail />;
   return workshop ? <WorkshopRail /> : <QuickRail />;
 }
 

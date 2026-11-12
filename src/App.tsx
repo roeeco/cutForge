@@ -16,7 +16,7 @@ import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
 import { EditorBoundary } from './ui/ErrorBoundary';
-import { LazySculptView } from './sculpt/ui/lazy';
+import { LazySculptView, LazySketchView } from './sculpt/ui/lazy';
 import { loadWaffle } from './waffle/load';
 
 export function App() {
@@ -25,6 +25,7 @@ export function App() {
   const lang = useStore((s) => s.lang);
   const view = useStore((s) => s.view);
   const soloPanel = useStore((s) => s.soloPanel);
+  const sketching = useStore((s) => !!s.sketch);
   const soloExists = useStore((s) => !!(s.soloPanel && s.design.panels[s.soloPanel]));
   useEffect(() => {
     if (view === 'solo' && !soloExists) useStore.getState().closeSolo();
@@ -63,7 +64,7 @@ export function App() {
       <TopBar />
       <div className="main">
         <EditorBoundary>
-          <main className="viewport">{view === '3d' && waffle ? <LazySculptView /> : view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+          <main className="viewport">{view === 'sketch' && sketching ? <LazySketchView /> : view === '3d' && waffle ? <LazySculptView /> : view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
           <Toolbar />
           <Inspector />
           {view === '3d' && <MissionPanel />}

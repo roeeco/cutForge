@@ -41,9 +41,7 @@ export function snapLift(box: Box3, others: Box3[], dy: number, tol: number): nu
   return dy + fix;
 }
 
-/** Colours of solid shapes, by their place among the top-level shapes. */
-const COLORS = ['#e8a33d', '#4f9fd9', '#d9655b', '#5bb07a', '#a77bd1', '#e0c040', '#4fbdb5', '#d57ba8'];
-export const shapeColor = (i: number) => COLORS[((i % COLORS.length) + COLORS.length) % COLORS.length];
+export { shapeColor } from './colors';
 
 /** The see-through, striped look of a Hole (Tinkercad's grey). */
 export function holeMaterial(dim = false): THREE.ShaderMaterial {

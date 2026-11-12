@@ -1,7 +1,6 @@
 // Waffle commands shared by the rail, the card and the keyboard (WAFFLE_MODE.md §5).
 import { selectedShapeIds, shapeSel, useStore } from '../../store/store';
 import type { Design } from '../../model/types';
-import { deleteSketchPoint } from '../sketch';
 
 import { deleteShapes, duplicateShapes, groupShapes, moveShapes, parentOf, setHole, ungroupShape } from '../ops';
 
@@ -74,11 +73,10 @@ export function sculptKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (mod) return false;
-  if ((e.key === 'Delete' || e.key === 'Backspace') && s.sculpt.editSketch && s.sculpt.selPoint !== null) {
+  // the sketch tool: Enter opens the sketch view on its plane (milestone 57)
+  if (e.key === 'Enter' && s.tool === 'sketch' && !s.pending && s.sculpt.stage === 'shape') {
     e.preventDefault();
-    const { editSketch: id, selPoint: pt } = s.sculpt;
-    s.apply((d) => void deleteSketchPoint(d as Design, id, pt));
-    s.setSculpt({ selPoint: null });
+    s.openSketch(null);
     return true;
   }
   if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection?.kind === 'slice') {
@@ -94,8 +92,7 @@ export function sculptKey(e: KeyboardEvent): boolean {
   if (e.key === 'Escape') {
     if (s.txnBase || s.pending) return true;
     if (s.steps !== null) return void useStore.setState({ steps: null }), true;
-    if (s.sculpt.editSketch) s.setSculpt({ editSketch: null, selPoint: null });
-    else if (s.tool !== 'select') s.setTool('select');
+    if (s.tool !== 'select') s.setTool('select');
     else if (s.selection) s.select(null);
     else if (s.sculpt.focus) s.setSculpt({ focus: null });
     return true;
@@ -116,6 +113,24 @@ export function sculptKey(e: KeyboardEvent): boolean {
   }
   if (key === 'h') {
     toggleHole();
+    return true;
+  }
+  return false;
+}
+
+/** Handlers the sketch view registers for its keys (milestones 58–59). */
+export const sketchHandlers: { key?: (e: KeyboardEvent) => boolean } = {};
+
+/** Keys in the sketch view: the view's handler first, then Esc and the tool keys. */
+export function sketchKey(e: KeyboardEvent): boolean {
+  if (sketchHandlers.key?.(e)) return true;
+  const s = st();
+  const k = s.sketch;
+  if (!k || e.ctrlKey || e.metaKey) return false;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (k.tool !== 'select') s.setSketch({ tool: 'select' });
+    else if (k.sel.pts.length || k.sel.segs.length) s.setSketch({ sel: { pts: [], segs: [] } });
     return true;
   }
   return false;

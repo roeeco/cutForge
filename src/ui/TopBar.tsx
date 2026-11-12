@@ -10,6 +10,7 @@ import { setMode } from '../easy/mode';
 import { ReadyBadge } from '../easy/ReadyBadge';
 import { shown, useFeature } from '../easy/features';
 import { TOUR_OFFERED, startTourConfirmed } from '../tour/TourNudge';
+import { SketchTopBar } from './SketchTopBar';
 
 export function TopBar() {
   const mode = useStore((x) => x.viewPrefs.mode ?? 'workshop');
@@ -37,6 +38,7 @@ export function TopBar() {
   }, [more]);
   const d = s.design;
   const waffle = d.kind === 'waffle';
+  const sketching = s.view === 'sketch' && !!s.sketch;
   const builtIn = MATERIALS.find((m) => m.id === d.material.id);
   useEffect(() => {
     if (!menu) return;
@@ -141,7 +143,7 @@ export function TopBar() {
         // waffle designs (milestone 49): the stage stepper instead of the mode switch
         <div className="seg stage-seg" role="radiogroup" aria-label={t('stage.label')} data-testid="stage-stepper">
           {(['shape', 'waffle'] as const).map((k) => (
-            <button key={k} role="radio" aria-checked={s.sculpt.stage === k} className={s.sculpt.stage === k ? 'on' : ''} disabled={k === 'waffle' && !d.sculpt?.order.length} onClick={() => (s.setSculpt({ stage: k }), s.setTool('select'), s.select(null))} data-testid={`stage-${k}`}>
+            <button key={k} role="radio" aria-checked={s.sculpt.stage === k} className={s.sculpt.stage === k ? 'on' : ''} disabled={sketching || (k === 'waffle' && !d.sculpt?.order.length)} onClick={() => (s.setSculpt({ stage: k }), s.setTool('select'), s.select(null))} data-testid={`stage-${k}`}>
               {t(k === 'shape' ? 'stage.shape' : 'stage.waffle')}
             </button>
           ))}
@@ -157,20 +159,26 @@ export function TopBar() {
         </div>
       )}
       {badge && <ReadyBadge />}
+      {sketching ? (
+        <SketchTopBar />
+      ) : (
+        <>
       <div className="seg" role="tablist">
-        <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
-          {t('top.view3d')}
+          <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
+            {t('top.view3d')}
+          </button>
+          <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
+            {t('top.view2d')}
+          </button>
+        </div>
+        <button className="ghost icon-btn" onClick={s.undo} disabled={!s.past.length} title="Ctrl+Z" aria-label={t('top.undo')} data-testid="undo">
+          <Icon name="undo" />
         </button>
-        <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
-          {t('top.view2d')}
+        <button className="ghost icon-btn" onClick={s.redo} disabled={!s.future.length} title="Ctrl+Shift+Z" aria-label={t('top.redo')} data-testid="redo">
+          <Icon name="redo" />
         </button>
-      </div>
-      <button className="ghost icon-btn" onClick={s.undo} disabled={!s.past.length} title="Ctrl+Z" aria-label={t('top.undo')} data-testid="undo">
-        <Icon name="undo" />
-      </button>
-      <button className="ghost icon-btn" onClick={s.redo} disabled={!s.future.length} title="Ctrl+Shift+Z" aria-label={t('top.redo')} data-testid="redo">
-        <Icon name="redo" />
-      </button>
+        </>
+      )}
       <div className="spacer" />
       <span className={`save-state ${s.saveState}`} role="status" title={saveText} aria-label={saveText} data-testid="save-state">
         {s.saveState !== 'idle' && <Icon name={saveIcon} />}

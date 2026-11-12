@@ -335,3 +335,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The region cache** is keyed on the sketch object and checked against its content, so a sketch edited in place (tests, `scaleShape` on a draft) is never served a stale region.
 - **Piece ids**: a split segment's pieces are its id with `a` and `b` added, in its place in the drawing order, so a sequence of splits can be followed without searching.
 - **Shift's 15° steps apply even with smart snapping off** (they are not a smart snap); everything else snaps to the grid only.
+
+### Milestone 57: the 2D sketch workspace
+- **The session logic lives in the store** (as the plan asks), calling `src/sculpt/session.ts`; that adds no weight to box designs because the sculpt code was already in the main chunk through the keyboard handler (`hooks.ts` → `commands.ts`). The view, its tools and the preview are lazy chunks.
+- **A gesture in the sketch view** previews from the draft at its start (`sketchEdit(fn, { preview: true })`) and ends with `sketchCommit` (one step) or `sketchCancelGesture`, as the design's `preview`/`commit` do.
+- **The sketch view pans with the middle or right button only**; the left button belongs to the tools (Plan2D also pans with the left button when its tool is not Select, which would clash with drawing).
+- **A new sketch starts with the Line tool**; an existing one with Select.
+- **The preview builds the draft in the sketch's own frame** (a probe shape on an upright plane at the origin) and places it with the sketch's matrix, so it is right for shapes inside turned or stretched groups too.
+- **Leaving the sketch view by any other route** (the design's undo, a stage change, another view, a new design) drops the draft without asking; only Cancel asks.

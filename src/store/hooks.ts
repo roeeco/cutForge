@@ -9,7 +9,7 @@ import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edi
 import { detailSel, selectedDetailIds } from './store';
 import { validate } from '../model/validate';
 import { isBad, rememberGood } from './goodDesign';
-import { sculptKey } from '../sculpt/ui/commands';
+import { sculptKey, sketchKey } from '../sculpt/ui/commands';
 
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
@@ -75,15 +75,19 @@ export function useKeyboard() {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
       const mod = e.ctrlKey || e.metaKey;
+      // the sketch view has its own history and keys (milestone 57)
+      const sketching = s.view === 'sketch' && !!s.sketch;
       if (mod && !isTyping(e) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
+        if (sketching) return e.shiftKey ? s.sketchRedo() : s.sketchUndo();
         return e.shiftKey ? s.redo() : s.undo();
       }
       if (mod && !isTyping(e) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
-        return s.redo();
+        return sketching ? s.sketchRedo() : s.redo();
       }
       if (isTyping(e)) return;
+      if (sketching) return void sketchKey(e);
       // waffle designs have their own keys (milestone 49)
       if (s.design.kind === 'waffle') return void sculptKey(e);
       const sel = s.selection;
