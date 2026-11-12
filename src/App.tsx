@@ -17,7 +17,7 @@ import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
 import { EditorBoundary } from './ui/ErrorBoundary';
 import { LazySculptView } from './sculpt/ui/lazy';
-import { kernel } from './sculpt/kernel';
+import { loadWaffle } from './waffle/load';
 
 export function App() {
   const t = useT();
@@ -45,7 +45,7 @@ export function App() {
   const waffle = useStore((s) => s.design.kind === 'waffle');
   useEffect(() => {
     if (!waffle || useStore.getState().sculpt.ready) return;
-    Promise.all([kernel(), import('./waffle/pieces')]).then(
+    loadWaffle().then(
       () => useStore.getState().setSculpt({ ready: true, failed: false }),
       () => useStore.getState().setSculpt({ failed: true }),
     );

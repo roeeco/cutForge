@@ -360,7 +360,8 @@ export const useStore = create<State>()((set, get) => ({
   sculpt: { stage: 'shape', next: 'box', nextHole: false, height: null, focus: null, ready: false, failed: false, plane: { kind: 'floor' }, editSketch: null, selPoint: null },
   sculptRadius: 5,
   steps: null,
-  setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p } }),
+  // a stage change closes the assembly steps view
+  setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p }, ...(p.stage ? { steps: null } : {}) }),
   past: [],
   future: [],
   txnBase: null,

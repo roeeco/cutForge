@@ -305,3 +305,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The plate's label is *Base*** in both languages (engraved text, like A and B, reads the same on any sheet).
 - **Labels are computed only when pieces are built** (the cut plan and the export), not for the stage or the checks, so a drag on stage 2 stays near 40 ms. Their cache key includes the fonts' version, so labels appear when the font arrives.
 - **The cut plan shows the engraved labels** only (no extra overlay label for waffle parts).
+
+### Milestone 54: assembly steps and finishing
+- **Steps** (`src/waffle/steps.ts`): the plate (with one), every A slice in label order standing in place, then every B slice in label order shown above the sculpture with a down arrow and dropped in 0.9 s; each line names the part and, for B, the A slices it crosses as a range (*Slide B3 down over A1–A4*). A slice with no parts is skipped. View only, not saved; leaving stage 2 or Esc closes it.
+- **The waffle's picture for submissions and the teacher view** is an SVG of the slices standing in place, drawn in a three-quarter view back to front with the plate under them (`src/waffle/thumb.ts`), sent as the submission's preview instead of the first sheet. It is the same kind of file the teacher's list already shows, so the Worker is unchanged. It lives in `src/waffle/` and reaches `SubmitDialog` through the waffle hooks, not in `src/views/thumbnail.ts` (which draws the start screen's WebGL cards and would pull the kernel into the main bundle).
+- **The teacher view loads the kernel** when it opens a submitted waffle design (`loadWaffle`), so downloads and batches are regenerated from the project file as for boxes.
+- **Hebrew review**: a box is *תיבה* (not *קובייה*, a cube), the upright plane *מאונך*; families and checks use the feminine for slices (*פרוסה*) and the masculine for parts (*חלק*).

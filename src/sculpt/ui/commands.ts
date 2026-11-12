@@ -93,6 +93,7 @@ export function sculptKey(e: KeyboardEvent): boolean {
   }
   if (e.key === 'Escape') {
     if (s.txnBase || s.pending) return true;
+    if (s.steps !== null) return void useStore.setState({ steps: null }), true;
     if (s.sculpt.editSketch) s.setSculpt({ editSketch: null, selPoint: null });
     else if (s.tool !== 'select') s.setTool('select');
     else if (s.selection) s.select(null);

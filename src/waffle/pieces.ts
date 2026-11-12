@@ -11,6 +11,7 @@ import { kernelNow } from '../sculpt/kernel';
 import { fontsVersion } from '../text/fonts';
 import { snapCircles } from './arcs';
 import { waffleChecks } from './checks';
+import { waffleThumbSvg } from './thumb';
 import { deriveWaffle, type Poly } from './derive';
 import { finishParts, labelParts, type CutPart, type Finished } from './finish';
 
@@ -87,4 +88,4 @@ export function partOf(d: Design, pieceKey: string) {
   return p ? { fam: p.fam, sliceId: p.sliceId, label: p.label } : null;
 }
 
-registerWaffle({ pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleParts(d) : null) });
+registerWaffle({ thumb: (d) => waffleThumbSvg(d), pieces: wafflePieces, partOf, checks: (d) => waffleChecks(d, kernelNow() ? waffleParts(d) : null) });

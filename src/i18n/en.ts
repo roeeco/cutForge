@@ -946,6 +946,15 @@ export const en = {
   'base.margin': "Margin",
   'base.flat': "Cut flat at",
   'base.help': "The slices stand in slots in the plate. Raise “Cut flat at” so a round shape stands on a flat bottom.",
+  'steps.plate': "Lay the base plate flat",
+  'steps.a': "Stand {part} in place",
+  'steps.aPlate': "Stand {part} in the base plate",
+  'steps.b': "Slide {part} down over {over}",
+  'steps.bAlone': "Slide {part} down into place",
+  'steps.of': "Step {n} of {total}",
+  'steps.prev': "Previous step",
+  'steps.next': "Next step",
+  'steps.close': "Done",
 } as const;
 
 export type MsgKey = keyof typeof en;

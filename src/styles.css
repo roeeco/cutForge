@@ -801,3 +801,6 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .steps-bar { position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: var(--surface, #fff); border: 1px solid var(--line-strong); border-radius: var(--r-pill); padding: 6px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.1); font-size: 13px; }
 .slice-badge { background: #fff4d6; border: 1px solid #e0a21b; color: #6b4a00; border-radius: var(--r-pill); padding: 1px 8px; font-size: 11.5px; white-space: nowrap; cursor: pointer; }
 .inline-btn { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+.steps-bar .flip svg { transform: scaleX(-1); }
+[dir='rtl'] .steps-bar .flip svg { transform: none; }
+[dir='rtl'] .steps-bar button:not(.flip) svg { transform: scaleX(-1); }

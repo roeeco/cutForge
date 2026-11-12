@@ -1,6 +1,6 @@
 # Waffle mode: shapes in, slotted slices out (milestones 49–54)
 
-Status: plan, 2026-11-12. Nothing is built yet.
+Status: built on `claude/waffle-mode`, milestones 49–54 (2026-11-12). What changed while building is in §12; what still needs the owner is at the end of `PROGRESS.md`.
 
 Branch: `claude/waffle-mode`, off `main` (which ends at milestone 43). Milestones 44–48 belong to the parked curved-walls branch, so the waffle starts at 49. §3.5 lists what is copied from that branch.
 
@@ -530,3 +530,8 @@ Once a mesh can come in, the waffle stage here slices it unchanged.
 - **Label fitting is a circle test** (the text box inside the circle about the pole, less 1 mm) rather than every glyph point against the outline: the point test made a drag frame about 300 ms. A label can therefore come out smaller than the outline strictly allows; it is never closer than 1 mm to a cut.
 - **The plate's slots** are the tab plus the clearance each way (§6.5 says *the tab plus clearance*; clearance here is the waffle's slot clearance).
 - **Stage 2's arrow for *Cut flat at*** sits beside the plate; dragging it raises the cut, and the slices and plate follow live.
+
+### Milestone 54
+- **The waffle thumbnail** (§3.4 places it in `src/views/thumbnail.ts`) is an SVG made in `src/waffle/thumb.ts`: the submission preview and the teacher's list already carry SVG, and `thumbnail.ts` is in the main bundle.
+- **The e2e spec selects the box and the hole through the store's test hook** before Ctrl+G, as other specs do; Shift-clicking two meshes on a SwiftShader canvas is not reliable enough for one spec. Everything else (the tiles, the footprint drags, the ghost's height field and ✓, the stepper, the checks, the steps view, the export) is driven through the interface.
+- **Playwright's browser**: the project's `@playwright/test` expects a newer Chromium build than this machine has; the spec was run with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`, which `pw-app.config.ts` already supports.

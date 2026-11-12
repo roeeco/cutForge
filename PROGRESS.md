@@ -1029,6 +1029,25 @@ Verified
 Not verified
 - Engraving on card (scorch risk) and the label sizes on a real cut; the labels' look in LightBurn.
 
+## Milestone 54 — assembly steps and finishing ✅
+
+Implemented
+- **Steps view** (`src/waffle/steps.ts`, `StepsLayer`, `StepsBar`): *Steps* on the waffle card opens ‹ *Step n of N* › with the step's line: the plate, the A slices standing in place one at a time, then each B slice shown above the sculpture with a down arrow and dropped into place; *Done* or Esc closes it. View only.
+- **Waffle picture** (`src/waffle/thumb.ts`): the slices standing on their plate as an SVG, sent as a waffle submission's preview, so the teacher's list shows the sculpture; the teacher view loads the kernel to regenerate a waffle's files (`src/waffle/load.ts`).
+- **Hebrew and English** for every new string (about 180 keys), reviewed; a few Hebrew words corrected (*תיבה* for box, *מאונך* for the upright plane).
+- **`README.md`**: a *Waffle mode* section. `DECISIONS.md` (*Waffle mode*, milestones 49–54), `THIRD_PARTY.md` (manifold-3d 3.5.4, the rounded-corner maths, `arcfit.ts`) and `WAFFLE_MODE.md` §12 are up to date.
+- **One e2e spec** (`tests/e2e/waffle.spec.ts`).
+
+Verified
+- `npm run typecheck`; `npm test`: 608 passed, 7 skipped (the `ezdxf` checks: Python's `ezdxf` is not installed here); `tests/golden.test.ts` unchanged and green throughout milestones 49–54.
+- `tests/wafflesteps.test.ts`: the steps' order (plate, A1–A4, B1–B3) and the B lines' ranges (*over A1–A4*); label ranges; the picture draws every part and the plate.
+- **`tests/e2e/waffle.spec.ts`** (Playwright, `npx playwright test -c pw-app.config.ts tests/e2e/waffle.spec.ts` with `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`): *Waffle sculpture* on the start screen → the Shapes tool's box tile, a footprint drag, the ghost's height field and ✓ → a cylinder tile as a Hole, taller than the box → stage 2 lists *This hole isn't grouped* → both selected, Ctrl+G → stage 2 says every part is held → the steps view → *Download for laser*, SVG → **the file has as many parts as the design has pieces** (counted from the cut layer's outer outlines) and an engrave layer → after a reload the design is the same grouped waffle. No page errors. Passed in 13 s.
+- `npm run build`: the main chunk is 2,145.70 kB (624.29 kB gzipped; `main` was 611.04 kB); the waffle editor is in its own chunks (`SculptView3D` 29.4 kB, `SculptCard` 14.7 kB, `pieces` 18.5 kB, `SculptRail` 1.9 kB) and the kernel in its own (43.7 kB JS + 541.5 kB WASM, 14.2 + 207.9 kB gzipped), none of them loaded by a box design.
+- Dev server, Playwright-driven, in Hebrew: the steps view at *Step 7 of 9* drops B2 over A1–A4 with the bar in right-to-left order.
+
+Not verified
+- The full e2e suite was not run (the owner's standing preference: only the waffle spec); the classroom specs need the Worker.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
@@ -1036,3 +1055,15 @@ Not verified
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.
+
+## Still needs the owner (waffle mode, milestones 49–54)
+Everything below could not be checked from this session; the draft pull request lists the same.
+- **Safari** (macOS and iPad): the WASM kernel loads and the waffle editor works (only headless Chromium was tried here).
+- **A real school Chromebook**: the kernel's first load on school Wi-Fi (54 ms locally from the preview build; about 222 KB gzipped to fetch), and the time per edit with 20 shapes and 2 × 8 slices (about 40 ms per drag frame for the slices and slots in Node here, about 50 ms more to rebuild the cut plan's pieces; a Chromebook is likely two to three times slower). If it feels slow, §10.2's Worker is the next step.
+- **The deployed Worker**: that `manifold-*.wasm` is served as `application/wasm` from the static assets (nothing was deployed from this session).
+- **Real laser cuts**: a plywood waffle (3 mm, the profile's 0.1 mm clearance) and a corrugated one (the profile's clearance, flutes up the slices): that the slots slide together snugly, the tabs fit the base plate, and the arcs come out smooth in LightBurn.
+- **Engraved labels**: their size and legibility on a real cut, and scorching on card.
+- **Hebrew wording**: a native speaker's review of the new strings (about 90 keys under `start.waffle`, `stage.*`, `sculpt.*`, `sketch.*`, `radius.*`, `waffle.*`, `val.w.*`, `fix.*`, `base.*`, `steps.*` in `src/i18n/he.ts`).
+- **By hand on a real screen**: dragging the gizmo's rings and arrows, the size arrows, Edit sketch's handles, a revolve's axis edge, a slice's arrow and the turn ring (each uses the existing stage widgets; the unit tests cover the operations behind them).
+- **`ezdxf`**: the Python DXF checks were skipped here (not installed); worth one run where it is.
+

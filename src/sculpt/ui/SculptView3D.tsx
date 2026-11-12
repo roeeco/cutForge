@@ -21,6 +21,7 @@ import { SketchLayer } from './SketchLayer';
 import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
 import { WaffleLayer } from '../../waffle/ui/WaffleLayer';
+import { StepsBar } from '../../waffle/ui/StepsLayer';
 
 const PRIMS = new Set(['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus']);
 
@@ -433,6 +434,7 @@ export function SculptView3D() {
           </button>
         </div>
       )}
+      {stage === 'waffle' && <StepsBar />}
       <div className="view-dock" dir="auto">
         <div className="cluster">
           <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">

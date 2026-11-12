@@ -100,7 +100,7 @@ function SliceArrow() {
 }
 
 /** The base plate under the sculpture, with an arrow that raises where the sculpture is cut flat. */
-function PlateView() {
+export function PlateView({ arrow = true }: { arrow?: boolean }) {
   const { model } = useWaffle();
   const plate = useStore((s) => waffleParts(s.design).plate);
   const geo = useMemo(() => {
@@ -121,7 +121,7 @@ function PlateView() {
       <mesh geometry={geo} rotation={[-Math.PI / 2, 0, 0]} position={[0, model.plateY - model.t, 0]} raycast={() => null}>
         <meshStandardMaterial color="#c9a46a" roughness={0.85} />
       </mesh>
-      <PushPull
+      {arrow && <PushPull
         at={[c[0] + (plate.bbox.x1 - plate.bbox.x0) / 2 + 12, model.plateY, c[2]]}
         axis={[0, 1, 0]}
         value={base?.flat ?? 0}
@@ -135,7 +135,7 @@ function PlateView() {
         onCommit={() => st().commit()}
         onCancel={() => st().cancel()}
         testId="plate-flat-arrow"
-      />
+      />}
     </>
   );
 }
