@@ -92,6 +92,8 @@ export type View = '3d' | '2d' | 'solo' | 'sketch';
 
 /** The 2D sketcher's tools (SKETCH_OVERHAUL.md §6.2). */
 export type SkTool = 'select' | 'line' | 'arc' | 'smooth' | 'bezier' | 'points' | 'erase' | 'tape';
+/** What is selected in the sketch view: points, segments, and maybe one curve handle (a Bezier's end). */
+export type SkSelection = { pts: string[]; segs: string[]; handle?: { seg: string; end: 'a' | 'b' } };
 /** A sketch being drawn or edited in the 2D sketch view; the design is changed only by Finish. */
 export type SketchSession = {
   /** The shape being edited, or null for a new one. */
@@ -108,7 +110,7 @@ export type SketchSession = {
   future: SketchGraph[];
   /** The draft before a gesture's previews (like the design's txnBase). */
   txn: SketchGraph | null;
-  sel: { pts: string[]; segs: string[] };
+  sel: SkSelection;
   tool: SkTool;
   /** New lines are construction lines. */
   cons: boolean;
@@ -731,9 +733,10 @@ export const useStore = create<State>()((set, get) => ({
 }));
 
 /** A sketch selection with only what still exists in the draft. */
-function liveSel(sk: SketchGraph, sel: { pts: string[]; segs: string[] }) {
+function liveSel(sk: SketchGraph, sel: SkSelection): SkSelection {
   const pts = sel.pts.filter((p) => sk.pts[p]), segs = sel.segs.filter((g) => sk.segs[g]);
-  return pts.length === sel.pts.length && segs.length === sel.segs.length ? sel : { pts, segs };
+  const handle = sel.handle && sk.segs[sel.handle.seg]?.k === 'bez' ? sel.handle : undefined;
+  return pts.length === sel.pts.length && segs.length === sel.segs.length && handle === sel.handle ? sel : { pts, segs, ...(handle ? { handle } : {}) };
 }
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */

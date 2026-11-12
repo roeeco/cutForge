@@ -12,6 +12,7 @@ import { busy, initTool, step, typedTarget, type Env, type ToolEv, type ToolStat
 import { arcOf, bulgeThrough, arcPts, bezPts } from '../../../sketch/flatten';
 import { selPts } from '../../../sketch/model';
 import { setSegKind, setSmooth } from '../../../sketch/ops';
+import { hitTest } from '../../../sketch/hit';
 import { underlay } from '../../underlay';
 import { sketchHandlers } from '../commands';
 
@@ -31,6 +32,9 @@ const sv = (p: P2) => ({ x: p.x, y: -p.y });
 
 /** Where the view is, for things outside the canvas (the Add shape menu): its middle and a screen → sketch mapping. */
 export const sketchViewInfo: { centre: P2; toSketch: ((x: number, y: number) => P2 | null) | null; canvas: SVGSVGElement | null } = { centre: { x: 0, y: 0 }, toSketch: null, canvas: null };
+
+/** A pick the bar is waiting for: the next click on a straight line goes to it. */
+export const sketchPick: { onLine: ((seg: string) => void) | null } = { onLine: null };
 
 const TOOL_KEYS: Record<string, SkTool> = { v: 'select', '1': 'line', '2': 'bezier', '3': 'smooth', '4': 'points', a: 'arc', e: 'erase', t: 'tape' };
 
@@ -64,9 +68,14 @@ export function useSketchPointer(view: View): Ptr {
     smart: st().viewPrefs.snap,
     cons: !!st().sketch?.cons,
     underlay: under,
+    sel: () => st().sketch!.sel,
+    setSel: (x) => st().setSketch({ sel: x }),
   });
   const run = (ev: ToolEv) => {
-    if (!st().sketch) return;
+    const k = st().sketch;
+    if (!k) return;
+    // the tool changed since the last render: start it fresh before this event
+    if (ref.current.tool !== k.tool) ref.current = initTool(k.tool);
     const next = step(ref.current, ev, env());
     ref.current = next;
     if (next.done) {
@@ -133,6 +142,17 @@ export function useSketchPointer(view: View): Ptr {
       return;
     }
     if (ev.button !== 0) return;
+    if (sketchPick.onLine) {
+      // the bar asked for a line (Mirror across a line)
+      const k = st().sketch!;
+      const h = hitTest(k.draft, at(ev), 10 * view.mmPerPx());
+      if (h?.kind === 'seg' && k.draft.segs[h.id].k === 'line') {
+        const f = sketchPick.onLine;
+        sketchPick.onLine = null;
+        f(h.id);
+      }
+      return;
+    }
     const x0 = ev.clientX, y0 = ev.clientY;
     let moved = false;
     run({ t: 'down', p: at(ev), mods: mods(ev) });

@@ -2,10 +2,11 @@
 // step(state, event, env) → state. Edits go through env (one history step
 // each, or previews during a drag), so the tools run without a browser.
 import type { P2 } from '../model/types';
-import { addArc, addBez, addLine, curveThrough, eraseSeg, removePt, setPt, splitSeg, weld, type End } from './ops';
+import { addArc, addBez, addLine, curveThrough, eraseSeg, movePts, removePt, setPt, splitSeg, weld, type End } from './ops';
+import { mergeSel, outlineAt } from './select';
 import { bulgeThrough } from './flatten';
 import { parsePolar, polarPoint } from './dims';
-import { degree, segsAt, type Sketch } from './model';
+import { bounds, degree, segsAt, selPts, type Sketch, type SkSel } from './model';
 import { hitTest, inBox } from './hit';
 import { snapPoint, snapTargets, type Snap } from './snap';
 
@@ -41,6 +42,9 @@ export type Env = {
   cons: boolean;
   /** The corners of the shapes shown underneath. */
   underlay?: P2[][];
+  /** The selection (the Select tool). */
+  sel?: () => SkSel;
+  setSel?: (s: SkSel) => void;
 };
 
 type Pin = { id?: string; p: P2 };
@@ -57,7 +61,9 @@ export type ToolState = {
   bez: { down: Snap | null; h: P2 | null };
   tape: { a: P2 | null; b: P2 | null };
   box: { a: P2; b: P2 } | null;
-  drag: { pt: string; start: P2; moved: boolean } | null;
+  drag: { pt: string; start: P2; moved: boolean; handle?: { seg: string; end: 'a' | 'b' }; item?: SkSel; pts?: string[]; mid?: P2; base?: Record<string, P2> } | null;
+  /** The erase or selection box adds to the selection (Shift). */
+  additive?: boolean;
   /** Ask the view to switch to the Select tool. */
   done?: boolean;
 };
@@ -304,37 +310,152 @@ export function step(s: ToolState, ev: ToolEv, env: Env): ToolState {
       if (!s.tape.a || s.tape.b) return { ...s, tape: { a: sn.p, b: null } };
       return { ...s, tape: { a: s.tape.a, b: sn.p } };
     }
-    case 'select': {
-      // dragging a point (an open end dropped on another point is joined to it)
-      if (ev.t === 'down') {
-        const h = hitTest(env.sk(), ev.p, tol);
-        return h?.kind === 'pt' ? { ...s, drag: { pt: h.id, start: ev.p, moved: false } } : s;
-      }
-      if (ev.t === 'drag' && s.drag) {
-        const sn = snapFor({ ...s, chain: null }, ev.p, env, mods, [s.drag.pt]);
-        const pt = s.drag.pt;
-        env.preview((x) => setPt(x, pt, sn.p));
-        return { ...s, drag: { ...s.drag, moved: true }, snap: sn, cur: ev.p };
-      }
-      if ((ev.t === 'up' || ev.t === 'click') && s.drag) {
-        const { pt, moved } = s.drag;
-        if (!moved) return { ...s, drag: null };
-        const sn = s.snap;
-        const open = degree(env.sk(), pt, { cons: false }) === 1;
-        if (open && sn?.ptId && sn.ptId !== pt && env.sk().pts[sn.ptId]) {
-          const target = sn.ptId;
-          env.preview((x) => void (setPt(x, pt, x.pts[target]), weld(x, target, pt)));
-        }
-        env.commit();
-        return { ...s, drag: null, snap: null };
-      }
-      if (ev.t === 'key' && ev.key === 'Escape' && s.drag) {
-        env.cancel();
-        return { ...s, drag: null, snap: null };
-      }
-      return s;
+    case 'select':
+      return selectStep(s, ev, env, mods);
+  }
+}
+
+const EMPTY: SkSel = { pts: [], segs: [] };
+
+/** The curve handles shown for a selection: each selected Bezier end's handle tip. */
+export function shownHandles(sk: Sketch, sel: SkSel): { seg: string; end: 'a' | 'b'; p: P2; tip: P2 }[] {
+  const pts = new Set(selPts(sk, sel));
+  const out: { seg: string; end: 'a' | 'b'; p: P2; tip: P2 }[] = [];
+  for (const g of sk.order) {
+    const s = sk.segs[g];
+    if (s.k !== 'bez') continue;
+    for (const end of ['a', 'b'] as const) {
+      const id = s[end];
+      if (!pts.has(id) && !sel.segs.includes(g)) continue;
+      const p = sk.pts[id], h = end === 'a' ? s.ha : s.hb;
+      out.push({ seg: g, end, p, tip: { x: p.x + h.x, y: p.y + h.y } });
     }
   }
+  return out;
+}
+
+/** Set a Bezier end's handle; at a smooth point the other handle there turns to stay in line (its length kept). */
+export function setHandle(sk: Sketch, seg: string, end: 'a' | 'b', h: P2) {
+  const s = sk.segs[seg];
+  if (s?.k !== 'bez') return false;
+  const id = s[end];
+  if (sk.pts[id]?.lock) return false;
+  if (end === 'a') s.ha = { x: h.x, y: h.y };
+  else s.hb = { x: h.x, y: h.y };
+  if (sk.pts[id]?.smooth) {
+    const L = Math.hypot(h.x, h.y);
+    for (const g of segsAt(sk, id)) {
+      const o = sk.segs[g];
+      if (g === seg || o.k !== 'bez') continue;
+      const oe = o.a === id ? 'ha' : 'hb';
+      const ol = Math.hypot(o[oe].x, o[oe].y);
+      if (L > 1e-9) o[oe] = { x: (-h.x / L) * ol, y: (-h.y / L) * ol };
+    }
+  }
+  return true;
+}
+
+function selectStep(s: ToolState, ev: ToolEv, env: Env, mods: Mods): ToolState {
+  const tol = 10 * env.mmPerPx;
+  const sel = env.sel?.() ?? EMPTY;
+  const setSel = (x: SkSel) => env.setSel?.(x);
+  const sk = env.sk();
+  if (ev.t === 'down') {
+    // a curve handle of the selection
+    const hd = shownHandles(sk, sel).find((h) => Math.hypot(h.tip.x - ev.p.x, h.tip.y - ev.p.y) <= tol);
+    if (hd) {
+      setSel({ ...sel, handle: { seg: hd.seg, end: hd.end } });
+      return { ...s, drag: { pt: '', start: ev.p, moved: false, handle: { seg: hd.seg, end: hd.end } } };
+    }
+    const h = hitTest(sk, ev.p, tol);
+    const item: SkSel | null = h?.kind === 'pt' ? { pts: [h.id], segs: [] } : h?.kind === 'seg' ? { pts: [], segs: [h.id] } : outlineAt(sk, ev.p);
+    if (!item) {
+      if (!mods.shift) setSel(EMPTY);
+      return { ...s, box: { a: ev.p, b: ev.p }, additive: mods.shift };
+    }
+    if (mods.shift) {
+      setSel(mergeSel(sel, item, 'toggle'));
+      return { ...s, drag: null };
+    }
+    const have = new Set(selPts(sk, sel));
+    const inSel = item.pts.every((p) => have.has(p)) && item.segs.every((g) => sel.segs.includes(g) || (have.has(sk.segs[g].a) && have.has(sk.segs[g].b)));
+    const now = inSel ? sel : item;
+    if (!inSel) setSel(item);
+    const pts = selPts(sk, now);
+    const b = bounds(sk, pts)!;
+    return { ...s, drag: { pt: h?.kind === 'pt' && pts.length === 1 ? h.id : '', start: ev.p, moved: false, item, pts, mid: { x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2 } } };
+  }
+  if (ev.t === 'drag' && s.box) return { ...s, box: { a: s.box.a, b: ev.p } };
+  if (ev.t === 'drag' && s.drag?.handle) {
+    const { seg, end } = s.drag.handle;
+    const base = sk.pts[sk.segs[seg][end]];
+    const q = { x: env.grid(ev.p.x, mods.alt), y: env.grid(ev.p.y, mods.alt) };
+    env.preview((x) => void setHandle(x, seg, end, { x: q.x - base.x, y: q.y - base.y }));
+    return { ...s, drag: { ...s.drag, moved: true } };
+  }
+  if (ev.t === 'drag' && s.drag?.pts) {
+    const g = s.drag;
+    let dx = ev.p.x - g.start.x, dy = ev.p.y - g.start.y;
+    // Shift: along one axis
+    if (mods.shift) Math.abs(dx) >= Math.abs(dy) ? (dy = 0) : (dx = 0);
+    let snap: Snap | null = null;
+    if (g.pt) {
+      // one point: it snaps itself (to everything but its own lines' middles)
+      const from = g.base?.[g.pt] ?? g.start;
+      snap = snapFor({ ...s, chain: null }, { x: from.x + dx, y: from.y + dy }, env, { shift: false, alt: mods.alt }, g.pts);
+      dx = snap.p.x - from.x;
+      dy = snap.p.y - from.y;
+    } else {
+      // the selection's middle snaps
+      snap = snapFor({ ...s, chain: null }, { x: g.mid!.x + dx, y: g.mid!.y + dy }, env, { shift: false, alt: mods.alt }, g.pts);
+      if (snap.kind === 'grid' || snap.kind === 'free') {
+        dx = env.grid(dx, mods.alt);
+        dy = env.grid(dy, mods.alt);
+      } else {
+        dx = snap.p.x - g.mid!.x;
+        dy = snap.p.y - g.mid!.y;
+      }
+      if (mods.shift) Math.abs(ev.p.x - g.start.x) >= Math.abs(ev.p.y - g.start.y) ? (dy = 0) : (dx = 0);
+    }
+    const pts = g.pts!;
+    const base = g.base ?? Object.fromEntries(pts.map((id) => [id, { x: sk.pts[id].x, y: sk.pts[id].y }]));
+    env.preview((x) => void movePts(x, pts, dx, dy));
+    return { ...s, drag: { ...g, moved: true, base }, snap };
+  }
+  if ((ev.t === 'up' || ev.t === 'click') && s.box) {
+    if (ev.t === 'up') {
+      const got = inBox(sk, s.box.a, s.box.b);
+      setSel(s.additive ? mergeSel(sel, got, 'add') : got);
+    }
+    return { ...s, box: null, additive: false };
+  }
+  if ((ev.t === 'up' || ev.t === 'click') && s.drag) {
+    const g = s.drag;
+    if (!g.moved) {
+      // a plain click on something already in a larger selection picks it alone
+      if (g.item) setSel(g.item);
+      return { ...s, drag: null };
+    }
+    if (g.handle) {
+      env.commit();
+      return { ...s, drag: null };
+    }
+    const sn = s.snap;
+    const pt = g.pt;
+    const open = pt && degree(env.sk(), pt, { cons: false }) === 1;
+    if (open && sn?.ptId && sn.ptId !== pt && env.sk().pts[sn.ptId]) {
+      const target = sn.ptId;
+      env.preview((x) => void (setPt(x, pt, x.pts[target]), weld(x, target, pt)));
+      setSel({ pts: [target], segs: [] });
+    }
+    env.commit();
+    return { ...s, drag: null, snap: null };
+  }
+  if (ev.t === 'key' && ev.key === 'Escape' && (s.drag || s.box)) {
+    if (s.drag?.moved) env.cancel();
+    return { ...s, drag: null, box: null, snap: null };
+  }
+  return s;
 }
 
 /** Is a drawing gesture in progress (a chain, an arc's first clicks, typed numbers)? Digit keys then belong to it. */

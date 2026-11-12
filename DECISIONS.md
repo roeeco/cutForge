@@ -352,3 +352,12 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Erase removes a point with all its segments** (Add/remove points joins its two neighbours instead).
 - **Joining by dragging** is done only for an open end (a point on one non-construction segment); a dragged point that is part of an outline just moves.
 - **Shift's 15° steps** measure from the chain's last point, and the length is rounded to the grid step, so a typed-free drawing still has round lengths.
+
+### Milestone 59: select and edit
+- **A press on something already selected keeps the selection** (so a group can be dragged); a click without moving then picks that thing alone.
+- **Moving several items snaps their box's middle** to the snap targets (their own points and the middles of their own lines excluded), else moves in whole grid steps; one point snaps itself.
+- **The pills' inputs are drawn in the sheet** (an HTML input in a `foreignObject`, at screen size), so they sit exactly on the value they change at any zoom.
+- **A typed length with no end selected keeps the segment's start** (its `a` end) still; with an end selected, that end moves.
+- **The frame of a straight line along an axis** has no side handles and no pill for the size it does not have.
+- **Duplicate (Ctrl+D) places the copy as Paste does** (10 mm away, then further until it touches nothing), not at a fixed offset.
+- **Mirror Left–right and Top–bottom** mirror across the selection's right and bottom edges, so the copy sits beside the original instead of on top of it.

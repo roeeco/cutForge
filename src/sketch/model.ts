@@ -6,7 +6,7 @@ import { newId } from '../model/ops';
 export type Sketch = SketchGraph;
 export type { SkPt, SkSeg };
 /** A selection in a sketch: points and segments by id. */
-export type SkSel = { pts: string[]; segs: string[] };
+export type SkSel = { pts: string[]; segs: string[]; handle?: { seg: string; end: 'a' | 'b' } };
 
 export function emptySketch(): Sketch {
   return { pts: {}, segs: {}, order: [] };
