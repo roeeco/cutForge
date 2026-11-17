@@ -2063,9 +2063,10 @@ function FloorGizmo({ d, p, m, tolAt }: { d: Design; p: Panel; m: THREE.Matrix4;
 /** A selected standing board's flip badge (milestone 42): its material goes to the other side of its line. */
 function PlacedFlip({ d, p, m }: { d: Design; p: Panel; m: THREE.Matrix4 }) {
   const t = useT();
+  const badge = useRef<HTMLButtonElement>(null);
   return (
-    <StageHtml position={W(m, p.frame, p.w, p.h / 2, tOf(d, p.id) / 2)}>
-      <button className="w-dim ghost flip-badge" onClick={() => useStore.getState().apply((x) => flipPlacedSide(x, p.id))} title={t('ghost.flip')} aria-label={t('ghost.flip')} data-testid="placed-flip-badge">
+    <StageHtml position={W(m, p.frame, p.w, p.h / 2, tOf(d, p.id) / 2)} keepInStage={{ ref: badge, place: 'center' }}>
+      <button ref={badge} className="w-dim ghost flip-badge" onClick={() => useStore.getState().apply((x) => flipPlacedSide(x, p.id))} title={t('ghost.flip')} aria-label={t('ghost.flip')} data-testid="placed-flip-badge">
         <Icon name="flip" size={14} />
       </button>
     </StageHtml>

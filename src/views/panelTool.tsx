@@ -122,6 +122,7 @@ export function snapGhostPoint(t: FaceTargets | null, p: P2, tol: number, ev: { 
  */
 export function ConfirmBar(props: { at: V3; onOk: () => void; onCancel: () => void; okDisabled?: boolean; children?: React.ReactNode; testId?: string; okTestId?: string; cancelTestId?: string; below?: boolean }) {
   const t = useT();
+  const bar = useRef<HTMLDivElement>(null);
   const h = useRef(props);
   h.current = props;
   useEffect(() => {
@@ -138,8 +139,8 @@ export function ConfirmBar(props: { at: V3; onOk: () => void; onCancel: () => vo
   }, []);
   return (
     // over the other stage labels (a hinge's angle, the height): the ✓ is always reachable
-    <StageHtml position={props.at} zIndexRange={[70, 60]}>
-      <div className={`ghost-bar ${props.below ? 'below' : ''}`} dir="auto" data-testid={props.testId ?? 'ghost-bar'} onPointerDown={(e) => e.stopPropagation()}>
+    <StageHtml position={props.at} zIndexRange={[70, 60]} keepInStage={{ ref: bar, place: props.below ? 'below' : 'above' }}>
+      <div ref={bar} className={`ghost-bar ${props.below ? 'below' : ''}`} dir="auto" data-testid={props.testId ?? 'ghost-bar'} onPointerDown={(e) => e.stopPropagation()}>
         {props.children}
         <button className="ok" disabled={props.okDisabled} onClick={() => props.onOk()} title={t('ghost.ok')} aria-label={t('ghost.ok')} data-testid={props.okTestId ?? 'ghost-ok'}>
           <Icon name="check" size={16} />

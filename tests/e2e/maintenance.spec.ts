@@ -184,3 +184,25 @@ test('Rich quality draws the stage in its own colour, not tone-mapped grey', asy
   // #eef1f5 in both (it came out about #dddedf in Rich)
   for (const px of [simple, rich]) for (const [i, v] of [238, 241, 245].entries()) expect(Math.abs(px[i] - v)).toBeLessThanOrEqual(6);
 });
+
+test('stage controls stay clear of the card when zoomed in; labels under it hide', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const d = await organiser(page);
+  const rect = (sel: string) => page.evaluate((s) => document.querySelector(s)?.getBoundingClientRect().toJSON() ?? null, sel);
+  const clear = async (sel: string) => {
+    const a = await rect(sel), card = await rect('.card-dock .card');
+    if (!a || !card) return true;
+    return Math.min(a.right, card.right) - Math.max(a.left, card.left) <= 0 || Math.min(a.bottom, card.bottom) - Math.max(a.top, card.top) <= 0;
+  };
+  // a grow ghost whose ✓ bar would sit under the card: it is kept beside it, where it can be clicked
+  await page.evaluate(() => (window as any).__cutforge.setCamera([0, 200, 20], [0, 20, 0]));
+  await page.evaluate((id) => (window as any).__cutforge.store.getState().select({ kind: 'edge', panelId: id, edge: 'e2' }), d.order[6]);
+  await expect(page.getByTestId('grow-ghost-bar')).toBeVisible();
+  await expect.poll(() => clear('[data-testid=grow-ghost-bar]')).toBe(true);
+  await page.getByTestId('grow-go').click();
+  expect((await design(page)).order.length).toBe(d.order.length + 1);
+  // a wall's width label whose point is beside the card: hidden rather than half under it
+  await page.evaluate(() => (window as any).__cutforge.setCamera([0, 130, 170], [0, 20, 0]));
+  await page.evaluate((id) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), d.order[2]);
+  await expect.poll(() => clear('[data-testid=dim-w]')).toBe(true);
+});

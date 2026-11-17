@@ -20,9 +20,106 @@ export const HTML_Z: [number, number] = [5, 0];
  * event area, so clicking a pill or a badge never also clicks the scene.
  */
 export const OverlayContext = createContext<React.RefObject<HTMLDivElement | null> | null>(null);
-export function StageHtml(props: ComponentProps<typeof Html>) {
+
+/**
+ * Keep an element on the stage where it can be clicked: `ref` is the element,
+ * `place` how it sits on its anchor point (its CSS transform): centred on it,
+ * above it, or below it (the ghost bar's `below`, 38px down).
+ */
+export type KeepInStage = { ref: React.RefObject<HTMLElement | null>; place: 'center' | 'above' | 'below' };
+
+type Free = { x0: number; x1: number; y1: number; left: number; top: number };
+const freeCache: { t: number; el: HTMLCanvasElement | null; r: Free | null } = { t: -1, el: null, r: null };
+/**
+ * The part of the 3D stage that the rail, the contextual card and the bottom
+ * bars leave free, in canvas pixels; measured once a frame (the stage draws on
+ * demand, so its last frame must see the cards as they are).
+ */
+export function freeStage(canvas: HTMLCanvasElement): Free {
+  const now = performance.now();
+  if (freeCache.r && freeCache.el === canvas && now - freeCache.t < 8) return freeCache.r;
+  const c = canvas.getBoundingClientRect();
+  let x0 = 0, x1 = c.width, y1 = c.height;
+  // the tall chrome at the sides (the rail, the card): either side, as the language puts them
+  for (const el of document.querySelectorAll('.rail, .card-dock .card')) {
+    const b = el.getBoundingClientRect();
+    if (!b.width || b.bottom < c.top || b.top > c.bottom) continue;
+    if ((b.left + b.right) / 2 - c.left < c.width / 2) x0 = Math.max(x0, b.right - c.left);
+    else x1 = Math.min(x1, b.left - c.left);
+  }
+  for (const el of document.querySelectorAll('.view-dock, .stage-bottom')) {
+    const b = el.getBoundingClientRect();
+    if (b.width && b.top < c.bottom) y1 = Math.min(y1, b.top - c.top);
+  }
+  freeCache.t = now;
+  freeCache.el = canvas;
+  freeCache.r = { x0, x1, y1, left: c.left, top: c.top };
+  return freeCache.r;
+}
+
+const projV = new THREE.Vector3();
+/**
+ * A label on the stage: `keepInStage` keeps a control where it can be clicked
+ * (clamped clear of the cards); `hideUnderChrome` hides a label while its point
+ * is under the rail, the card or the bottom bars, rather than leaving a sliver
+ * of it showing at the card's edge.
+ */
+export function StageHtml({ keepInStage, hideUnderChrome, ...props }: ComponentProps<typeof Html> & { keepInStage?: KeepInStage; hideUnderChrome?: React.RefObject<HTMLElement | null> | false }) {
   const portal = useContext(OverlayContext);
-  return <Html zIndexRange={HTML_Z} {...props} portal={portal && portal.current ? (portal as React.RefObject<HTMLElement>) : undefined} />;
+  const canvas = useThree((s) => s.gl.domElement);
+  const invalidate = useThree((s) => s.invalidate);
+  const keep = useRef(keepInStage);
+  keep.current = keepInStage;
+  const hide = useRef(hideUnderChrome);
+  hide.current = hideUnderChrome;
+  // where the label was put last, to find its box's offset from its point (whatever its CSS transform)
+  const last = useRef<[number, number] | null>(null);
+  // a control (a ghost's ✓ bar, a flip badge) follows its point but stays clear of the cards,
+  // the rail and the bottom bars: under them it could be seen but not clicked
+  const calculatePosition = useMemo(
+    () =>
+      keepInStage || hideUnderChrome
+        ? (el: THREE.Object3D, camera: THREE.Camera, size: { width: number; height: number }) => {
+            const p = projV.setFromMatrixPosition(el.matrixWorld).project(camera);
+            let x = ((p.x + 1) / 2) * size.width, y = ((1 - p.y) / 2) * size.height;
+            if (!keep.current) {
+              const f = freeStage(canvas);
+              const box = hide.current ? hide.current.current : null;
+              let l = x, r = x, b = y;
+              // its first frame: its box is not known yet, so look again on the next one
+              if (hide.current && (!box || !box.offsetWidth || !last.current)) invalidate();
+              if (box && box.offsetWidth && last.current) {
+                const br = box.getBoundingClientRect();
+                l = x + br.left - f.left - last.current[0];
+                r = l + br.width;
+                b = y + br.bottom - f.top - last.current[1];
+              }
+              const out: [number, number] = l < f.x0 || r > f.x1 || b > f.y1 ? [-10000, -10000] : [x, y];
+              last.current = out;
+              return out;
+            }
+            const k = keep.current;
+            const box = k?.ref.current;
+            if (!k) return [x, y];
+            // not laid out yet (its first frame): place it again on the next one
+            if (!box || !box.offsetWidth) {
+              invalidate();
+              return [x, y];
+            }
+            const w = box.offsetWidth, h = box.offsetHeight, m = 8;
+            const f = freeStage(canvas);
+            const lo = f.x0 + w / 2 + m, hi = f.x1 - w / 2 - m;
+            if (lo <= hi) x = Math.min(hi, Math.max(lo, x));
+            // the box's top and bottom relative to the anchor
+            const [top, bottom] = k.place === 'above' ? [-h, 0] : k.place === 'below' ? [38, 38 + h] : [-h / 2, h / 2];
+            const ylo = m - top, yhi = f.y1 - m - bottom;
+            if (ylo <= yhi) y = Math.min(yhi, Math.max(ylo, y));
+            return [x, y];
+          }
+        : undefined,
+    [!!keepInStage, !!hideUnderChrome, canvas, invalidate],
+  );
+  return <Html zIndexRange={HTML_Z} {...props} calculatePosition={calculatePosition} portal={portal && portal.current ? (portal as React.RefObject<HTMLElement>) : undefined} />;
 }
 
 /**
@@ -238,6 +335,7 @@ export function AngleArc(props: {
   /** Angles the knob snaps to within 3° (where the panel would rest on another one); Alt turns them off. */
   targets?: number[];
 }) {
+  const angleLabel = useRef<HTMLSpanElement>(null);
   const [hover, setHover] = useState(false);
   const [dragging, setDragging] = useState(false);
   const show = hover || dragging;
@@ -327,8 +425,8 @@ export function AngleArc(props: {
           </mesh>
         </group>
       </ScreenSized>
-      <StageHtml position={cur} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }}>
-        <span className={`w-dim ghost hinge-label zone-${zone}`} style={{ transform: 'translate(18px, -125%)' }}>
+      <StageHtml position={cur} zIndexRange={HTML_Z} style={{ pointerEvents: 'none' }} hideUnderChrome={angleLabel}>
+        <span ref={angleLabel} className={`w-dim ghost hinge-label zone-${zone}`} style={{ transform: 'translate(18px, -125%)' }}>
           {props.label}
           {showWhy && <span className="why">{props.message}</span>}
         </span>
@@ -340,6 +438,7 @@ export function AngleArc(props: {
 /** Dimension label at a world point; click to type an exact value. */
 export function DimLabel(props: { at: V3; k: string; value: number; unit: string; onCommit?: (v: number) => void; ghost?: boolean; testId?: string; min?: number }) {
   const [edit, setEdit] = useState<string | null>(null);
+  const label = useRef<HTMLSpanElement>(null);
   const commit = (raw: string) => {
     setEdit(null);
     const v = evalNumber(raw);
@@ -348,8 +447,8 @@ export function DimLabel(props: { at: V3; k: string; value: number; unit: string
     if (Math.abs(c - props.value) > 1e-9) props.onCommit(c);
   };
   return (
-    <StageHtml position={props.at} zIndexRange={HTML_Z}>
-      <span className={`w-dim ${props.ghost ? 'ghost' : ''}`} dir="ltr" onClick={() => props.onCommit && edit === null && setEdit(fmtNum(props.value))} data-testid={props.testId}>
+    <StageHtml position={props.at} zIndexRange={HTML_Z} hideUnderChrome={edit === null && label}>
+      <span ref={label} className={`w-dim ${props.ghost ? 'ghost' : ''}`} dir="ltr" onClick={() => props.onCommit && edit === null && setEdit(fmtNum(props.value))} data-testid={props.testId}>
         <span className="k">{props.k}</span>
         {edit === null ? (
           <span>
