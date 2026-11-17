@@ -2,6 +2,7 @@
 import { planWings, reconcileWings } from './wings';
 import { autoFlap } from './seams';
 import { closureCovers, closureOf, reconcileClosures } from './closures';
+import { fitTopLids, planOpenTrays, reconcileTopLids } from './cartons';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { pieceRoot, placementPiece } from './keys';
@@ -136,6 +137,9 @@ function solveOnce(d: Design) {
   reconcileWallSets(d);
   fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
+  // cartons (milestone 68): a tuck top's lid, and an open tray's walls folded off each other
+  reconcileTopLids(d);
+  planOpenTrays(d);
   // round a tray's rounded corners (milestone 64)
   reconcileWings(d);
   dropOrphansToFloor(d);
@@ -197,6 +201,8 @@ function solveOnce(d: Design) {
     }
   }
   const guides = constructionSet(d);
+  // a tuck top's lid reaches the front wall (milestone 68)
+  fitTopLids(d);
   // the corners' bands once the walls stand: their kinds (plywood strips keyed shut and for the sheet)
   planWings(d);
   // lids that seal their box get their closure (milestone 67)
@@ -326,7 +332,7 @@ function makeTrayWall(d: Design, tray: Tray, edge: string) {
  * Extrude a base into a tray: a wall at 90° on every straight edge, all at
  * outer height `height`, with the material's default wall and corner joints.
  */
-export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'flat' | 'pin' | 'openEdges' | 'tabLen'>>): string | null {
+export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'flat' | 'pin' | 'openEdges' | 'tabLen' | 'base' | 'top' | 'bottom'>>): string | null {
   const base = d.panels[baseId];
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
   // a circle or an oval walled gets its seam flat (milestone 65): a straight place for its one wall, where its strip starts and closes
@@ -339,6 +345,8 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   // a corrugated round box's wall is its own piece (milestone 66): its strip then lies on the sheet with the flutes up the wall, as a smooth bend needs
   const roundCorr = base.sketch.kind === 'poly' && !!base.sketch.round && matOf(d, baseId).kind === 'corrugated' ? { wallKind: 'tabslot' as const } : {};
   d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + tOf(d, baseId), height), ...newTrayKinds(d, baseId), ...roundCorr, openEdges: [], ...kinds };
+  // an open base (milestone 68): its walls are not joined to it
+  if (d.trays[id].base === 'open') d.trays[id].wallKind = 'butt';
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
@@ -1859,4 +1867,35 @@ export function setEdgeFlap(d: Design, panelId: string, edge: string, len: numbe
   else p.edgeFlaps = p.edgeFlaps.map((f) => (f.edge === edge ? { ...f, len: Math.max(2, len) } : f));
   if (!p.edgeFlaps.length) delete p.edgeFlaps;
   solve(d);
+}
+
+/**
+ * A tray as a carton (milestone 68): its base cut or open (a tube whose walls
+ * fold off each other, glued at one corner), and how its top and an open
+ * bottom close. An open base's walls are not joined to it.
+ */
+export function setTrayEnds(d: Design, trayId: string, patch: { base?: 'cut' | 'open'; top?: 'open' | 'tuck' | 'seal'; bottom?: 'open' | 'seal' | 'snap' | 'tuck' }) {
+  const t = d.trays[trayId];
+  if (!t) return;
+  if (patch.base === 'open') {
+    t.base = 'open';
+    t.wallKind = 'butt';
+  } else if (patch.base === 'cut') {
+    delete t.base;
+    delete t.bottom;
+    delete t.fixPlan;
+    t.wallKind = newTrayKinds(d, t.baseId).wallKind;
+  }
+  if (patch.top) {
+    if (patch.top === 'open') delete t.top;
+    else t.top = patch.top;
+  }
+  if (patch.bottom) {
+    if (patch.bottom === 'open') delete t.bottom;
+    else if (t.base === 'open') t.bottom = patch.bottom;
+  }
+  // the walls' joints with the base take the new kind
+  for (const c of Object.values(d.connections)) if (c.grown && c.trayId === trayId) (c.kind = t.wallKind), (c.pref = t.wallKind);
+  solve(d);
+  autoConnect(d);
 }

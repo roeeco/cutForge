@@ -181,3 +181,21 @@ export function closedBox(m: (typeof MATERIALS)[number], style?: 'tuck' | 'tuckL
   if (style || thumb) setClosure(d, g.panelId, { ...(style ? { style } : {}), thumb });
   return d;
 }
+
+/** A carton (milestone 68): an open base, its walls one strip glued at one corner, its ends closed. */
+export function cartonDesign(m: (typeof MATERIALS)[number], top: 'tuck' | 'seal', bottom: 'snap' | 'tuck' | 'seal'): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 80, 55);
+  addTray(d, base, 100, { base: 'open', top, bottom });
+  autoConnect(d);
+  return d;
+}
+
+/** A card tray with slit-lock corners (milestone 68). */
+export function lockTray(): Design {
+  const d = createDesign(MATERIALS[0]);
+  const base = addRootPanel(d, 0, 0, 100, 70);
+  addTray(d, base, 40, { cornerKind: 'lock' });
+  autoConnect(d);
+  return d;
+}

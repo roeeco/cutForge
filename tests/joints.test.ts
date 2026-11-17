@@ -101,7 +101,7 @@ describe('folds and glue flaps (card and corrugated)', () => {
   });
 
   it('folds and glue flaps are offered at angles; slots only at 90°', () => {
-    expect(connectionsFor(CARD, 45)).toEqual(['fold', 'glue']);
+    expect(connectionsFor(CARD, 45)).toEqual(['fold', 'glue', 'lock']);
     expect(connectionsFor(CARD, 90)).toContain('tabslot');
     // a living hinge (milestone 63) at every angle, never the default
     expect(connectionsFor(PLY, 30)).toEqual(['lean', 'butt', 'fold']);

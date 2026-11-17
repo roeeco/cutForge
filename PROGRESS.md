@@ -1099,6 +1099,29 @@ Limitations
 - A corner glue flap beside a lid's band is clipped by the band's corner cut and can leave a sliver.
 - Sealing is found for lids over tray walls only.
 
+## Milestone 68 — glue-free joints and cartons ✅
+
+Implemented (`PACKAGING_PLAN.md` §8; `src/model/seams.ts` `slitLock`, `src/model/cartons.ts`, `src/model/place.ts`, `src/model/flatnet.ts`, `src/model/closures.ts`, `src/model/ops.ts`, `src/model/materials.ts`, `src/model/check.ts`, `src/easy/actions.ts`, `src/easy/QuickRail.tsx`, `src/easy/mode.ts`, `src/ui/CornersUI.tsx`, `src/ui/TrayUI.tsx`)
+- **Slit lock** (kind `lock`): offered just after every glue flap on card and corrugated (corners, edges on faces, grown boards at any angle). Its geometry is the glue flap's with tongues on the flap's far edge (one; two on a flap 60 mm or more): a neck (10 mm card, 14 corrugated, at most 35% of the edge) and a head wider each side (2 / 3 mm), 5 mm long on card, the other board's thickness and 4 mm on corrugated; in the other board, where the folded flap's far edge lies, a slit (card: one cut line) or a slot (corrugated: the flap's thickness and the clearance). It works on design-wide *Corners* too.
+- **Open-base trays** (`Tray.base 'open'`): the base joins the guides (never cut or joined; its walls are not), the walls are not joined to it, and `planOpenTrays` makes the tray's fold plan a strip: each wall folds off the one before it in the base's order, from the wall after the glue seam (the corner nearest the back left), so three corners become folds (milestone 35's hinged corners) and one stays the corner joint: the manufacturer's joint. `fixFlatNets` leaves an open tray's plan alone.
+- **Ends** (`Tray.top`, `Tray.bottom`):
+  - Tuck top: a lid the tray keeps (`<tray>/top`, folded off the back wall's top edge, its depth fitted to the front wall's inside face on every solve: `reconcileTopLids`, `fitTopLids`), closed by milestone 67's closure.
+  - Flapped ends (`end:<tray>:top|bottom`, closure joints derived by `endGeom`, kept by `reconcileEnds`): *seal* (front and back flaps meeting in the middle, side flaps a little under half the width); *snap* (the 1-2-3 bottom: the back flap over half the depth with a notch, the side flaps cut towards the front and hooked, the front flap with a tongue that locks under the back flap's notch); *tuck* (a reverse tuck bottom: the front wall's flap the whole depth with a lip, dust flaps on the sides). In 3D the flaps lie folded across the end, layer on layer, on the base's plane or at the walls' tops.
+- **Cards:** the tray card's *Base*, *Top* and *Bottom* (`setTrayEnds`); Quick build's *Box* · *Bottom: Base · Snap-lock · Tuck* (a carton: open base, that bottom, a tuck top), only for four-sided card and corrugated boxes. An open base is not shown as a Workshop guide in Quick build.
+- Files: `check.ts` accepts `lock` and the trays' `base`, `top`, `bottom`. English and Hebrew strings.
+
+Verified
+- `tests/cartons.test.ts` (8): a card tray's four slit-lock corners (a flap and a tongue on one wall, a slit in the other, no glue, clean, flat, exported); corrugated slit locks' slots clear of the edges; an open base (never cut; three folds and one glue seam; one piece of the four walls; flat; clean); a reverse tuck carton (the lid's closure, three bottom flaps, one piece, one glue seam); a tuck top with a snap-lock bottom (four shaped flaps, one piece); seal ends top and bottom; back to a cut base; idempotent and reopened.
+- Updated `jointdefaults`, `joints`: the slit lock after each glue flap.
+- **Golden exports:** new `lock-card-tray`, `carton-card-tuck-snap`, `carton-card-reverse-tuck`, `carton-corr-seal`; every other case byte-identical.
+- Unit suite: 647 pass, 7 skipped; typecheck clean.
+- Browser: `closures.spec.ts` gains Quick build's Box with a snap-lock bottom (an open base, snap bottom, tuck top, ready to cut). Full app suite (`--grep-invert classroom`): 100 passed, 0 failed, 57 skipped.
+
+Limitations
+- **The snap-lock bottom's proportions are not proven:** the plan called for cutting three sizes in card and corrugated 1.6 before this milestone; there is no laser here. Cut one and try it before a class set (the tray card says so).
+- Flapped ends and open bases need four walls; ends on other shapes are not offered.
+- A crash-lock (pre-glued) bottom is not offered.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

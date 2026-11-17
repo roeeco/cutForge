@@ -31,7 +31,7 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'lock', 'butt'] as const;
 const PATTERNS = ['auto', 'smooth', 'score', 'perf', 'kiss', 'slits', 'wave', 'diamond'] as const;
 const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
@@ -298,6 +298,10 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.fixes !== undefined && !isObj(x.fixes)) delete x.fixes;
   if (x.fixPlan !== undefined && !isObj(x.fixPlan)) delete x.fixPlan;
   if (x.closeAt !== undefined && typeof x.closeAt !== 'string') delete x.closeAt;
+  // cartons (milestone 68)
+  if (x.base !== undefined && x.base !== 'open') delete x.base;
+  if (x.top !== undefined && !['tuck', 'seal'].includes(x.top)) delete x.top;
+  if (x.bottom !== undefined && !['seal', 'snap', 'tuck'].includes(x.bottom)) delete x.bottom;
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;

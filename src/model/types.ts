@@ -190,6 +190,7 @@ export type ConnectionKind =
   | 'slide' // edge stops short of the other panel's face by the fit clearance (no slots)
   | 'fold' // panels stay one piece, joined by a score line
   | 'glue' // glue flap on one panel's edge, folded onto the other panel's face
+  | 'lock' // a glue flap whose tongues push through slits in the other panel: no glue (milestone 68)
   | 'halflap' // crossing panels with half-depth slots
   | 'lean' // angled plywood panel resting on its parent, held by side walls
   | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
@@ -430,6 +431,16 @@ export type Tray = {
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
   /** Milestone 64: a plywood strip all round is closed with a key at the corner after this wall (absent: the corner nearest the back left). */
   closeAt?: string;
+  /**
+   * Milestone 68: an open base (`open`): the base only places the walls (never
+   * cut or joined); the walls fold off each other in one strip, glued at one
+   * corner (the back left): a tube. Absent: a base that is cut.
+   */
+  base?: 'open';
+  /** Milestone 68: how the top closes: a tuck lid folded off the back wall (`tuck`), or four flaps (`seal`); absent: open. */
+  top?: 'tuck' | 'seal';
+  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`); absent: open (a sleeve). */
+  bottom?: 'seal' | 'snap' | 'tuck';
   /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
   curveKind?: 'teeth' | 'tabslot' | 'none';
 };

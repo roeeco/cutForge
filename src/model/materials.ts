@@ -27,7 +27,7 @@ export function connectionsFor(m: MaterialProfile, angle: number): ConnectionKin
   const square = Math.abs(angle - 90) < 1e-6;
   // plywood folds only round a living hinge (milestone 63): offered last, never a default
   if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt', 'fold'] : angle < 90 ? ['lean', 'butt', 'fold'] : ['butt', 'fold'];
-  return square ? ['fold', 'glue', 'tabslot', 'butt'] : ['fold', 'glue'];
+  return square ? ['fold', 'glue', 'lock', 'tabslot', 'butt'] : ['fold', 'glue', 'lock'];
 }
 
 /** Smallest safe web of material between a cut and an edge (mm). */

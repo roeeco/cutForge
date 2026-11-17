@@ -40,17 +40,18 @@ describe('joint groups and the kinds they offer', () => {
 
   it('an empty card design offers what a new joint could take', () => {
     const d = createDesign(CARD);
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'tabslot', 'butt', 'slide']);
-    expect(groupKinds(d, 'corner')).toEqual(['glue', 'tabslot', 'slide', 'butt']);
+    // a slit lock (milestone 68) just after each glue flap
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock', 'tabslot', 'butt', 'slide']);
+    expect(groupKinds(d, 'corner')).toEqual(['glue', 'lock', 'tabslot', 'slide', 'butt']);
   });
 
   it('a card wall at 60° adds nothing a 90° wall lacks; the list is kinds allowed for at least one joint', () => {
     const d = createDesign(CARD);
     const b = addRootPanel(d, 0, 0, 60, 40);
     growPanel(d, b, 0, { height: 30, angle: 60, dir: 'up', kind: 'fold' });
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue']);
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock']);
     growPanel(d, b, 2, { height: 30, angle: 90, dir: 'up', kind: 'fold' });
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'tabslot', 'butt']);
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock', 'tabslot', 'butt']);
   });
 });
 

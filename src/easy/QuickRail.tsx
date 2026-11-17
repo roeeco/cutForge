@@ -81,6 +81,7 @@ function ActionCard() {
   const boxCorner = useStore((s) => s.boxCorner);
   const material = useStore((s) => s.design.material);
   const boxHeight = useStore((s) => s.boxHeight);
+  const boxBottom = useStore((s) => s.boxBottom);
   const sticker = useStore((s) => s.sticker);
   const set = useStore((s) => s.set);
   const a = QUICK_ACTIONS.find((x) => x.tools.includes(tool));
@@ -101,6 +102,19 @@ function ActionCard() {
           onChange={(v) => set({ boxFoot: v })}
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
+        {boxFoot === 'rect' && material.kind !== 'plywood' && (
+          <Segmented
+            label={t('quick.boxBottom')}
+            value={boxBottom}
+            options={[
+              { value: 'flat', label: t('quick.boxBottom.flat'), testId: 'box-bottom-flat' },
+              { value: 'snap', label: t('quick.boxBottom.snap'), testId: 'box-bottom-snap' },
+              { value: 'tuck', label: t('quick.boxBottom.tuck'), testId: 'box-bottom-tuck' },
+            ]}
+            onChange={(v) => set({ boxBottom: v })}
+          />
+        )}
+        {boxFoot === 'rect' && material.kind !== 'plywood' && boxBottom !== 'flat' && <p className="note" data-testid="box-carton-help">{t('quick.boxCartonHelp')}</p>}
         {boxFoot === 'round' && <p className="note" data-testid="box-round-help">{t('quick.boxRoundHelp', { r: fmtNum(roundedMin(material, boxHeight), 1) })}</p>}
         {boxFoot === 'rounded' && (
           <>

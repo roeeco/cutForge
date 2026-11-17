@@ -493,6 +493,11 @@ function mergeGeoms(parts: (ConnGeom | null)[]): ConnGeom | null {
 }
 
 function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): ConnGeom | null {
+  // a slit lock (milestone 68): the glue flap, with tongues through slits instead of glue
+  if (c.kind === 'lock') {
+    const glue = connectionGeomOne(d, { ...c, kind: 'glue' }, rng);
+    return glue ? slitLock(d, c, glue) : null;
+  }
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
@@ -1123,7 +1128,54 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
   if (type === 'cross') return ['halflap'];
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
-  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'slide', 'butt'] : ['glue', 'tabslot', 'slide', 'butt'];
+  // a slit lock (milestone 68) wherever a glue flap is offered, just after it
+  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'lock', 'slide', 'butt'] : ['glue', 'lock', 'tabslot', 'slide', 'butt'];
   // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
-  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'slide', 'butt'];
+  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'slide', 'butt'];
+}
+
+/**
+ * A slit lock (milestone 68, PACKAGING_PLAN.md §8.1) from a glue flap's
+ * geometry: on each flap's far edge one tongue (two on a flap 60 mm or more),
+ * a neck as wide as its slit and a head a little wider each side, so it
+ * flexes through and stays; in the other panel, where the folded flap's far
+ * edge lies, a slit (card: one cut line, the kerf is the gap) or a slot
+ * (corrugated: as thick as the flap and the clearance).
+ */
+function slitLock(d: Design, c: Connection, glue: ConnGeom): ConnGeom {
+  const g: ConnGeom = { ...glue, adds: [...glue.adds], holes: [...glue.holes], lines: [...(glue.lines ?? [])] };
+  const flaps = glue.flaps3d;
+  glue.adds.forEach((a, i) => {
+    const f = flaps[i];
+    if (!f || a.poly.length !== 4 || f.poly.length !== 4) return;
+    const mO = matOf(d, a.panelId), mR = matOf(d, f.panelId);
+    const [n0, A1, A2, n3] = a.poly, [, F1, F2] = f.poly;
+    const L = Math.hypot(A2.x - A1.x, A2.y - A1.y);
+    if (L < 6) return;
+    const ux = (A2.x - A1.x) / L, uy = (A2.y - A1.y) / L;
+    // outwards: from the flap's fold to its far edge
+    const mid = { x: (A1.x + A2.x) / 2 - (n0.x + n3.x) / 2, y: (A1.y + A2.y) / 2 - (n0.y + n3.y) / 2 };
+    const ml = Math.hypot(mid.x, mid.y) || 1, ox = mid.x / ml, oy = mid.y / ml;
+    const card = mO.kind === 'card';
+    const neck = Math.min(card ? 10 : 14, 0.35 * L), barb = card ? 2 : 3, depth = card ? 5 : mR.thickness + 4;
+    const at = (f0: number, along: number, out: number) => ({ x: A1.x + ux * (f0 * L + along) + ox * out, y: A1.y + uy * (f0 * L + along) + oy * out });
+    const FL = Math.hypot(F2.x - F1.x, F2.y - F1.y) || 1;
+    const fx = (F2.x - F1.x) / FL, fy = (F2.y - F1.y) / FL;
+    for (const f0 of L >= 60 ? [0.25, 0.75] : [0.5]) {
+      g.adds.push({
+        panelId: a.panelId,
+        poly: [at(f0, -neck / 2, -0.01), at(f0, neck / 2, -0.01), at(f0, neck / 2 + barb, depth * 0.45), at(f0, neck * 0.35, depth), at(f0, -neck * 0.35, depth), at(f0, -neck / 2 - barb, depth * 0.45)],
+      });
+      // where the folded flap's far edge lies on the other panel
+      const cx = F1.x + (F2.x - F1.x) * f0, cy = F1.y + (F2.y - F1.y) * f0;
+      const half = (neck + mR.clearance) / 2;
+      if (card) g.lines!.push({ panelId: f.panelId, a: { x: cx - fx * half, y: cy - fy * half }, b: { x: cx + fx * half, y: cy + fy * half } });
+      else {
+        const w = (mO.thickness + mR.clearance) / 2, nx = -fy, ny = fx;
+        g.holes.push({ panelId: f.panelId, poly: [-1, 1, 1, -1].map((k, j) => ({ x: cx + fx * half * k + nx * w * (j < 2 ? -1 : 1), y: cy + fy * half * k + ny * w * (j < 2 ? -1 : 1) })) });
+      }
+    }
+  });
+  if (!g.lines?.length) delete g.lines;
+  return g;
 }

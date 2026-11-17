@@ -174,6 +174,8 @@ type State = {
   boxSides: number;
   /** Quick build's Rounded box: its corner radius (milestone 64). */
   boxCorner: number;
+  /** Quick build's Box bottom (milestone 68): a base, or a carton's snap-lock or tuck bottom (with a tuck top). */
+  boxBottom: 'flat' | 'snap' | 'tuck';
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
@@ -267,7 +269,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxBottom' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -324,6 +326,7 @@ export const useStore = create<State>()((set, get) => ({
   boxFoot: 'rect',
   boxSides: 6,
   boxCorner: 15,
+  boxBottom: 'flat',
   boxHeight: 45,
   sticker: 'star',
   assemble: null,

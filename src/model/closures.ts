@@ -14,6 +14,7 @@ import { matOf, tOf } from './materials';
 import { v3cross, v3dot, v3sub, v3norm } from '../geom/v3';
 import { autoFlap } from './seams';
 import { bandOf } from './bands';
+import { endGeom, reconcileEnds } from './cartons';
 
 /** The closure joint of a lid. */
 export const closureId = (lid: string) => `close:${lid}`;
@@ -35,6 +36,13 @@ export type Seal = { lid: string; hinge: string; wall: string; front: string; yI
 
 /** The lid a panel would be, folded off `parent`'s edge with `frame` and depth `h`: does it seal? (Also for a ghost not yet in the design.) */
 export function sealFor(d: Design, L: Pick<Panel, 'id' | 'w' | 'h' | 'frame'>, parentId: string, hingeId: string): Seal | null {
+  const r = reachFor(d, L, parentId, hingeId);
+  // its far edge reaches the front wall: from a little short of its inside face to its outside face
+  return r && L.h >= r.yIn - 3 && L.h <= r.yOut + 1 ? r : null;
+}
+
+/** The wall a lid folded off `parent` faces across the box, and the walls under its sides, whatever its depth (null when there is none). */
+export function reachFor(d: Design, L: Pick<Panel, 'id' | 'w' | 'h' | 'frame'>, parentId: string, hingeId: string): Seal | null {
   const W = d.panels[parentId];
   if (!W) return null;
   const tray = Object.values(d.trays ?? {}).find((t) => Object.values(d.connections).some((c) => c.grown && c.trayId === t.id && c.b.panelId === parentId));
@@ -70,8 +78,6 @@ export function sealFor(d: Design, L: Pick<Panel, 'id' | 'w' | 'h' | 'frame'>, p
     }
   }
   if (!front) return null;
-  // its far edge reaches the front wall: from a little short of its inside face to its outside face
-  if (L.h < yIn - 3 || L.h > yOut + 1) return null;
   return { lid: L.id, hinge: hingeId, wall: parentId, front, yIn, yOut, sides };
 }
 
@@ -94,6 +100,7 @@ export function closureOf(d: Design, lidId: string): Closure {
  * either way.
  */
 export function reconcileClosures(d: Design) {
+  reconcileEnds(d);
   // the settings of a lid that is gone go with it
   if (d.closures) for (const k of Object.keys(d.closures)) if (!d.panels[k]) delete d.closures[k];
   if (d.closures && !Object.keys(d.closures).length) delete d.closures;
@@ -102,7 +109,7 @@ export function reconcileClosures(d: Design) {
     const s = sealOf(d, id);
     if (s) want.set(closureId(id), s);
   }
-  for (const c of Object.values(d.connections)) if (c.kind === 'closure' && !want.has(c.id)) delete d.connections[c.id];
+  for (const c of Object.values(d.connections)) if (c.kind === 'closure' && c.id.startsWith('close:') && !want.has(c.id)) delete d.connections[c.id];
   for (const [id, s] of want) {
     const ex = d.connections[id];
     if (ex) {
@@ -143,6 +150,8 @@ function roundedTab(x0: number, x1: number, y0: number, y1: number, r: number): 
  * slot for the tongue and a thumb notch in the front wall.
  */
 export function closureGeom(d: Design, c: Connection): ConnGeom | null {
+  // a tray's flapped end (milestone 68)
+  if (c.id.startsWith('end:')) return endGeom(d, c);
   const s = sealOf(d, c.a.panelId);
   if (!s) return null;
   const L = d.panels[s.lid], F = d.panels[s.front];

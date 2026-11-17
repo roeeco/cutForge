@@ -82,7 +82,9 @@ export function netRoot(d: Design, id: string): string {
 /** Every construction panel (roots marked, and everything grown from them). */
 export function constructionSet(d: Design): Set<string> {
   const out = new Set<string>();
-  if (!Object.values(d.panels).some((p) => p.construction)) return out;
+  // an open tray's base (milestone 68) only places its walls: never cut or joined, though its walls are real
+  const open = Object.values(d.trays ?? {}).filter((t) => t.base === 'open' && d.panels[t.baseId]).map((t) => t.baseId);
+  if (!Object.values(d.panels).some((p) => p.construction)) return new Set(open);
   const children = new Map<string, string[]>();
   for (const c of Object.values(d.connections)) if (c.grown) children.set(c.a.panelId, [...(children.get(c.a.panelId) ?? []), c.b.panelId]);
   const stack = d.order.filter((id) => d.panels[id]?.construction);
@@ -92,6 +94,7 @@ export function constructionSet(d: Design): Set<string> {
     out.add(id);
     stack.push(...(children.get(id) ?? []));
   }
+  for (const id of open) out.add(id);
   return out;
 }
 

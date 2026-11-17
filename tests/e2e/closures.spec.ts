@@ -1,5 +1,6 @@
 // milestone 67 (PACKAGING_PLAN.md §7): a lid that reaches the front wall closes the box.
 import { test, expect, type Page } from '@playwright/test';
+import { QUICK_STATE } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
@@ -49,4 +50,35 @@ test('a card lid grown to the front wall: the grow card says it will close the b
   expect(d.connections[`close:${lid}`].kind).toBe('closure');
   await page.screenshot({ path: test.info().outputPath('tuck.png') });
   expect(errors).toEqual([]);
+});
+
+test.describe('Quick build cartons (milestone 68)', () => {
+  test.use({ storageState: QUICK_STATE });
+  test('a Box with a snap-lock bottom is a carton: no base cut, one strip of walls, a tuck lid, ready to cut', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/');
+    await page.getByTestId('mat-card-0.5').click();
+    await page.getByTestId('start-go').click();
+    await S(page, () => (window as any).__cutforge.setCamera([0, 300, 260], [0, 0, 0]));
+    await page.waitForTimeout(300);
+    await page.getByTestId('quick-box').click();
+    await page.getByTestId('box-bottom-snap').click();
+    await expect(page.getByTestId('box-carton-help')).toBeVisible();
+    const pt = (x: number, z: number) => S<{ x: number; y: number }>(page, (a: number[]) => (window as any).__cutforge.projectWorld(a[0], 0, a[1]), [x, z]);
+    const a = await pt(-45, -30), b = await pt(45, 30);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+    await page.mouse.move(b.x, b.y, { steps: 4 });
+    await page.mouse.up();
+    await page.getByTestId('extrude-go').click();
+    const d = await design(page);
+    const tray = Object.values(d.trays)[0] as any;
+    expect(tray).toMatchObject({ base: 'open', bottom: 'snap', top: 'tuck' });
+    expect(d.connections[`end:${tray.id}:bottom`]).toBeTruthy();
+    await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+    await page.screenshot({ path: test.info().outputPath('carton.png') });
+    expect(errors).toEqual([]);
+  });
 });

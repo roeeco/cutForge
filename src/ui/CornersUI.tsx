@@ -2,7 +2,8 @@
 // how they join the next wall, all at once, and where a plywood strip that
 // runs all round is keyed shut.
 import { useStore, useT } from '../store/store';
-import { setClosingCorner, setTrayCorners, setTrayCurveKind } from '../model/ops';
+import { setClosingCorner, setTrayCorners, setTrayCurveKind, setTrayEnds } from '../model/ops';
+import { trayRing } from '../model/cartons';
 import { closingCorner, curveKindOf, curveKinds, trayCorners, wingId, wingKinds } from '../model/wings';
 import { matOf } from '../model/materials';
 import { panelLabel } from '../model/names';
@@ -59,6 +60,49 @@ export function TrayCorners({ tray }: { tray: Tray }) {
         </div>
       )}
       {keyed > (close ? 1 : 0) && <p className="note" data-testid="tray-strip-keys">{t('corners.sheetKeys', { n: keyed - (close ? 1 : 0) })}</p>}
+    </div>
+  );
+}
+
+/** A tray as a carton (milestone 68): its base cut or open (a tube), how its top and an open bottom close. */
+export function TrayEnds({ tray }: { tray: Tray }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const ring = trayRing(d, tray);
+  const four = ring.length === 4;
+  const card = matOf(d, tray.baseId).kind !== 'plywood';
+  if (!card) return null;
+  return (
+    <div className="subsection" data-testid="tray-ends">
+      <div className="field">
+        <label htmlFor={`tb-${tray.id}`}>{t('carton.base')}</label>
+        <select id={`tb-${tray.id}`} value={tray.base ?? 'cut'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { base: e.target.value as 'cut' | 'open' }))} data-testid="tray-base">
+          <option value="cut">{t('carton.base.cut')}</option>
+          <option value="open">{t('carton.base.open')}</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`tt-${tray.id}`}>{t('carton.top')}</label>
+        <select id={`tt-${tray.id}`} value={tray.top ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { top: e.target.value as 'open' | 'tuck' | 'seal' }))} data-testid="tray-top">
+          <option value="open">{t('carton.open')}</option>
+          <option value="tuck">{t('carton.tuck')}</option>
+          {four && <option value="seal">{t('carton.seal')}</option>}
+        </select>
+      </div>
+      {tray.base === 'open' && (
+        <div className="field">
+          <label htmlFor={`tbo-${tray.id}`}>{t('carton.bottom')}</label>
+          <select id={`tbo-${tray.id}`} value={tray.bottom ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { bottom: e.target.value as 'open' | 'seal' | 'snap' | 'tuck' }))} data-testid="tray-bottom" disabled={!four}>
+            <option value="open">{t('carton.open')}</option>
+            <option value="snap">{t('carton.snap')}</option>
+            <option value="tuck">{t('carton.tuck')}</option>
+            <option value="seal">{t('carton.seal')}</option>
+          </select>
+        </div>
+      )}
+      {tray.base === 'open' && <p className="note">{t('carton.openHelp')}</p>}
+      {tray.bottom === 'snap' && <p className="note" data-testid="tray-snap-note">{t('carton.snapHelp')}</p>}
     </div>
   );
 }

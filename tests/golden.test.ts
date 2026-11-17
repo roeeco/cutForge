@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -66,6 +66,11 @@ CASES.push({ name: 'pattern-ply-diamond-compensated', make: () => bandLidBox(MAT
 // milestone 67: closures
 CASES.push({ name: 'closure-card-tuck-lock', make: () => closedBox(MATERIALS[0], 'tuckLock', true) });
 CASES.push({ name: 'closure-corr-tab', make: () => closedBox(MATERIALS[1]) });
+// milestone 68: glue-free joints and cartons
+CASES.push({ name: 'lock-card-tray', make: lockTray });
+CASES.push({ name: 'carton-card-tuck-snap', make: () => cartonDesign(MATERIALS[0], 'tuck', 'snap') });
+CASES.push({ name: 'carton-card-reverse-tuck', make: () => cartonDesign(MATERIALS[0], 'tuck', 'tuck') });
+CASES.push({ name: 'carton-corr-seal', make: () => cartonDesign(MATERIALS[1], 'seal', 'seal') });
 // milestone 65: round boxes
 CASES.push({ name: 'round-box-card-circle', make: () => roundBoxDesign(MATERIALS[0], 'circle', 90, 90) });
 CASES.push({ name: 'round-box-ply-circle', make: () => roundBoxDesign(MATERIALS[3], 'circle', 110, 110) });

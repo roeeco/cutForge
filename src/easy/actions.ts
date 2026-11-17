@@ -23,7 +23,9 @@ export function extrudeGo() {
   const st = useStore.getState();
   const ex = st.extrude;
   if (!ex) return;
-  st.apply((x) => void addTray(x, ex.baseId, ex.height));
+  // a carton's bottom (milestone 68): an open base closed by its flaps, and a tuck top; only a four-sided card or corrugated box
+  const carton = st.boxBottom !== 'flat' && st.design.material.kind !== 'plywood' && st.boxFoot === 'rect';
+  st.apply((x) => void addTray(x, ex.baseId, ex.height, carton ? { base: 'open', bottom: st.boxBottom as 'snap' | 'tuck', top: 'tuck' } : undefined));
   st.set({ extrude: null, boxHeight: ex.height });
   const g = useStore.getState().pending;
   if (g && g.ids.includes(ex.baseId)) {
