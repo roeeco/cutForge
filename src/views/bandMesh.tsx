@@ -54,7 +54,7 @@ export function BandObject({ s, d, m, index, outlines }: { s: BandShown; d: Desi
   useEffect(() => () => (lines.scores.dispose(), lines.cuts.dispose()), [lines]);
   return (
     <group matrixAutoUpdate={false} matrix={m}>
-      <mesh geometry={geo} raycast={() => null} data-testid="band">
+      <mesh geometry={geo} raycast={() => null}>
         <meshStandardMaterial color={color} roughness={0.9} side={THREE.DoubleSide} />
       </mesh>
       {outlines && (

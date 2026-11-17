@@ -181,6 +181,7 @@ export type ConnectionKind =
   | 'glue' // glue flap on one panel's edge, folded onto the other panel's face
   | 'halflap' // crossing panels with half-depth slots
   | 'lean' // angled plywood panel resting on its parent, held by side walls
+  | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
   | 'butt'; // edge to edge, no joint
 
 /**
@@ -263,6 +264,13 @@ export type Connection = {
    * folds off the other one.
    */
   hingeOf?: string;
+  /**
+   * Milestone 64: the join round a tray's rounded corner, from the wall before
+   * it (`a`, its edge e1) to the wall after it (`b`, its edge e3). The curve is
+   * a band carried by the wall before: one piece with the next wall (`fold`),
+   * glued to it with a lip (`glue`), keyed into it (`key`), or plain (`butt`).
+   */
+  wing?: true;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -386,6 +394,8 @@ export type Tray = {
   fixPlan?: { hinge?: Record<string, string>; trim?: string[]; swap?: string[]; extOn?: Record<string, 'prev'> };
   /** The student's choice for a wall the app changed: hinge it, cut it as its own piece, or let the corner's other wall give way. */
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
+  /** Milestone 64: a plywood strip all round is closed with a key at the corner after this wall (absent: the corner nearest the back left). */
+  closeAt?: string;
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */

@@ -16,8 +16,12 @@ import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
 import { fmtNum } from '../i18n';
 import { BendSection } from './BendUI';
+import { connKindKey } from './connLabel';
+import { pairKinds } from '../model/jointDefaults';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
+  // a tray's rounded corner (milestone 64)
+  if (c.wing) return pairKinds(d, c);
   if (c.grown) return connectionsFor(d.material, c.angle);
   return seamKinds(d.material, seamTypeOf(c));
 }
@@ -71,7 +75,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           <select id={`k-${c.id}`} value={c.kind} onChange={(e) => apply((x) => setConnection(x, c.id, { kind: e.target.value as ConnectionKind }))} data-testid="conn-kind">
             {kinds.map((o) => (
               <option key={o} value={o}>
-                {o === 'fold' && matOf(d, c.a.panelId).kind === 'plywood' ? t('bend.hinge') : t(`conn.${o}` as 'conn.fold')}
+                {t(connKindKey(d, c, o))}
               </option>
             ))}
           </select>
@@ -158,7 +162,7 @@ export function PanelConnections({ panelId }: { panelId: string }) {
                 <span className="kind-ico">
                   <Icon name={c.kind} size={18} />
                 </span>
-                <span className="conn-title">{t(`conn.${c.kind}` as 'conn.fold')}</span>
+                <span className="conn-title">{t(connKindKey(d, c, c.kind))}</span>
                 <span className="conn-sub">{panelLabel(d, other, t)}</span>
               </button>
               {isOpen && <ConnectionEditor c={c} panelId={panelId} />}

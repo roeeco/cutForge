@@ -83,7 +83,7 @@ export function corrDividers(): Design {
 // ---------------------------------------------------------------------------
 // Schema v6 designs (polygons, trays, through-cuts, fold-over, wall outlines),
 // saved as project files before schema v7 (milestone 17).
-import { addFoldOver, addPolygonPanel, addTray, addWallInsert, regularPolygon, setTrayKinds, updateFoldOver } from '../src/model/ops';
+import { addFoldOver, addPolygonPanel, addRoundedRect, addTray, addWallInsert, regularPolygon, setTrayKinds, updateFoldOver } from '../src/model/ops';
 const [, CORR16] = MATERIALS;
 
 /** Plywood hexagon tray with a through-cut chamfer on one wall and a hole in the base. */
@@ -136,5 +136,14 @@ export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number): Desi
   const g = growPanel(d, back, E(2), { height: 80, angle: 90, dir: 'up', kind: 'fold' })!;
   if (radius !== undefined) setConnection(d, g.connectionId, { radius });
   solve(d);
+  return d;
+}
+
+/** A tray on a rounded rectangle (milestone 64): its corners curved walls, glued (card) or one strip keyed shut (plywood). */
+export function roundedTray(m: (typeof MATERIALS)[number], r: number): Design {
+  const d = createDesign(m);
+  const base = addRoundedRect(d, 0, 0, 140, 90, r)!;
+  addTray(d, base, 45);
+  autoConnect(d);
   return d;
 }

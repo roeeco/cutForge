@@ -77,7 +77,20 @@ export function netFolds(d: Design): NetFold[] {
           return foldXform(dd.panels[c.a.panelId], c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
         },
       });
-    else if (c.hingeOf) {
+    else if (c.wing) {
+      // round a tray's rounded corner in one piece (milestone 64): the next wall continues past the band
+      out.push({
+        id: c.id,
+        parent: c.a.panelId,
+        child: c.b.panelId,
+        xf: (dd) => {
+          const b = bandOf(dd, c);
+          const A = dd.panels[c.a.panelId], B = dd.panels[c.b.panelId];
+          const eA = A && findEdge(A, 'e1'), eB = B && findEdge(B, 'e3');
+          return b && eA && eB ? { tx: eA.a.x + b.lb - eB.b.x, ty: 0, rot: 0 } : null;
+        },
+      });
+    } else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
       const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
       out.push({ id: c.id, parent, child, xf: (dd) => cornerFoldXform(dd, parent, pe, child, ce) });
@@ -198,6 +211,12 @@ function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
 
 export function foldBand(d: Design, c: Connection): FoldStrip | null {
   let parentId: string, child: string, pe: string, A: P2, B: P2, ov: number;
+  if (c.wing) {
+    const P = d.panels[c.a.panelId], band = bandOf(d, c);
+    if (!P || !band || !findEdge(P, 'e1')) return null;
+    const [a0, b0] = edgeLocal(P, 'e1');
+    return bandStrip(P, 'e1', a0, b0, band);
+  }
   if (!c.grown) {
     // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
     child = c.hingeOf!;
@@ -239,7 +258,7 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
+  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf || c.wing) && foldHolds(d, c));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];

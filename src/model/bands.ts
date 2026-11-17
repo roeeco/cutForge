@@ -16,6 +16,7 @@ import { bendOf, matOf, tOf } from './materials';
 import { v3add, v3dot, v3mul, v3norm, v3sub, v3cross } from '../geom/v3';
 import { bandPattern, type BandPattern } from './bendPatterns';
 import polygonClipping from 'polygon-clipping';
+import { wingBand } from './wings';
 
 type C2 = { x: number; y: number };
 
@@ -52,6 +53,8 @@ export type Band = {
   pattern: BandPattern;
   /** Is there room for it: the cuts leave both panels some material. */
   fits: boolean;
+  /** Round a tray's rounded corner (milestone 64), carried by the wall before it. */
+  wing?: boolean;
 };
 
 /** A fold's inner radius: its own, else the material's pattern radius on plywood (a living hinge), else a crease (0). */
@@ -85,6 +88,7 @@ function depthFrom(p: Panel, edge: string): number {
 
 /** The band of a fold with a radius, in its design pose; null when it has none (or its edges are gone). */
 export function bandOf(d: Design, c: Connection): Band | null {
+  if (c.wing) return wingBand(d, c);
   if (!hasBand(d, c)) return null;
   const P = d.panels[c.a.panelId], Ch = d.panels[c.b.panelId];
   if (!P || !Ch || !findEdge(P, c.a.edge)) return null;

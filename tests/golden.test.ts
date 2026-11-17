@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -54,6 +54,9 @@ CASES.push({ name: 'hand-corr-dividers', make: corrDividers });
 CASES.push({ name: 'band-card-score-r8', make: () => bandLidBox(MATERIALS[0], 8) });
 CASES.push({ name: 'band-ply-hinge', make: () => bandLidBox(MATERIALS[3]) });
 CASES.push({ name: 'band-ply-hinge-compensated', make: () => bandLidBox(MATERIALS[3]), kerf: 'compensated' });
+// milestone 64: curved tray walls
+CASES.push({ name: 'rounded-tray-card', make: () => roundedTray(MATERIALS[0], 15) });
+CASES.push({ name: 'rounded-tray-ply-strip', make: () => roundedTray(MATERIALS[3], 32) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

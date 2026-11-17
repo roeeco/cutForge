@@ -24,6 +24,14 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
   const parentOf = new Map(grown.map((c) => [c.b.panelId, c]));
   // tray corners made folds (milestone 35): the wall folds off its neighbour's side edge
   const hinged = new Map(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'fold' && c.hingeOf).map((c) => [c.hingeOf!, c]));
+  // a strip round a tray's rounded corners (milestone 64): the next wall rides on the band's end
+  const winged = new Map(Object.values(d.connections).filter((c) => c.wing && c.kind === 'fold').map((c) => [c.b.panelId, c]));
+  // every corner's band is shown, whatever joins its end
+  for (const c of Object.values(d.connections))
+    if (c.wing && c.kind !== 'fold') {
+      const b = bandOf(d, c);
+      if (b) bands.push({ band: b, k: foldT });
+    }
   const visit = (id: string): THREE.Matrix4 => {
     const have = xf.get(id);
     if (have) return have;
@@ -32,6 +40,16 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     if (hm) {
       xf.set(id, hm);
       return hm;
+    }
+    const w = winged.get(id);
+    const wb = w && bandOf(d, w);
+    if (w && wb) {
+      // guard against a strip that runs all round: the walls before it are visited first
+      xf.set(id, new THREE.Matrix4());
+      const wm = visit(w.a.panelId).clone().multiply(new THREE.Matrix4().fromArray(bandChildMove(wb, foldT)));
+      bands.push({ band: wb, k: foldT });
+      xf.set(id, wm);
+      return wm;
     }
     const c = parentOf.get(id);
     const p = d.panels[id];

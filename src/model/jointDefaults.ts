@@ -1,4 +1,5 @@
 // Design-wide joint kinds (milestone 23). Joints fall in two groups: *wall to
+import { wingKindsFor } from './wings';
 // base* (a grown panel on the panel it grows from, and an edge standing on a
 // face: dividers, edge-on-face seams) and *corners* (wall-to-wall closing
 // seams). Crossing half-laps are in neither. Each group's list offers the
@@ -74,7 +75,9 @@ export function inactiveChoice(d: Design, group: JointGroup): { kind: Connection
 }
 
 /** The group a connection belongs to, or null (a half-lap). */
-export function jointGroup(c: Pick<Connection, 'grown' | 'kind' | 'b'>): JointGroup | null {
+export function jointGroup(c: Pick<Connection, 'grown' | 'kind' | 'b'> & { wing?: true }): JointGroup | null {
+  // a tray's rounded corner (milestone 64) is chosen corner by corner
+  if (c.wing) return null;
   if (c.grown) return 'base';
   const type = seamTypeOf(c);
   return type === 'corner' ? 'corner' : type === 'face' ? 'base' : null;
@@ -99,7 +102,8 @@ export function allowedKinds(d: Design, c: Connection): ConnectionKind[] {
  * boards (milestone 36): the feature-carrying board's material decides, and a
  * pair of different materials drops what needs both the same (fingers, folds).
  */
-export function pairKinds(d: Design, c: Pick<Connection, 'grown' | 'angle' | 'kind' | 'a' | 'b'>): ConnectionKind[] {
+export function pairKinds(d: Design, c: Pick<Connection, 'grown' | 'angle' | 'kind' | 'a' | 'b'> & { wing?: true; id?: string }): ConnectionKind[] {
+  if (c.wing && c.id && d.connections[c.id]) return wingKindsFor(d, d.connections[c.id]);
   const ma = matOf(d, c.a.panelId), mb = matOf(d, c.b.panelId);
   if (c.grown) return ma === mb ? connectionsFor(mb, c.angle) : connectionsForPair(mb, ma, c.angle);
   return seamKinds(ma, seamTypeOf(c), mb);

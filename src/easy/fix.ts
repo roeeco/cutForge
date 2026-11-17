@@ -3,8 +3,9 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, setConnection, setPanelSize, solve } from '../model/ops';
+import { findDetail, setConnection, setPanelSize, setPointRound, solve } from '../model/ops';
 import { bandOf, foldRadius } from '../model/bands';
+import { cornerOf } from '../model/wings';
 import { matOf } from '../model/materials';
 import { fitShape } from './guard';
 import { validate } from '../model/validate';
@@ -101,6 +102,19 @@ export function fixIssue(d: Design, i: Issue): boolean {
  */
 function fixBend(d: Design, i: Issue): boolean {
   const [pid, cid] = i.pair ?? [];
+  // round a tray's rounded corner (milestone 64): its radius is the base's corner's
+  const w = Object.values(d.connections).find((x) => x.wing && x.a.panelId === pid && x.b.panelId === cid);
+  if (w && i.key === 'val.bendTight') {
+    const k = cornerOf(d, w);
+    if (!k) return false;
+    // the base's corner radius the check worked out
+    setPointRound(d, k.base, k.i, Number(i.vars.r));
+    return !validate(d).some((x) => x.key.startsWith('val.bend') && x.pair?.[0] === pid && x.pair?.[1] === cid);
+  }
+  if (w && i.key === 'val.bendStyle') {
+    setConnection(d, w.id, { bend: { pattern: 'auto' } });
+    return true;
+  }
   const c = Object.values(d.connections).find((x) => x.grown && x.a.panelId === pid && x.b.panelId === cid);
   if (!c) return false;
   if (i.key === 'val.bendStyle') setConnection(d, c.id, { bend: { pattern: 'auto' } });

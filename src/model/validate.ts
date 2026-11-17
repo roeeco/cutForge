@@ -26,6 +26,8 @@ import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
 import { bandOf, foldRadius } from './bands';
+import { cornerOf } from './wings';
+import { bestReach } from './bendPatterns';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
@@ -110,7 +112,7 @@ export function validate(d: Design): Issue[] {
 function bendIssues(d: Design, guides: Set<string>): Issue[] {
   const out: Issue[] = [];
   for (const c of Object.values(d.connections)) {
-    if (!c.grown || c.kind !== 'fold' || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
+    if (!((c.grown && c.kind === 'fold') || c.wing) || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
     const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
     if (!P || !C) continue;
     const vars = { panel: C.name, other: P.name };
@@ -123,9 +125,15 @@ function bendIssues(d: Design, guides: Set<string>): Issue[] {
     }
     const b = bandOf(d, c);
     if (!b) continue;
-    if (!b.fits) out.push({ key: 'val.bendRoom', vars, target, pair });
+    // round a tray's rounded corner (milestone 64) the radius to set is the base corner's: the band's inner radius plus the wall's thickness and how far in it stands
+    const k = c.wing ? cornerOf(d, c) : null;
+    const asked = (inner: number) => Math.ceil((k ? inner + b.t + (k.r - b.Ro) : inner) * 10) / 10;
+    if (c.wing && !b.fits) {
+      const need = bestReach({ m, r: 0, len: b.span[1] - b.span[0], width: b.lb, turn: b.phi });
+      out.push({ key: 'val.bendTight', vars: { ...vars, r: asked(Number.isFinite(need) ? Math.max(need, 0.5) : 0.5) }, target, pair });
+    } else if (!b.fits) out.push({ key: 'val.bendRoom', vars, target, pair });
     else if (b.pattern.why?.key === 'short') out.push({ key: 'val.bendShort', vars: { ...vars, len: b.pattern.why.value ?? 0 }, target, pair });
-    else if (b.pattern.why) out.push({ key: b.pattern.auto ? 'val.bendTight' : 'val.bendStyle', vars: { ...vars, r: b.pattern.why.value ?? 0 }, target, pair });
+    else if (b.pattern.why) out.push({ key: b.pattern.auto ? 'val.bendTight' : 'val.bendStyle', vars: { ...vars, r: b.pattern.why.key === 'radius' ? asked(b.pattern.why.value ?? 0) : 0 }, target, pair });
   }
   return out;
 }

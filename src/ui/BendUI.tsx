@@ -14,11 +14,11 @@ export function BendSection({ c }: { c: Connection }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
-  if (!c.grown || c.kind !== 'fold') return null;
+  if (!c.wing && (!c.grown || c.kind !== 'fold')) return null;
   const m = matOf(d, c.a.panelId);
   const mm = t('unit.mm');
-  const r = foldRadius(d, c);
   const b = bandOf(d, c);
+  const r = c.wing ? (b?.r ?? 0) : foldRadius(d, c);
   const why = (w: PatternWhy | null) =>
     !w ? undefined : w.key === 'radius' ? t('bend.why.radius', { r: fmtNum(w.value ?? 0, 1) }) : w.key === 'short' ? t('bend.why.short', { len: fmtNum(w.value ?? 0, 0) }) : t('bend.why.material');
   const ctx = b && { m, r: b.r, len: b.span[1] - b.span[0], width: b.lb, turn: b.phi };
@@ -26,8 +26,13 @@ export function BendSection({ c }: { c: Connection }) {
   return (
     <div className="subsection bend" data-testid="bend-section">
       <h4>{t(m.kind === 'plywood' ? 'bend.hinge' : 'bend.title')}</h4>
-      <NumField label={t('bend.radius')} value={r} unit={mm} min={0} max={500} onCommit={(v) => apply((x) => setConnection(x, c.id, { radius: v }))} testId="bend-radius" />
-      {!b && m.kind !== 'plywood' && <p className="note" data-testid="bend-crease">{t('bend.crease')}</p>}
+      {c.wing ? (
+        // a tray's rounded corner (milestone 64): its radius is the base's corner's
+        <p className="note" data-testid="bend-corner">{t('bend.corner', { r: fmtNum(r, 1) })}</p>
+      ) : (
+        <NumField label={t('bend.radius')} value={r} unit={mm} min={0} max={500} onCommit={(v) => apply((x) => setConnection(x, c.id, { radius: v }))} testId="bend-radius" />
+      )}
+      {!b && !c.wing && m.kind !== 'plywood' && <p className="note" data-testid="bend-crease">{t('bend.crease')}</p>}
       {b && ctx && (
         <>
           <Segmented
@@ -62,7 +67,7 @@ export function BendSection({ c }: { c: Connection }) {
           {!b.fits && <p className="note warn" data-testid="bend-room">{t('bend.room')}</p>}
         </>
       )}
-      {m.kind === 'plywood' && r <= 1e-6 && <p className="note warn">{t('bend.why.radius', { r: fmtNum(bendOf(m).patternR, 1) })}</p>}
+      {m.kind === 'plywood' && !c.wing && r <= 1e-6 && <p className="note warn">{t('bend.why.radius', { r: fmtNum(bendOf(m).patternR, 1) })}</p>}
     </div>
   );
 }

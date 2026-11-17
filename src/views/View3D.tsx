@@ -21,6 +21,8 @@ import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatr
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
 import { BandObject } from './bandMesh';
+import { bandOf, bandPose, bandWorld } from '../model/bands';
+import { connKindKey } from '../ui/connLabel';
 import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
@@ -2274,6 +2276,14 @@ function PanelWidgets({ d, p, m, dims }: { d: Design; p: Panel; m: THREE.Matrix4
 
 /** Where a connection's seam is, in display space. */
 function seamPoint(d: Design, c: Connection, xf: Map<string, THREE.Matrix4>, at = 0.5): V3 | null {
+  // a tray's rounded corner (milestone 64): the middle of its band
+  if (c.wing) {
+    const b = bandOf(d, c);
+    if (!b) return null;
+    const mid = bandPose(b, 1, 2).outer[1];
+    const w = new THREE.Vector3(...bandWorld(b, mid, b.span[0] + (b.span[1] - b.span[0]) * at)).applyMatrix4(xf.get(b.parent) ?? IDM);
+    return [w.x, w.y, w.z];
+  }
   const end = c.b.edge !== FACE ? c.b : c.a.edge !== FACE ? c.a : null;
   if (!end) {
     const p = d.panels[c.a.panelId];
@@ -2320,7 +2330,7 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
             <div className="pill-wrap">
               <button
                 className={`w-pill ${c.broken ? 'broken' : ''} ${openJoint === c.id || open ? 'on' : ''}`}
-                title={t('conn.with', { kind: t(`conn.${c.kind}` as 'conn.fold'), panel: panelLabel(d, other, t) })}
+                title={t('conn.with', { kind: t(connKindKey(d, c, c.kind)), panel: panelLabel(d, other, t) })}
                 aria-expanded={open}
                 onClick={() => setMenu(open ? null : c.id)}
                 data-testid={`seam-pill-${c.kind}`}
@@ -2346,7 +2356,7 @@ function SeamPills({ d, focus, all, xf, openJoint }: { d: Design; focus: string 
                       }}
                       data-testid={`joint-kind-${k}`}
                     >
-                      <Icon name={k} size={16} /> {t(`conn.${k}` as 'conn.fold')}
+                      <Icon name={k} size={16} /> {t(connKindKey(d, c, k))}
                     </button>
                   ))}
                   {c.kind === 'tabslot' && (

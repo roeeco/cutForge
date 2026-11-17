@@ -5,7 +5,9 @@ import type { ReactNode } from 'react';
 import { useStore, useT, type Tool } from '../store/store';
 import type { MsgKey } from '../i18n';
 import { Icon } from '../ui/icons';
-import { Segmented, Stepper } from '../ui/NumField';
+import { NumField, Segmented, Stepper } from '../ui/NumField';
+import { roundedMin } from './recipes';
+import { fmtNum } from '../i18n';
 import { STICKERS } from './stickers';
 
 export type QuickAction = 'box' | 'wall' | 'divider' | 'hole' | 'text';
@@ -76,6 +78,9 @@ function ActionCard() {
   const tool = useStore((s) => s.tool);
   const boxFoot = useStore((s) => s.boxFoot);
   const sides = useStore((s) => s.boxSides);
+  const boxCorner = useStore((s) => s.boxCorner);
+  const material = useStore((s) => s.design.material);
+  const boxHeight = useStore((s) => s.boxHeight);
   const sticker = useStore((s) => s.sticker);
   const set = useStore((s) => s.set);
   const a = QUICK_ACTIONS.find((x) => x.tools.includes(tool));
@@ -90,10 +95,21 @@ function ActionCard() {
           options={[
             { value: 'rect', label: t('quick.boxRect'), testId: 'box-rect' },
             { value: 'regular', label: t('quick.boxRegular'), testId: 'box-regular' },
+            { value: 'rounded', label: t('quick.boxRounded'), testId: 'box-rounded' },
           ]}
           onChange={(v) => set({ boxFoot: v })}
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
+        {boxFoot === 'rounded' && (
+          <>
+            <NumField label={t('quick.boxCorner')} value={boxCorner} unit={t('unit.mm')} min={1} max={200} onCommit={(v) => set({ boxCorner: v })} testId="box-corner" />
+            {boxCorner < roundedMin(material, boxHeight) && (
+              <p className="note" data-testid="box-reach">
+                {t('quick.boxReach', { r: fmtNum(roundedMin(material, boxHeight), 1) })}
+              </p>
+            )}
+          </>
+        )}
         <p className="note">{t('quick.boxHelp')}</p>
       </>
     );

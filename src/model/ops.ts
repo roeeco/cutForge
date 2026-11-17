@@ -1,4 +1,5 @@
 // Pure model operations. Each takes a Design (an immer draft when called
+import { planWings, reconcileWings } from './wings';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { pieceRoot, placementPiece } from './keys';
@@ -133,6 +134,8 @@ function solveOnce(d: Design) {
   reconcileWallSets(d);
   fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
+  // round a tray's rounded corners (milestone 64)
+  reconcileWings(d);
   dropOrphansToFloor(d);
   insideCornerExtensions(
     d,
@@ -192,6 +195,8 @@ function solveOnce(d: Design) {
     }
   }
   const guides = constructionSet(d);
+  // the corners' bands once the walls stand: their kinds (plywood strips keyed shut and for the sheet)
+  planWings(d);
   for (const c of Object.values(d.connections)) {
     // construction panels are never joined: their connections carry no joint
     if (guides.has(c.a.panelId) || guides.has(c.b.panelId)) {
@@ -200,7 +205,7 @@ function solveOnce(d: Design) {
       delete c.thin;
       continue;
     }
-    if (!c.grown) {
+    if (!c.grown && !c.wing) {
       const ok = pairKinds(d, c);
       const g = jointGroup(c);
       fitKind(c, ok, g ? designKind(d, g, ok, ownerMaterial(d, c).kind) : undefined);
@@ -551,7 +556,7 @@ export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${
 export function autoConnect(d: Design) {
   let removed = false;
   for (const c of Object.values(d.connections))
-    if (c.auto !== false && !c.grown && ((c.broken && !c.thin) || !seamStillFits(d, c))) {
+    if (c.auto !== false && !c.grown && !c.wing && ((c.broken && !c.thin) || !seamStillFits(d, c))) {
       delete d.connections[c.id];
       removed = true;
     }
@@ -575,7 +580,7 @@ export function autoConnect(d: Design) {
   // and none left broken by a seam joined after it: the next run would remove it again
   let late = false;
   for (const c of Object.values(d.connections))
-    if (c.auto !== false && !c.grown && c.broken && !c.thin) {
+    if (c.auto !== false && !c.grown && !c.wing && c.broken && !c.thin) {
       delete d.connections[c.id];
       late = true;
     }
@@ -1781,4 +1786,23 @@ export function addRoundedRect(d: Design, x: number, z: number, w: number, h: nu
   normalizeSketch(p);
   solve(d);
   return id;
+}
+
+/** Every rounded corner of a tray joined one way (milestone 64): one piece, glued, keyed or plain, where allowed; plywood strips are still keyed shut and for the sheet. */
+export function setTrayCorners(d: Design, trayId: string, kind: ConnectionKind) {
+  for (const c of Object.values(d.connections))
+    if (c.wing && c.trayId === trayId) {
+      c.pref = kind;
+      c.auto = true;
+    }
+  solve(d);
+}
+
+/** Where a plywood strip all round a tray is keyed shut (milestone 64): at the corner after this wall; null for the default (the back left). */
+export function setClosingCorner(d: Design, trayId: string, wallId: string | null) {
+  const t = d.trays[trayId];
+  if (!t) return;
+  if (wallId) t.closeAt = wallId;
+  else delete t.closeAt;
+  solve(d);
 }

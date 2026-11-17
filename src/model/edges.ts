@@ -158,16 +158,32 @@ function roundRing(pts: SketchPt[], keys: string[], keep: number): EdgeSeg[] {
   return out;
 }
 
+/** Curved polygon outlines already worked out, by what they are made from. */
+const curvedRings = new Map<string, EdgeSeg[]>();
+const curvedKey = (s: Extract<Sketch, { kind: 'poly' }>) =>
+  `${s.round ? 1 : 0}|${s.edgeIds.join(',')}|${s.pts.map((q) => `${q.x},${q.y},${q.curve ?? ''},${q.r ?? ''}`).join(';')}`;
+
 /** Layer 1: the sketch outline as keyed CCW edges (curves flattened). */
 export function sketchRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?: Panel['ext'] }): EdgeSeg[] {
   const s = sketchOf(p);
   if (s.kind === 'poly') {
     if (!s.pts.some((q) => q.curve)) return straightRing(p);
-    // rounded corners first, then auto curves on the straight edges left
-    const ring = s.pts.some((q) => q.curve === 'round') ? roundRing(s.pts, s.edgeIds, s.round ? 0 : KEEP_STRAIGHT) : straightRing(p);
-    if (!s.pts.some((q) => q.curve === 'auto')) return ring;
-    const at = new Map(s.edgeIds.map((k, i) => [k, s.pts[i]?.curve === 'auto']));
-    return curveRing(ring, (e) => !!at.get(e.key));
+    // a curved outline is worked out once per shape (milestone 64: rounded corners were rebuilt on every edge lookup)
+    const key = curvedKey(s);
+    let ring = curvedRings.get(key);
+    if (!ring) {
+      // rounded corners first, then auto curves on the straight edges left
+      ring = s.pts.some((q) => q.curve === 'round') ? roundRing(s.pts, s.edgeIds, s.round ? 0 : KEEP_STRAIGHT) : straightRing(p);
+      if (s.pts.some((q) => q.curve === 'auto')) {
+        const at = new Map(s.edgeIds.map((k, i) => [k, s.pts[i]?.curve === 'auto']));
+        ring = curveRing(ring, (e) => !!at.get(e.key));
+      }
+      if (curvedRings.size > 400) curvedRings.clear();
+      // shared, as `ownOutline`'s cached outlines are: frozen, so a caller that changed it would fail loudly
+      for (const e of ring) Object.freeze(e.a), Object.freeze(e.b), Object.freeze(e);
+      curvedRings.set(key, Object.freeze(ring) as EdgeSeg[]);
+    }
+    return ring;
   }
   const ring = straightRing(p);
   const ins = new Map((s.inserts ?? []).map((x) => [x.id, !!x.curve]));
@@ -240,8 +256,19 @@ export function setOwnRings(f: typeof ownRings) {
 export function findEdge(p: Edged, key: EdgeArg): EdgeSeg | undefined {
   const k = ek(key);
   const all = panelEdges(p);
+  // a shared (cached) outline is looked up by key, not scanned: a rounded base has dozens of arc segments (milestone 64)
+  if (Object.isFrozen(all)) {
+    let idx = edgeIndex.get(all);
+    if (!idx) {
+      idx = new Map();
+      for (const e of all) if (!idx.has(e.key)) idx.set(e.key, e);
+      edgeIndex.set(all, idx);
+    }
+    return idx.get(k) ?? (k.includes('#') ? undefined : idx.get(`${k}#0`));
+  }
   return all.find((e) => e.key === k) ?? (k.includes('#') ? undefined : all.find((e) => e.key === `${k}#0`));
 }
+const edgeIndex = new WeakMap<EdgeSeg[], Map<string, EdgeSeg>>();
 
 /** Pieces an edge key was split into (just the edge itself when whole), in order. */
 export function edgePieces(p: Edged, key: string): EdgeSeg[] {

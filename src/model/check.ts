@@ -31,7 +31,8 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'butt'] as const;
+const PATTERNS = ['auto', 'smooth', 'score', 'slits'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;
 const TAB_LOCKS = ['flush', 'through', 'snap', 'bolt'] as const;
@@ -259,6 +260,16 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
+  // a fold's bend (milestone 63) and a tray's rounded corner (milestone 64)
+  if (x.radius !== undefined) num(x.radius, `${where}.radius`, { min: 0, max: 10000 });
+  if (x.bend !== undefined) {
+    if (!isObj(x.bend)) delete x.bend;
+    else {
+      if (x.bend.pattern !== undefined && !(PATTERNS as readonly string[]).includes(x.bend.pattern)) delete x.bend.pattern;
+      if (x.bend.density !== undefined && ![1, 0.75, 0.5].includes(x.bend.density)) delete x.bend.density;
+    }
+  }
+  if (x.wing !== undefined && x.wing !== true) delete x.wing;
   // the last valid joint geometry: derived, and only kept for a broken joint; a damaged one is dropped
   if (x.geom !== undefined && !geomOk(x.geom)) delete x.geom;
   return true;
@@ -279,6 +290,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   // derived (re-made by solve)
   if (x.fixes !== undefined && !isObj(x.fixes)) delete x.fixes;
   if (x.fixPlan !== undefined && !isObj(x.fixPlan)) delete x.fixPlan;
+  if (x.closeAt !== undefined && typeof x.closeAt !== 'string') delete x.closeAt;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;
     else for (const k of Object.keys(x.pin)) if (!['hinge', 'own', 'other'].includes(x.pin[k])) delete x.pin[k];

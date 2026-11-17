@@ -125,6 +125,7 @@ const P: Record<string, ReactElement> = {
   lean: <path d="M4 19h16M6 19 16 6M14.5 19V9" />,
   slide: <path d="M4 16h16M8 16V6M12 10l4 0M14 8l2 2-2 2" />,
   butt: <path d="M4 12h7M13 12h7M12 6v12" />,
+  key: <path d="M4 12h6l2-3h3v6h-3l-2-3M15 12h5" />,
   // Quick build's five actions (milestone 37)
   box: (
     <>

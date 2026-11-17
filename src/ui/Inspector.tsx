@@ -6,7 +6,7 @@ import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
 import { convertToPoints, curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setCornerRadius, setPanelSize, setPanelYaw, setPointCurve, setPointRound, setRoundShape, updateDetail } from '../model/ops';
 import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
-import { bendOf, matOf } from '../model/materials';
+import { matOf } from '../model/materials';
 import { materialName } from './materialName';
 import { ovalRadii } from '../model/round';
 import { rotateCopy } from '../model/pack';
@@ -15,6 +15,7 @@ import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
 import { BendSection } from './BendUI';
+import { roundedMin } from '../easy/recipes';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
@@ -395,7 +396,9 @@ function RoundSection({ panelId }: { panelId: string }) {
   if (!s.round && !rounded.length) return null;
   const mm = t('unit.mm');
   const m = matOf(d, panelId);
-  const lim = bendOf(m).patternR;
+  // the tightest corner its walls bend round, at their height (milestone 64): the bend patterns' reach plus the wall's thickness
+  const tray = Object.values(d.trays ?? {}).find((x) => x.baseId === panelId);
+  const lim = roundedMin(m, tray?.height ?? 40);
   // its tightest bend: the smallest radius as built (an oval's ends, a clamped corner)
   const built = sketchFillets(s);
   const tight = Math.min(...built.filter((f): f is NonNullable<typeof f> => !!f).map((f) => f.r));

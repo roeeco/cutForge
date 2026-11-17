@@ -1,5 +1,6 @@
 // Seam geometry: how two panels meet in 3D, and what each connection kind
 import { bandCrossings, bandOf } from './bands';
+import { wingGeom } from './wings';
 // cuts into them. Everything here is derived from panel frames and sizes, so
 // joints follow dimension, thickness, clearance, count, spacing and angle
 // changes automatically.
@@ -386,6 +387,8 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
 
 /** Geometry for one connection, or null when its panels no longer meet. */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
+  // a tray's rounded corner (milestone 64)
+  if (c.wing) return wingGeom(d, c);
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];

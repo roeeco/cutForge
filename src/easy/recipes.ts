@@ -1,8 +1,9 @@
 // Quick build's five actions as recipes over the existing ops (milestone 38).
+import { bestReach } from '../model/bendPatterns';
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
-import type { Design, DetailOp, DetailShape, P2, V3 } from '../model/types';
-import { addDetail, addDividerBetween, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, DIVIDER_GAP, MIN_PANEL, parentConnection, planDividerBetween, regularPolygon, type BetweenPlan, type FacePick } from '../model/ops';
+import type { Design, DetailOp, DetailShape, MaterialProfile, P2, V3 } from '../model/types';
+import { addRoundedRect, addDetail, addDividerBetween, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, DIVIDER_GAP, MIN_PANEL, parentConnection, planDividerBetween, regularPolygon, type BetweenPlan, type FacePick } from '../model/ops';
 import { matDir, toLocal, toWorld } from '../model/frame';
 import { tOf } from '../model/materials';
 import { effectiveGrow, growWith } from '../views/ghost';
@@ -12,13 +13,29 @@ import { heightTargets } from '../model/adapt';
 export const BOX_HEIGHT = 45;
 
 /** A box's footprint on the floor (floor coordinates: x along world X, z along world Z). */
-export type Footprint = { kind: 'rect'; x0: number; z0: number; x1: number; z1: number } | { kind: 'regular'; x0: number; z0: number; x1: number; z1: number; sides: number };
+export type Footprint =
+  | { kind: 'rect'; x0: number; z0: number; x1: number; z1: number }
+  | { kind: 'regular'; x0: number; z0: number; x1: number; z1: number; sides: number }
+  /** milestone 64: a rectangle with its corners rounded to `r` (at least what its walls bend to) */
+  | { kind: 'rounded'; x0: number; z0: number; x1: number; z1: number; r: number; height?: number };
+
+/**
+ * The smallest corner radius a box's walls can bend round in this material
+ * (milestone 64): the tightest its bend patterns reach on a 40 mm wall, plus
+ * the wall's thickness (the base's corner is the band's outer face).
+ */
+export function roundedMin(m: MaterialProfile, height = 40): number {
+  // its walls are about the box's height (less the base's thickness where they stand on it)
+  const reach = Math.max(...[height, height - m.thickness].map((len) => bestReach({ m, r: 0, len, width: 50, turn: Math.PI / 2 })));
+  return Math.ceil(((Number.isFinite(reach) ? reach : 0) + m.thickness) * 2) / 2;
+}
 
 /** The base a footprint makes (the same as drawing it with the Panel or Polygon tool); null when too small. */
 export function addBoxBase(d: Design, f: Footprint): string | null {
   const x0 = Math.min(f.x0, f.x1), x1 = Math.max(f.x0, f.x1), z0 = Math.min(f.z0, f.z1), z1 = Math.max(f.z0, f.z1);
   if (x1 - x0 < MIN_PANEL || z1 - z0 < MIN_PANEL) return null;
   if (f.kind === 'rect') return addRootPanel(d, x0, z1, x1 - x0, z1 - z0);
+  if (f.kind === 'rounded') return addRoundedRect(d, x0, z1, x1 - x0, z1 - z0, Math.max(f.r, roundedMin(d.material, f.height)));
   // a regular polygon inside the dragged square, centred on it
   const r = Math.min(x1 - x0, z1 - z0) / 2;
   return addPolygonPanel(d, (x0 + x1) / 2, (z0 + z1) / 2, regularPolygon(f.sides, r));

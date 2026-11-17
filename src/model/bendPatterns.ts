@@ -79,7 +79,8 @@ export const strainOf = (m: MaterialProfile) => bendOf(m).strain ?? 0.016;
 export function slitLayout(m: MaterialProfile, len: number): { n: number; S: number; ell: number } | null {
   const b = hingeBridge(m);
   const usable = len - 2 * b;
-  const n = Math.max(1, Math.round((usable + b) / (SLIT_MAX + b)));
+  // as few slits as keep each within the longest (longer links bend tighter, but a longer slit is floppier)
+  const n = Math.max(1, Math.ceil((usable + b) / (SLIT_MAX + b) - 1e-9));
   const S = (usable - (n - 1) * b) / n;
   const ell = (S - b) / 2;
   return ell >= 1 ? { n, S, ell } : null;

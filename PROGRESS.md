@@ -997,6 +997,33 @@ Limitations
 - Pattern lines show in 3D on the band's outer face only, and only with outlines on.
 - A lid grown flush on a box's walls is reported as overlapping them, as before (the band does not change that).
 
+## Milestone 64 — curved tray walls ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.4–§4.7; `src/model/wings.ts`, `src/model/bands.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/pieces.ts`, `src/model/jointDefaults.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/model/edges.ts`, `src/easy/fix.ts`, `src/easy/recipes.ts`, `src/easy/QuickRail.tsx`, `src/views/foldView.ts`, `src/views/View3D.tsx`, `src/ui/CornersUI.tsx`, `src/ui/BendUI.tsx`, `src/ui/connLabel.ts`)
+- **The model.** A tray on a base with rounded corners stands its walls on the straight edges only (milestone 62 keeps every one). Each rounded convex corner between two walls is a connection (`Connection.wing`, id `wing:<A>|<B>`), from the wall before it (A, edge e1) to the wall after it (B, edge e3). Its band (`wingBand`) is carried by A: cross-section from A's end into A and towards the box's inside, the arc on the base's fillet centre, outer radius from the wall's outer face, inner radius that less the thickness, developed width θ·(r + k·t). No wall is cut back: both end at the fillet's tangent points.
+- **Kinds** (`wingKinds`): plywood `fold` (one piece) · `key` · `butt`; card and corrugated `glue` · `fold` · `butt`. One piece only where B is not already folded off the base. New kind `key` (schema-free: optional). Their kinds are their own: `jointGroup` leaves them out of the design-wide lists, `autoConnect` never removes them; `reconcileWings` (after the tray walls stand) makes and removes them, and `planWings` fits the kinds.
+- **Geometry** (`wingGeom`): one piece adds nothing to the walls: B continues A in the net (`netFolds`, B at A's end plus the band) and `foldBand` draws the strip with its pattern. Otherwise the band is material added past A's end with its pattern, then a glue lip (as wide as fits between the walls in the flat net; folded onto B's inner face in 3D), a puzzle key with its socket in B, or nothing. Under a band whose wall stands down beside the base (plywood fingers) the base is cut back to the band's inner face, so it wraps round it.
+- **Plywood strips** (`planStrip`): the walls round one-piece corners are one strip; closed all round, it is keyed shut at the corner nearest the back left (`Tray.closeAt` moves it: *Closing seam* on the tray card); keyed again wherever it grows longer than the sheet (`stripMax`). A corner the student set by hand keeps its kind.
+- **Stability** (§4.6): corners are keyed by their two walls, so a radius swept up and down leaves the design as it was; a wall too short for fingers (5 mm) is still a wall (found by its joint's own key, not by whether the joint holds).
+- **Speed** (§4.7): no polygon clipping in solve for corners. A curved outline is worked out once per shape and shared, frozen (`sketchRing`), and looked up by key (`findEdge`'s index), instead of rebuilding a rounded base's arcs on every edge lookup; corners and their bands are worked out once per solve pass. A 120 × 80 rounded card tray solves in about 1.3 ms here (the parked branch: 12.4 ms), within twice the square tray.
+- **Checks:** the bend checks cover corners; for a corner the radius in the message and its *Fix* is the base's corner radius (the inner radius plus the wall's thickness and inset).
+- **3D:** every corner's band drawn (its pattern on its outer face), unrolling with the fold view; a one-piece corner carries the next wall. Joint labels sit in the middle of the band; a one-piece corner reads *One piece*, a plywood fold *Living hinge* (`connKindKey`).
+- **Cards:** the tray card's *Rounded corners (n)* (all corners one way, `setTrayCorners`) and *Closing seam* (`setClosingCorner`), with a note when the strip is keyed apart for the sheet; a corner's own card shows its band (radius read-only: the base's).
+- **Quick build:** *Box* · *Rounded* (`box-rounded`) with *Corner radius* (`box-corner`, default 15), raised to what the walls bend to at the box's height (`roundedMin`: the patterns' reach plus the thickness), with a note (`box-reach`). The base's corner note now uses the same reach.
+- **Fixed on the way:** the slit layout let one slit run past the 24 mm maximum (it rounded the count instead of rounding up), which made a 40 mm band look bendier than it is; the milestone-63 plywood hinge goldens changed with it. A three.js mesh had a `data-testid`, which React Three Fiber refuses: removed.
+- Files: `check.ts` accepts `key`, `radius`, `bend`, `wing` and `Tray.closeAt`. English and Hebrew strings.
+
+Verified
+- `tests/wings.test.ts` (8): a card rounded tray is five panels with four glued corners, one piece, flat, clean; each band leaves one wall's end and arrives exactly at the next wall's start (3D, card and plywood); plywood is one strip of four walls with three hinge corners and a key at the back left, slits in every band, the base cut back; a strip longer than the sheet keyed apart, and the closing corner moved; a corner set by hand keeps its kind, and one piece is not offered where the next wall folds off the base; corrugated corners at 15 named and fixed by rounding the base; walls and corners kept at every radius from 3 to 60, swept and returned, idempotent, saved and reopened; solve within twice the square tray.
+- **Golden exports:** new `rounded-tray-card`, `rounded-tray-ply-strip`; `band-ply-hinge*` regenerated (the slit layout fix); every other case byte-identical.
+- Unit suite: 599 pass, 7 skipped; typecheck clean.
+- Browser: new `tests/e2e/wings.spec.ts` (Quick build's Rounded box in plywood: the radius raised, the strip with three hinges and a key, ready to cut; Workshop: a card tray's corners all made plain from the tray card; a plywood strip's closing seam moved). Full app suite (`--grep-invert classroom`): 97 passed, 0 failed, 57 skipped.
+
+Limitations
+- Concave rounded corners (a reflex vertex) are left open.
+- A corner's lip on a many-sided base is narrowed to fit the flat net; very small radii on 6+ sides can leave too little lip (it is left off).
+- The joint labels of a corner list kinds in the menu, but the corner's band (pattern, density) is set on its card only.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
