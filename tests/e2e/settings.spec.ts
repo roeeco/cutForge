@@ -39,6 +39,8 @@ test.describe('milestone 27: the settings card on a Chromebook (1366 × 768)', (
     await page.getByTestId('settings-head-snapping').click();
     await expect(page.getByTestId('settings-snap')).toBeVisible();
     await page.getByTestId('settings-snap').click();
+    // the new design is autosaved after a short pause: reloading before it starts over at the welcome screen
+    await expect(page.getByTestId('save-state')).toHaveAttribute('class', /\bsaved\b/);
     await page.reload();
     await expect(page.getByTestId('settings-head-snapping')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByTestId('settings-snap')).toHaveAttribute('aria-pressed', 'false');
