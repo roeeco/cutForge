@@ -808,6 +808,30 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   );
 }
 
+/** three.js's ACES filmic tone mapping (tonemapping_pars_fragment), on a linear colour. */
+function acesFilmic(c: [number, number, number], exposure: number): [number, number, number] {
+  const v = c.map((x) => (x * exposure) / 0.6);
+  // GLSL mat3(a, b, c) has columns a, b, c
+  const inM = [[0.59719, 0.076, 0.0284], [0.35458, 0.90834, 0.13383], [0.04823, 0.01566, 0.83777]];
+  const outM = [[1.60475, -0.10208, -0.00327], [-0.53108, 1.10813, -0.07276], [-0.07367, -0.00605, 1.07602]];
+  const mul = (m: number[][], x: number[]) => [0, 1, 2].map((i) => m[0][i] * x[0] + m[1][i] * x[1] + m[2][i] * x[2]);
+  const fit = (x: number) => (x * (x + 0.0245786) - 0.000090537) / (x * (0.983729 * x + 0.432951) + 0.238081);
+  const o = mul(outM, mul(inM, v).map(fit));
+  return o.map((x) => Math.min(1, Math.max(0, x))) as [number, number, number];
+}
+
+/** The linear colour that comes out of the renderer's tone mapping as `target` (searched; ACES only). */
+export function untoneMapped(target: THREE.Color, toneMapping: THREE.ToneMapping, exposure = 1): THREE.Color {
+  if (toneMapping !== THREE.ACESFilmicToneMapping) return target.clone();
+  const want: [number, number, number] = [target.r, target.g, target.b];
+  let x: [number, number, number] = [...want];
+  for (let i = 0; i < 200; i++) {
+    const got = acesFilmic(x, exposure);
+    x = x.map((v, k) => Math.max(0, v + (want[k] - got[k]) * 1.5)) as [number, number, number];
+  }
+  return new THREE.Color(x[0], x[1], x[2]);
+}
+
 /** Ambient occlusion (Rich quality): GTAO over the scene, widgets and lines left out. */
 function AOEffects() {
   const { gl, scene, camera, size, invalidate } = useThree();
@@ -849,7 +873,17 @@ function AOEffects() {
     return () => clearTimeout(id);
   }, [composer, size, gl]);
   useEffect(() => () => composer.dispose(), [composer]);
-  useFrame(() => composer.render(), 1);
+  // the output pass tone-maps the whole picture, background included (drawn straight to the
+  // screen the background is not), which turned the stage grey: the background is drawn in
+  // the colour that tone-maps back to the stage's own
+  const stageBg = useMemo(() => untoneMapped(new THREE.Color(STAGE.bg), gl.toneMapping, gl.toneMappingExposure), [gl.toneMapping, gl.toneMappingExposure]);
+  useFrame(() => {
+    const bg = scene.background;
+    const keep = bg instanceof THREE.Color ? bg.clone() : null;
+    if (bg instanceof THREE.Color) bg.copy(stageBg);
+    composer.render();
+    if (bg instanceof THREE.Color && keep) bg.copy(keep);
+  }, 1);
   return null;
 }
 

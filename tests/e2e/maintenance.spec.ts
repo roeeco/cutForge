@@ -158,3 +158,29 @@ test('the narrow tool cards keep their pickers inside them, in both languages', 
     await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ mode: 'workshop' }));
   }
 });
+
+test('Rich quality draws the stage in its own colour, not tone-mapped grey', async ({ page }) => {
+  await organiser(page);
+  const stagePixel = () =>
+    page.evaluate(() => {
+      const c = document.querySelector('.view3d canvas') as HTMLCanvasElement;
+      const k = document.createElement('canvas');
+      k.width = c.width;
+      k.height = c.height;
+      const g = k.getContext('2d')!;
+      g.drawImage(c, 0, 0);
+      // open stage near the bottom left, clear of the box and of the grid's lines
+      const d = g.getImageData(Math.round(c.width * 0.2), Math.round(c.height * 0.9), 1, 1).data;
+      return [d[0], d[1], d[2]];
+    });
+  await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ quality: 'simple' }));
+  await expect(page.getByTestId('quality')).toHaveAttribute('data-quality', 'simple');
+  await page.waitForTimeout(300);
+  const simple = await stagePixel();
+  await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ quality: 'rich' }));
+  await expect(page.getByTestId('quality')).toHaveAttribute('data-quality', 'rich');
+  await page.waitForTimeout(800);
+  const rich = await stagePixel();
+  // #eef1f5 in both (it came out about #dddedf in Rich)
+  for (const px of [simple, rich]) for (const [i, v] of [238, 241, 245].entries()) expect(Math.abs(px[i] - v)).toBeLessThanOrEqual(6);
+});
