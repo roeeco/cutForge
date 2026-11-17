@@ -130,7 +130,9 @@ export function groupKinds(d: Design, group: JointGroup): ConnectionKind[] {
   const cs = groupConnections(d, group);
   const order = [...groupDefaults(d, group), ...cs.flatMap((c) => allowedKinds(d, c))];
   const ok = new Set(cs.length ? cs.flatMap((c) => allowedKinds(d, c)) : order);
-  return [...new Set(order)].filter((k) => ok.has(k));
+  // a plywood living hinge is chosen joint by joint, never for every wall at once (milestone 63)
+  const perJoint = (k: ConnectionKind) => k === 'fold' && d.material.kind === 'plywood';
+  return [...new Set(order)].filter((k) => ok.has(k) && !perJoint(k));
 }
 
 /** The design's default kind for a group (the choices of `kind`, a material kind; default the working material's), if set and among `allowed`. */

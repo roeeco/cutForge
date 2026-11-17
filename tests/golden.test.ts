@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -50,6 +50,10 @@ CASES.push({ name: 'hand-ply-box-compensated', make: plyBox, kerf: 'compensated'
 CASES.push({ name: 'hand-card-tray', make: cardTray });
 CASES.push({ name: 'hand-ply-lean', make: plyLean });
 CASES.push({ name: 'hand-corr-dividers', make: corrDividers });
+// milestone 63: folds with a radius
+CASES.push({ name: 'band-card-score-r8', make: () => bandLidBox(MATERIALS[0], 8) });
+CASES.push({ name: 'band-ply-hinge', make: () => bandLidBox(MATERIALS[3]) });
+CASES.push({ name: 'band-ply-hinge-compensated', make: () => bandLidBox(MATERIALS[3]), kerf: 'compensated' });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

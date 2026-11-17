@@ -3,7 +3,8 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, setPanelSize, solve } from '../model/ops';
+import { findDetail, setConnection, setPanelSize, solve } from '../model/ops';
+import { bandOf, foldRadius } from '../model/bands';
 import { matOf } from '../model/materials';
 import { fitShape } from './guard';
 import { validate } from '../model/validate';
@@ -53,7 +54,7 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
+const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -80,6 +81,10 @@ export function fixIssue(d: Design, i: Issue): boolean {
       d.allowRotate = true;
       d.placements = {};
       return !sheetIssueFor(d, i);
+    case 'val.bendTight':
+    case 'val.bendStyle':
+    case 'val.bendRoom':
+      return fixBend(d, i);
     case 'val.offSheet':
     case 'val.piecesOverlap':
       // let the packer place every piece again; done only when the sheet check is clear of it (BUGFIX_PLAN B15)
@@ -87,4 +92,28 @@ export function fixIssue(d: Design, i: Issue): boolean {
       return !sheetIssueFor(d, i);
   }
   return false;
+}
+
+/**
+ * A fold's bend (milestone 63): too tight, it gets the radius it needs; a
+ * chosen pattern that does not reach goes back to Automatic; a radius too
+ * large for its boards comes down to the largest that fits.
+ */
+function fixBend(d: Design, i: Issue): boolean {
+  const [pid, cid] = i.pair ?? [];
+  const c = Object.values(d.connections).find((x) => x.grown && x.a.panelId === pid && x.b.panelId === cid);
+  if (!c) return false;
+  if (i.key === 'val.bendStyle') setConnection(d, c.id, { bend: { pattern: 'auto' } });
+  else if (i.key === 'val.bendTight') setConnection(d, c.id, { radius: Number(i.vars.r) });
+  else {
+    let lo = 0, hi = foldRadius(d, c);
+    for (let k = 0; k < 30; k++) {
+      const mid = (lo + hi) / 2;
+      setConnection(d, c.id, { radius: mid });
+      if (bandOf(d, d.connections[c.id])?.fits) lo = mid;
+      else hi = mid;
+    }
+    setConnection(d, c.id, { radius: Math.floor(lo * 10) / 10 });
+  }
+  return !validate(d).some((x) => x.key.startsWith('val.bend') && x.pair?.[1] === cid);
 }

@@ -1,4 +1,5 @@
 // Seam geometry: how two panels meet in 3D, and what each connection kind
+import { bandCrossings, bandOf } from './bands';
 // cuts into them. Everything here is derived from panel frames and sizes, so
 // joints follow dimension, thickness, clearance, count, spacing and angle
 // changes automatically.
@@ -505,6 +506,19 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     else {
       const b0 = fit.mapB(fit.s0), b1 = fit.mapB(fit.s1);
       g.edges.push({ panelId: B.id, edge: c.b.edge, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cut }] });
+    }
+    return g;
+  }
+  if (c.kind === 'fold' && c.grown) {
+    // a fold with a radius (milestone 63): both panels cut back to where the band's arc meets their outer faces
+    const b = bandOf(d, c);
+    if (b) {
+      const eC = findEdge(B, 'e0');
+      g.edges.push({ panelId: A.id, edge: c.a.edge, notches: [{ s0: b.span[0], s1: b.span[1], depth: b.trimP }] });
+      if (eC && b.trimC > 1e-9) g.edges.push({ panelId: B.id, edge: 'e0', notches: [{ s0: 0, s1: segLength(eC), depth: b.trimC }] });
+      // boards standing across it (side walls at a hinged lid) are cut back to its inner face
+      const across = bandCrossings(d, b);
+      if (across.length) g.cuts = across;
     }
     return g;
   }

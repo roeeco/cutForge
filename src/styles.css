@@ -245,6 +245,7 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .segmented { display: inline-flex; background: var(--surface-sunk); border-radius: var(--r-sm); padding: 2px; gap: 2px; }
 .segmented button { border: none; background: transparent; padding: 3px 10px; min-height: 28px; border-radius: 6px; font-size: 13px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 6px; }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-soft); }
 .op-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .op-dot.cut { background: var(--op-cut); }

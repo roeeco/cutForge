@@ -20,6 +20,7 @@ import { v3add, v3dot, v3mul } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
+import { BandObject } from './bandMesh';
 import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
@@ -699,6 +700,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       ))}
       {display.bends.map((b) => (
         <BendBead key={b.id} b={b} d={design} index={design.order.indexOf(b.panelId)} outlines={prefs.outlines} />
+      ))}
+      {display.bands.map((s) => (
+        <BandObject key={s.band.id} s={s} d={design} m={display.xf.get(s.band.parent) ?? IDM} index={design.order.indexOf(s.band.parent)} outlines={prefs.outlines} />
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
       {selEdge && !folded && !jointsOn && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}

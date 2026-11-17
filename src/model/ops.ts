@@ -1538,7 +1538,12 @@ export function applyJointChoices(d: Design) {
   }
 }
 
-export type ConnPatch = Partial<Pick<Connection, 'kind' | 'fingers' | 'tabs' | 'flap' | 'foldDir' | 'angle' | 'offset' | 'dir' | 'tabLen' | 'lockDepth'>>;
+export type ConnPatch = Partial<Pick<Connection, 'kind' | 'fingers' | 'tabs' | 'flap' | 'foldDir' | 'angle' | 'offset' | 'dir' | 'tabLen' | 'lockDepth'>> & {
+  /** A fold's inner bend radius (milestone 63); null: the material's default (a crease, or plywood's living hinge). */
+  radius?: number | null;
+  /** A band's pattern and density (milestone 63); null: automatic. */
+  bend?: Connection['bend'] | null;
+};
 
 export function setConnection(d: Design, connectionId: string, patch: ConnPatch) {
   const c = d.connections[connectionId];
@@ -1566,6 +1571,15 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.lockDepth !== undefined) c.lockDepth = patch.lockDepth === null ? null : Math.max(2, patch.lockDepth);
   if (patch.dir && c.grown) c.dir = patch.dir;
   if (patch.offset !== undefined && c.grown) c.offset = Math.max(0, patch.offset);
+  if (patch.radius !== undefined) {
+    if (patch.radius === null) delete c.radius;
+    else c.radius = Math.max(0, Math.round(patch.radius * 100) / 100);
+  }
+  if (patch.bend !== undefined) {
+    const b = { ...(c.bend ?? {}), ...(patch.bend ?? {}) };
+    if (!patch.bend || ((!b.pattern || b.pattern === 'auto') && (!b.density || b.density === 1))) delete c.bend;
+    else c.bend = { ...(b.pattern && b.pattern !== 'auto' ? { pattern: b.pattern } : {}), ...(b.density && b.density !== 1 ? { density: b.density } : {}) };
+  }
   solve(d);
   if (c.grown && c.kind === 'lean') connectSeams(d, c.b.panelId);
 }

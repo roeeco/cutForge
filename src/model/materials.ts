@@ -25,7 +25,8 @@ export const ANGLES = [90, 60, 45, 30, 15] as const;
  */
 export function connectionsFor(m: MaterialProfile, angle: number): ConnectionKind[] {
   const square = Math.abs(angle - 90) < 1e-6;
-  if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt'] : angle < 90 ? ['lean', 'butt'] : ['butt'];
+  // plywood folds only round a living hinge (milestone 63): offered last, never a default
+  if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt', 'fold'] : angle < 90 ? ['lean', 'butt', 'fold'] : ['butt', 'fold'];
   return square ? ['fold', 'glue', 'tabslot', 'butt'] : ['fold', 'glue'];
 }
 
@@ -84,7 +85,7 @@ export function pairFilter(kinds: ConnectionKind[], own: MaterialProfile, other:
   if (!other || own === other) return kinds;
   return kinds.filter((k) => {
     if (k === 'finger' || k === 'lean') return own.kind === 'plywood' && other.kind === 'plywood';
-    if (k === 'fold') return own.kind !== 'plywood' && sameMaterial(own, other);
+    if (k === 'fold') return sameMaterial(own, other);
     return true;
   });
 }
@@ -141,7 +142,7 @@ export function normalizeMaterials(d: Design, prev?: MaterialProfile) {
 export function bendDefaults(kind: MaterialKind, t: number): BendLimits {
   if (kind === 'card') return { smoothR: 10, patternR: 4, pitch: 2.5, k: 0.5 };
   if (kind === 'corrugated') return t >= 3 ? { smoothR: 60, patternR: 20, pitch: 7, k: 1 } : { smoothR: 25, patternR: 8, pitch: 3.5, k: 1 };
-  return { smoothR: Math.max(150, 50 * t), patternR: Math.max(25, 10 * t), pitch: 2, k: 0.5 };
+  return { smoothR: Math.max(150, 50 * t), patternR: Math.max(25, 10 * t), pitch: 2, k: 0.5, strain: 0.016 };
 }
 
 /** A material's bend limits: its own, else its kind's. */

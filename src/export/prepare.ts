@@ -27,6 +27,8 @@ export function compensatePiece(contours: TaggedContour[], kerf: number): { cont
   const polys = cuts.map((c) => flattenContour(c.contour, 0.05));
   let ok = true;
   const out = contours.map((c) => {
+    // an open cut line (a living hinge's slit, milestone 63) is shortened by half the kerf at each end, so it cuts its drawn length
+    if (c.op === 'cut' && !c.contour.closed) return { ...c, contour: shortenOpen(c.contour, kerf / 2) };
     const i = cuts.indexOf(c);
     if (i < 0) return c;
     const probe = polys[i][0];
@@ -40,6 +42,21 @@ export function compensatePiece(contours: TaggedContour[], kerf: number): { cont
     return { ...c, contour: r };
   });
   return { contours: out, ok };
+}
+
+/** An open chain of straight segments with `k` mm taken off each end (a chain shorter than 2k is left as it is). */
+export function shortenOpen(c: Contour, k: number): Contour {
+  if (k <= 0 || c.closed || !c.segs.length || c.segs.some((s) => s.k !== 'L')) return c;
+  const segs = c.segs.map((s) => ({ ...s, a: { ...s.a }, b: { ...s.b } }));
+  const len = (s: { a: { x: number; y: number }; b: { x: number; y: number } }) => Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y);
+  const total = segs.reduce((t, s) => t + len(s), 0);
+  if (total <= 2 * k + 1e-6) return c;
+  const f = segs[0], l = segs[segs.length - 1];
+  const lf = len(f);
+  if (lf > k) f.a = { x: f.a.x + ((f.b.x - f.a.x) * k) / lf, y: f.a.y + ((f.b.y - f.a.y) * k) / lf };
+  const ll = len(l);
+  if (ll > k) l.b = { x: l.b.x - ((l.b.x - l.a.x) * k) / ll, y: l.b.y - ((l.b.y - l.a.y) * k) / ll };
+  return { closed: false, segs };
 }
 
 export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepared {

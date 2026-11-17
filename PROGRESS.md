@@ -966,6 +966,37 @@ Limitations
 - A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
 - Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
 
+## Milestone 63 — folds with a radius, and bend patterns ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.3, §5; `src/model/bands.ts`, `src/model/bendPatterns.ts`, `src/model/seams.ts`, `src/model/pieces.ts`, `src/model/validate.ts`, `src/easy/fix.ts`, `src/export/prepare.ts`, `src/export/bendTest.ts`, `src/export/label.ts`, `src/views/foldView.ts`, `src/views/bandMesh.tsx`, `src/ui/BendUI.tsx`, `src/ui/Connections.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`)
+- **The model.** `Connection.radius` (inner radius) and `Connection.bend` (`pattern`, `density`) on a grown fold. Absent: a crease on card and corrugated, the material's pattern radius on plywood. A band is derived (`bandOf`), never stored.
+- **The geometry: inside the corner.** Both panels keep the frames a sharp fold gives them, so the box's outer size, and everything built on it, stay where they were. In the fold's cross-section the outer faces' lines meet at a point O; the outer arc (radius r + t) is tangent to both, Ro·cot(a/2) from O; the parent is cut back to its tangent point (`trimP`, a notch along the edge) and the child to its own (`trimC`, a notch along its bottom). The developed width at the neutral line is θ·(r + k·t).
+- **In the net** the band is a strip of that width between the cut-back panels (`foldBand` → `bandStrip`): `foldXform`'s allowance becomes `lb − trimP − trimC`; at radius 0 nothing changes.
+- **Boards across a band** (side walls under a hinged lid) are cut back to its inner face (`bandCrossings`: the corner region from O out to the inner arc, mapped onto each board standing square to the edge within its span and overlapping it), so their corner is rounded to the hinge.
+- **Patterns** (`src/model/bendPatterns.ts`): a registry with `smooth` (all), `score` (card) and `slits` (plywood straight-slit living hinge).
+  - Lines: spacing ρ·pitch/reach, held between half and twice the pitch.
+  - Slits: link length ℓ from slits of at most 24 mm with bridges of max(3, t); spacing p = √(C·ℓ·ρ) while p ≤ t, else C·ℓ·ρ/t, with C the material's `strain` (0.016 for plywood, which gives 2.0 mm at ρ 30 with 20 mm slits); at least max(1.2, t/2). The reach follows from the smallest spacing, so a short band reaches less tight, and one too short for a slit cannot have slits.
+  - `patternWhy`: `radius` (with the radius it needs), `short` (with the length), `material`. `bandPattern`: the choice if offered, else the first that works, else the tightest-reaching (flagged). `density` 1, 0.75 or 0.5 only makes lines denser.
+- **Plywood folds** (a living hinge): `connectionsFor` offers `fold` last at every angle, never as a default; the design-wide joint lists leave it out. `pairFilter` allows a fold between boards of the same plywood.
+- **Export:** scores on the SCORE layer, slits as open CUT lines (`op: 'cut'`, `role: 'line'`), also from `ConnGeom.lines`; kerf compensation shortens an open cut line by half the kerf at each end (`shortenOpen`).
+- **Checks** (`bendIssues`): `val.bendTight` (no pattern reaches; a crease in plywood too), `val.bendStyle` (the chosen one does not), `val.bendShort`, `val.bendRoom` (the cuts would take a whole board). *Fix*: the radius needed, *Automatic*, or the largest radius that fits.
+- **3D:** `bandMesh.tsx` draws the band's curved slab with its lines on its outer face. In the fold view a band unrolls (`bandPose`, `bandChildMove`): it turns k·φ, its outer length going from the arc's to the strip's, so flat the child lands where the net puts it.
+- **Card:** the *Bend* section (*Living hinge* on plywood) on the folded board's card: *Bend radius*, *Pattern* (each pattern the material offers, greyed with its reason where it cannot work: `Segmented` options can now be disabled), *Lines* (*As needed*, *Denser*, *Densest*) and what that makes (`bend-makes`).
+- **Bend test:** *Download a bend test* in the material drawer (`mat-bend-test`): five zones at 0.7–1.6 × the pattern's reach on a 40 mm strip, each labelled on the GUIDE layer (`pieceLabel`, now in `src/export/label.ts`).
+- English and Hebrew strings.
+
+Verified
+- `tests/bands.test.ts` (15): a crease has no band; a quarter turn's developed width, the arc's points all Ro from its centre from one tangent point to the other, the notches at the trims, the child's cut-back bottom on the arc's end in 3D; the fold view (no move folded, the strip's end flat); a card lid at radius 8 is one piece with scores at the calculated spacing, lies flat and exports; radius 12 smooth, radius 2 named; a plywood lid on a living hinge is one piece with its back wall, its slits a bridge from the band's edges, compensated slits shorter by exactly the kerf; idempotence, save and reopen, a radius swept and returned; the slit formula; why a pattern cannot be used; denser on request; the four fixes; the bend test for card and plywood.
+- Updated `hinge`, `joints`, `jointdefaults`: plywood offers a living hinge last at every angle (not in the design-wide lists).
+- **Golden exports:** every existing case byte-identical; new `band-card-score-r8`, `band-ply-hinge`, `band-ply-hinge-compensated`.
+- Unit suite: 591 pass, 7 skipped; typecheck clean.
+- Browser: full app suite (`--grep-invert classroom`): 94 passed, 0 failed, 57 skipped. New `tests/e2e/bands.spec.ts` (a plywood lid's *Living hinge* card: radius 30, Automatic's slits, Smooth greyed with 150 mm, Densest, a radius of 5 named and 40 clear, the fold slider; a card fold given a radius of 8 is scored and of 0 a crease again). Checked by eye: the band closed, half open and flat.
+
+Limitations
+- Bands are on grown folds only; tray corners made folds (`hingeOf`) keep a crease: rounded corners come as wings (milestone 64).
+- Pattern lines show in 3D on the band's outer face only, and only with outlines on.
+- A lid grown flush on a box's walls is reported as overlapping them, as before (the band does not change that).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

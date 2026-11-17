@@ -10,7 +10,7 @@ import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
 import { crossesItself, detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
 import { bboxOf } from '../geom/vec';
-import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
+import { bendOf, matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported, pairKey } from './ops';
 import { panelContacts, TOUCH_EPS } from './contact';
@@ -25,6 +25,7 @@ import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
+import { bandOf, foldRadius } from './bands';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
@@ -96,7 +97,37 @@ export function validate(d: Design): Issue[] {
     if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId }, pair: [s.a.panelId, s.b.panelId] });
   }
   issues.push(...contactIssues(d, issues));
+  issues.push(...bendIssues(d, guides));
   return issues;
+}
+
+/**
+ * Folds with a radius (milestone 63): a bend tighter than any of its material's
+ * patterns reaches (a crease in plywood included), a chosen pattern that does
+ * not reach it, a band too short for its pattern's lines, and a radius so
+ * large that the cuts would take a whole board.
+ */
+function bendIssues(d: Design, guides: Set<string>): Issue[] {
+  const out: Issue[] = [];
+  for (const c of Object.values(d.connections)) {
+    if (!c.grown || c.kind !== 'fold' || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
+    const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
+    if (!P || !C) continue;
+    const vars = { panel: C.name, other: P.name };
+    const pair: [string, string] = [P.id, C.id];
+    const target: IssueTarget = { kind: 'panel', id: C.id };
+    const m = matOf(d, P.id);
+    if (m.kind === 'plywood' && foldRadius(d, c) <= 1e-6) {
+      out.push({ key: 'val.bendTight', vars: { ...vars, r: bendOf(m).patternR }, target, pair });
+      continue;
+    }
+    const b = bandOf(d, c);
+    if (!b) continue;
+    if (!b.fits) out.push({ key: 'val.bendRoom', vars, target, pair });
+    else if (b.pattern.why?.key === 'short') out.push({ key: 'val.bendShort', vars: { ...vars, len: b.pattern.why.value ?? 0 }, target, pair });
+    else if (b.pattern.why) out.push({ key: b.pattern.auto ? 'val.bendTight' : 'val.bendStyle', vars: { ...vars, r: b.pattern.why.value ?? 0 }, target, pair });
+  }
+  return out;
 }
 
 /** What the export check needs to place shapes on a panel (milestone 39: shared with Quick build's guard). */

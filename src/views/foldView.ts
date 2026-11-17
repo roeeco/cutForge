@@ -7,14 +7,19 @@ import { edgeWorld, frameNormal, matDir, toWorld } from '../model/frame';
 import { cornerFit, inwardWorld } from '../model/seams';
 import { findEdge } from '../model/edges';
 import { tOf } from '../model/materials';
+import { bandChildMove, bandOf, type Band } from '../model/bands';
 
 export type Bend = { id: string; panelId: string; pivot: THREE.Vector3; axis: THREE.Vector3; length: number; radius: number; crease: THREE.Vector3; mountain: boolean };
 
-export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.Matrix4>; bends: Bend[] } {
+/** A band (a fold with a radius, milestone 63) as the fold view shows it: fold fraction k, under its parent's displayed pose. */
+export type BandShown = { band: Band; k: number };
+
+export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.Matrix4>; bends: Bend[]; bands: BandShown[] } {
   // the 3D pose has no allowance gap (that is only in the flat net), so the hinge sits at the corner
   const g = 0;
   const xf = new Map<string, THREE.Matrix4>();
   const bends: Bend[] = [];
+  const bands: BandShown[] = [];
   const grown = Object.values(d.connections).filter((c) => c.grown);
   const parentOf = new Map(grown.map((c) => [c.b.panelId, c]));
   // tray corners made folds (milestone 35): the wall folds off its neighbour's side edge
@@ -37,7 +42,12 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     if (c && p && d.panels[c.a.panelId]) {
       const parentM = visit(c.a.panelId);
       m = parentM.clone();
-      if (c.kind === 'fold') {
+      const band = c.kind === 'fold' ? bandOf(d, c) : null;
+      if (band) {
+        // the band unrolls: the child rides on its end (no crease bead)
+        m.multiply(new THREE.Matrix4().fromArray(bandChildMove(band, foldT)));
+        bands.push({ band, k: foldT });
+      } else if (c.kind === 'fold') {
         const t = tOf(d, id);
         // hinge: a line along the child's bottom edge, half a (thickness +
         // allowance) below it and half a (thickness − allowance) into the
@@ -73,7 +83,7 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     return m;
   };
   for (const id of d.order) visit(id);
-  return { xf, bends };
+  return { xf, bends, bands };
 }
 
 /**

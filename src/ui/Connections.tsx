@@ -15,6 +15,7 @@ import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
 import { fmtNum } from '../i18n';
+import { BendSection } from './BendUI';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
   if (c.grown) return connectionsFor(d.material, c.angle);
@@ -70,7 +71,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           <select id={`k-${c.id}`} value={c.kind} onChange={(e) => apply((x) => setConnection(x, c.id, { kind: e.target.value as ConnectionKind }))} data-testid="conn-kind">
             {kinds.map((o) => (
               <option key={o} value={o}>
-                {t(`conn.${o}` as 'conn.fold')}
+                {o === 'fold' && matOf(d, c.a.panelId).kind === 'plywood' ? t('bend.hinge') : t(`conn.${o}` as 'conn.fold')}
               </option>
             ))}
           </select>
@@ -106,6 +107,8 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
       {c.grown && isChild && (c.kind === 'tabslot' || c.offset > 0) && (
         <NumField label={t('conn.offset')} value={c.offset} unit={mm} min={0} max={2000} onCommit={(v) => apply((x) => setConnection(x, c.id, { offset: v }))} testId="conn-offset" />
       )}
+      {/* the folded board's own card shows its bend; here only the bends of boards folded off this one */}
+      {!isChild && <BendSection c={c} />}
       {c.kind === 'fold' && (
         <Segmented
           label={t('conn.foldDir')}

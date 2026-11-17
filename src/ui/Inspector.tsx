@@ -14,6 +14,7 @@ import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
+import { BendSection } from './BendUI';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
@@ -205,6 +206,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           )}
           <Gate f="hinge">
             <PanelHinge panelId={id} />
+            {pc?.kind === 'fold' && <BendSection c={pc} />}
           </Gate>
           <TrayWallNote panelId={id} />
           <Gate f="foldover">

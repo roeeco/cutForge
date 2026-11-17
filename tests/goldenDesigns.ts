@@ -1,6 +1,6 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setPanelSize } from '../src/model/ops';
+import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import type { Design } from '../src/model/types';
@@ -123,5 +123,18 @@ export function v6CardGable(): Design {
   addWallInsert(d, walls[0], 'e2', 0.5, 30);
   growPanel(d, walls[0], 'e2', { height: 40, angle: 90, dir: 'up', kind: 'fold' });
   autoConnect(d);
+  return d;
+}
+
+/** A box (tray) with a lid folded off its back wall's top edge with a radius (milestone 63): a band of `radius`, or the material's own (plywood: a living hinge). */
+export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  addTray(d, base, 60);
+  autoConnect(d);
+  const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === E(2))!.b.panelId;
+  const g = growPanel(d, back, E(2), { height: 80, angle: 90, dir: 'up', kind: 'fold' })!;
+  if (radius !== undefined) setConnection(d, g.connectionId, { radius });
+  solve(d);
   return d;
 }

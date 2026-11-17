@@ -30,7 +30,14 @@ export type MaterialProfile = {
  * pattern's line spacing; `k`: the neutral-line factor (developed length =
  * angle × (inner radius + k·t)). Millimetres.
  */
-export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number };
+export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number; /** Plywood living hinges: the shear strain its links may take (milestone 63; absent: 0.016). */ strain?: number };
+
+/** A bend pattern (milestone 63, PACKAGING_PLAN.md §5.1). */
+export type PatternId = 'smooth' | 'score' | 'slits';
+/** How dense a band's pattern is: 1 automatic, less denser (never sparser than it must be). */
+export type BendDensity = 1 | 0.75 | 0.5;
+/** A band's stored bend choices (milestone 63); absent: automatic. */
+export type BendChoice = { pattern?: PatternId | 'auto'; density?: BendDensity };
 
 /**
  * A panel's placement in 3D. `o` is the origin of the panel's local 2D
@@ -242,6 +249,14 @@ export type Connection = {
    */
   tabLen?: TabLock;
   lockDepth?: number | null;
+  /**
+   * A fold's inner bend radius (milestone 63, mm): a band of material that
+   * curves round instead of a crease. Absent: a crease (card and corrugated),
+   * or the material's pattern radius on plywood (a living hinge).
+   */
+  radius?: number;
+  /** A band's bend pattern and density (milestone 63). Absent: automatic. */
+  bend?: BendChoice;
   /**
    * Derived (milestone 35): a tray corner made a fold so a wall lies flat
    * beside its neighbour (`kind` 'fold' on a closing seam); the panel that
