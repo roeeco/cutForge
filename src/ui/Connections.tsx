@@ -141,21 +141,14 @@ export function PanelConnections({ panelId }: { panelId: string }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const openJoint = useStore((s) => s.openJoint);
-  const [shown, setShown] = useState(true);
   const list = Object.values(d.connections).filter((c) => c.a.panelId === panelId || c.b.panelId === panelId);
   if (!list.length) return null;
   const parentId = list.find((c) => c.grown && c.b.panelId === panelId)?.id ?? null;
   const open = openJoint === '' ? null : openJoint && list.some((c) => c.id === openJoint) ? openJoint : parentId;
+  // the list sits under Joints (advanced), which already opens and closes it and counts it
   return (
-    <div className="subsection" data-testid="inspector-connection">
-      <button className="collapse-head" aria-expanded={shown} onClick={() => setShown(!shown)}>
-        <span className="chev">
-          <Icon name="chevRight" size={14} />
-        </span>
-        {t('conn.listN', { n: list.length })}
-      </button>
-      {shown &&
-        list.map((c) => {
+    <div className="conn-list" data-testid="inspector-connection">
+      {list.map((c) => {
           const other = c.a.panelId === panelId ? c.b.panelId : c.a.panelId;
           const isOpen = c.id === open;
           return (
@@ -348,7 +341,8 @@ export function JointsAdvanced({ panelId }: { panelId: string }) {
           <span className="chev">
             <Icon name="chevRight" size={14} />
           </span>
-          {t('insp.joints')}
+          <span className="head-title">{t('insp.joints')}</span>
+          {n > 0 && <span className="head-count">{n}</span>}
         </button>
         {expanded && (
           <>

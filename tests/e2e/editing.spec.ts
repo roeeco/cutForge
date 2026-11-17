@@ -178,6 +178,7 @@ test('editing tools in the solo view and 3D', async ({ page }) => {
   }, [wall]);
   await S(page, ([a]: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'detail', id: 'xw', ids: [a, 'xw'] }), [ids[0]]);
   await expect(page.getByTestId('align-unavailable')).toBeVisible();
-  await expect(page.getByTestId('align-left')).toBeDisabled();
+  // the reason is shown instead of a row of buttons that cannot be used (maintenance round)
+  await expect(page.getByTestId('align-left')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

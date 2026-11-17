@@ -71,3 +71,90 @@ test('Round and Rounded are rail buttons of their own; the Polygon card draws po
   expect(d.order.length).toBe(1);
   expect(d.panels[d.order[0]].sketch.pts.every((q: any) => q.curve === 'round')).toBe(true);
 });
+
+/** Controls in a card that run out of it, and buttons closer than `gap` px to each other. */
+async function cramped(page: Page, selector: string, gap = 6) {
+  return page.evaluate(
+    ([sel, g]) => {
+      const out: string[] = [];
+      for (const card of document.querySelectorAll(sel as string)) {
+        const box = card.getBoundingClientRect();
+        const name = (el: Element) => (el as HTMLElement).dataset.testid ?? el.textContent?.trim().slice(0, 24) ?? el.tagName;
+        const ctl = [...card.querySelectorAll('button, input, select')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && !el.closest('.segmented, .seg, .stepper-row, .num-wrap, .dial, .collapse-head, .conn-row');
+        });
+        for (const el of ctl) {
+          const r = el.getBoundingClientRect();
+          if (r.left < box.left - 0.5 || r.right > box.right + 0.5) out.push(`${name(el)} runs out of the card`);
+        }
+        const btns = ctl.filter((el) => el.tagName === 'BUTTON' && !el.classList.contains('link'));
+        for (let i = 0; i < btns.length; i++)
+          for (let j = i + 1; j < btns.length; j++) {
+            const a = btns[i].getBoundingClientRect(), b = btns[j].getBoundingClientRect();
+            const sameRow = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 4;
+            const sameCol = Math.min(a.right, b.right) - Math.max(a.left, b.left) > 4;
+            const dx = Math.max(b.left - a.right, a.left - b.right), dy = Math.max(b.top - a.bottom, a.top - b.bottom);
+            if ((sameRow && dx < g) || (sameCol && dy < g && dy > -1)) out.push(`${name(btns[i])} / ${name(btns[j])}: ${Math.round(sameRow ? dx : dy)}px apart`);
+          }
+      }
+      return out;
+    },
+    [selector, gap] as const,
+  );
+}
+
+test('the contextual card keeps its controls inside it and apart', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
+  const d = await organiser(page);
+  const sel = (s: unknown) => S(page, (x) => (window as any).__cutforge.store.getState().select(x), s);
+  const front = d.order[1];
+  const shape = await S<string>(page, (id) => {
+    const { store, ops } = (window as any).__cutforge;
+    let a = '', b = '', c = '';
+    store.getState().apply((x: any) => {
+      a = ops.addDetail(x, id, 'rect', 'cut', 30, 25, 12, 10);
+      b = ops.addDetail(x, id, 'circle', 'cut', 80, 25, 10, 10);
+      c = ops.addDetail(x, id, 'rect', 'engrave', 130, 25, 12, 10);
+    });
+    return [a, b, c].join(',');
+  }, front);
+  const ids = shape.split(',');
+  const states: [string, unknown][] = [
+    ['nothing', null],
+    ['base', { kind: 'panel', id: d.order[0] }],
+    ['wall', { kind: 'panel', id: front }],
+    ['divider', { kind: 'panel', id: d.order[6] }],
+    ['shape', { kind: 'detail', id: ids[0], ids: [ids[0]] }],
+    ['shapes', { kind: 'detail', id: ids[2], ids }],
+    ['walls', { kind: 'panel', id: d.order[2], ids: [d.order[1], d.order[2]] }],
+    ['edge', { kind: 'edge', panelId: front, edge: 'e2' }],
+  ];
+  for (const [name, s] of states) {
+    await sel(s);
+    await expect(page.locator('.card-dock .card')).toBeVisible();
+    expect(await cramped(page, '.card-dock .card'), name).toEqual([]);
+  }
+  // the joints list open
+  await sel({ kind: 'panel', id: front });
+  await page.getByTestId('joints-advanced').click();
+  expect(await cramped(page, '.card-dock .card'), 'joints').toEqual([]);
+});
+
+test('the narrow tool cards keep their pickers inside them, in both languages', async ({ page }) => {
+  await page.goto('/');
+  // card: the Box card also offers its bottoms (flat, snap-lock, tuck)
+  await page.getByTestId('mat-card-0.5').click();
+  await page.getByTestId('start-go').click();
+  for (const lang of ['en', 'he']) {
+    await page.evaluate((l) => (window as any).__cutforge.store.getState().setLang(l), lang);
+    for (const tool of ['tool-polygon', 'tool-round', 'tool-rounded', 'tool-shapes']) {
+      await page.getByTestId(tool).click();
+      expect(await cramped(page, '.poly-card, .shape-card'), `${lang} ${tool}`).toEqual([]);
+    }
+    await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ mode: 'quick' }));
+    await page.getByTestId('quick-box').click();
+    expect(await cramped(page, '.quick-card'), `${lang} box`).toEqual([]);
+    await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ mode: 'workshop' }));
+  }
+});

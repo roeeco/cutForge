@@ -810,3 +810,54 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .div-end { display: flex; align-items: center; gap: 6px; }
 .div-end span { flex: 1; font-size: 13px; }
 .div-end button { min-width: 28px; font-size: 16px; }
+
+/* ---------- the contextual card's rhythm (maintenance round) ----------
+   Controls had 4–6px between them and sections ran into each other; buttons
+   now keep 8px apart, sections 14px, and wrapped button labels stay legible. */
+.inspector .card-head { margin-block-end: 12px; gap: 6px; }
+.inspector .subsection { margin-block-start: 14px; padding-block-start: 14px; }
+.inspector h4 { margin: 0 0 8px; }
+.inspector section > h4:not(:first-child) { margin-block-start: 16px; }
+.inspector .field { margin: 10px 0; }
+.inspector .check { margin: 10px 0; line-height: 1.35; }
+.inspector .check input { flex: none; }
+.btn-grid { gap: 8px; margin: 8px 0; }
+.btn-grid button, .edge-buttons button { min-height: 34px; padding: 6px 8px; line-height: 1.25; }
+.btn-grid.icons { gap: 6px; }
+.btn-grid.icons button { height: 34px; }
+.edge-buttons { gap: 8px; }
+.card-actions { gap: 8px; margin-block-start: 14px; }
+.card-actions.split > button { flex: 1; }
+.chips, .obj-buttons { gap: 6px; }
+.obj-buttons button { padding: 4px 10px; }
+.snap-toggles { gap: 8px; }
+/* a lone button in a section (Edit outline, Flip side, Convert to points…) keeps clear of the field above and below */
+.inspector section > button:not(.link):not(.icon-btn):not(.collapse-head),
+.inspector .subsection > button:not(.link):not(.icon-btn):not(.collapse-head) { margin-block: 6px; }
+.inspector .note + button:not(.link) { margin-block-start: 2px; }
+/* the joint list under Joints (advanced) */
+.collapse-head .head-title { flex: 1; text-align: start; }
+.collapse-head .head-count {
+  min-width: 20px; padding: 0 6px; border-radius: var(--r-pill); background: var(--surface-sunk); color: var(--ink-muted);
+  font-size: 11px; font-weight: 600; letter-spacing: 0; line-height: 18px; text-align: center;
+}
+.collapse-head[aria-expanded='true'] { margin-block-end: 8px; }
+.conn-list { display: grid; gap: 8px; }
+.conn-list .conn { margin: 0; }
+.conn .field:last-child { margin-block-end: 2px; }
+/* a field whose control does not fit beside its label (a four-way picker, a long Hebrew label) puts it on the next line
+   instead of running out of the card; pickers wrap inside the card as a last resort */
+.field { flex-wrap: wrap; row-gap: 6px; }
+.field > .label, .field > label { min-width: 0; }
+.segmented { flex-wrap: wrap; max-width: 100%; }
+.quick-card .segmented button, .poly-card .segmented button { padding-inline: 9px; }
+/* Quick build's and the polygon tool's narrow cards: a picker sits under its label as an even grid */
+.quick-card .field:has(> .segmented), .poly-card .field:has(> .segmented) { flex-direction: column; align-items: stretch; row-gap: 6px; }
+.quick-card .field > .segmented, .poly-card .field > .segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); width: 100%; }
+/* four choices: two rows of two, so long words (Rectangle) keep their room */
+.quick-card .field > .segmented:has(> button:nth-child(4)), .poly-card .field > .segmented:has(> button:nth-child(4)) { grid-template-columns: 1fr 1fr; }
+.quick-card .field > .segmented button, .poly-card .field > .segmented button { justify-content: center; }
+/* lists of big buttons: 4px between them read as one block */
+.div-ends { gap: 8px; }
+.op-list { gap: 6px; }
+.shape-pick, .sticker-grid { gap: 6px; }

@@ -178,6 +178,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
     if (p) {
       const pc = parentConnection(d, id);
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
+      const growable = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, id, e.key, MIN_PANEL));
       body = (
         <section data-testid="inspector-panel" key={id}>
           <p className="kicker" data-testid="panel-kicker">{placedWhere(d, id, t) ?? t('insp.part')}</p>
@@ -266,15 +267,14 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <Gate f="joints">
             <JointsAdvanced panelId={id} />
           </Gate>
-          <div className="subsection">
-            <h4>{t('insp.edges')}</h4>
-            <div className="edge-buttons">
-              {panelEdges(p)
-                .filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key))
-                .map(({ key: e }) => (
+          {/* only the edges a board can still grow from: a row of greyed buttons for the walled ones was noise */}
+          {growable.length > 0 && (
+            <div className="subsection">
+              <h4>{t('insp.edges')}</h4>
+              <div className="edge-buttons">
+                {growable.map(({ key: e }) => (
                   <button
                     key={e}
-                    disabled={!edgeHasRoom(d, id, e, MIN_PANEL)}
                     onClick={() => {
                       useStore.getState().select({ kind: 'edge', panelId: id, edge: e });
                       useStore.getState().setView('3d');
@@ -284,8 +284,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
                     {t('insp.growFrom', { edge: edgeLabel(d, id, e, t) })}
                   </button>
                 ))}
+              </div>
             </div>
-          </div>
+          )}
         </section>
       );
     }
