@@ -220,8 +220,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <PanelHinge panelId={id} />
             {pc?.kind === 'fold' && <BendSection c={pc} />}
             {pc && <CutChoice c={pc} />}
-            <ClosureSection panelId={id} />
           </Gate>
+          {/* how a lid closes its box is on the lid's card in Quick build too (PACKAGING_PLAN.md decision 8); it was behind More… */}
+          <ClosureSection panelId={id} />
           <TrayWallNote panelId={id} />
           <Gate f="curves">
             <MatchSection panelId={id} />

@@ -2,6 +2,7 @@
 // the export check list, one green badge when nothing blocks cutting, or how
 // many things to fix, each with one button that fixes it.
 import { useDeferredValue, useMemo, useState } from 'react';
+import { issueVars } from '../model/names';
 import { issueSelection, useStore, useT } from '../store/store';
 import { validate, type Issue } from '../model/validate';
 import { sheetUse } from './sheet';
@@ -46,7 +47,7 @@ export function ReadyBadge() {
           <ul>
             {blockers.map((i, k) => (
               <li key={k} data-testid="ready-issue" data-key={i.key}>
-                <span dir="auto">{t(i.key, i.vars)}</span>
+                <span dir="auto">{t(i.key, issueVars(d, i, t))}</span>
                 <span className="row">
                   <button className="link" onClick={() => show(i)}>
                     {t('ready.show')}
@@ -70,7 +71,7 @@ export function ReadyBadge() {
               <ul className="notes">
                 {notes.map((i, k) => (
                   <li key={k} className="note" dir="auto">
-                    {t(i.key, i.vars)}
+                    {t(i.key, issueVars(d, i, t))}
                   </li>
                 ))}
               </ul>

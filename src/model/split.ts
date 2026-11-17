@@ -16,13 +16,13 @@ import { applyX, composeX, contourArea, flattenContour, IDENTITY, invertPoint } 
 import { findEdge, panelEdges } from './edges';
 import { extrasByPanel } from './geometry';
 import { matIdOf, profileOf } from './materials';
-import { grownFoldXform, netFolds } from './pieces';
+import { grownFoldXform, netFolds, pieceKeyOf } from './pieces';
 import { constructionSet } from './place';
 import { bandOf } from './bands';
 import { closureId } from './closures';
 import { ownKind } from './flatnet';
 import { wingStrip } from './wings';
-import { pack, pieceCopies } from './pack';
+import { pack, pieceCopies, quantityRoot } from './pack';
 
 export type SplitMode = 'must' | 'save' | 'never';
 export const splitMode = (d: Design): SplitMode => d.split ?? 'must';
@@ -282,10 +282,23 @@ export type SavePlan = {
   after: Yield;
 };
 
-/** Glue joints (and other joints that are assembly work, not folds) in a design. */
+/**
+ * Glue joints in what is cut: joints held by a glue flap (a rounded corner's
+ * glued lip among them) and lids closed with glue, once for each copy cut.
+ * Finger joints, tabs, slit locks, keys and folds hold without glue. (It
+ * counted every joint that was not a fold: a plywood finger box had "4 glue
+ * joints", a glue-free slit-lock tray too, glued corners none.)
+ */
 export function joints(d: Design): number {
   const guides = constructionSet(d);
-  return Object.values(d.connections).filter((c) => c.kind !== 'fold' && c.kind !== 'butt' && !c.wing && c.kind !== 'closure' && !guides.has(c.a.panelId) && !guides.has(c.b.panelId)).length;
+  const copies = (id: string) => Math.max(1, d.pieces[quantityRoot(d, pieceKeyOf(d, id))]?.quantity ?? 1);
+  let n = 0;
+  for (const c of Object.values(d.connections)) {
+    if (guides.has(c.a.panelId) || guides.has(c.b.panelId) || !d.panels[c.a.panelId]) continue;
+    const glued = c.kind === 'glue' || (c.kind === 'closure' && [c.a.panelId, c.b.panelId].some((id) => d.closures?.[id]?.style === 'glued'));
+    if (glued) n += copies(c.a.panelId);
+  }
+  return n;
 }
 
 /**

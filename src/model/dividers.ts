@@ -552,7 +552,10 @@ const mod180 = (a: number) => {
 export function dividerGrid(d: Design, baseId: string): { grid: number; box: number } {
   const base = d.panels[baseId];
   let box = 0, best = -1;
-  if (base)
+  // a circle, an oval or a stadium is drawn along its own axes: its longest straight edge is at
+  // best its seam flat (12 mm, at 135° on a circle), which turned every divider to 45°
+  const round = base?.sketch.kind === 'poly' && !!base.sketch.round;
+  if (base && !round)
     for (const e of panelEdges(base)) {
       if (/~\d+/.test(e.key)) continue;
       const L = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);

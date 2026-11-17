@@ -6,7 +6,7 @@
 // renames parts and old projects get role names too.
 import type { Design } from './types';
 import { defaultOffset } from './ops';
-import { isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
+import { isCurveKey, isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
 import type { MsgKey } from '../i18n';
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string;
@@ -71,8 +71,34 @@ export function panelLabel(d: Design, id: string, t: T): string {
   const side = parentIsRoot && isRectSketch(d.panels[parentC.a.panelId]) ? rectEdgeIndex(parentC.a.edge) : null;
   if (side !== null && Math.abs(parentC.angle - 90) < 1e-6) return t('part.wallSide', { side: t(SIDE[side]) });
   if (parentIsRoot && side === null && Math.abs(parentC.angle - 90) < 1e-6) {
-    const n = panelEdges(d.panels[parentC.a.panelId]).findIndex((e) => e.key === parentC.a.edge);
+    // counted among the straight edges: the facets of a rounded corner or a round base's arcs are not
+    // walls (they made "Wall 24", "Wall 47" on a rounded tray)
+    const n = panelEdges(d.panels[parentC.a.panelId]).filter((e) => !isCurveKey(e.key)).findIndex((e) => e.key === parentC.a.edge);
     if (n >= 0) return t('part.wallN', { n: n + 1 });
   }
   return t('part.panel', { n: d.order.indexOf(id) + 1 });
+}
+
+/**
+ * An issue's message variables with its boards named as the rest of the
+ * editor names them. The checks store a board's own name, which for a board
+ * the student never named is a bare number ("The bend between 3 and 4"):
+ * each name is mapped back to the board the issue points at (its target, or
+ * the pair of a joint message) and shown as its label ("Front wall").
+ */
+export function issueVars(d: Design, i: { vars: Record<string, string | number>; target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }, t: T): Record<string, string | number> {
+  const v = { ...i.vars };
+  const targetPanel = i.target.kind === 'panel' ? i.target.id : d.order.find((id) => d.panels[id]?.details.some((x) => x.id === i.target.id));
+  const swap = (k: string, id: string | undefined) => {
+    const p = id ? d.panels[id] : undefined;
+    if (p && typeof v[k] === 'string' && (v[k] === p.name || v[k] === '?')) v[k] = panelLabel(d, id!, t);
+  };
+  if (i.pair) {
+    swap('a', i.pair[0]);
+    swap('b', i.pair[1]);
+    // a bend's message: the board it bends (the target) and the one it bends off
+    swap('other', i.pair[0] === targetPanel ? i.pair[1] : i.pair[0]);
+  }
+  swap('panel', targetPanel);
+  return v;
 }

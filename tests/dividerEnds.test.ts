@@ -204,6 +204,15 @@ describe('dividers at an angle', () => {
 describe('drawing a divider: a regular grid, Shift for 30° steps, Alt for any angle', () => {
   const ang = (l: { a: { x: number; y: number }; b: { x: number; y: number } }) => (Math.atan2(l.b.y - l.a.y, l.b.x - l.a.x) * 180) / Math.PI;
 
+  for (const shape of ['circle', 'oval'] as const)
+    it(`a ${shape} box's grid is its own axes, not its 12 mm seam flat's 135° (every line went to 45°)`, () => {
+      const d = roundBoxDesign(MATERIALS[0], shape, 120, shape === 'circle' ? 120 : 80);
+      const base = d.order[0];
+      expect(dividerGrid(d, base)).toEqual({ grid: 0, box: 0 });
+      // a line drawn across the middle, a little off: straight across
+      expect(ang(snapDividerLine(d, base, { x: 60, y: 10 }, { x: 62, y: 70 }, 'grid', 0))).toBeCloseTo(90, 9);
+    });
+
   it('with no divider yet, the line snaps along or across the box', () => {
     const { d, base } = box();
     expect(dividerGrid(d, base)).toEqual({ grid: 0, box: 0 });

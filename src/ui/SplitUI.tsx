@@ -57,7 +57,7 @@ export function YieldBar() {
   return (
     <div className="yield-bar" dir="auto" data-testid="yield" data-sheets={y.sheets} data-pieces={y.pieces}>
       <span className="yield-text" title={t('yield.title')}>
-        {t('yield.line', { sheets: sheetsText(y.sheets), pct: y.pct, cut: fmtNum(y.cut / 1000, 1), pieces: y.pieces, glue: y.glue })}
+        {t('yield.line', { sheets: sheetsText(y.sheets), pct: y.pct, cut: fmtNum(y.cut / 1000, 1), pieces: y.pieces === 1 ? t('yield.piece1') : t('yield.pieces', { n: y.pieces }), glue: y.glue === 1 ? t('yield.glue1') : t('yield.glues', { n: y.glue }) })}
       </span>
       <button onClick={doNest} title={t('yield.nestHelp')} data-testid="nest" className={nested ? 'on' : ''}>
         {t('yield.nest')}

@@ -1,13 +1,14 @@
 // Splitting nets into pieces (milestone 69, PACKAGING_PLAN.md §9.1).
 import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
-import { addRootPanel, addTray, applySavePlan, createDesign, solve } from '../src/model/ops';
-import { boxPlan, measureYield, planSaveMaterial } from '../src/model/split';
-import { pieceCopies } from '../src/model/pack';
-import { buildPieces } from '../src/model/pieces';
+import { addRootPanel, addTray, applySavePlan, autoConnect, createDesign, setAllJoints, solve } from '../src/model/ops';
+import { boxPlan, joints, measureYield, planSaveMaterial } from '../src/model/split';
+import { pieceCopies, quantityRoot } from '../src/model/pack';
+import { buildPieces, pieceKeyOf } from '../src/model/pieces';
 import { validate } from '../src/model/validate';
 import type { Design } from '../src/model/types';
 import { idempotence, roundTrip } from './harness';
+import { roundedTray } from './goldenDesigns';
 
 const CARD = MATERIALS[0]; // 500 x 300 sheet, 5 mm margin
 
@@ -139,5 +140,32 @@ describe('Save material', () => {
     for (const c of Object.values(d.connections)) if (c.grown && c.kind === 'fold') c.cut = 'keep';
     solve(d);
     expect(planSaveMaterial(d, solve, (x) => measureYield(x, boxPlan))).toBeNull();
+  });
+});
+
+describe('glue joints in the yield report', () => {
+  const tray = (m: (typeof MATERIALS)[number]) => {
+    const d = createDesign(m);
+    const base = addRootPanel(d, 0, 0, 120, 80);
+    addTray(d, base, 50);
+    autoConnect(d);
+    return { d, base };
+  };
+  it('counts joints held by glue, once per copy: not finger joints, not slit locks; glued rounded corners do count', () => {
+    // plywood fingers hold without glue (it said 4)
+    expect(joints(tray(MATERIALS[3]).d)).toBe(0);
+    // card corners: four glue flaps
+    const card = tray(MATERIALS[0]);
+    expect(joints(card.d)).toBe(4);
+    // three copies cut: twelve joints to glue (it said 4)
+    card.d.pieces[quantityRoot(card.d, pieceKeyOf(card.d, card.base))] = { quantity: 3 };
+    expect(joints(card.d)).toBe(12);
+    // slit locks: no glue (it said 4)
+    const lock = tray(MATERIALS[0]);
+    setAllJoints(lock.d, 'corner', 'lock');
+    autoConnect(lock.d);
+    expect(joints(lock.d)).toBe(0);
+    // a card tray on a rounded rectangle: its corners glued with a lip (it said 0)
+    expect(joints(roundedTray(MATERIALS[0], 15))).toBe(4);
   });
 });
