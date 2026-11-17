@@ -33,7 +33,15 @@ function jointFlatAdds(d: Design, p: Panel): Vec2[][] {
 
 const toShapePts = (pts: Vec2[]) => pts.map((p) => new THREE.Vector2(p.x, p.y));
 
-export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = {}): THREE.BufferGeometry {
+/**
+ * What a panel's 3D slab is made from: its outline rings, the holes in them,
+ * its thickness and side. Plain data, so the stage can tell whether a panel's
+ * slab really changed (its joints, a neighbour's slots, a fold-over's lock
+ * slots) without tracking every part of the design that feeds it.
+ */
+export type PanelShape = { t: number; side: 1 | -1; rings: Vec2[][]; holes: Vec2[][] };
+
+export function panelShape(d: Design, p: Panel, opts: { joints?: boolean } = {}): PanelShape {
   // its own material's thickness (a ghost: the material it would be made in)
   const t = d.panels[p.id] ? tOf(d, p.id) : profileOf(d, p.material).thickness;
   const own = ownOutline(p);
@@ -56,21 +64,38 @@ export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = 
     // holes the subtraction made (a through-cut inside the panel)
     for (const poly of res) for (const h of poly.slice(1)) extraHoles.push(h.slice(0, -1).map(([x, y]) => ({ x, y })));
   }
-  const shapes = rings.map((r) => new THREE.Shape(toShapePts(r)));
+  const holes: Vec2[][] = [];
+  for (const h of holeCuts(p)) for (const dc of h.contours) holes.push(flattenContour(dc, 0.05).slice().reverse());
+  for (const h of own.holes) holes.push(h.slice().reverse());
+  holes.push(...extraHoles);
+  if (opts.joints !== false) holes.push(...panelExtras(d, p).holes);
+  return { t, side: p.frame.side === -1 ? -1 : 1, rings, holes: holes.filter((h) => h.length >= 3) };
+}
+
+/** A short fingerprint of a panel shape: equal fingerprints build the same slab. */
+export function shapeKey(s: PanelShape): string {
+  const r = (v: number) => Math.round(v * 1000);
+  const ring = (pts: Vec2[]) => pts.map((q) => `${r(q.x)},${r(q.y)}`).join(' ');
+  return `${s.t}|${s.side}|${s.rings.map(ring).join('/')}|${s.holes.map(ring).join('/')}`;
+}
+
+/** The slab (an extrusion of the outline, holes cut) for a panel shape. */
+export function shapeGeometry(s: PanelShape): THREE.BufferGeometry {
+  const shapes = s.rings.map((r) => new THREE.Shape(toShapePts(r)));
   // each hole goes into the ring that contains it
-  const addHole = (pts: Vec2[]) => {
-    if (pts.length < 3) return;
-    const k = shapes.length > 1 ? Math.max(0, rings.findIndex((r) => pointInPolygon(pts[0], r))) : 0;
+  for (const pts of s.holes) {
+    if (!shapes.length) break;
+    const k = shapes.length > 1 ? Math.max(0, s.rings.findIndex((r) => pointInPolygon(pts[0], r))) : 0;
     shapes[k].holes.push(new THREE.Path(toShapePts(pts)));
-  };
-  for (const h of holeCuts(p)) for (const dc of h.contours) addHole(flattenContour(dc, 0.05).slice().reverse());
-  for (const h of own.holes) addHole(h.slice().reverse());
-  for (const h of extraHoles) addHole(h);
-  if (opts.joints !== false) for (const h of panelExtras(d, p).holes) addHole(h);
-  const g = new THREE.ExtrudeGeometry(shapes, { depth: t, bevelEnabled: false, curveSegments: 24 });
-  if (p.frame.side === -1) g.translate(0, 0, -t);
+  }
+  const g = new THREE.ExtrudeGeometry(shapes, { depth: s.t, bevelEnabled: false, curveSegments: 24 });
+  if (s.side === -1) g.translate(0, 0, -s.t);
   g.computeVertexNormals();
   return g;
+}
+
+export function panelGeometry(d: Design, p: Panel, opts: { joints?: boolean } = {}): THREE.BufferGeometry {
+  return shapeGeometry(panelShape(d, p, opts));
 }
 
 export function contourLinePoints(c: Contour, z: number): THREE.Vector3[] {

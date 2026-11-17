@@ -17,7 +17,7 @@ import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
 import { addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
 import { sketchRing, straightRing, wallCorners, type EdgeSeg } from '../model/edges';
 import { defaultEnd, roundPts } from '../model/round';
-import { detailSel, gridSnap, noSmartSnap, useStore, useT } from '../store/store';
+import { detailSel, gridSnap, noSmartSnap, uiDir, useStore, useT } from '../store/store';
 import { outlineTargets, snapOutlinePoint, type OutlineSnap, type OutlineTargets } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { fmtNum } from '../i18n';
@@ -626,15 +626,18 @@ export function PolygonToolCard() {
   if (tool !== 'polygon') return null;
   const set = useStore.getState().set;
   return (
-    <div className="card poly-card" data-testid="poly-card">
-      <p className="kicker">{t('tool.polygon')}</p>
-      <div className="seg" role="radiogroup" aria-label={t('poly.mode')}>
-        {(['click', 'ngon', 'round', 'rounded'] as const).map((x) => (
-          <button key={x} role="radio" aria-checked={mode === x} className={mode === x ? 'on' : ''} onClick={() => set({ polyMode: x })} data-testid={`poly-mode-${x}`}>
-            {t(`poly.mode.${x}`)}
-          </button>
-        ))}
-      </div>
+    <div className="card poly-card" dir={uiDir()} data-testid="poly-card" data-mode={mode}>
+      {/* Round and Rounded have rail buttons of their own; the Polygon card offers its two ways of drawing */}
+      <p className="kicker">{mode === 'round' || mode === 'rounded' ? t(`poly.mode.${mode}`) : t('tool.polygon')}</p>
+      {(mode === 'click' || mode === 'ngon') && (
+        <div className="seg" role="radiogroup" aria-label={t('poly.mode')}>
+          {(['click', 'ngon'] as const).map((x) => (
+            <button key={x} role="radio" aria-checked={mode === x} className={mode === x ? 'on' : ''} onClick={() => set({ polyMode: x })} data-testid={`poly-mode-${x}`}>
+              {t(`poly.mode.${x}`)}
+            </button>
+          ))}
+        </div>
+      )}
       {mode === 'ngon' && (
         <div className="field stepper-row">
           <span className="label">{t('poly.sides')}</span>
@@ -657,7 +660,8 @@ export function PolygonToolCard() {
         />
       )}
       {mode === 'rounded' && <NumField label={t('round.corner')} value={roundCorner} unit={t('unit.mm')} min={0.5} max={500} onCommit={(v) => set({ roundCorner: v })} testId="round-corner" />}
-      <p className="note">{t(`poly.help.${mode}`)}</p>
+      {/* how to draw is the stage's hint at the bottom; the card keeps what the hint does not say */}
+      {mode === 'click' && <p className="note">{t('poly.help.click')}</p>}
     </div>
   );
 }

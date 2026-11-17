@@ -273,6 +273,12 @@ type State = {
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
+  /**
+   * The rail's Polygon, Round and Rounded buttons: one drawing tool underneath
+   * (a board on the floor, a shape on a face), each its own button. Polygon
+   * keeps its last mode (click corners or regular).
+   */
+  choosePolyTool: (kind: 'polygon' | 'round' | 'rounded') => void;
   /** The first-use tour (milestone 43), or null. */
   tour: TourState | null;
   /** Start the tour: Workshop, a new blank plywood 3 mm design (as Start with Blank), the welcome screen closed, a known camera. */
@@ -547,6 +553,12 @@ export const useStore = create<State>()((set, get) => ({
     set({ viewPrefs: next });
   },
   setBoardPose: (pose) => set({ panelPose: pose }),
+  choosePolyTool: (kind) => {
+    const cur = get().polyMode;
+    const mode = kind === 'polygon' ? (cur === 'ngon' ? 'ngon' : 'click') : kind;
+    if (get().tool !== 'polygon') get().setTool('polygon');
+    if (cur !== mode) set({ polyMode: mode });
+  },
 }));
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
@@ -582,4 +594,13 @@ export function growKind(d: Design, g: GrowOptions, parentId?: string): Connecti
 export function useT() {
   const lang = useStore((s) => s.lang);
   return (key: MsgKey, vars?: Record<string, string | number>) => translate(lang, key, vars);
+}
+
+/**
+ * The interface's direction. The 3D stage is laid out left to right (its
+ * canvas and on-model labels), so cards and bars on it set this themselves.
+ * Components that call it re-render with the language through `useT`.
+ */
+export function uiDir(): 'rtl' | 'ltr' {
+  return useStore.getState().lang === 'he' ? 'rtl' : 'ltr';
 }

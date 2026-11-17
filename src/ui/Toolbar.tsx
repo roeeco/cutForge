@@ -86,6 +86,19 @@ function WorkshopRail() {
       </span>
     </button>
   );
+  const polyMode = useStore((s) => s.polyMode);
+  const polyBtn = (kind: 'polygon' | 'round' | 'rounded', key: MsgKey, icon: string, kbd?: string) => {
+    const on = tool === 'polygon' && (kind === 'polygon' ? polyMode === 'click' || polyMode === 'ngon' : polyMode === kind);
+    return (
+      <button key={kind} className={on ? 'on' : ''} aria-pressed={on} aria-label={t(key)} onClick={() => useStore.getState().choosePolyTool(kind)} data-testid={`tool-${kind}`}>
+        <Icon name={icon} />
+        <span className="tip" aria-hidden>
+          {t(key)}
+          {kbd && <kbd>{kbd}</kbd>}
+        </span>
+      </button>
+    );
+  };
   const boardBtn = (p: 'flat' | 'standing') => {
     const on = tool === 'panel' && pose === p;
     const key: MsgKey = p === 'flat' ? 'tool.panel' : 'tool.panelStanding';
@@ -122,7 +135,10 @@ function WorkshopRail() {
             <kbd>{'R U C'}</kbd>
           </span>
         </button>
-        {view === '3d' && railBtn('polygon', 'tool.polygon', 'polygon', 'G')}
+        {/* polygon, round and rounded: one drawing tool underneath, three buttons (each a shape of its own) */}
+        {view === '3d' && polyBtn('polygon', 'tool.polygon', 'polygon', 'G')}
+        {view === '3d' && polyBtn('round', 'tool.round', 'roundBase')}
+        {view === '3d' && polyBtn('rounded', 'tool.rounded', 'roundedBase')}
         {railBtn('text', 'tool.text', 'text', 'T')}
         <div className="rail-sep" />
         <button onClick={() => fileRef.current?.click()} aria-label={t('tool.import')} data-testid="import-svg">

@@ -5,7 +5,7 @@
 import { GRAZING_DEG, RING_DEAD_PX } from './grazing';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Edges, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { V3 } from '../model/types';
 import { evalNumber } from '../ui/NumField';
@@ -23,6 +23,16 @@ export const OverlayContext = createContext<React.RefObject<HTMLDivElement | nul
 export function StageHtml(props: ComponentProps<typeof Html>) {
   const portal = useContext(OverlayContext);
   return <Html zIndexRange={HTML_Z} {...props} portal={portal && portal.current ? (portal as React.RefObject<HTMLElement>) : undefined} />;
+}
+
+/**
+ * drei's Edges for one geometry, made again whenever the geometry is a new
+ * one. Edges keeps one fat-line buffer and three.js sizes its draw once, so
+ * reusing it for a new outline (a joint changed, a ghost resized) kept drawing
+ * the old outline, or stray segments across the stage.
+ */
+export function MeshEdges({ geometry, ...props }: { geometry: THREE.BufferGeometry } & Omit<ComponentProps<typeof Edges>, 'geometry' | 'ref'>) {
+  return <Edges key={geometry.uuid} geometry={geometry} {...props} />;
 }
 
 /** World size of one screen pixel at a point. */

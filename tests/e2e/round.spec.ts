@@ -23,12 +23,13 @@ async function drag(page: Page, a: { x: number; y: number }, b: { x: number; y: 
   await page.mouse.up();
 }
 
-test('a circle dragged with the polygon tool’s Round mode; its card makes it an oval, sets its ends, and converts it to points', async ({ page }) => {
+test('a circle dragged with the Round tool; its card makes it an oval, sets its ends, and converts it to points', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await start(page);
-  await page.keyboard.press('g');
-  await page.getByTestId('poly-mode-round').click();
+  // Round has its own rail button (a shape of its own, not a polygon mode)
+  await page.getByTestId('tool-round').click();
+  await expect(page.getByTestId('tool-round')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('round-circle').click();
   await drag(page, await floorPt(page, -40, 40), await floorPt(page, 40, -40));
   await page.getByTestId('ghost-ok').click();
@@ -58,10 +59,10 @@ test('a circle dragged with the polygon tool’s Round mode; its card makes it a
   expect(errors).toEqual([]);
 });
 
-test('Rounded mode, a corner rounded in Edit outline, and the material’s bend limits in the drawer', async ({ page }) => {
+test('the Rounded tool, a corner rounded in Edit outline, and the material’s bend limits in the drawer', async ({ page }) => {
   await start(page);
-  await page.keyboard.press('g');
-  await page.getByTestId('poly-mode-rounded').click();
+  await page.getByTestId('tool-rounded').click();
+  await expect(page.getByTestId('tool-rounded')).toHaveAttribute('aria-pressed', 'true');
   await setNum(page, 'round-corner', '12');
   await drag(page, await floorPt(page, -60, 40), await floorPt(page, 60, -40));
   await page.getByTestId('ghost-ok').click();

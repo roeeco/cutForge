@@ -7,7 +7,6 @@
 // waits for ✓ (Enter) or ✕ (Esc).
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Edges } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { gridSnap, noSmartSnap, useStore, useT, type PanelGhost } from '../store/store';
 import type { Design, Frame, P2, Panel, PanelPlace, V3 } from '../model/types';
@@ -19,7 +18,7 @@ import { panelEdges, rectSketch } from '../model/edges';
 import { faceTargets, snapOnFace, type FaceTargets } from '../model/snap';
 import { frameMatrix, panelGeometry } from './three-geom';
 import { STAGE } from './palette';
-import { DimLabel, ScreenSized, StageHtml, mmPerPx, priorityRaycast, useHandleDrag, useRayFromScreen } from './widgets';
+import { DimLabel, MeshEdges, ScreenSized, StageHtml, mmPerPx, priorityRaycast, useHandleDrag, useRayFromScreen } from './widgets';
 import { SNAP_PX } from '../geom/types';
 import { Icon } from '../ui/icons';
 import { planDividerLine, type DividerLinePlan } from '../easy/recipes';
@@ -217,7 +216,7 @@ export function PanelGhostView({ d }: { d: Design }) {
         <group matrixAutoUpdate={false} matrix={frameMatrix(ghost.frame)} userData={{ noAO: true, panelGhost: g.pose }}>
           <mesh geometry={geom} raycast={() => null}>
             <meshStandardMaterial color={refused ? STAGE.blocked : STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
-            <Edges threshold={25} lineWidth={2} color={refused ? STAGE.blocked : STAGE.ghostEdge} />
+            <MeshEdges geometry={geom} threshold={25} lineWidth={2} color={refused ? STAGE.blocked : STAGE.ghostEdge} />
           </mesh>
         </group>
       )}

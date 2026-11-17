@@ -50,7 +50,7 @@ export function bandLines(s: BandShown): { scores: THREE.BufferGeometry; cuts: T
 export function BandObject({ s, d, m, index, outlines }: { s: BandShown; d: Design; m: THREE.Matrix4; index: number; outlines: boolean }) {
   const geo = useMemo(() => bandGeometry(s), [s]);
   const lines = useMemo(() => bandLines(s), [s]);
-  const color = useMemo(() => boardColors(d, s.band.parent, Math.max(0, index)).face, [d.material, d.materials, s.band.parent, index]);
+  const color = useMemo(() => boardColors(d, s.band.parent, Math.max(0, index)).face, [d.material, d.materials, d.panels[s.band.parent]?.material, s.band.parent, index]);
   useEffect(() => () => geo.dispose(), [geo]);
   useEffect(() => () => (lines.scores.dispose(), lines.cuts.dispose()), [lines]);
   return (

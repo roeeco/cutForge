@@ -42,6 +42,10 @@ async function fits(page: Page) {
 }
 
 const SIZES = [
+  // small laptops and tablets in landscape: Download and the language used to run off the bar here
+  { width: 1024, height: 768 },
+  { width: 1100, height: 800 },
+  { width: 1180, height: 820 },
   { width: 1280, height: 800 },
   { width: 1366, height: 768 },
   { width: 1400, height: 850 },

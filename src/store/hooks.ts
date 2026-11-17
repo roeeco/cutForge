@@ -127,7 +127,9 @@ export function useKeyboard() {
         if (tool === 'panel' && s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
         else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') {
           if (tool === 'panel') s.setBoardPose('flat');
-          s.setTool(tool);
+          // G is the Polygon button's key: from Round or Rounded it goes back to polygon corners
+          if (tool === 'polygon') s.choosePolyTool('polygon');
+          else s.setTool(tool);
         }
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;

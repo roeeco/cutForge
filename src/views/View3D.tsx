@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT, type Quality } from '../store/store';
+import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
@@ -17,7 +17,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
-import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry } from './three-geom';
+import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
 import { BandObject } from './bandMesh';
@@ -26,7 +26,7 @@ import { connKindKey } from '../ui/connLabel';
 import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
-import { AngleArc, DimLabel, DimLine, Gizmo, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
+import { AngleArc, DimLabel, DimLine, Gizmo, MeshEdges, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
 import { netGroups, netOverlaps } from '../model/pieces';
@@ -135,6 +135,8 @@ type Label = { text: string; x: number; y: number };
 
 function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; quality: 'simple' | 'rich' }) {
   const t = useT();
+  // the view cube sits above the view buttons, which are on the left in Hebrew
+  const rtl = useStore((s) => s.lang === 'he');
   const design = useStore((s) => s.design);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
@@ -573,6 +575,22 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
     };
     w.__cutforge.camera = () => ({ position: camera.position.toArray().map((x) => Math.round(x * 1000) / 1000), ortho: camera instanceof THREE.OrthographicCamera });
+    // Test hook: each panel's slab as drawn (its outline's edge count) and the highlight drawn round it
+    // (segments it has, and how many the renderer draws); they must agree after any edit.
+    w.__cutforge.panelEdges = () => {
+      const out: Record<string, { edges: number; highlight: number | null; drawn: number | null }> = {};
+      scene.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.userData.panelId) return;
+        const eg = new THREE.EdgesGeometry(mesh.geometry, 25);
+        const hl = mesh.children.find((c) => (c as THREE.Mesh).geometry instanceof THREE.InstancedBufferGeometry) as THREE.Mesh | undefined;
+        const g = hl?.geometry as (THREE.InstancedBufferGeometry & { _maxInstanceCount?: number }) | undefined;
+        const n = g?.attributes.instanceStart?.count ?? null;
+        out[mesh.userData.panelId] = { edges: eg.attributes.position.count / 2, highlight: n, drawn: g ? Math.min(g.instanceCount, g._maxInstanceCount ?? Infinity) : null };
+        eg.dispose();
+      });
+      return out;
+    };
     // Test hook: world bounding boxes of the panels and glue flaps as drawn (after the fold view's transforms).
     w.__cutforge.stageBoxes = () => {
       scene.updateMatrixWorld(true);
@@ -774,7 +792,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         </mesh>
       )}
       <OrbitControls makeDefault enableDamping={false} />
-      <GizmoHelper alignment="bottom-right" margin={[78, 128]} renderPriority={quality === 'rich' ? 2 : 1}>
+      <GizmoHelper alignment={rtl ? 'bottom-left' : 'bottom-right'} margin={[78, 128]} renderPriority={quality === 'rich' ? 2 : 1}>
         <GizmoViewcube
           faces={[t('cube.right'), t('cube.left'), t('cube.top'), t('cube.bottom'), t('cube.front'), t('cube.back')]}
           font='600 26px "Rubik UI", system-ui, sans-serif'
@@ -866,7 +884,11 @@ function PanelObject(props: {
 }) {
   const { d, p, selDetails, selEdge, tool } = props;
   const t = tOf(d, p.id);
-  const geom = useMemo(() => panelGeometry(d, p), [d.material, d.materials, d.connections, p, props.through]);
+  // the slab is rebuilt whenever its outline changes, whatever changed it: its
+  // joints, a neighbour's slots, a fold-over's lock slots, a through-cut
+  const shape = useMemo(() => panelShape(d, p), [d, p]);
+  const shapeSig = useMemo(() => shapeKey(shape), [shape]);
+  const geom = useMemo(() => shapeGeometry(shape), [shapeSig]);
   const removed = useMemo(() => !!props.through && removedByCut(d, p.id), [d, p.id, props.through]);
   const outline = useMemo(() => (props.outlines ? new THREE.EdgesGeometry(geom, 25) : null), [geom, props.outlines]);
   const matrix = useMemo(() => props.m.clone().multiply(frameMatrix(p.frame)), [p.frame, props.m]);
@@ -900,7 +922,7 @@ function PanelObject(props: {
         userData={{ panelId: p.id }}
       >
         {(props.selected || props.hover || props.cutHit) && (
-          <Edges threshold={25} lineWidth={props.selected ? 2.6 : props.cutHit ? 2.2 : 1.6} color={props.cutHit ? '#d97706' : props.selected ? STAGE.selected : STAGE.hover} renderOrder={4} />
+          <MeshEdges geometry={geom} threshold={25} lineWidth={props.selected ? 2.6 : props.cutHit ? 2.2 : 1.6} color={props.cutHit ? '#d97706' : props.selected ? STAGE.selected : STAGE.hover} renderOrder={4} />
         )}
       </mesh>
       {removed && <RemovedGhost d={d} p={p} />}
@@ -1137,7 +1159,7 @@ function ContentsView({ d, xf, onDown }: { d: Design; xf: Map<string, THREE.Matr
             <mesh position={[c.x, c.y, z + b.h / 2 + 0.2]} onPointerDown={(e) => onDown(c, e)} renderOrder={4}>
               <boxGeometry args={[b.w, b.d, b.h]} />
               <meshStandardMaterial color={fit.ok ? '#3bb273' : '#e0a030'} transparent opacity={0.45} depthWrite={false} />
-              <Edges color={fit.ok ? '#1f7a4a' : '#9a6400'} />
+              <Edges key={`${b.w}x${b.d}x${b.h}`} color={fit.ok ? '#1f7a4a' : '#9a6400'} />
             </mesh>
             <StageHtml position={[c.x, c.y, z + b.h + 4]} style={{ pointerEvents: 'none' }}>
               <span className={`w-dim ghost content-tag ${fit.ok ? 'ok' : 'no'}`} data-testid="content-tag" data-object={c.object} data-ok={fit.ok}>
@@ -1204,7 +1226,7 @@ function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map
 /** Rounded bend along a fold, with the crease (score line) on its outside. */
 function BendBead({ b, d, index, outlines }: { b: Bend; d: Design; index: number; outlines: boolean }) {
   const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.axis), [b.axis]);
-  const color = useMemo(() => boardColors(d, b.panelId, Math.max(0, index)).face, [d.material, d.materials, b.panelId, index]);
+  const color = useMemo(() => boardColors(d, b.panelId, Math.max(0, index)).face, [d.material, d.materials, d.panels[b.panelId]?.material, b.panelId, index]);
   const crease = useMemo(() => {
     const p0 = b.pivot.clone().addScaledVector(b.crease, b.radius * 1.04).addScaledVector(b.axis, -b.length / 2);
     const p1 = p0.clone().addScaledVector(b.axis, b.length);
@@ -1463,7 +1485,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       <group matrixAutoUpdate={false} matrix={ghost.matrix} userData={{ noAO: true }}>
         <mesh geometry={ghost.geom} raycast={() => null}>
           <meshStandardMaterial color={color} transparent opacity={blocked ? 0.34 : STAGE.ghostOpacity} depthWrite={false} />
-          <Edges threshold={25} lineWidth={2} color={warn ? '#a8690a' : STAGE.ghostEdge} />
+          <MeshEdges geometry={ghost.geom} threshold={25} lineWidth={2} color={warn ? '#a8690a' : STAGE.ghostEdge} />
         </mesh>
       </group>
       <ConfirmBar
@@ -1721,7 +1743,7 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
         <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true, trayGhost: g.key, changed: changed.has(g.key) }}>
           <mesh geometry={g.geom} raycast={() => null}>
             <meshStandardMaterial color={changed.has(g.key) ? STAGE.blocked : STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
-            <Edges threshold={25} lineWidth={2} color={changed.has(g.key) ? '#9a6400' : STAGE.ghostEdge} />
+            <MeshEdges geometry={g.geom} threshold={25} lineWidth={2} color={changed.has(g.key) ? '#9a6400' : STAGE.ghostEdge} />
           </mesh>
         </group>
       ))}
@@ -2597,7 +2619,7 @@ function FoldBar() {
   const hasFolds = useStore((s) => netGroups(s.design).some((g) => g.length > 1));
   if (!hasFolds) return null;
   return (
-    <div className="fold-bar card" dir="auto">
+    <div className="fold-bar card" dir={uiDir()}>
       <FoldSlider />
     </div>
   );
@@ -2639,6 +2661,7 @@ export function View3D() {
   // one wall selected: Shift-click the opposite wall for + Divider (milestone 32)
   const picking = useStore((s) => s.selection?.kind === 'panel' && !s.selection.ids && isWallLike(s.design, s.selection.id));
   const boardPose = useStore((s) => s.panelPose);
+  const polyMode = useStore((s) => s.polyMode);
   // the joints view shows one panel's joints at a time
   const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
   const hint =
@@ -2657,7 +2680,7 @@ export function View3D() {
           : tool === 'panel'
             ? boardPose === 'standing' ? 'tool.hint.boardStanding' : 'tool.hint.board'
             : tool === 'polygon'
-              ? 'tool.hint.polygon'
+              ? polyMode === 'click' ? 'tool.hint.polygon' : (`poly.help.${polyMode}` as const)
               : tool === 'text'
                 ? 'tool.hint.text'
                 : tool === 'box'
@@ -2689,7 +2712,7 @@ export function View3D() {
           {label.text} {t('unit.mm')}
         </div>
       )}
-      <div className="view-dock" dir="auto">
+      <div className="view-dock" dir={uiDir()}>
         <div className="cluster">
           <button className={ortho ? 'on' : ''} onClick={() => setOrtho((o) => !o)} title={`${ortho ? t('view.ortho') : t('view.persp')} (O)`} aria-label={ortho ? t('view.ortho') : t('view.persp')} data-testid="toggle-ortho">
             <Icon name={ortho ? 'ortho' : 'persp'} />
@@ -2718,9 +2741,12 @@ export function View3D() {
         {settings && <ViewSettings onClose={() => setSettings(false)} />}
         <MaterialLegend />
       </div>
-      <div className="view-hint" dir="auto">{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
+      {/* the fold slider above the hint, both at the bottom centre, clear of the cards at the sides */}
+      <div className="stage-bottom">
+        <FoldBar />
+        <div className="view-hint" dir={uiDir()}>{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
+      </div>
       <PolygonToolCard />
-      <FoldBar />
       <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );
