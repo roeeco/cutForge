@@ -184,8 +184,11 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
   // how high the end is, along the base's normal (its plane, or the walls' tops)
   const endZ = top ? Math.max(...ring.map((r) => v3dot(v3sub(toWorld(d.panels[r.wall].frame, 0, d.panels[r.wall].h, 0), base.frame.o), mb))) : 0;
   let layer = 0;
-  /** A flap out from a wall's end edge: `shape` in (x along the edge, out from it) coordinates. */
-  const flap = (P: Panel, shape: P2[]) => {
+  /**
+   * A flap out from a wall's end edge: `shape` in (x along the edge, out from it) coordinates.
+   * `fold3d`: the part of it folded flat across the end in 3D (default: all of it).
+   */
+  const flap = (P: Panel, shape: P2[], fold3d: P2[] = shape) => {
     const e = findEdge(P, top ? 'e2' : 'e0');
     if (!e) return;
     const L = segLength(e);
@@ -198,7 +201,7 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
     g.scores.push({ panelId: P.id, a: at({ x: 0, y: 0 }), b: at({ x: L, y: 0 }) });
     // folded in across the end: from the edge, along the wall's material direction (into the box)
     const mP = matDir(P.frame);
-    const folded = shape.map((q) => {
+    const folded = fold3d.map((q) => {
       const p = at({ x: q.x, y: 0 });
       const wpt = toWorld(P.frame, p.x, p.y, tOf(d, P.id) / 2);
       return toLocal(base.frame, [wpt[0] + mP[0] * q.y, wpt[1] + mP[1] * q.y, wpt[2] + mP[2] * q.y]);
@@ -240,7 +243,22 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
     for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 1, tW + 1, Math.max(8, 0.45 * width), 4));
     const LF = along(F), lip = Math.min(22, Math.max(12, 0.3 * depth));
     const r = 4;
-    flap(F, [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, { x: LF - tW - 0.5, y: depth }, { x: LF - tW - 0.5, y: depth + lip - r }, { x: LF - tW - 0.5 - r, y: depth + lip }, { x: tW + 0.5 + r, y: depth + lip }, { x: tW + 0.5, y: depth + lip - r }, { x: tW + 0.5, y: depth }, { x: 0.5, y: depth }]);
+    const lipShape: P2[] = [{ x: LF - tW - 0.5, y: depth }, { x: LF - tW - 0.5, y: depth + lip - r }, { x: LF - tW - 0.5 - r, y: depth + lip }, { x: tW + 0.5 + r, y: depth + lip }, { x: tW + 0.5, y: depth + lip - r }, { x: tW + 0.5, y: depth }];
+    // in 3D the flap folds flat across the bottom and its lip turns up inside the back wall
+    // (folded flat with the flap it ran on out past the back wall)
+    flap(F, [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, ...lipShape, { x: 0.5, y: depth }], [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, { x: 0.5, y: depth }]);
+    const eF = findEdge(F, 'e0');
+    if (eF) {
+      const L = segLength(eF), sx = (eF.b.x - eF.a.x) / L, sy = (eF.b.y - eF.a.y) / L;
+      const mF = matDir(F.frame), upB = B.frame.v;
+      const lipOnBack = lipShape.map((q) => {
+        // across the bottom to the back wall's inside, then up it
+        const w = toWorld(F.frame, eF.a.x + sx * q.x, eF.a.y + sy * q.x, 0);
+        const up = q.y - depth;
+        return toLocal(B.frame, [w[0] + mF[0] * depth + upB[0] * up, w[1] + mF[1] * depth + upB[1] * up, w[2] + mF[2] * depth + upB[2] * up]);
+      });
+      g.flaps3d.push({ panelId: B.id, poly: lipOnBack, z0: tW, z1: 2 * tW, owner: F.id });
+    }
     g.scores.push({ panelId: F.id, ...(() => {
       const e = findEdge(F, 'e0')!;
       const L = segLength(e), sx = (e.b.x - e.a.x) / L, sy = (e.b.y - e.a.y) / L;

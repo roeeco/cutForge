@@ -10,6 +10,7 @@ import { constructionSet } from '../src/model/place';
 import { closureId } from '../src/model/closures';
 import { endId, topLidId, trayRing } from '../src/model/cartons';
 import type { Design } from '../src/model/types';
+import { toLocal, toWorld } from '../src/model/frame';
 import { idempotence, roundTrip } from './harness';
 
 const [CARD, CORR16] = MATERIALS;
@@ -86,6 +87,28 @@ describe('cartons', () => {
     expect(issues(d)).toEqual([]);
     expect(() => sheetsToSvg(prepareExport(d).sheets)).not.toThrow();
   });
+
+  for (const bottom of ['tuck', 'snap', 'seal'] as const)
+    it(`${bottom} bottom: every flap folded in 3D stays inside the box (a tuck flap's lip ran out past the back wall)`, () => {
+      const { d, base, tray } = carton(CARD, { top: 'tuck', bottom });
+      const B = d.panels[base];
+      // the box's outside along the base's plane: its outline grown by the walls (and a hair)
+      const lim = { x0: -1, x1: B.w + 1, y0: -1, y1: B.h + 1 };
+      const flaps = d.connections[endId(d.trays[tray], 'bottom')]!.geom!.flaps3d;
+      expect(flaps.length).toBeGreaterThan(0);
+      for (const f of flaps) {
+        const P = d.panels[f.panelId];
+        for (const q of f.poly)
+          for (const z of [f.z0, f.z1]) {
+            const w = toWorld(P.frame, q.x, q.y, z);
+            const l = toLocal(B.frame, w);
+            expect(l.x, `${bottom} flap on ${P.name}`).toBeGreaterThanOrEqual(lim.x0);
+            expect(l.x).toBeLessThanOrEqual(lim.x1);
+            expect(l.y).toBeGreaterThanOrEqual(lim.y0);
+            expect(l.y).toBeLessThanOrEqual(lim.y1);
+          }
+      }
+    });
 
   it('a tuck top with a snap-lock bottom: four shaped bottom flaps, one piece', () => {
     const { d, tray } = carton(CARD, { top: 'tuck', bottom: 'snap' });

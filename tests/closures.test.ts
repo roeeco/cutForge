@@ -1,5 +1,6 @@
 // Milestone 67 (PACKAGING_PLAN.md §7): lids that seal their box get a closure.
 import { describe, expect, it } from 'vitest';
+import { panelShape } from '../src/views/three-geom';
 import { addEdgeFlap, addRootPanel, addTray, autoConnect, createDesign, growPanel, setClosure, setEdgeFlap, setPanelSize, solve } from '../src/model/ops';
 import { panelExtras } from '../src/model/geometry';
 import { MATERIALS } from '../src/model/materials';
@@ -134,6 +135,8 @@ describe('closures', () => {
     expect(ex.scores).toHaveLength(1);
     expect(Math.max(...ex.adds[0].map((q) => q.y))).toBeCloseTo(65, 6);
     expect(buildPieces(d)[0].contours.filter((c) => c.op === 'score')).toHaveLength(1);
+    // the stage's slab has it too, flat in the board's plane as on the cut plan (it was missing from 3D)
+    expect(Math.max(...panelShape(d, d.panels[p]).rings.flat().map((q) => q.y))).toBeCloseTo(65, 6);
     setEdgeFlap(d, p, 'e2', null);
     expect(panelExtras(d, d.panels[p]).adds).toEqual([]);
     const w = createDesign(PLY);
