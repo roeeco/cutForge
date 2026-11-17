@@ -1150,6 +1150,24 @@ Limitations
 - *Save material* compares bounding-box layouts (as the sheet meter shows them before nesting); a nested layout may do better still.
 - A fold on a rounded tray's corner band (a wing) or with a radius is never cut.
 
+## Milestone 70 — dividers that find their own ends ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.1, `DIVIDERS_PLAN.md`; the parked branch's milestone 44 commits `3dacd3c`, `70a5e69`, `d9336cf`, and `src/model/dividers.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/geometry.ts`, `src/model/split.ts`, `src/ui/PlacedUI.tsx`)
+- **Milestone 44, rebuilt by taking it:** a divider is a line drawn on its base (`Panel.divider` `{ at, rot, reach }`), a standing board whose ends `reconcileDividers` finds on every solve, in creation order (the far face of the first board beyond its reach; dividers within the reach crossed with half-laps, down to 30°); the Divider tool (`D`) in both modes with grid, Shift 30° and Alt free snapping and the ghost's end marks; the card's *Clear behind*, *Angle* and *Ends* ‹ ›; compartments as regions; schema 10 migrating grown dividers in place (golden exports byte-identical). Its tests (`dividerEnds`, the updated `dividers`, `arrange`, `joints`, `quickrecipes`, … and `e2e/dividers.spec.ts`) came with it. Conflicts only in `ops.ts` imports, `recipes.ts` imports, `Inspector.tsx` and the docs.
+- **Ends on curved walls (new):** `footprints` also returns each tray corner's band as facets (one per 7.5° of its arcs, between the band's two faces at the wall-before's distances from the base's edge, from the model like the walls'). An end meeting one stops at the band's inner face; its joint is derived (`bandend:<divider>:<end>`, `Connection.bandEnd`, kept by `reconcileDividers` like closures): a glue flap on the divider's end edge on card and corrugated (`flapOn`, milestone 67's flap), a slide fit on plywood. The card names it *The curved corner of …*.
+- **Fixed limitations of milestone 44:** a line run into a corner (another wall entered before it leaves the first) stops at the corner's inner point (`DividerEnd.corner`); a turn that would meet a board under 30° is refused (`rotatePlaced` returns false and leaves it), so no divider is left with an unjoined end.
+- **Splitting (milestone 69) counts corner bands:** the size estimate now includes the band strips a wall carries, so a card round box whose strip makes its net taller than the sheet is cut (base and strip) as it should be.
+
+Verified
+- `tests/dividerEnds.test.ts` (26): milestone 44's 20, and a divider across a round box in card, corrugated and plywood joined at both ends on its band (glue flaps, slide fit), stopping inside it, no overlap, idempotent, reopened; a rounded tray's divider near a corner ends on both bands, one on the straight on the walls, deleting it removes its band joints; a line into a corner; a turn under 30° refused.
+- **Golden exports:** byte-identical (including the organiser and the v7 divider file through the migration).
+- Unit suite: 685 pass, 7 skipped; typecheck clean.
+- Browser: the parked branch's `dividers.spec.ts` and updated `boards`, `quick`, `joints`, `refine` specs came with it. Full app suite (`--grep-invert classroom`): 106 passed, 0 failed, 57 skipped.
+
+Limitations
+- A divider's glue flap on a band is not drawn in 3D (it is cut and scored in the file).
+- Dividers still stand at 90° to the base and are straight (curved dividers are out of scope).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

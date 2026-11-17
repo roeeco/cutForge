@@ -152,7 +152,21 @@ export type Panel = {
   place?: PanelPlace;
   /** A guide (milestone 28), on the root of a net: drawn and snapped to, never cut or joined. Grown panels inherit it. */
   construction?: true;
+  /**
+   * A divider (milestone 44): a standing board on its base (`place`) drawn as
+   * a line. Its ends are found on every solve (src/model/dividers.ts), so
+   * `place.x/y` and `w` are derived; this record is what the student drew.
+   */
+  divider?: DividerRec;
 };
+
+/**
+ * A divider as drawn, in its base's local coordinates: a point on its
+ * mid-plane, its direction (degrees), and how far the drawn line reached each
+ * way from that point (mm, `reach[0]` ≤ 0 ≤ `reach[1]`). Each end runs to the
+ * first board beyond its reach; dividers it passes on the way are crossed.
+ */
+export type DividerRec = { at: P2; rot: number; reach: [number, number] };
 
 /**
  * Where a placed panel sits (milestone 28). `host` null is the floor. `x`, `y`
@@ -296,6 +310,8 @@ export type Connection = {
   autoCut?: true;
   /** Derived (milestone 69): this fold is cut; the parts join by `kind`. */
   split?: true;
+  /** Derived (milestone 70): a divider's end on a tray corner's band (that corner's wing connection id); `b` is the wall carrying the band. */
+  bandEnd?: string;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -469,4 +485,4 @@ export type Tray = {
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;

@@ -3,6 +3,8 @@ import type { Design } from './types';
 import { SCHEMA_VERSION } from './types';
 import { solve } from './ops';
 import { checkDesign, checkSolved, DamagedError } from './check';
+import { legacyDivider } from './dividers';
+import { rectSketch, straightRing } from './edges';
 
 export const PROJECT_FORMAT = 'cutforge-project';
 
@@ -88,7 +90,54 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     }
     return d;
   },
+  // v9 -> v10: dividers (milestone 44). A panel grown at 90° from a base's
+  // edge, standing in from it further than its joint's own offset, was a
+  // divider: it becomes a standing board on the base with a divider record
+  // that puts it exactly where it was (same id, order, shapes and height), and
+  // its joint with the base becomes the same joint as an edge on the base's
+  // face (same kind and settings). Anything that does not fit stays as it was.
+  9: (d) => migrateDividers(d),
 };
+
+function migrateDividers(d: any): any {
+  if (!d || typeof d !== 'object' || !d.panels || typeof d.panels !== 'object' || !d.connections || typeof d.connections !== 'object') return d;
+  for (const c of Object.values<any>(d.connections)) {
+    try {
+      if (!c?.grown || !c.a || !c.b) continue;
+      const p = d.panels[c.b.panelId], base = d.panels[c.a.panelId];
+      const m = base?.material && d.materials?.[base.material] ? d.materials[base.material] : d.material;
+      if (!p || !base || !m || typeof c.offset !== 'number') continue;
+      // the joint's own offset (tab-and-slot walls stand a web in): further in than that is a divider
+      const own = c.kind === 'tabslot' ? Math.max((m.kind === 'plywood' ? 2 : m.kind === 'corrugated' ? 3 : 1.5) + m.clearance / 2, m.thickness) : 0;
+      if (c.offset <= own + 1e-6) continue;
+      // nothing grown from it or placed on it is moved: those stay with it (its id is kept)
+      const rec = legacyDivider(d, p.id);
+      if (!rec) continue;
+      const s = p.sketch;
+      const plainWall = !s || (s.kind === 'wall' && !s.inserts?.length && !Object.values(s.corners ?? {}).some((k: any) => k && (k.dx || k.dy || k.curve)));
+      if (plainWall) p.sketch = rectSketch(p.w, p.h);
+      else if (s.kind === 'wall') {
+        const ring = straightRing({ w: p.w, h: p.h, sketch: s });
+        const curve = (key: string) => (key === 'e2' ? s.corners?.tr?.curve : key === 'e3' ? s.corners?.tl?.curve : s.inserts?.find((x: any) => x.id === key)?.curve);
+        p.sketch = { kind: 'poly', pts: ring.map((e) => ({ x: e.a.x, y: e.a.y, ...(curve(e.key) ? { curve: curve(e.key) } : {}) })), edgeIds: ring.map((e) => e.key) };
+      }
+      delete p.ext;
+      p.place = rec.place;
+      p.divider = rec.divider;
+      // the joint with the base: its edge on the base's face
+      c.grown = false;
+      c.a = { panelId: p.id, edge: 'e0' };
+      c.b = { panelId: base.id, edge: 'face' };
+      c.offset = 0;
+      delete c.span;
+      delete c.geom;
+      delete c.broken;
+    } catch {
+      // a damaged connection is left for checkDesign to report
+    }
+  }
+  return d;
+}
 
 export function serializeProject(d: Design): string {
   const f: ProjectFile = { format: PROJECT_FORMAT, schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), design: d };

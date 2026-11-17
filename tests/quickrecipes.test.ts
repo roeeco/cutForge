@@ -1,4 +1,5 @@
 // Quick build's actions (milestone 38): each recipe makes what the same steps make in Workshop.
+import { toWorld } from '../src/model/frame';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { useStore } from '../src/store/store';
 import { addDetail, addDividerFor, autoConnect, growPanel, addPathShape, addPolygonPanel, addRootPanel, addTray, createDesign, parentConnection, regularPolygon, setMaterial, solve } from '../src/model/ops';
@@ -92,8 +93,12 @@ describe('Divider', () => {
     // across the middle, its ends a little short of the walls (they snap)
     const r = dividerLine(a, base, { x: 60, y: 8 }, { x: 60, y: 84 });
     expect(r?.kind).toBe('divider');
-    addDividerFor(b, front, back);
-    expect(canon(a)).toBe(canon(b));
+    const id = addDividerFor(b, front, back)!;
+    // the same board (milestone 44: each remembers the line it was drawn as, so the records differ), joined the same way
+    expect(a.panels[r!.id].place).toEqual(b.panels[id].place);
+    expect(a.panels[r!.id].w).toBeCloseTo(b.panels[id].w, 9);
+    const kinds = (x: typeof a, p: string) => Object.values(x.connections).filter((c) => c.a.panelId === p || c.b.panelId === p).map((c) => c.kind).sort();
+    expect(kinds(a, r!.id)).toEqual(kinds(b, id));
   });
 
   it('off-centre, the divider stands at the line', () => {
@@ -102,18 +107,21 @@ describe('Divider', () => {
     const plan = planDividerLine(d, base, { x: 40, y: 2 }, { x: 40, y: 88 });
     expect(plan?.kind).toBe('divider');
     const r = dividerLine(d, base, { x: 40, y: 2 }, { x: 40, y: 88 })!;
-    const c = parentConnection(d, r.id)!;
-    // from the left edge (or the right one, by the base's edge order): the slab centred on the line
-    expect([c.offset, 120 - c.offset - t]).toContainEqual(expect.closeTo(40 - t / 2, 0));
+    // the slab centred on the line (milestone 44: a divider stands where it was drawn)
+    expect(d.panels[r.id].divider!.at.x).toBeCloseTo(40, 6);
+    const xs = [0, d.panels[r.id].w].map((x) => toWorld(d.panels[r.id].frame, x, 0, t / 2)[0]);
+    for (const x of xs) expect(x).toBeCloseTo(d.panels[base].frame.o[0] + 40, 6);
     // the compartments either side
     if (plan?.kind === 'divider' && plan.gaps) expect(plan.gaps[0] + plan.gaps[1] + t).toBeCloseTo(120 - 2 * t, 0);
   });
 
-  it('a line that stops short is a panel standing on the base', () => {
+  it('a line that stops short still makes a divider, running on to the walls (milestone 44)', () => {
     const { d, base } = box();
     const r = dividerLine(d, base, { x: 60, y: 8 }, { x: 60, y: 40 })!;
-    expect(r.kind).toBe('standing');
-    expect(d.panels[r.id].place).toMatchObject({ host: base, face: 1, pose: 'standing' });
+    expect(r.kind).toBe('divider');
+    expect(d.panels[r.id].divider).toBeTruthy();
+    // across the whole box: its ends are on the front and back walls
+    expect(d.panels[r.id].w).toBeCloseTo(d.panels[base].h, 6);
   });
 });
 

@@ -253,11 +253,13 @@ describe('milestone 16: causes of missed joints', () => {
       expect(between(d, lid, walls[0]).map((c) => c.broken)).toEqual([false]);
       expect(silentMisses(d)).toEqual([]);
     }
-    // two dividers placed into each other (deeper than any joint can take): flagged, both panels named
+    // two boards placed into each other (deeper than any joint can take): flagged, both panels named
     const { d, base } = plyBox();
     let a = '', b = '';
     edit(d, (x) => void (a = addDivider(x, base, 0, 30, 40)!));
-    edit(d, (x) => void (b = addDivider(x, base, 0, 31.5, 40)!));
+    // (milestone 44: a divider is not made inside another board, so the second is grown in from the edge)
+    expect(addDivider(d, base, 0, 31.5, 40)).toBeNull();
+    edit(d, (x) => void (b = growPanel(x, base, 0, { height: 40, angle: 90, dir: 'up', kind: 'tabslot', offset: 31.5 })!.panelId));
     expect(between(d, a, b)).toHaveLength(0);
     expect(validate(d).some((i) => i.key === 'val.collide' && i.pair!.includes(a) && i.pair!.includes(b))).toBe(true);
   });

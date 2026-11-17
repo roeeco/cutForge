@@ -54,9 +54,11 @@ export function panelLabel(d: Design, id: string, t: T): string {
   const tr = templateRole(t, id);
   if (tr) return tr;
   const conns = Object.values(d.connections);
+  // a divider (milestone 44): numbered among the dividers
+  if (p.divider) return t('part.divider', { n: d.order.filter((x) => d.panels[x]?.divider).indexOf(id) + 1 });
   const parentC = conns.find((c) => c.grown && c.b.panelId === id);
   if (!parentC) {
-    const roots = d.order.filter((x) => !conns.some((c) => c.grown && c.b.panelId === x));
+    const roots = d.order.filter((x) => !d.panels[x]?.divider && !conns.some((c) => c.grown && c.b.panelId === x));
     return roots[0] === id ? t('part.base') : t('part.panel', { n: roots.indexOf(id) + 1 });
   }
   if (parentC.kind === 'lean') return t('part.leaning');

@@ -127,7 +127,8 @@ test('milestone 16: panels run into each other: the export check names both and 
       const base = cf.ops.addRootPanel(d, -60, 40, 120, 80);
       for (const e of [0, 1, 2, 3]) cf.ops.growPanel(d, base, e, { height: 50, angle: 90, dir: 'up', kind: 'finger' });
       a = cf.ops.addDivider(d, base, 0, 30, 40);
-      b = cf.ops.addDivider(d, base, 0, 31.5, 40);
+      // (milestone 44: a divider is not made inside another board, so the second is grown in from the edge)
+      b = cf.ops.growPanel(d, base, 0, { height: 40, angle: 90, dir: 'up', kind: 'tabslot', offset: 31.5 }).panelId;
     });
     return [a, b];
   });
@@ -297,7 +298,9 @@ for (const mat of ['ply-3', 'corr-4'] as const) {
       expect(cs[0].kind).toBe('tabslot');
     }
     // centred: halfway along the walls (110 deep)
-    const c0 = Object.values(d.connections).find((c: any) => c.grown && c.b.panelId === nd) as any;
+    // milestone 44: where its slab starts, in from the front edge (it runs along it)
+    const offOf = (dd: any) => dd.panels[nd].divider.at.y - t / 2;
+    const c0 = { offset: offOf(d), a: { edge: 'e0' } };
     expect(c0.offset + t / 2).toBeCloseTo(55, 0);
     // drag it with its slide arrow, away and back: it snaps to equal compartments
     expect((await state(page)).selection.id).toBe(nd);
@@ -305,19 +308,19 @@ for (const mat of ['ply-3', 'corr-4'] as const) {
     const p = d.panels[nd];
     const from = await panelPt(page, nd, p.w / 2, p.h * 0.3);
     const step = async (mm: number) => {
-      const off = (Object.values((await design(page)).connections).find((c: any) => c.grown && c.b.panelId === nd) as any).offset;
+      const off = offOf(await design(page));
       const a = await S<{ x: number; y: number }>(page, ([b, e, o]: [string, string, number]) => (() => { const P = (window as any).__cutforge.store.getState().design.panels[b]; return (window as any).__cutforge.project(b, P.w / 2, e === 'e2' ? P.h - o : o, true); })(), [ids.base, c0.a.edge, off]);
       const b2 = await S<{ x: number; y: number }>(page, ([b, e, o]: [string, string, number]) => (() => { const P = (window as any).__cutforge.store.getState().design.panels[b]; return (window as any).__cutforge.project(b, P.w / 2, e === 'e2' ? P.h - o : o, true); })(), [ids.base, c0.a.edge, off + mm]);
       return { x: b2.x - a.x, y: b2.y - a.y };
     };
     const away = await step(14);
     await drag(page, from, { x: from.x + away.x, y: from.y + away.y });
-    const moved = (Object.values((await design(page)).connections).find((c: any) => c.grown && c.b.panelId === nd) as any).offset;
+    const moved = offOf(await design(page));
     expect(Math.abs(moved - c0.offset)).toBeGreaterThan(5);
     const from2 = await panelPt(page, nd, p.w / 2, p.h * 0.3);
     const back = await step(c0.offset - moved + 0.7);
     await drag(page, from2, { x: from2.x + back.x, y: from2.y + back.y });
-    const snapped = (Object.values((await design(page)).connections).find((c: any) => c.grown && c.b.panelId === nd) as any).offset;
+    const snapped = offOf(await design(page));
     expect(snapped).toBeCloseTo(c0.offset, 6);
     await expect(page.getByTestId('div-comp-0')).toBeVisible();
     // walls that are not parallel: greyed, with the reason

@@ -331,8 +331,13 @@ export function edgeFlapGeom(d: Design, p: Panel, f: { edge: string; len: number
   if (!e) return null;
   const joined = Object.values(d.connections).some((c) => (c.a.panelId === p.id && findEdge(p, c.a.edge)?.key === e.key) || (c.b.panelId === p.id && c.b.edge !== 'face' && findEdge(p, c.b.edge)?.key === e.key));
   if (joined) return null;
+  return flapOn(e, f.len);
+}
+
+/** A flap `len` mm out from an edge, its ends tapered 30°, and its score line (milestone 67; a divider's end on a curved band, milestone 70). */
+export function flapOn(e: EdgeSeg, len0: number): { poly: P2[]; score: { a: P2; b: P2 } } {
   const L = segLength(e), dir = segDir(e), inw = segInward(e);
-  const len = Math.max(2, f.len);
+  const len = Math.max(2, len0);
   const taper = Math.min(len * Math.tan(Math.PI / 6), L / 3);
   const at = (s: number, o: number): P2 => ({ x: e.a.x + dir.x * s - inw.x * o, y: e.a.y + dir.y * s - inw.y * o });
   return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, 0), b: at(L, 0) } };

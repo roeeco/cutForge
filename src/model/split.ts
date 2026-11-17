@@ -21,6 +21,7 @@ import { constructionSet } from './place';
 import { bandOf } from './bands';
 import { closureId } from './closures';
 import { ownKind } from './flatnet';
+import { wingStrip } from './wings';
 import { pack, pieceCopies } from './pack';
 
 export type SplitMode = 'must' | 'save' | 'never';
@@ -91,9 +92,21 @@ function wholeNets(d: Design): Whole[] {
   return out;
 }
 
-/** Each panel's outline points (panel-local), with the flaps and tabs joints add to it. */
+/** The strips of corner bands (milestone 64) a wall carries past its end, by wall: drawn with the net, not as joint geometry. */
+function wingPoints(d: Design): Map<string, P2[]> {
+  const out = new Map<string, P2[]>();
+  for (const c of Object.values(d.connections)) {
+    if (!c.wing) continue;
+    const s = wingStrip(d, c);
+    if (s) out.set(s.parent, [...(out.get(s.parent) ?? []), ...s.strip]);
+  }
+  return out;
+}
+
+/** Each panel's outline points (panel-local), with the flaps and tabs joints add to it and the bands it carries. */
 function panelPoints(d: Design): (id: string) => P2[] {
   const extras = extrasByPanel(d);
+  const wings = wingPoints(d);
   const cache = new Map<string, P2[]>();
   return (id) => {
     let pts = cache.get(id);
@@ -101,6 +114,7 @@ function panelPoints(d: Design): (id: string) => P2[] {
       const p = d.panels[id];
       pts = p ? panelEdges(p).map((e) => e.a) : [];
       for (const poly of extras.get(id)?.adds ?? []) pts = pts.concat(poly);
+      pts = pts.concat(wings.get(id) ?? []);
       cache.set(id, pts);
     }
     return pts;
@@ -203,9 +217,10 @@ export function fitSplit(d: Design): boolean {
   }
   const nets = wholeNets(d);
   // the quick look: every net well inside its sheet and nothing cut by the app
+  const wings = d.order.some((id) => d.panels[id]?.sketch?.kind === 'poly') ? wingPoints(d) : new Map<string, P2[]>();
   const ring = (id: string) => {
     const p = d.panels[id];
-    return p ? panelEdges(p).map((e) => e.a) : [];
+    return p ? panelEdges(p).map((e) => e.a).concat(wings.get(id) ?? []) : [];
   };
   const slack = 40;
   if (!had.length && nets.every((n) => partsOf(d, n, new Set(), ring).every((p) => overflow(d, { ...p, w: p.w + slack, h: p.h + slack }) <= 0))) return false;

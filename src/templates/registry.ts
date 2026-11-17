@@ -21,8 +21,9 @@ export function defaults(t: TemplateDef): Params {
 function renameIds(d: Design, map: Map<string, string>) {
   const r = (id: string) => map.get(id) ?? id;
   const panels: Design['panels'] = {};
-  for (const [id, p] of Object.entries(d.panels)) panels[r(id)] = { ...p, id: r(id) };
+  for (const [id, p] of Object.entries(d.panels)) panels[r(id)] = { ...p, id: r(id), ...(p.place?.host ? { place: { ...p.place, host: r(p.place.host) } } : {}) };
   d.panels = panels;
+  for (const t of Object.values(d.trays ?? {})) t.baseId = r(t.baseId);
   d.order = d.order.map(r);
   const pieces: Design['pieces'] = {};
   for (const [id, q] of Object.entries(d.pieces)) pieces[r(id)] = q;

@@ -148,10 +148,14 @@ describe('the tour steps', () => {
     const lid = Object.values(d.connections).find((c) => c.grown && c.a.panelId === tourWalls(d)!.back && c.a.edge.startsWith('e2'))!.b.panelId;
     expect(s.hide!(d)).toEqual([lid]);
     const base = tourBase(d)!, p = d.panels[base];
-    // across the base from the left wall to the right one (a line drawn with the Board tool, perpendicular on)
+    // across the base from the left wall to the right one (a line drawn with the Divider tool)
     const a = edit(d, (x) => expect(dividerLine(x, base, { x: 5, y: p.h / 2 }, { x: p.w - 5, y: p.h / 2 })?.kind).toBe('divider'));
     expect(done(s, a, d)).toBe(true);
-    const short = edit(d, (x) => expect(dividerLine(x, base, { x: 20, y: p.h / 2 }, { x: 60, y: p.h / 2 })?.kind).toBe('standing'));
+    // milestone 44: a short divider line runs on to the walls too
+    const shortLine = edit(d, (x) => expect(dividerLine(x, base, { x: 20, y: p.h / 2 }, { x: 60, y: p.h / 2 })?.kind).toBe('divider'));
+    expect(done(s, shortLine, d)).toBe(true);
+    // a standing board (the Board tool) is not a divider
+    const short = edit(d, (x) => void addPlacedPanel(x, { host: base, face: 1, x: 20, y: p.h / 2, rot: 0, pose: 'standing', side: 1 }, 40, 30));
     expect(done(s, short, d)).toBe(false);
     expect(s.notQuite!(state(short), d)).toBe('tour.divider.notQuite');
     const k = edit(d, s.skip!);

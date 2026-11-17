@@ -23,6 +23,8 @@ import { DimLabel, ScreenSized, StageHtml, mmPerPx, priorityRaycast, useHandleDr
 import { SNAP_PX } from '../geom/types';
 import { Icon } from '../ui/icons';
 import { planDividerLine, type DividerLinePlan } from '../easy/recipes';
+import { clipLine, dividersOn, footprints, snapDividerLine } from '../model/dividers';
+import type { MsgKey } from '../i18n';
 import { confirmDividerLine } from '../easy/actions';
 import { boardFromGhost, ghostPlace } from './board';
 
@@ -44,15 +46,44 @@ export function hostFace(d: Design, host: string | null, face: 1 | -1): { H: Fra
   return { H, plane: new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...frameNormal(H)), at), z };
 }
 
-/** A divider line's ghost (milestone 38): what the line makes, drawn as a panel standing along it. */
-export function dividerGhost(d: Design, g: PanelGhost): { gp: { place: PanelPlace; w: number; h: number }; plan: DividerLinePlan } | null {
+/** A mark on a divider ghost (milestone 44): an end joined to a board, an open end at the base's edge, or where it crosses a divider. */
+export type DividerMark = { at: P2; kind: 'board' | 'edge' | 'cross' };
+
+/**
+ * A divider line's ghost (milestones 38, 44): the divider it makes, at its full
+ * length (its ends found as they will be), with marks at its ends and
+ * crossings; or, when refused, the line as drawn and the reason.
+ */
+export function dividerGhost(d: Design, g: PanelGhost): { gp: { place: PanelPlace; w: number; h: number }; plan: DividerLinePlan; marks: DividerMark[] } | null {
   if (!g.divider || !g.host) return null;
   const plan = planDividerLine(d, g.host, g.a, g.b, g.height);
   if (!plan) return null;
-  const rot = (Math.atan2(plan.b.y - plan.a.y, plan.b.x - plan.a.x) * 180) / Math.PI;
-  const w = Math.hypot(plan.b.x - plan.a.x, plan.b.y - plan.a.y);
-  const h = plan.kind === 'divider' ? plan.plan.height : plan.height;
-  return { gp: { place: { host: g.host, face: 1, x: plan.a.x, y: plan.a.y, rot, pose: 'standing', side: 1 }, w, h }, plan };
+  if (plan.kind === 'refused') {
+    const rot = (Math.atan2(plan.b.y - plan.a.y, plan.b.x - plan.a.x) * 180) / Math.PI;
+    const w = Math.hypot(plan.b.x - plan.a.x, plan.b.y - plan.a.y);
+    return { gp: { place: { host: g.host, face: 1, x: plan.a.x, y: plan.a.y, rot, pose: 'standing', side: 1 }, w, h: Math.max(MIN_PANEL, g.height) }, plan, marks: [] };
+  }
+  const sp = plan.span;
+  const pt = (k: number): P2 => ({ x: sp.o.x + sp.dir.x * k, y: sp.o.y + sp.dir.y * k });
+  const start = pt(sp.t0);
+  const marks: DividerMark[] = [
+    { at: pt(sp.t0), kind: sp.ends[0].board ? 'board' : 'edge' },
+    { at: pt(sp.t1), kind: sp.ends[1].board ? 'board' : 'edge' },
+  ];
+  // where it crosses each divider: the middle of its pass through that divider's slab
+  const feet = footprints(d, g.host, new Set(dividersOn(d, g.host)));
+  for (const id of sp.crosses) {
+    const f = feet.find((x) => x.id === id);
+    const r = f && clipLine(sp.o, sp.dir, f.quad);
+    if (r) marks.push({ at: pt((r[0] + r[1]) / 2), kind: 'cross' });
+  }
+  return { gp: { place: { host: g.host, face: 1, x: start.x, y: start.y, rot: plan.rec.rot, pose: 'standing', side: 1 }, w: sp.t1 - sp.t0, h: plan.height }, plan, marks };
+}
+
+/** What a divider ghost's note says: the compartments either side, or why it cannot be made. */
+export function dividerNote(t: ReturnType<typeof useT>, plan: DividerLinePlan): string {
+  if (plan.kind === 'refused') return t(`div.refuse.${plan.why}` as MsgKey);
+  return plan.gaps ? t('quick.dividerMakes', { a: plan.gaps[0], b: plan.gaps[1] }) : t('quick.dividerWall');
 }
 
 /**
@@ -159,6 +190,12 @@ export function PanelGhostView({ d }: { d: Design }) {
       const tol = SNAP_PX * mmPerPx(camera, gl.domElement.clientHeight || 600, hit);
       const cur = useStore.getState().panelGhost;
       if (!cur) return;
+      if (cur.divider && cur.host) {
+        // a divider's end: the same grid, Shift and Alt as drawing (milestone 44)
+        const ln = snapDividerLine(d, cur.host, which === 'a' ? cur.b : cur.a, l, ev.altKey ? 'free' : ev.shiftKey ? 'steps30' : 'grid', tol);
+        set(which === 'a' ? { a: ln.b, b: ln.a } : { a: ln.a, b: ln.b });
+        return;
+      }
       const q = snapLineEnd(d, cur.host, targets, which === 'a' ? cur.b : cur.a, l, tol, ev);
       set(which === 'a' ? { a: q } : { b: q });
     };
@@ -170,6 +207,7 @@ export function PanelGhostView({ d }: { d: Design }) {
   const top: V3 | null = ghost ? toWorld(ghost.frame, ghost.w / 2, g.pose === 'flat' ? ghost.h / 2 : ghost.h, th) : null;
   const barAt: V3 | null = top ? [top[0] + out[0] * 14, top[1] + out[1] * 14, top[2] + out[2] * 14] : null;
   const plan = dv?.plan;
+  const refused = plan?.kind === 'refused';
   // only Quick build's Divider waits after release
   const waiting = !g.drawing && !!g.divider;
   const ends: [P2, 'a' | 'b'][] = [[g.a, 'a'], [g.b, 'b']];
@@ -178,13 +216,21 @@ export function PanelGhostView({ d }: { d: Design }) {
       {ghost && geom && (
         <group matrixAutoUpdate={false} matrix={frameMatrix(ghost.frame)} userData={{ noAO: true, panelGhost: g.pose }}>
           <mesh geometry={geom} raycast={() => null}>
-            <meshStandardMaterial color={STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
-            <Edges threshold={25} lineWidth={2} color={STAGE.ghostEdge} />
+            <meshStandardMaterial color={refused ? STAGE.blocked : STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} />
+            <Edges threshold={25} lineWidth={2} color={refused ? STAGE.blocked : STAGE.ghostEdge} />
           </mesh>
         </group>
       )}
+      {dv?.marks.map((mk, i) => (
+        // what each end joins, and where it crosses a divider (milestone 44)
+        <StageHtml key={`mk${i}`} position={at(mk.at)} style={{ pointerEvents: 'none' }}>
+          <span className={`div-mark ${mk.kind}`} title={t(`div.mark.${mk.kind}` as MsgKey)} data-testid={`div-mark-${mk.kind}`}>
+            {mk.kind === 'cross' ? '✕' : mk.kind === 'board' ? '●' : '○'}
+          </span>
+        </StageHtml>
+      ))}
       {waiting && ends.map(([q, which]) => <GhostHandle key={which} at={at(q)} onMove={handle(which)} testId={`ghost-handle-${which}`} />)}
-      {ghost && waiting && gp && (
+      {ghost && waiting && gp && !g.divider && (
         <DimLabel
           at={at({ x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 })}
           k="W"
@@ -202,16 +248,16 @@ export function PanelGhostView({ d }: { d: Design }) {
       {g.divider && plan && g.drawing && (
         // the compartments while drawing (milestone 38)
         <StageHtml position={at({ x: (plan.a.x + plan.b.x) / 2, y: (plan.a.y + plan.b.y) / 2 })} style={{ pointerEvents: 'none' }}>
-          <span className="w-dim ghost" data-testid="divider-live" data-kind={plan.kind}>
-            {plan.kind === 'divider' ? (plan.gaps ? t('quick.dividerMakes', { a: plan.gaps[0], b: plan.gaps[1] }) : t('quick.dividerWall')) : t('quick.standingMakes')}
+          <span className={`w-dim ghost ${refused ? 'refused' : ''}`} data-testid="divider-live" data-kind={plan.kind}>
+            {dividerNote(t, plan)}
           </span>
         </StageHtml>
       )}
       {barAt && waiting && (
-        <ConfirmBar at={barAt} onOk={() => void confirmPanelGhost()} onCancel={cancelPanelGhost} okDisabled={!gp} testId="panel-ghost-bar">
+        <ConfirmBar at={barAt} onOk={() => void confirmPanelGhost()} onCancel={cancelPanelGhost} okDisabled={!gp || refused} testId="panel-ghost-bar">
           {plan && (
-            <span className="note" data-testid="divider-makes" data-kind={plan.kind}>
-              {plan.kind === 'divider' ? (plan.gaps ? t('quick.dividerMakes', { a: plan.gaps[0], b: plan.gaps[1] }) : t('quick.dividerWall')) : t('quick.standingMakes')}
+            <span className={`note ${refused ? 'refused' : ''}`} data-testid="divider-makes" data-kind={plan.kind}>
+              {dividerNote(t, plan)}
             </span>
           )}
         </ConfirmBar>
