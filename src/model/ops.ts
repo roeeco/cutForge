@@ -1,7 +1,7 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 import { planWings, reconcileWings } from './wings';
 import { autoFlap } from './seams';
-import { closureCovers, closureOf, reconcileClosures } from './closures';
+import { closureCovers, closureOf, reachFor, reconcileClosures } from './closures';
 import { fitTopLids, planOpenTrays, reconcileTopLids } from './cartons';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
@@ -10,16 +10,20 @@ import { pieceRoot, placementPiece } from './keys';
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
+import { LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
+import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
 import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
-import { DEFAULT_MATERIAL, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
+import { DEFAULT_MATERIAL, bendOf, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
-import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
+import { applyTrims, fixFlatNets, fixKind, flatInfo, trayWallOn } from './flatnet';
 import { applyCut, fitSplit } from './split';
+import { patternWhy } from './bendPatterns';
+import { bandOf } from './bands';
 import { defaultEnd, defaultSeam, MIN_END, roundPts } from './round';
 import { dividerSpan, isDivider, reconcileDividers, setDividerPos } from './dividers';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
@@ -155,6 +159,8 @@ function solveOnce(d: Design) {
     }
   }
   reconcileWallSets(d);
+  // telescoping lids follow their boxes (milestone 71)
+  reconcileLids(d);
   fitTrayKinds(d);
   reconcileTrays(d, makeTrayWall);
   // cartons (milestone 68): a tuck top's lid, and an open tray's walls folded off each other
@@ -222,6 +228,8 @@ function solveOnce(d: Design) {
       done.add(child.id);
     }
   }
+  // matched walls take their leader's top outline (milestone 71)
+  reconcileMatches(d);
   const guides = constructionSet(d);
   // a tuck top's lid reaches the front wall (milestone 68)
   fitTopLids(d);
@@ -372,6 +380,92 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
+}
+
+/**
+ * A telescoping lid for a box's tray (milestone 71, PACKAGING_PLAN.md §6.3): a
+ * shallow tray of the box's outline grown by its wall's thickness and the
+ * clearance, turned over on top of it (a hat-box lid). Its rim is `rim` mm
+ * deep. Null when the tray already has one or is a lid itself.
+ */
+export function addLid(d: Design, trayId: string, rim = LID_RIM): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || !d.panels[box.baseId]) return null;
+  const B = d.panels[box.baseId];
+  const id = addRootPanel(d, 0, 0, B.w, B.h);
+  const lid = d.panels[id];
+  if (B.material) lid.material = B.material;
+  placeLid(d, lid, box);
+  const tid = addTray(d, id, rim + tOf(d, id));
+  if (!tid) return null;
+  d.trays[tid].lidOf = trayId;
+  solve(d);
+  return tid;
+}
+
+/** An arched lid's flat strip across the top (mm) and its front flap below the arch (mm). */
+export const ARCH_STRIP = 4, ARCH_FLAP = 15;
+
+/**
+ * An arched lid on a box (milestone 71, PACKAGING_PLAN.md §6.3): folded off
+ * the hinge wall's top (the back wall by default) with a radius, a narrow flat
+ * strip across the top, and folded down with the same radius into a flap that
+ * tucks inside the front wall. The arch keeps the box's envelope: its radius
+ * is half the box's inside depth less the strip, and leaves the front flap
+ * room above the base (a deeper or lower box gets a flat-topped barrel). The end walls are cut to
+ * the arch where its bands cross them (milestone 63). Card and corrugated bend
+ * it smoothly or with the pattern the radius needs; plywood with a living
+ * hinge. Returns the lid's id, or null when the box has no wall across from
+ * the hinge wall.
+ */
+export function addArchedLid(d: Design, trayId: string, hingeWall?: string): string | null {
+  const t = d.trays?.[trayId];
+  if (!t || !d.panels[t.baseId]) return null;
+  const back = hingeWall ?? trayWallOn(d, t, 'e2');
+  const W = back && d.panels[back];
+  if (!W || W.sketch.kind !== 'wall') return null;
+  const th = tOf(d, back);
+  // a short lid first, so it does not close the box before its flap is on
+  const L = growPanel(d, back, 'e2', { height: 10, angle: 90, dir: 'up', kind: 'fold' });
+  if (!L) return null;
+  const lid = d.panels[L.panelId];
+  const reach = reachFor(d, lid, back, L.connectionId);
+  if (!reach) {
+    deletePanel(d, L.panelId);
+    return null;
+  }
+  const depth = reach.yIn;
+  // the flap below the arch must end above the base: a low box gets a flatter arch
+  // never tighter than the material bends with a pattern; then the flap below must still end above the base
+  // the height inside, above the base (a finger-jointed wall stands down beside the base)
+  const inside = W.h - tOf(d, t.baseId);
+  const Ro = Math.max(th + 1, bendOf(matOf(d, back)).patternR + th, Math.min((depth - ARCH_STRIP) / 2, inside - ARCH_FLAP - 2));
+  const flap = Math.min(ARCH_FLAP, inside - Ro - 2);
+  if (flap < 5 || 2 * Ro > depth) {
+    deletePanel(d, L.panelId);
+    return null;
+  }
+  const F = growPanel(d, L.panelId, 'e2', { height: Ro + flap, angle: 90, dir: 'up', kind: 'fold' });
+  if (!F) {
+    deletePanel(d, L.panelId);
+    return null;
+  }
+  d.panels[L.panelId].h = depth;
+  const m = matOf(d, back);
+  for (const id of [L.connectionId, F.connectionId]) {
+    setConnection(d, id, { radius: Ro - th });
+    // corrugated is perforated or kiss-scored across the bend where that reaches (a smooth bend may crack its liner across the flutes)
+    const b = m.kind === 'corrugated' ? bandOf(d, d.connections[id]) : null;
+    const ctx = b && { m, r: b.r, len: b.span[1] - b.span[0], width: b.lb, turn: b.phi };
+    const pick = ctx && (['perf', 'kiss'] as const).find((p) => !patternWhy(p, ctx));
+    if (pick) d.connections[id].bend = { pattern: pick };
+  }
+  // the hinge wall is cut back to the arch: its corners glued, so no slot lands where the band takes its top
+  for (const c of Object.values(d.connections))
+    if (!c.grown && c.trayId === trayId && (c.a.panelId === back || c.b.panelId === back) && c.kind === 'tabslot' && pairKinds(d, c).includes('glue')) setConnection(d, c.id, { kind: 'glue' });
+  solve(d);
+  autoConnect(d);
+  return L.panelId;
 }
 
 /** Change a tray's shared outer height (walls with their own height keep it). */
@@ -1347,6 +1441,8 @@ export function setWallCorner(d: Design, wallId: string, corner: WallCorner, off
     else delete s.corners;
     return false;
   }
+  // a matched wall's top is its leader's: written back there (milestone 46)
+  pushToLeader(d, wallId);
   solve(d);
   return true;
 }
@@ -1357,6 +1453,7 @@ export function addWallInsert(d: Design, wallId: string, edge: WallInsert['edge'
   if (!s) return null;
   const id = newId('i');
   s.inserts = [...(s.inserts ?? []), { id, edge, t: Math.max(0.01, Math.min(0.99, t)), off }];
+  pushToLeader(d, wallId);
   solve(d);
   return id;
 }
@@ -1367,6 +1464,7 @@ export function moveWallInsert(d: Design, wallId: string, insertId: string, patc
   if (!ins) return;
   if (patch.t !== undefined) ins.t = Math.max(0.01, Math.min(0.99, patch.t));
   if (patch.off !== undefined) ins.off = Math.round(patch.off * 100) / 100;
+  pushToLeader(d, wallId);
   solve(d);
 }
 
@@ -1375,6 +1473,7 @@ export function deleteWallInsert(d: Design, wallId: string, insertId: string) {
   if (!s?.inserts) return;
   s.inserts = s.inserts.filter((x) => x.id !== insertId);
   if (!s.inserts.length) delete s.inserts;
+  pushToLeader(d, wallId);
   solve(d);
 }
 
@@ -1446,6 +1545,7 @@ export function setPointCurve(d: Design, panelId: string, pt: OutlinePoint, on: 
     if (on) ins.curve = 'auto';
     else delete ins.curve;
   }
+  if (s.kind === 'wall') pushToLeader(d, panelId);
   solve(d);
   return true;
 }
@@ -2007,3 +2107,29 @@ export function applySavePlan(d: Design, cuts: string[]) {
   d.placements = Object.fromEntries(Object.entries(d.placements).filter(([, p]) => p.manual && !p.nested));
   solve(d);
 }
+
+/** Make wall `id` follow `leader`'s top outline (milestone 46, CURVED_WALLS.md §7.2): parallel walls facing each other only. */
+export function matchWall(d: Design, id: string, leader: string): boolean {
+  if (!linkMatch(d, id, leader)) return false;
+  solve(d);
+  return true;
+}
+
+/** *Own outline*: a matched wall keeps its shape as its own and stops following. */
+export function ownOutline(d: Design, id: string): boolean {
+  if (!unlinkMatch(d, id)) return false;
+  solve(d);
+  return true;
+}
+
+/** *Copy outline from…*: give a wall another wall's top outline once (any two walls; no link). */
+export function copyOutlineFrom(d: Design, id: string, from: string): boolean {
+  const a = d.panels[id], b = d.panels[from];
+  if (!a || !b || a.sketch.kind !== 'wall' || b.sketch.kind !== 'wall' || id === from) return false;
+  copyProfile(d, from, id);
+  pushToLeader(d, id);
+  solve(d);
+  return true;
+}
+
+export { canMatch, leaderOf };

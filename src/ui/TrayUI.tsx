@@ -20,7 +20,7 @@ import { boltCount, seamKinds, tabLocks } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind, TabLock } from '../model/types';
 import { Gate } from '../easy/Gate';
-import { TrayCorners, TrayEnds } from './CornersUI';
+import { TrayCorners, TrayEnds, TrayLids } from './CornersUI';
 import { shown, useFeature } from '../easy/features';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
@@ -124,6 +124,7 @@ export function TraySection({ panelId }: { panelId: string }) {
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       <TrayCorners tray={tray} />
       <TrayEnds tray={tray} />
+      <TrayLids tray={tray} />
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
         <div className="tray-open" data-testid="tray-open">

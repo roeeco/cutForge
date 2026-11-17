@@ -1168,6 +1168,26 @@ Limitations
 - A divider's glue flap on a band is not drawn in 3D (it is cut and scored in the file).
 - Dividers still stand at 90° to the base and are straight (curved dividers are out of scope).
 
+## Milestone 71 — lids: telescoping, matched walls, arched ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.3; `src/model/lid.ts`, `src/model/match.ts`, `src/model/ops.ts`, `src/model/closures.ts`, `src/model/seams.ts`, `src/model/check.ts`, `src/ui/CornersUI.tsx`, `src/ui/TrayUI.tsx`, `src/ui/Inspector.tsx`, `src/model/snap.ts`)
+- **Telescoping lid** (`Tray.lidOf`, `addLid`, `reconcileLids`; from the parked branch's milestone 46): a shallow tray of the box's outline grown by its wall's thickness and the clearance, turned over on top of it, rim 12 mm, re-made from the box on every solve (the box resized, the lid follows). Rectangles and polygons grow edge by edge, rounded corners' radii by the gap; a round base (circle, oval) is made again at the grown size (`roundPts`: an offset four-centre oval is one, radii + gap) with its seam flat, so the lid's band runs all round as the box's does. *Add a lid* on the tray card; the lid's card says it is one.
+- **Matched walls** (`WallSketch.match`, `src/model/match.ts`; the parked branch's commit `1356542`, taken): a wall's top follows a parallel wall facing it, projected through 3D (an off-centre arch is not mirrored); editing either edits the shared top; *Own outline* keeps the shape and drops the link; *Copy outline from…* for any wall once; facing walls' top points are outline snap targets. Its references to bent walls (the parked model) are gone.
+- **Arched lid** (`addArchedLid`, new on this branch's bands): folded off the back wall's top with a radius, a 4 mm flat strip across, and folded down with the same radius into a flap that tucks inside the front wall. The arch keeps the box's envelope (milestone 63): its radius is half the inside depth less the strip, never under the material's pattern radius, and leaves the flap at least 5 mm above the base (a deeper or lower box gets a flat-topped barrel; one too low is refused, and the button says why). The end walls are cut to the arch where the bands cross them (milestone 63's `bandCrossings`). Corrugated takes a perforated (or kiss-scored) bend where that reaches; the hinge wall's tab-and-slot corners become glue (the arch takes their top). No closure is derived for it (`sealOf` skips a lid with a flap off its far edge); its flap and sides count as covered like a closure's (`closureCovers` via `archLids`), so they are not reported unjoined. *Add an arched lid* on the tray card.
+- **Fixed on the way (milestone 63):** a joint on a board a band cuts back (a radiused lid's hinge wall) kept its flaps, slots and scores past the cut: the corner glue flaps of such a wall ran up into the band. `connectionGeom` now clips every joint's geometry to what the band leaves, on both boards (through 3D for the other one's).
+- Files: `check.ts` accepts `Tray.lidOf` and `WallSketch.match`. English and Hebrew strings.
+
+Verified
+- `tests/lids.test.ts` (14): telescoping lids in card, corrugated and plywood (sizes, above the box, following a resize, no overlap, idempotent, reopened; one lid per box, none on a lid); a round corrugated box's lid round with its band; a rounded box's lid with radii + gap. Arched lids in card, corrugated 1.6 and 4, plywood, at 120 × 80 × 60 and 150 × 120 × 50: two bands that fit, the end walls cut where they cross, no closure, a clean check, one piece on card and corrugated, idempotent, reopened; a plywood box 40 mm tall refused with the design unchanged.
+- `tests/matchedWalls.test.ts` (6, from the parked branch).
+- **Golden exports:** `band-card-score-r8` and `pattern-card-perf` change, as intended: the back wall's corner glue flaps stop at the band's cut-back instead of running into it (and a stray sliver on the side flap goes). Every other case byte-identical.
+- Unit suite: 705 pass, 7 skipped; typecheck clean.
+- Browser: new `lids.spec.ts` (the tray card's arched lid and telescoping lid, the lid's card, matched walls' card). Full app suite (`--grep-invert classroom`): 109 passed, 0 failed, 57 skipped.
+
+Limitations
+- The arched lid runs back to front only (from the wall on the base's e2); the flap is friction-held inside the front wall (glue it for a permanent box). The end walls' arched tops are their cut-back corners: the arch's sides rest on them unglued.
+- A telescoping lid's rim is 12 mm; change it with the lid tray's height. Lids are Workshop only (Quick build has none).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

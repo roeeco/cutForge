@@ -137,6 +137,8 @@ function sketch(s: unknown, where: string) {
       if (k.round.seam !== undefined && !(isObj(k.round.seam) && Number.isFinite(k.round.seam.at) && Number.isFinite(k.round.seam.w) && k.round.seam.w > 0)) delete k.round.seam;
     }
   } else if (k.kind === 'wall') {
+    // a matched wall's leader (milestone 46): a link to a board that is not there is dropped (solve keeps the shape)
+    if (k.match !== undefined && typeof k.match !== 'string') delete k.match;
     if (k.corners !== undefined) {
       if (!isObj(k.corners)) fail(`${where}.corners`, 'not an object');
       for (const c of Object.keys(k.corners)) {
@@ -317,6 +319,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.top !== undefined && !['tuck', 'seal'].includes(x.top)) delete x.top;
   if (x.bottom !== undefined && !['seal', 'snap', 'tuck'].includes(x.bottom)) delete x.bottom;
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
+  if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;
     else for (const k of Object.keys(x.pin)) if (!['hinge', 'own', 'other'].includes(x.pin[k])) delete x.pin[k];

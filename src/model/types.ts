@@ -112,6 +112,12 @@ export type WallSketch = {
   /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
   corners?: Partial<Record<WallCorner, { dx: number; dy: number; curve?: CurveKind }>>;
   inserts?: WallInsert[];
+  /**
+   * Milestone 46: the wall whose top outline this one follows (a parallel wall
+   * facing it), projected through 3D; its top corners and top-edge points are
+   * derived from it (src/model/match.ts).
+   */
+  match?: string;
 };
 /**
  * Layer 1 of a panel's outline (POLYGONS_AND_CUTS.md §3). Root panels are
@@ -480,6 +486,8 @@ export type Tray = {
   bottom?: 'seal' | 'snap' | 'tuck';
   /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
   curveKind?: 'teeth' | 'tabslot' | 'none';
+  /** Milestone 71: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
+  lidOf?: string;
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */

@@ -393,8 +393,82 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
   return out;
 }
 
-/** Geometry for one connection, or null when its panels no longer meet. */
+/**
+ * Geometry for one connection, or null when its panels no longer meet. A
+ * joint between boards one of which a fold's band cuts back (milestone 63:
+ * a radiused lid's hinge wall) keeps only what lies on the board that is left
+ * (milestone 71): its flaps, slots and scores past the cut go.
+ */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
+  const g = connectionGeomRaw(d, c);
+  if (!g || c.grown || c.wing || c.bandEnd || c.kind === 'closure') return g;
+  let out = g;
+  for (const x of Object.values(d.connections)) {
+    if (!x.grown || x.kind !== 'fold' || !((x.radius ?? 0) > 0) || (x.a.panelId !== c.a.panelId && x.a.panelId !== c.b.panelId)) continue;
+    const b = bandOf(d, x);
+    if (b) out = clipToBand(d, out, b.parent, b.edge, b.trimP, b.span);
+  }
+  return out;
+}
+
+/** Keep a joint's geometry on panel `pid` to the part a band leaves: at least `trim` in from `edge` (only for a band along the whole edge). */
+function clipToBand(d: Design, g: ConnGeom, pid: string, edge: string, trim: number, span: [number, number]): ConnGeom {
+  const P = d.panels[pid];
+  if (!P || !findEdge(P, edge) || trim <= 1e-6) return g;
+  const [a, bb] = edgeLocal(P, edge);
+  const L = Math.hypot(bb.x - a.x, bb.y - a.y);
+  if (span[0] > 1e-3 || span[1] < L - 1e-3) return g;
+  const inw = edgeInwardLocal(P, edge);
+  const f = (q: P2) => (q.x - a.x) * inw.x + (q.y - a.y) * inw.y - trim;
+  const touches = (pts: P2[]) => pts.some((q) => f(q) < -1e-6);
+  // the same rule in another panel's coordinates, through 3D
+  const Aw = toWorld(P.frame, a.x, a.y, 0);
+  const iw: V3 = v3add(v3mul(P.frame.u, inw.x), v3mul(P.frame.v, inw.y));
+  const fOn = (Q: Panel) => (q: P2) => v3dot(v3sub(toWorld(Q.frame, q.x, q.y, 0), Aw), iw) - trim;
+  const clipPoly = (pts: P2[], h: (q: P2) => number): P2[] => {
+    const o: P2[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const fp = h(p), fq = h(q);
+      if (fp >= 0) o.push(p);
+      if ((fp < 0 && fq > 0) || (fp > 0 && fq < 0)) {
+        const k = fp / (fp - fq);
+        o.push({ x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k });
+      }
+    }
+    return o;
+  };
+  const clipSeg = (s: { a: P2; b: P2 }, h: (q: P2) => number) => {
+    const fa = h(s.a), fb = h(s.b);
+    if (fa >= 0 && fb >= 0) return s;
+    if (fa < 0 && fb < 0) return null;
+    const k = fa / (fa - fb), m = { x: s.a.x + (s.b.x - s.a.x) * k, y: s.a.y + (s.b.y - s.a.y) * k };
+    return fa < 0 ? { a: m, b: s.b } : { a: s.a, b: m };
+  };
+  // the rule on each panel the joint touches: in its own coordinates (the other board's flaps and slots against the cut-away part go too)
+  const rules = new Map<string, (q: P2) => number>();
+  const rule = (id: string) => {
+    let h = rules.get(id);
+    if (!h) {
+      const Q = d.panels[id];
+      h = id === pid ? f : Q ? fOn(Q) : () => 0;
+      rules.set(id, h);
+    }
+    return h;
+  };
+  const anyCut = [...g.adds, ...g.holes, ...(g.cuts ?? []), ...g.flaps3d].some((x) => x.poly.some((q) => rule(x.panelId)(q) < -1e-6)) || g.scores.some((x) => rule(x.panelId)(x.a) < -1e-6 || rule(x.panelId)(x.b) < -1e-6);
+  if (!anyCut || !touches) return g;
+  const polys = <T extends { panelId: string; poly: P2[] }>(xs: T[]) => xs.map((x) => ({ ...x, poly: clipPoly(x.poly, rule(x.panelId)) })).filter((x) => x.poly.length >= 3);
+  const segs = <T extends { panelId: string; a: P2; b: P2 }>(xs: T[]) =>
+    xs.flatMap((x) => {
+      const r = clipSeg(x, rule(x.panelId));
+      return r ? [{ ...x, ...r }] : [];
+    });
+  const flaps = polys(g.flaps3d);
+  return { ...g, adds: polys(g.adds), holes: polys(g.holes), scores: segs(g.scores), ...(g.cuts ? { cuts: polys(g.cuts) } : {}), ...(g.lines ? { lines: segs(g.lines) } : {}), flaps3d: flaps };
+}
+
+function connectionGeomRaw(d: Design, c: Connection): ConnGeom | null {
   // a tray's rounded corner (milestone 64)
   if (c.wing) return wingGeom(d, c);
   if (c.bandEnd) return bandEndGeom(d, c);

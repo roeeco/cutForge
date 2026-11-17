@@ -86,6 +86,8 @@ export function sealOf(d: Design, lidId: string): Seal | null {
   const L = d.panels[lidId];
   const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === lidId);
   if (!L || !c || c.kind !== 'fold') return null;
+  // an arched lid (milestone 71) closes with its own front flap, folded off its far edge
+  if (Object.values(d.connections).some((x) => x.grown && x.kind === 'fold' && x.a.panelId === lidId && (findEdge(L, x.a.edge)?.key ?? x.a.edge) === 'e2')) return null;
   return sealFor(d, L, c.a.panelId, c.id);
 }
 
@@ -123,7 +125,32 @@ export function reconcileClosures(d: Design) {
 /** Pairs of panels a closure covers (its lid with each wall): the editor makes no other joint between them. */
 export function closureCovers(d: Design): Set<string> {
   const out = new Set<string>();
-  for (const c of Object.values(d.connections)) if (c.kind === 'closure') for (const w of c.covers ?? []) out.add(c.a.panelId < w ? `${c.a.panelId}|${w}` : `${w}|${c.a.panelId}`);
+  const add = (a: string, w: string) => out.add(a < w ? `${a}|${w}` : `${w}|${a}`);
+  for (const c of Object.values(d.connections)) if (c.kind === 'closure') for (const w of c.covers ?? []) add(c.a.panelId, w);
+  // an arched lid (milestone 71): its front flap tucks inside the front wall, its sides rest on the end walls' arched tops
+  for (const a of archLids(d)) {
+    add(a.flap, a.front);
+    for (const w of a.sides) {
+      add(a.lid, w);
+      add(a.flap, w);
+    }
+    add(a.lid, a.front);
+  }
+  return out;
+}
+
+/** Arched lids (milestone 71): a lid folded off a tray wall's top with a front flap folded off its far edge, and the walls it closes over. */
+export function archLids(d: Design): { lid: string; flap: string; front: string; sides: string[] }[] {
+  const out: { lid: string; flap: string; front: string; sides: string[] }[] = [];
+  for (const f of Object.values(d.connections)) {
+    if (!f.grown || f.kind !== 'fold') continue;
+    const L = d.panels[f.a.panelId];
+    if (!L || (findEdge(L, f.a.edge)?.key ?? f.a.edge) !== 'e2') continue;
+    const h = Object.values(d.connections).find((x) => x.grown && x.kind === 'fold' && x.b.panelId === L.id);
+    if (!h) continue;
+    const r = reachFor(d, L, h.a.panelId, h.id);
+    if (r) out.push({ lid: L.id, flap: f.b.panelId, front: r.front, sides: r.sides.map((x) => x.panelId) });
+  }
   return out;
 }
 
