@@ -1,6 +1,6 @@
 # CutForge: bends, closures and dielines: plan (milestones 61–72)
 
-Planning notes from 2026-11-17. **Status: plan only, nothing built.** Starts from `main` at `c47c273` (milestone 43 and the bug-fix pass).
+Planning notes from 2026-11-17. **Status: built (milestones 61–72, on `claude/loving-johnson-uk02v0`; see `PROGRESS.md` for each milestone, its changes from this plan and what still needs real cuts).** Started from `main` at `c47c273` (milestone 43 and the bug-fix pass).
 
 This plan replaces the parked branch `claude/charming-einstein-lqhfxq` (its milestones 44–48: dividers, round outlines, curved walls, bend patterns, strips, lids). Everything in it is rebuilt on a simpler model, and four things are added: closing lips, a slit-lock joint, a snap-lock bottom, and splitting a dieline to save material. §14 looks further: what would make CutForge a real packaging design tool.
 

@@ -1188,10 +1188,49 @@ Limitations
 - The arched lid runs back to front only (from the wall on the base's e2); the flap is friction-held inside the front wall (glue it for a permanent box). The end walls' arched tops are their cut-back corners: the arch's sides rest on them unglued.
 - A telescoping lid's rim is 12 mm; change it with the lid tray's height. Lids are Workshop only (Quick build has none).
 
+## Milestone 72 — final verification ✅
+
+Everything re-run on the final commit of `PACKAGING_PLAN.md` (milestones 61–72):
+- Unit suite (`npx vitest run`): 705 pass, 7 skipped (the optional Python DXF reader check, no `ezdxf`); typecheck clean (app and Worker); `npm run build` succeeds (one ~1.7 MB chunk, as before).
+- Golden exports: byte-identical except the two listed at milestone 71 (`band-card-score-r8`, `pattern-card-perf`: a fix).
+- Browser, app (`--grep-invert classroom`): 109 passed, 0 failed, 57 skipped. Classroom (the real Worker with local D1 and R2, `--grep classroom`): 4 passed, 0 failed. Together the whole browser suite passes.
+
+What the plan delivered, in one line each
+- 61 Derived data outside the design (frozen designs, `memo`, `settle`), the harness (idempotence, round trip, sweep and return, lost shapes, speed ratios).
+- 62 Round outlines (rounded corners, circles, ovals, stadiums), the 5 mm clamp, arcs back at export, bend limits.
+- 63 Folds with a radius: bands that keep the box's envelope, boards across them cut back, scores and living-hinge slits.
+- 64 Rounded tray corners as bands carried by the wall before (one piece, glued lip, key or plain); plywood strips keyed shut and for the sheet.
+- 65 Round boxes: a seam flat, a band all round, glue teeth or curved slots to the base.
+- 66 The pattern library (smooth, scored, perforated, kiss-scored, straight / wave slits, diamonds), density from the radius and material, the bend test.
+- 67 Closures: a lid that reaches the opposite wall closes the box (tuck, tuck with slit locks, tab lock, rests, glued; dust flaps, thumb notch, lip).
+- 68 Slit-lock joints (no glue), open-base trays (tubes) and carton ends (tuck, snap-lock 1-2-3, seal).
+- 69 Splitting a net at a fold when it must or to save material (pins, the planner's stated gain), true-shape nesting, the yield report.
+- 70 Dividers drawn as lines that find their own ends, now also on curved walls; corner and shallow-turn fixes; schema 10.
+- 71 Telescoping lids, matched walls, arched lids; joints clipped where a band cuts a board back.
+
+Changes from the plan (each is recorded at its milestone)
+- Nesting runs on the main thread, on demand, not in a Worker; it takes 0.1–0.5 s here for class sets of up to 32 pieces. Copies try 180° one by one rather than as an explicit interlocked pair.
+- A single board longer than its sheet is not split across with a key or lap; it is reported.
+- The arched lid is two radiused folds with a narrow strip between (a barrel when the box is deep or low), back to front only; the end walls' arches are the band crossings' cuts.
+- The snap-lock bottom was built without the planned test cuts (no laser here).
+
+Resolved since they were listed
+- Milestone 65's card oval strip too long for its sheet: such a box is now cut at its base fold so the strip and base are separate pieces (milestones 69–70); a strip longer than the sheet itself is still reported (a band is never cut).
+- Milestone 67's sliver beside a lid's band: corner flaps now stop at the band's cut-back (milestone 71).
+
+Needs the owner (cannot be done here)
+- **Real cuts** on the school's materials, before a class set: the bend test strips (card scores and perforations, corrugated kiss scores, plywood slits: the spacings are starting values); a snap-lock bottom in card and corrugated 1.6 (three sizes); slit-lock tongues; a tuck closure's lip fit; an arched lid; a nested sheet (spacing and kerf).
+- **LightBurn**: import a nested, kiss-scored and mirrored file once on the classroom machine (layer colours, the *THIS SIDE UP* label).
+- **Safari and a Chromebook**: nesting and solve speed on a slow machine (*Nest* and *Save material* run on the main thread), and the 3D bands with software WebGL.
+- **Hebrew**: the new strings of milestones 61–72 should be read by a native speaker (plan §12, decision 12).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
 - Packing is bounding-box based until *Nest* is pressed (true-shape raster nesting, milestone 69).
+- Bands (folds with a radius, rounded corners, round boxes) carry no shapes or text yet; a band is never cut to fit a sheet.
+- Nesting and *Save material* run on the main thread; a board longer than its sheet is not split across.
+- Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.
