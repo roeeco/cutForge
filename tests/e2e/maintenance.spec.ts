@@ -206,3 +206,32 @@ test('stage controls stay clear of the card when zoomed in; labels under it hide
   await page.evaluate((id) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), d.order[2]);
   await expect.poll(() => clear('[data-testid=dim-w]')).toBe(true);
 });
+
+for (const shape of ['circle', 'oval'] as const)
+  test(`Workshop: a ${shape} base drawn with the Round tool can be walled from its card`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/');
+    await page.getByTestId('mat-card-0.5').click();
+    await page.getByTestId('start-go').click();
+    await page.getByTestId('tool-round').click();
+    await page.getByTestId(`round-${shape}`).click();
+    const pt = (x: number, z: number) => page.evaluate((a) => (window as any).__cutforge.projectWorld(a[0], 0, a[1]), [x, z]);
+    const a = await pt(-50, 40), b = await pt(50, -40);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+    await page.mouse.move(b.x, b.y, { steps: 4 });
+    await page.mouse.up();
+    await page.getByTestId('ghost-ok').click();
+    await page.getByTestId('extrude').click();
+    // it said "a wall stands on each of the 0 edges", and no ghost or ✓ came
+    await expect(page.getByTestId('extrude-card')).not.toContainText(' 0 ');
+    await page.getByTestId('extrude-go').click();
+    const d = await design(page);
+    const tray = Object.values<any>(d.trays)[0];
+    expect(tray).toBeTruthy();
+    expect(d.panels[tray.baseId].sketch.round.seam).toBeTruthy();
+    expect(d.order.length).toBeGreaterThan(1);
+    expect(errors).toEqual([]);
+  });

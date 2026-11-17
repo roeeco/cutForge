@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
-import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide } from '../model/ops';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide, withSeam } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
@@ -1743,7 +1743,9 @@ function GhostOutlineHandles({ ghost, m, th }: { ghost: Panel; m: THREE.Matrix4;
 /** Extrude preview: a ghost wall on every edge of the base, with a push-pull arrow for the shared height. */
 function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height: number; m: THREE.Matrix4 }) {
   const t = useT();
-  const base = d.panels[baseId];
+  // a circle or an oval shows its one wall at the seam flat ✓ will give it (it had no straight edge, so no ghost and no ✓)
+  const raw = d.panels[baseId];
+  const base = useMemo(() => (raw ? withSeam(d, raw) : raw), [d, raw]);
   const th = base ? tOf(d, baseId) : d.material.thickness;
   const kind = newTrayKinds(d, baseId).wallKind;
   const ghosts = useMemo(() => {
@@ -1758,6 +1760,25 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
       });
   }, [d, base, height, kind, m, th]);
   useEffect(() => () => ghosts.forEach((g) => g.geom.dispose()), [ghosts]);
+  // the walls that bend round curved edges (rounded corners, round bases): a ribbon along them, so the
+  // ghost shows the whole wall and not only its straight parts
+  const ribbon = useMemo(() => {
+    if (!base) return null;
+    const h = Math.max(MIN_PANEL, wallHeight(d, kind, height, baseId));
+    const segs = panelEdges(base).filter((e) => isCurveKey(e.key));
+    if (!segs.length) return null;
+    const [, z1] = faceZ(base, th);
+    const pos: number[] = [];
+    for (const e of segs) {
+      const q = [[e.a.x, e.a.y, z1], [e.b.x, e.b.y, z1], [e.b.x, e.b.y, z1 + h * base.frame.side], [e.a.x, e.a.y, z1 + h * base.frame.side]];
+      pos.push(...q[0], ...q[1], ...q[2], ...q[0], ...q[2], ...q[3]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return { geom: g, matrix: m.clone().multiply(frameMatrix(base.frame)) };
+  }, [d, base, height, kind, m, th]);
+  useEffect(() => () => ribbon?.geom.dispose(), [ribbon]);
   // nets that lie flat (milestone 35): the tallest height that keeps the net one piece, and the walls changed past it
   const info = useMemo(() => trayFlatInfo(d, baseId, height), [d, baseId, height]);
   const fh = info && Number.isFinite(info.flatHeight) && info.flatHeight < 1000 ? info.flatHeight : null;
@@ -1773,6 +1794,11 @@ function TrayGhost({ d, baseId, height, m }: { d: Design; baseId: string; height
   const hf = fh !== null ? wallHeight(d, kind, fh, baseId) : null;
   return (
     <>
+      {ribbon && (
+        <mesh geometry={ribbon.geom} matrixAutoUpdate={false} matrix={ribbon.matrix} raycast={() => null} userData={{ noAO: true, trayGhost: 'curves' }}>
+          <meshStandardMaterial color={STAGE.ghost} transparent opacity={STAGE.ghostOpacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       {ghosts.map((g) => (
         <group key={g.key} matrixAutoUpdate={false} matrix={g.matrix} userData={{ noAO: true, trayGhost: g.key, changed: changed.has(g.key) }}>
           <mesh geometry={g.geom} raycast={() => null}>

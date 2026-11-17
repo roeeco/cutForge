@@ -366,10 +366,7 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   const base = d.panels[baseId];
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
   // a circle or an oval walled gets its seam flat (milestone 65): a straight place for its one wall, where its strip starts and closes
-  if (base.sketch.kind === 'poly' && base.sketch.round && base.sketch.round.shape !== 'stadium' && !base.sketch.round.seam) {
-    base.sketch.round = { ...base.sketch.round, seam: defaultSeam(matOf(d, baseId).kind) };
-    remakeRound(base, base.w, base.h);
-  }
+  if (needsSeam(base)) base.sketch = withSeam(d, base).sketch;
   const id = newId('tr');
   d.trays ??= {};
   // a corrugated round box's wall is its own piece (milestone 66): its strip then lies on the sheet with the flutes up the wall, as a smooth bend needs
@@ -1904,6 +1901,23 @@ export function setPlacedPose(d: Design, panelId: string, pose: 'flat' | 'standi
 
 // ---------------------------------------------------------------------------
 // Round outlines (milestone 62, PACKAGING_PLAN.md §6.2).
+
+const needsSeam = (p: Panel) => p.sketch.kind === 'poly' && !!p.sketch.round && p.sketch.round.shape !== 'stadium' && !p.sketch.round.seam;
+
+/**
+ * A base as `addTray` will wall it: a circle or an oval with the seam flat
+ * its one wall starts and closes at (milestone 65), so the Extrude ghost can
+ * show that wall before ✓; any other base as it is.
+ */
+export function withSeam(d: Design, base: Panel): Panel {
+  if (!needsSeam(base) || base.sketch.kind !== 'poly' || !base.sketch.round) return base;
+  // a JSON copy: the base may be a draft (addTray) or frozen (the stage)
+  const p = JSON.parse(JSON.stringify(base)) as Panel;
+  if (p.sketch.kind !== 'poly' || !p.sketch.round) return base;
+  p.sketch.round = { ...p.sketch.round, seam: defaultSeam(matOf(d, base.id).kind) };
+  remakeRound(p, p.w, p.h);
+  return p;
+}
 
 /** Make a round base's points again at a new size (its shape and end radius kept). */
 function remakeRound(p: Panel, w: number, h: number) {

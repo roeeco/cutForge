@@ -626,6 +626,7 @@ export const en = {
   'tool.op.add': "Add (joins the outline)",
   'tray.extrude': "Extrude walls",
   'tray.extrudeHelp': "A wall stands on each of the {n} edges, all at one height. Drag the arrow on the stage or type the height.",
+  'tray.extrudeHelpRound': "Walls go all the way round, bending round the curves, all at one height. Drag the arrow on the stage or type the height.",
   'tray.height': "Tray height",
   'tray.joints': "Walls: {wall}. Corners: {corner}. You can change any joint afterwards.",
   'tray.addWalls': "Add walls",
