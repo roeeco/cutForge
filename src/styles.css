@@ -783,3 +783,12 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .mat-pill .mat-name { display: none; }
   .topbar:has(.ready-wrap) .mat-pill { padding-inline-end: 8px; }
 }
+
+/* milestone 69: the cut plan's yield report, Nest and Save material */
+.yield-bar { position: relative; display: flex; gap: 6px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 3px 3px 3px 10px; box-shadow: var(--shadow-soft); font-size: 13px; color: var(--ink-muted); }
+.yield-bar button { min-height: 30px; height: 30px; padding: 0 10px; }
+.yield-bar button.on { color: var(--ink); font-weight: 600; }
+.save-pop { position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 30; width: 320px; padding: 12px 14px; color: var(--ink); }
+.save-pop p { margin: 0 0 10px; }
+.save-pop .row { display: flex; gap: 8px; justify-content: flex-end; }
+.cut-choice { margin: 6px 0; }

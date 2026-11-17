@@ -104,7 +104,7 @@ export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels:
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey, panelId: c.pieceKey });
       contours = r.contours;
     }
-    const xf = placementXform(pl, c.h);
+    const xf = placementXform(pl, c.h, c.w);
     // a piece with kiss-scored bends is cut inside up: mirrored in its box, with a note on the guide layer (milestone 66)
     const kiss = c.panels.some((n) => kissed.has(n.panelId));
     const flip = (tc: TaggedContour): TaggedContour => (kiss ? { ...tc, contour: xformContour({ tx: c.w, ty: 0, rot: 0, mirror: true }, tc.contour) } : tc);

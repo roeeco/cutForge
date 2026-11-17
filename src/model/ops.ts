@@ -19,6 +19,7 @@ import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jo
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
+import { applyCut, fitSplit } from './split';
 import { defaultEnd, defaultSeam, MIN_END, roundPts } from './round';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
@@ -75,6 +76,12 @@ export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: Con
  * no longer meet keeps its last valid geometry and is flagged `broken`.
  */
 export function solve(d: Design) {
+  settle(d);
+  // nets that do not fit their sheet are cut into pieces that do (milestone 69); then solved again
+  for (let i = 0; i < 3 && fitSplit(d); i++) settle(d);
+}
+
+function settle(d: Design) {
   // inside-corner extensions and tray walls' sizes read the joints' kinds and the trays' flat-net plans as
   // they were at the start of a pass: when a pass changes them, solve again, so a design solved once
   // equals the same design solved twice (and re-opened from a file) (BUGFIX_PLAN B24, B25)
@@ -187,10 +194,10 @@ function solveOnce(d: Design) {
       const ok = pairKinds(d, c);
       fitKind(c, ok, designKind(d, 'base', ok, matOf(d, child.id).kind));
       // a tray wall changed so its net lies flat; a tray wall stands in by its joint's own offset
-      if (c.trayId) {
-        fixKind(d, c);
-        c.offset = defaultOffset(d, c.kind, parent.id);
-      }
+      if (c.trayId) fixKind(d, c);
+      // a fold cut so the net fits its sheet, or where the student asked (milestone 69)
+      applyCut(d, c);
+      if (c.trayId) c.offset = defaultOffset(d, c.kind, parent.id);
       // part of the edge (a partial width), except for tray walls
       const span = c.trayId ? null : c.span;
       child.frame = spanFrame(parent, c.a.edge, c.angle, c.dir, tOf(d, parent.id), seatingOf(c.kind), c.offset, span, tOf(d, child.id));
@@ -1898,4 +1905,20 @@ export function setTrayEnds(d: Design, trayId: string, patch: { base?: 'cut' | '
   for (const c of Object.values(d.connections)) if (c.grown && c.trayId === trayId) (c.kind = t.wallKind), (c.pref = t.wallKind);
   solve(d);
   autoConnect(d);
+}
+
+/** A fold's cut pin (milestone 69): cut the net here, keep it whole, or let the app decide (only when the net does not fit its sheet). */
+export function setFoldCut(d: Design, connId: string, v: 'auto' | 'cut' | 'keep') {
+  const c = d.connections[connId];
+  if (!c) return;
+  if (v === 'auto') delete c.cut;
+  else c.cut = v;
+  solve(d);
+}
+
+/** Apply *Save material*'s plan (milestone 69): its folds pinned as cut, the earlier nesting dropped. */
+export function applySavePlan(d: Design, cuts: string[]) {
+  for (const id of cuts) if (d.connections[id]) d.connections[id].cut = 'cut';
+  d.placements = Object.fromEntries(Object.entries(d.placements).filter(([, p]) => p.manual && !p.nested));
+  solve(d);
 }

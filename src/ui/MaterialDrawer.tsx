@@ -17,6 +17,7 @@ import { sheetToSvg } from '../export/svg';
 import { bendTestSheet, testPattern } from '../export/bendTest';
 import { patternsFor } from '../model/bendPatterns';
 import { useFeature } from '../easy/features';
+import { SplitSetting } from './SplitUI';
 
 /** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
 export function useMaterialEdit() {
@@ -120,6 +121,7 @@ export function MaterialDrawer() {
           <label className="check">
             <input type="checkbox" checked={!!d.allowRotate} onChange={(e) => apply((x) => void (x.allowRotate = e.target.checked))} data-testid="allow-rotate" /> {t('pack.allowRotate')}
           </label>
+          <SplitSetting />
           <p className="note" dir="auto">
             {t('drawer.summary', { w: fmtNum(m.sheetW, 0), h: fmtNum(m.sheetH, 0), t: fmtNum(m.thickness, 2) })}
           </p>

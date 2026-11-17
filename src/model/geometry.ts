@@ -61,7 +61,7 @@ export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2 
 const noExtras = (): PanelExtras => ({ holes: [], adds: [], scores: [], cuts: [], linerHoles: [], lines: [], paths: [] });
 
 /** Every panel's slots, flaps, scores, cuts and open cut lines, from one pass over the fold-overs and connections. */
-function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
+export function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
   const out = new Map<string, PanelExtras>();
   const at = (id: string) => {
     let x = out.get(id);

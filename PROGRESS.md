@@ -1122,10 +1122,38 @@ Limitations
 - Flapped ends and open bases need four walls; ends on other shapes are not offered.
 - A crash-lock (pre-glued) bottom is not offered.
 
+## Milestone 69 — splitting and nesting ✅
+
+Implemented (`PACKAGING_PLAN.md` §9; `src/model/split.ts`, `src/model/nest.ts`, `src/model/pack.ts`, `src/model/pieces.ts`, `src/model/ops.ts`, `src/model/check.ts`, `src/model/validate.ts`, `src/export/prepare.ts`, `src/export/batch.ts`, `src/ui/SplitUI.tsx`, `src/ui/Connections.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`, `src/views/Plan2D.tsx`)
+- **Cutting a net at a fold:** a grown crease (not a band, not a closure's hinge) can be cut. The cut fold becomes the joint a wall cut as its own piece gets: a tray wall the design's wall-to-base joint (`ownKind`), any other board a glue flap on the same edge (it keeps its place). The kind is re-derived on every pass (`applyCut`, after the joint's own kind is fitted); `Connection.split` marks it.
+- **Only when it must** (default, `Design.split` absent): after a solve, `fitSplit` looks at each net as it would be whole (every cut fold folded again) and, where it does not fit its sheet inside the margin (turned where the grain allows), cuts the fold that most reduces the overflow (then the one leaving the smallest largest part) until every part fits; the cuts are `Connection.autoCut`, kept while they still help and dropped once the net fits whole again (then solved again; at most three rounds). A fast look (the boards' outlines only, 40 mm of slack) skips all this for nets well inside their sheet. *Never* keeps every net whole (the export check reports it too big, as before). *To save material* also offers *Save material* (offered in every mode but *Never*).
+- **Pins:** each fold's card (and the folded board's card) has *Automatic · Keep whole · Cut here* (`Connection.cut`), which the app obeys; a note says why a fold is cut and how the parts join.
+- **Copies:** a part cut off a net is cut as many times as the net (`quantityRoot`); the board card's *Copies to cut* edits the net's number.
+- **Save material** (`planSaveMaterial`): a beam search (three wide, three cuts deep) over the free folds, each cut set scored by its parts' boxes laid out by the bounding-box packer: sheets, then the sheet area the layout takes (whole sheets and the used band of the last one), then the number of cuts. The best is then checked for real (the design solved with the cuts, laid out as the cut plan lays it out); it is offered only when it takes fewer sheets or at least a twentieth of a sheet less. The preview reads *16 pieces, not 4. 1 sheet, not 2 sheets. 3 more glue joints.*; *Apply* pins the folds as cut, in one undo step.
+- **True-shape nesting** (`nest`): each piece becomes a bitmap of cells (about 200 000 per sheet, never finer than 1 mm) of every cell its outline touches, grown by half the spacing; turned 0° or 180° (and 90°/270° where the grain allows), never mirrored. Largest first, each at its highest place (the sheet fills from the top left), choosing either the turn that sits highest or the one that reaches least far right; three orders × two choices, the best layout kept, and never more sheets than the bounding-box packer (its layout is used then). Free-run arrays per row make a test skip straight past what blocks it. *Nest* in the cut plan stores the layout (`SheetPlacement.nested`, with the piece's size): it is kept as manual moves are, until the piece changes size (then the box packer places it again). *Repack* drops it without asking. Placements can now turn 180° and 270°.
+- **The yield report** in the cut plan: sheets, percent used, metres of cut, pieces, glue joints, with *Nest* and *Save material*.
+- **Settings:** *Material & sheet* → *Split a net into pieces: Only when it must · To save material · Never*.
+- Files: `check.ts` accepts `cut`, `autoCut`, `split`, `Design.split`, rotations 180/270 and `nested`. English and Hebrew strings.
+
+Verified
+- `tests/split.test.ts` (9): a card tray net taller than the sheet is cut into pieces that fit (no *too big*); one that fits is not cut; *Never* keeps it whole and reports it; lowered, the app's cut goes; *Keep whole* moves the cut elsewhere, *Cut here* cuts a small tray, the cut part keeps the net's copies; idempotent and reopened; *Save material* on a class set of four 60 × 60 × 50 trays: 2 sheets → 1, the reported gain equals the one measured after *Apply*, idempotent; nothing to save without folds; kept folds are never in a plan.
+- `tests/nest.test.ts` (3): on twenty designs (the golden designs as a class cuts them, card and corrugated trays in sets of 4–12) nesting never takes more sheets than the box packer and takes fewer on five (round box 2 → 1, carton 2 → 1, square trays 2 → 1, 3 → 2, 4 → 3); every pair of nested pieces at least the spacing apart (polygon distance), inside the margin, only 0°/180° on corrugated; a nested layout checks clean and goes back to the packer when a piece changes size.
+- Updated `repro-margin-overflow`, `flatnet` (L base), `cartons` (back to a cut base): those nets are longer than the sheet, so they now keep `split: 'never'` to test what they were written for.
+- **Golden exports:** byte-identical.
+- Unit suite: 659 pass, 7 skipped; typecheck clean.
+- Browser: new `split.spec.ts` (a class set's yield report, *Save material* 2 sheets → 1 with one undo step, *Nest*; a tall tray cut to fit, *Keep whole* moves the cut). Full app suite (`--grep-invert classroom`): 100 passed, 2 failed, 57 skipped; both failures then fixed or passed alone: milestone 35's L tray (the flat-height probe cut its net to fit the sheet; the probe now never splits) and the gizmo steps (ran during a dev-server reload), both pass on a rerun.
+
+Limitations
+- **A board longer than the sheet with no fold to cut is not split across** (a puzzle key or a glued lap, §9.1): the export check still reports it too big.
+- Nesting runs on the main thread, on demand (0.1–0.5 s for the designs above), not in a Worker; copies are not tried as an interlocked pair explicitly (each copy tries 180° on its own, which finds the same interlock when there is one).
+- Nesting gains little on box nets with glue flaps on every arm (their flaps keep them from interlocking); it helps most with copies and pieces of different shapes.
+- *Save material* compares bounding-box layouts (as the sheet meter shows them before nesting); a nested layout may do better still.
+- A fold on a rounded tray's corner band (a wing) or with a radius is never cut.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
-- Packing is bounding-box based (no true-shape nesting).
+- Packing is bounding-box based until *Nest* is pressed (true-shape raster nesting, milestone 69).
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.

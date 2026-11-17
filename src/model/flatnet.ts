@@ -434,7 +434,8 @@ export function flatInfo(d: Design, baseId: string, height: number, make: (probe
   const lo0 = 5 + matOf(d, baseId).thickness;
   let pr = probes.get(sig);
   if (!pr) {
-    const probe: Design = JSON.parse(JSON.stringify({ ...d, panels: { [baseId]: { ...base, details: [] } }, order: [baseId], connections: {}, trays: {}, pieces: { [baseId]: { quantity: 1 } }, placements: {} }));
+    // lying flat is the question, not the sheet: the probe's nets are never cut to fit it (milestone 69)
+    const probe: Design = JSON.parse(JSON.stringify({ ...d, panels: { [baseId]: { ...base, details: [] } }, order: [baseId], connections: {}, trays: {}, pieces: { [baseId]: { quantity: 1 } }, placements: {}, split: 'never' }));
     const cap = Math.max(200, 4 * Math.max(base.w, base.h));
     const tid = make(probe, baseId, cap, { ...spec });
     if (!tid) return null;

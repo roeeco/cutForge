@@ -61,6 +61,14 @@ export function foldHolds(d: Design, c: Connection): boolean {
   return !!findEdge(A, c.a.edge) && !!findEdge(B, c.b.edge);
 }
 
+/** Where a grown fold lays its child in the parent's flat frame (also for a fold cut into two pieces, milestone 69). */
+export function grownFoldXform(d: Design, c: Connection): Xform2 {
+  // a fold with a radius (milestone 63): the band's developed width lies between the cut-back panels
+  const b = bandOf(d, c);
+  const al = b ? b.lb - b.trimP - b.trimC : matOf(d, c.a.panelId).foldAllowance;
+  return foldXform(d.panels[c.a.panelId], c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
+}
+
 /** Every fold joining two panels into one net. */
 export function netFolds(d: Design): NetFold[] {
   const out: NetFold[] = [];
@@ -71,12 +79,7 @@ export function netFolds(d: Design): NetFold[] {
         id: c.id,
         parent: c.a.panelId,
         child: c.b.panelId,
-        xf: (dd) => {
-          // a fold with a radius (milestone 63): the band's developed width lies between the cut-back panels
-          const b = bandOf(dd, c);
-          const al = b ? b.lb - b.trimP - b.trimC : matOf(dd, c.a.panelId).foldAllowance;
-          return foldXform(dd.panels[c.a.panelId], c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
-        },
+        xf: (dd) => grownFoldXform(dd, c),
       });
     else if (c.wing) {
       // round a tray's rounded corner in one piece (milestone 64): the next wall continues past the band

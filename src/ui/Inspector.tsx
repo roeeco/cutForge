@@ -9,12 +9,13 @@ import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
 import { matOf } from '../model/materials';
 import { materialName } from './materialName';
 import { ovalRadii } from '../model/round';
-import { rotateCopy } from '../model/pack';
+import { quantityRoot, rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
 import { BendSection } from './BendUI';
+import { CutChoice } from './SplitUI';
 import { ClosureSection } from './ClosureUI';
 import { roundedMin } from '../easy/recipes';
 import type { DetailOp } from '../model/types';
@@ -209,6 +210,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <Gate f="hinge">
             <PanelHinge panelId={id} />
             {pc?.kind === 'fold' && <BendSection c={pc} />}
+            {pc && <CutChoice c={pc} />}
             <ClosureSection panelId={id} />
           </Gate>
           <TrayWallNote panelId={id} />
@@ -232,11 +234,11 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           )}
           <Stepper
             label={t('insp.quantity')}
-            value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
+            value={d.pieces[quantityRoot(d, pieceKeyOf(d, id))]?.quantity ?? 1}
             min={1}
             max={500}
             slider={false}
-            onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
+            onCommit={(v) => apply((x) => void (x.pieces[quantityRoot(x, pieceKeyOf(x, id))] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
           <Gate f="boardMaterial">

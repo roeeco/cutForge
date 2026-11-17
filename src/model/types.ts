@@ -286,6 +286,16 @@ export type Connection = {
   wing?: true;
   /** Milestone 67: a lid's closure (derived while it seals its box): the walls it covers, whose joints with the lid it replaces. */
   covers?: string[];
+  /**
+   * Milestone 69: the student's choice for a fold: cut the net here (the two
+   * parts join with the joint a wall cut as its own piece gets) or never cut it.
+   * Absent: the app cuts it only when the net does not fit its sheet.
+   */
+  cut?: 'cut' | 'keep';
+  /** Milestone 69: the app cut the net at this fold so it fits its sheet (kept until it is no longer needed). */
+  autoCut?: true;
+  /** Derived (milestone 69): this fold is cut; the parts join by `kind`. */
+  split?: true;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -328,7 +338,12 @@ export type ConnGeom = {
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
-export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean; mat?: string };
+/**
+ * `rot` 180 and 270 (milestone 69): nested pieces turned half round (allowed
+ * whatever the grain) or a quarter the other way. `nested`: placed by the
+ * nester, for a piece of this size (kept while the piece keeps it).
+ */
+export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90 | 180 | 270; manual: boolean; mat?: string; nested?: { w: number; h: number } };
 
 export type PieceSettings = { quantity: number };
 
@@ -354,6 +369,12 @@ export type Design = {
   sheetMargin: number;
   /** Let the packer turn pieces 90° against the grain/flute direction. */
   allowRotate?: boolean;
+  /**
+   * Milestone 69: when a net is cut into pieces: only when it does not fit its
+   * sheet (absent, the default), also where the student applies *Save
+   * material*'s plan, or never.
+   */
+  split?: 'must' | 'save' | 'never';
   /** Panel pairs ("idA|idB", sorted) the student unjoined: never connected automatically again. */
   noAutoSeams?: string[];
   /** Trays: bases extruded into walls on every edge (see src/model/trays.ts). */

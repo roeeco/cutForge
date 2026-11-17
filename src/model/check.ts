@@ -267,6 +267,9 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
+  if (x.cut !== undefined && x.cut !== 'cut' && x.cut !== 'keep') delete x.cut;
+  if (x.autoCut !== undefined && x.autoCut !== true) delete x.autoCut;
+  if (x.split !== undefined && x.split !== true) delete x.split; // derived
   // a fold's bend (milestone 63) and a tray's rounded corner (milestone 64)
   if (x.radius !== undefined) num(x.radius, `${where}.radius`, { min: 0, max: 10000 });
   if (x.bend !== undefined) {
@@ -362,14 +365,16 @@ export function checkDesign(raw: unknown): asserts raw is Design {
       Number.isFinite(q.y) &&
       Math.abs(q.x) <= COORD_LIMIT &&
       Math.abs(q.y) <= COORD_LIMIT &&
-      (q.rot === 0 || q.rot === 90) &&
+      (q.rot === 0 || q.rot === 90 || q.rot === 180 || q.rot === 270) &&
       typeof q.manual === 'boolean' &&
       (q.mat === undefined || typeof q.mat === 'string');
     if (!ok) delete d.placements[k];
+    else if (q.nested !== undefined && !(isObj(q.nested) && Number.isFinite(q.nested.w) && Number.isFinite(q.nested.h))) delete q.nested;
   }
   if (typeof d.sheetSpacing !== 'number' || !Number.isFinite(d.sheetSpacing) || d.sheetSpacing < 0 || d.sheetSpacing > 1000) d.sheetSpacing = 3;
   if (typeof d.sheetMargin !== 'number' || !Number.isFinite(d.sheetMargin) || d.sheetMargin < 0 || d.sheetMargin > 1000) d.sheetMargin = 5;
   if (d.allowRotate !== undefined && typeof d.allowRotate !== 'boolean') d.allowRotate = false;
+  if (d.split !== undefined && d.split !== 'must' && d.split !== 'save' && d.split !== 'never') delete d.split;
   if (d.noAutoSeams !== undefined) d.noAutoSeams = Array.isArray(d.noAutoSeams) ? d.noAutoSeams.filter((x: unknown) => typeof x === 'string') : [];
   // lids' closures (milestone 67): settings only; a bad one is dropped
   if (d.closures !== undefined) {

@@ -105,6 +105,8 @@ describe('cartons', () => {
 
   it('back to a cut base: the base is cut again, the walls fold off it, the bottom closure goes', () => {
     const { d, base, tray } = carton(CARD, { top: 'tuck', bottom: 'snap' });
+    // the cut base's net (330 mm tall) is longer than the card sheet: kept whole here (milestone 69 splits it otherwise)
+    d.split = 'never';
     setTrayEnds(d, tray, { base: 'cut' });
     expect(constructionSet(d).has(base)).toBe(false);
     expect(d.connections[endId(d.trays[tray], 'bottom')]).toBeUndefined();

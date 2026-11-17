@@ -124,7 +124,7 @@ function bendIssues(d: Design, guides: Set<string>): Issue[] {
     const pl = copy && layout.pl[copy.key];
     if (!copy || !n || !pl) return null;
     const a = applyX({ ...n.xf, tx: 0, ty: 0 }, axis);
-    return pl.rot === 90 ? { x: -a.y, y: a.x } : a;
+    return pl.rot === 90 || pl.rot === 270 ? { x: -a.y, y: a.x } : a;
   };
   for (const c of Object.values(d.connections)) {
     if (!((c.grown && c.kind === 'fold') || c.wing) || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
@@ -324,7 +324,7 @@ function foldOverIssues(d: Design): Issue[] {
         const e = g.liner.e;
         const a = applyX(n.xf, e.a), b = applyX(n.xf, e.b);
         let dx = b.x - a.x, dy = b.y - a.y;
-        if (place.rot === 90) [dx, dy] = [-dy, dx];
+        if (place.rot === 90 || place.rot === 270) [dx, dy] = [-dy, dx];
         const along = fm.grain === 'x' ? Math.abs(dx) : Math.abs(dy);
         if (along < 0.7 * Math.hypot(dx, dy)) out.push({ key: 'val.flute', vars, target });
       }
@@ -431,7 +431,7 @@ function sheetIssues(d: Design): Issue[] {
   const placed = copies
     .filter((c) => pl[c.key])
     .map((c) => {
-      const xf = placementXform(pl[c.key], c.h);
+      const xf = placementXform(pl[c.key], c.h, c.w);
       const outer = c.contours.find((x) => x.role === 'outer');
       const pts = outer ? flattenContour(outer.contour, 0.2).map((q) => applyX(xf, q)) : [];
       const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);

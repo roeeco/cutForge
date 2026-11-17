@@ -16,6 +16,7 @@ import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
 import { fmtNum } from '../i18n';
 import { BendSection } from './BendUI';
+import { CutChoice } from './SplitUI';
 import { connKindKey } from './connLabel';
 import { pairKinds } from '../model/jointDefaults';
 
@@ -113,6 +114,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
       )}
       {/* the folded board's own card shows its bend; here only the bends of boards folded off this one */}
       {!isChild && <BendSection c={c} />}
+      {c.grown && <CutChoice c={c} />}
       {c.kind === 'fold' && (
         <Segmented
           label={t('conn.foldDir')}
