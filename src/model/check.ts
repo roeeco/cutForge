@@ -65,6 +65,10 @@ function material(m: unknown, where: string) {
   num(p.sheetW, `${where}.sheetW`, { min: 1, max: COORD_LIMIT });
   num(p.sheetH, `${where}.sheetH`, { min: 1, max: COORD_LIMIT });
   oneOf(p.grain, ['x', 'y', 'none'] as const, `${where}.grain`);
+  if (p.bend !== undefined) {
+    if (!isObj(p.bend)) fail(`${where}.bend`, 'not bend limits');
+    for (const k of ['smoothR', 'patternR', 'pitch', 'k'] as const) num(p.bend[k], `${where}.bend.${k}`, { min: 0, max: COORD_LIMIT });
+  }
 }
 
 function detail(dt: unknown, where: string) {
@@ -115,12 +119,19 @@ function sketch(s: unknown, where: string) {
     if (pts.length < 3) fail(`${where}.pts`, 'fewer than 3 points');
     pts.forEach((q, i) => {
       point(q, `${where}.pts[${i}]`);
-      if (q.curve !== undefined && q.curve !== 'auto') fail(`${where}.pts[${i}].curve`, 'unknown curve');
+      if (q.curve !== undefined && q.curve !== 'auto' && q.curve !== 'round') fail(`${where}.pts[${i}].curve`, 'unknown curve');
+      if (q.r !== undefined) num(q.r, `${where}.pts[${i}].r`, { min: 0 });
+      if (q.curve === 'round' && !(typeof q.r === 'number' && q.r > 0)) fail(`${where}.pts[${i}].r`, 'a rounded corner needs a radius');
     });
     const ids = arr(k.edgeIds, `${where}.edgeIds`);
     if (ids.length !== pts.length) fail(`${where}.edgeIds`, 'one id per point needed');
     ids.forEach((e, i) => str(e, `${where}.edgeIds[${i}]`));
     if (new Set(ids).size !== ids.length) fail(`${where}.edgeIds`, 'repeated edge ids');
+    if (k.round !== undefined) {
+      if (!isObj(k.round)) fail(`${where}.round`, 'not a round shape');
+      oneOf(k.round.shape, ['circle', 'oval', 'stadium'] as const, `${where}.round.shape`);
+      if (k.round.rEnd !== undefined) num(k.round.rEnd, `${where}.round.rEnd`, { min: 0 });
+    }
   } else if (k.kind === 'wall') {
     if (k.corners !== undefined) {
       if (!isObj(k.corners)) fail(`${where}.corners`, 'not an object');

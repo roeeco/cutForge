@@ -318,7 +318,7 @@ Fixed during the final pass
 Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (178 tests in 22 files, including the Worker API tests and the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (23 passed, 12 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` pointing at the pre-installed headless shell.
 
 Remaining limitations (polygons, cuts and corrugated)
-- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments.
+- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments. (Since milestone 62, circular arcs are given back at export; see there.)
 - Through-cuts go through the whole design; there is no per-cut depth.
 - Fold scores are plain SCORE lines: no crush-score style for 4 mm board.
 - The packer does not turn pieces for flute direction; fold-over scores across the flutes are only warned about.
@@ -941,6 +941,30 @@ Verified
 - `tests/stability.test.ts` (13): trays in card, corrugated and plywood with dividers, a fold-over and a hole solve to themselves and save and reopen to themselves; a hexagon tray's height and a box's size swept and returned; resizing never removes a panel with shapes; on a frozen design `panelNotches`, `panelExtras`, `allFoldOvers` and the pieces equal the plain ones; `settle` equals solving in a draft, keeps an unchanged design's identity and freezes its result; an edit through the store equals solving it by hand; on the organiser (4 × 3 dividers) asking every panel for its joint geometry takes under half as long on a frozen design.
 - Golden exports byte-identical. Unit suite: 556 pass, 7 skipped; typecheck clean.
 - Browser (`--grep-invert classroom`): 90 passed, 0 failed, 57 skipped (`crash.spec` failed once while a file it served was being rewritten, and passed when run again).
+
+## Milestone 62 — round outlines and bend limits ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.2; `src/geom/fillet.ts`, `src/model/edges.ts`, `src/model/round.ts`, `src/model/ops.ts`, `src/geom/arcfit.ts`, `src/export/prepare.ts`, `src/export/offset.ts`, `src/model/materials.ts`, `src/views/polyTool.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`)
+- **Rebuilt from the parked branch's milestone 45**, which was sound (its problems were in the curved walls that came after it): its commits were taken and changed where the plan says.
+- **Rounded corners:** `curve: 'round'` with `r`; arcs keyed `<edge>^~<n>`. Point card: *Corner · Curve · Round*, with a radius (`point-round`, `point-radius`). Base card: *Corner radius* for all of them (`round-corner-all`).
+- **The clamp (new):** an edge at least 5 mm long before rounding keeps 5 mm of straight edge (`KEEP_STRAIGHT`, the same 5 mm as trays' `MIN_EDGE`), so rounding never takes a wall away. Shorter edges keep what they can (their arcs meet); round bases' arcs still meet. The card says when a corner was made smaller (`round-clamped`) and, on a point, how large it may be (`point-radius-max`, from `maxFillet`).
+- **The fillet maths** is in `src/geom/fillet.ts` (`fillets`, `maxFillet`, `arcPoints`), on plain points, so the waffle branch's `src/sculpt/round.ts` can be folded into it when both are in. `sketchFillets` / `sketchMaxRadius` pick the clamp for a sketch.
+- **Round bases:** circle, four-centre oval, stadium (`Sketch.round`, `roundPts`, `ovalRadii`, `defaultEnd`); ops `addRoundPanel`, `setRoundShape`, `convertToPoints`, `setPointRound`, `setCornerRadius`, `addRoundedRect`; their card (`round-section`).
+- **Polygon tool:** *Round* and *Rounded*; on a panel they draw the shape as a polygon shape.
+- **Arcs back at export** (`refitArcs`); kerf compensation follows arcs that meet tangentially. `src/geom/arcfit.ts` is byte-identical to the waffle branch's copy (SHA-256 `16d760b6…abb3d`).
+- **Bend limits** on materials (`bend`, `bendDefaults`, `bendOf`) and in the material drawer (`drawer-bend`, `mat-smoothR`, `mat-patternR`).
+- **No schema change** (still 9): the fields are new and optional; the plan bumps the schema once, at milestone 70.
+- English and Hebrew strings (two new: `round.clamped`, `round.largest`).
+
+Verified
+- `tests/round.test.ts` (17): the parked branch's cases (circles, stadiums, ovals both ways, the draftsman's default, resizing and shape changes, *Convert to points*, save/load with an identical export, rounded rectangles, bend defaults, export as SVG arcs and DXF bulges, kerf compensation of arcs, a 12-gon kept as lines), with the clamp case rewritten (a 40 × 20 rectangle at 15 is 7.5 round with 5 mm short sides; a 3 mm side's arcs meet; a stadium's still meet), plus a tray on a rounded rectangle keeping its four walls at every radius from 3 to 80 mm, and that radius swept and returned giving the same design.
+- Golden exports byte-identical. Unit suite: 573 pass, 7 skipped; typecheck clean.
+- Browser: new `round.spec.ts` (from the parked branch); full app suite (`--grep-invert classroom`): 92 passed, 0 failed, 57 skipped.
+
+Limitations
+- Tray walls stand on straight edges only: curves are left open until wings (milestone 64) and round boxes (milestone 65).
+- A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
+- Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
