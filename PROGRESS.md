@@ -1047,6 +1047,30 @@ Limitations
 - In the fold view a crease does not straighten as the net opens (the strip shows its small kinks flat).
 - A card oval's strip may be longer than a card sheet: it is reported (`val.tooBig`), not split (milestone 69).
 
+## Milestone 66 — the pattern library ✅
+
+Implemented (`PACKAGING_PLAN.md` §5.1–§5.3; `src/model/bendPatterns.ts`, `src/model/types.ts`, `src/model/geometry.ts`, `src/model/pieces.ts`, `src/model/wings.ts`, `src/model/validate.ts`, `src/easy/fix.ts`, `src/export/prepare.ts`, `src/export/bendTest.ts`, `src/ui/MaterialDrawer.tsx`, `src/ui/ExportDialog.tsx`, `src/views/bandMesh.tsx`)
+- **Four more patterns:** *Perforated* (card, corrugated: staggered cut dashes a web from the band's edges; card reaches 0.75 of its pattern radius), *Kiss-scored* (corrugated: scores in the inner liner), *Wave slits* and *Diamonds* (plywood). Automatic's order: card smooth, scored, perforated; corrugated smooth, kiss, perforated; plywood smooth, straight, wave, diamonds.
+- **Slit shapes on one rule** (`slitLike`): the links' free length and the closest column spacing are scaled per shape (wave 1.6 and 1.2, diamonds 2.2 and 1.3), so wave slits reach about 0.9 and diamonds about 0.77 of straight slits' radius, with columns further apart. Starting values, to calibrate with the bend test.
+- **Cut paths:** a pattern's lines gain `paths` (open polylines: wave slits; closed: diamonds), carried as `ConnGeom.cutPaths` and `PanelExtras.paths` (never part of a board's outline or slots), into the net (`pathContour`: an open line or a hole), the fold strips, 3D and the bend test; kerf compensation shortens an open path as one chain and shrinks a diamond as a hole.
+- **Kiss scores face up:** a piece with kiss-scored bends is mirrored in its box at export and labelled *THIS SIDE UP (kiss scores)* on the guide layer, in the student's language (`ExportLabels`).
+- **The flute check** (`val.fluteBend`): a smooth corrugated bend whose axis lies across the flutes as its piece is laid on the sheet (net turn and placement); *Fix* perforates it. A corrugated round box's wall is now tab-and-slot by default, so its strip is its own piece with the flutes up the wall.
+- **Bend test:** a pattern list beside *Download a bend test* (`mat-bend-test-pattern`).
+- **Speed:** a band's pattern depends only on its numbers and is worked out once (`bandPattern`'s cache); the harness's `speedRatio` now times batches in turn and compares each side's fastest, so a ratio is no longer at the mercy of a busy machine.
+- English and Hebrew strings.
+
+Verified
+- `tests/patterns.test.ts` (8): each material's patterns in order; diamonds reach tighter than wave slits, wave than straight; card perforations at 3.5 mm (dashes a web from the edges, at most 3 mm); corrugated kiss scores on a rounded tray at 14 mm, the export mirrored with its guide note, clean; wave slits as open paths and diamonds as holes, in the net and exported compensated; every reason (radius with its value, short, material) and Automatic's fallback; a corrugated rounded tray at 40 mm with bends across the flutes on two corners, fixed by perforating them; the bend test for every pattern.
+- Updated: `wings.test.ts` (corrugated corners named only below kiss scores' reach: 6 mm), `roundbox.test.ts` (a corrugated round box's wall stands in by its web and meets its band within 1 mm at the seam).
+- **Golden exports:** new `pattern-card-perf`, `pattern-corr-kiss`, `pattern-ply-wave`, `pattern-ply-diamond`, `pattern-ply-diamond-compensated`; `round-box-corr-oval` regenerated (its wall is now its own piece); every other case byte-identical.
+- Unit suite: 625 pass, 7 skipped; typecheck clean.
+- Browser: full app suite (`--grep-invert classroom`): 97 passed, 1 failed, 57 skipped; the failure (`settings.spec`, the start screen over the card after a reload under load) passed 9 times out of 9 run on its own.
+
+Limitations
+- The cut plan shows a kiss-scored piece as designed; only the file is mirrored.
+- At a round box's seam a wall standing in from the edge meets its band within the web × tan(half the crease) (0.4 mm for corrugated): the closing lip or key takes it up.
+- Pattern line spacings and slit factors are starting values: calibrate with the bend test.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

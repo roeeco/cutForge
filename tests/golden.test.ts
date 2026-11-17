@@ -57,6 +57,12 @@ CASES.push({ name: 'band-ply-hinge-compensated', make: () => bandLidBox(MATERIAL
 // milestone 64: curved tray walls
 CASES.push({ name: 'rounded-tray-card', make: () => roundedTray(MATERIALS[0], 15) });
 CASES.push({ name: 'rounded-tray-ply-strip', make: () => roundedTray(MATERIALS[3], 32) });
+// milestone 66: the pattern library
+CASES.push({ name: 'pattern-card-perf', make: () => bandLidBox(MATERIALS[0], 3.5) });
+CASES.push({ name: 'pattern-corr-kiss', make: () => roundedTray(MATERIALS[1], 14) });
+CASES.push({ name: 'pattern-ply-wave', make: () => bandLidBox(MATERIALS[3], 40, 'wave') });
+CASES.push({ name: 'pattern-ply-diamond', make: () => bandLidBox(MATERIALS[3], 40, 'diamond') });
+CASES.push({ name: 'pattern-ply-diamond-compensated', make: () => bandLidBox(MATERIALS[3], 40, 'diamond'), kerf: 'compensated' });
 // milestone 65: round boxes
 CASES.push({ name: 'round-box-card-circle', make: () => roundBoxDesign(MATERIALS[0], 'circle', 90, 90) });
 CASES.push({ name: 'round-box-ply-circle', make: () => roundBoxDesign(MATERIALS[3], 'circle', 110, 110) });

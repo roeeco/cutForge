@@ -67,7 +67,23 @@ export function timeOf(fn: () => void, n = 9): number {
   return ts[Math.floor(n / 2)];
 }
 
-/** How many times slower `subject` is than `reference`, both timed here (so the ratio holds on any machine). */
+/**
+ * How many times slower `subject` is than `reference`, both timed here (so the
+ * ratio holds on any machine): batches of calls, the two taking turns, each
+ * side's fastest batch (the one the machine least interfered with).
+ */
 export function speedRatio(subject: () => void, reference: () => void, n = 9): number {
-  return timeOf(subject, n) / Math.max(1e-3, timeOf(reference, n));
+  const batch = (f: () => void) => {
+    const t = performance.now();
+    for (let i = 0; i < 5; i++) f();
+    return performance.now() - t;
+  };
+  subject();
+  reference();
+  let s = Infinity, r = Infinity;
+  for (let i = 0; i < Math.max(n, 15); i++) {
+    s = Math.min(s, batch(subject));
+    r = Math.min(r, batch(reference));
+  }
+  return s / Math.max(1e-3, r);
 }

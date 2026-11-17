@@ -193,7 +193,13 @@ export function panelPiece(d: Design, panelId: string): Piece {
  * function for grown folds and for tray corners made folds). Null when the
  * fold no longer has its edges.
  */
-export type FoldStrip = { parent: string; child: string; strip: P2[] | null; scores: { a: P2; b: P2 }[]; cuts?: { a: P2; b: P2 }[] };
+/** A bend pattern's cut path as a contour (milestone 66): a wave slit open, a diamond a closed hole. */
+function pathContour(pts: P2[], closed: boolean, ref: { panelId: string; foldId?: string }): TaggedContour {
+  const segs = pts.slice(0, closed ? pts.length : pts.length - 1).map((p, i) => L(p, pts[(i + 1) % pts.length]));
+  return { op: 'cut', role: closed ? 'hole' : 'line', contour: { closed, segs }, ref };
+}
+
+export type FoldStrip = { parent: string; child: string; strip: P2[] | null; scores: { a: P2; b: P2 }[]; cuts?: { a: P2; b: P2 }[]; paths?: { pts: P2[]; closed: boolean }[] };
 
 /** A band's strip in the net (milestone 63): its developed width beyond the parent's cut-back edge, with its pattern's scores and slits. */
 function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
@@ -207,7 +213,7 @@ function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
   const L = b.span[1] - b.span[0], ov = 1e-5;
   const strip = [at(-ov, 0), at(-ov, L), at(b.lb + ov, L), at(b.lb + ov, 0)];
   const map = (q: { a: { x: number; y: number }; b: { x: number; y: number } }) => ({ a: at(q.a.x, q.a.y), b: at(q.b.x, q.b.y) });
-  return { parent: P.id, child: b.child, strip, scores: b.pattern.lines.scores.map(map), cuts: b.pattern.lines.cuts.map(map) };
+  return { parent: P.id, child: b.child, strip, scores: b.pattern.lines.scores.map(map), cuts: b.pattern.lines.cuts.map(map), paths: b.pattern.lines.paths.map((q) => ({ pts: q.pts.map((p) => at(p.x, p.y)), closed: q.closed })) };
 }
 
 export function foldBand(d: Design, c: Connection): FoldStrip | null {
@@ -279,6 +285,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       for (const s of ex.lines) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      for (const q of ex.paths) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId }));
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
       for (const dt of p.details) {
         // Adds and Cuts across the edge are part of the outline already
@@ -302,6 +309,7 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (band.strip) polys.push([toRing(band.strip.map(tf))]);
       for (const ln of band.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
       for (const ln of band.cuts ?? []) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
+      for (const q of band.paths ?? []) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId: band.child, foldId: c.id }));
     }
     let merged: MultiPolygon = safeUnion(polys);
     // material joints remove past a corner (layer 7)

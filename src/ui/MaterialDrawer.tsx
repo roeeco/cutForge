@@ -1,20 +1,21 @@
 // Material & sheet drawer: the material, its calibration values and the sheet
 // settings. This is the only place these appear, so the inspector stays about
 // the thing that is selected.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
 import { bendOf, MATERIALS, materialsInUse, mixedMaterials } from '../model/materials';
 import { materialName } from './materialName';
 import { editMaterial, setMaterial, solve } from '../model/ops';
 import { changeMaterial } from '../templates/registry';
-import type { Design, MaterialProfile } from '../model/types';
+import type { Design, MaterialProfile, PatternId } from '../model/types';
 import { fmtNum } from '../i18n';
 import { Icon } from './icons';
 import { MaterialArt } from './MaterialArt';
 import { downloadText, safeName } from './download';
 import { sheetToSvg } from '../export/svg';
-import { bendTestSheet } from '../export/bendTest';
+import { bendTestSheet, testPattern } from '../export/bendTest';
+import { patternsFor } from '../model/bendPatterns';
 import { useFeature } from '../easy/features';
 
 /** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
@@ -44,6 +45,7 @@ export function MaterialDrawer() {
     return () => window.removeEventListener('keydown', k);
   }, []);
   const m = d.material;
+  const [testWith, setTestWith] = useState<PatternId | null>(null);
   const mm = t('unit.mm');
   const base = MATERIALS.find((x) => x.id === m.id || `${x.id}-custom` === m.id);
   const choose = (mat: MaterialProfile) => {
@@ -90,7 +92,20 @@ export function MaterialDrawer() {
           <NumField label={t('mat.smoothR')} value={bendOf(m).smoothR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), smoothR: v } })} testId="mat-smoothR" />
           <NumField label={t('mat.patternR')} value={bendOf(m).patternR} decimals={1} unit={mm} min={0.5} max={5000} onCommit={(v) => setM({ bend: { ...bendOf(m), patternR: v } })} testId="mat-patternR" />
           {/* the bend test strip (milestone 63): five zones of its pattern at radii around its limit */}
-          <button onClick={() => downloadText(`${safeName(materialName(t, m))}-bend-test.svg`, sheetToSvg(bendTestSheet(m, (r) => t('export.bendTestR', { r: fmtNum(r, 1) }))), 'image/svg+xml')} data-testid="mat-bend-test">
+          {/* which pattern to test (milestone 66): each the material offers */}
+          <div className="field">
+            <label htmlFor="mat-test-pattern">{t('bend.pattern')}</label>
+            <select id="mat-test-pattern" value={testWith && patternsFor(m.kind).includes(testWith) ? testWith : testPattern(m)} onChange={(e) => setTestWith(e.target.value as PatternId)} data-testid="mat-bend-test-pattern">
+              {patternsFor(m.kind)
+                .filter((p) => p !== 'smooth')
+                .map((p) => (
+                  <option key={p} value={p}>
+                    {t(`bend.p.${p}`)}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <button onClick={() => downloadText(`${safeName(materialName(t, m))}-bend-test.svg`, sheetToSvg(bendTestSheet(m, (r) => t('export.bendTestR', { r: fmtNum(r, 1) }), testWith && patternsFor(m.kind).includes(testWith) ? testWith : testPattern(m))), 'image/svg+xml')} data-testid="mat-bend-test">
             {t('mat.bendTest')}
           </button>
           <p className="note">{t('mat.bendTestHelp')}</p>

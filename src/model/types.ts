@@ -33,7 +33,7 @@ export type MaterialProfile = {
 export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number; /** Plywood living hinges: the shear strain its links may take (milestone 63; absent: 0.016). */ strain?: number };
 
 /** A bend pattern (milestone 63, PACKAGING_PLAN.md §5.1). */
-export type PatternId = 'smooth' | 'score' | 'slits';
+export type PatternId = 'smooth' | 'score' | 'perf' | 'kiss' | 'slits' | 'wave' | 'diamond';
 /** How dense a band's pattern is: 1 automatic, less denser (never sparser than it must be). */
 export type BendDensity = 1 | 0.75 | 0.5;
 /** A band's stored bend choices (milestone 63); absent: automatic. */
@@ -317,6 +317,8 @@ export type ConnGeom = {
   bolts?: number;
   /** Open cut lines (milestone 63: a bend's perforations and living-hinge slits), on the CUT layer. */
   lines?: { panelId: string; a: P2; b: P2 }[];
+  /** Cut paths of a bend pattern (milestone 66: wave slits, open; diamonds, closed), on the CUT layer; never part of the board's outline or its slots. */
+  cutPaths?: { panelId: string; pts: P2[]; closed: boolean }[];
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */

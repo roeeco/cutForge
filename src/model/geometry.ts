@@ -57,8 +57,8 @@ function notchesFrom(p: Panel, list: { edge: string; notches: Notch[] }[]): Reco
   return out;
 }
 
-export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2 }[]; cuts: P2[][]; linerHoles: P2[][]; lines: { a: P2; b: P2 }[] };
-const noExtras = (): PanelExtras => ({ holes: [], adds: [], scores: [], cuts: [], linerHoles: [], lines: [] });
+export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2 }[]; cuts: P2[][]; linerHoles: P2[][]; lines: { a: P2; b: P2 }[]; paths: { pts: P2[]; closed: boolean }[] };
+const noExtras = (): PanelExtras => ({ holes: [], adds: [], scores: [], cuts: [], linerHoles: [], lines: [], paths: [] });
 
 /** Every panel's slots, flaps, scores, cuts and open cut lines, from one pass over the fold-overs and connections. */
 function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
@@ -86,6 +86,7 @@ function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
     for (const a of c.geom.adds) if (want(a.panelId)) at(a.panelId).adds.push(a.poly);
     for (const s of c.geom.scores) if (want(s.panelId)) at(s.panelId).scores.push(s);
     for (const l of c.geom.lines ?? []) if (want(l.panelId)) at(l.panelId).lines.push(l);
+    for (const q of c.geom.cutPaths ?? []) if (want(q.panelId)) at(q.panelId).paths.push({ pts: q.pts, closed: q.closed });
   }
   return out;
 }
@@ -94,7 +95,7 @@ function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
 export function panelExtras(d: Design, p: Panel): PanelExtras {
   const x = Object.isFrozen(d) ? memo(d, 'extras', () => extrasByPanel(d)).get(p.id) : extrasByPanel(d, p.id).get(p.id);
   // fresh arrays: callers may add to them
-  return x ? { holes: [...x.holes], adds: [...x.adds], scores: [...x.scores], cuts: [...x.cuts], linerHoles: [...x.linerHoles], lines: [...x.lines] } : noExtras();
+  return x ? { holes: [...x.holes], adds: [...x.adds], scores: [...x.scores], cuts: [...x.cuts], linerHoles: [...x.linerHoles], lines: [...x.lines], paths: [...x.paths] } : noExtras();
 }
 
 const EPS = 1e-7;

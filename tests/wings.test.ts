@@ -101,8 +101,8 @@ describe('curved tray walls', () => {
     expect(d.connections[c.id].kind).toBe('butt');
   });
 
-  it('corrugated corners tighter than it bends are named; Fix rounds the base corner to what it needs', () => {
-    const { d, base } = roundedTray(CORR16, 15);
+  it('corrugated corners tighter than it bends, even kiss-scored, are named; Fix rounds the base corner to what it needs', () => {
+    const { d, base } = roundedTray(CORR16, 6);
     const issues = bendKeys(d);
     expect(issues.length).toBe(4);
     expect(issues.every((i) => i.key === 'val.bendTight')).toBe(true);

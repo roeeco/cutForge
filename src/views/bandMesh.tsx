@@ -43,7 +43,8 @@ export function bandLines(s: BandShown): { scores: THREE.BufferGeometry; cuts: T
     return new THREE.Vector3(...bandWorld(b, { x: o.x - (n.x / L) * 0.15, y: o.y - (n.y / L) * 0.15 }, b.span[0] + y));
   };
   const make = (segs: { a: { x: number; y: number }; b: { x: number; y: number } }[]) => new THREE.BufferGeometry().setFromPoints(segs.flatMap((q) => [at(q.a.x, q.a.y), at(q.b.x, q.b.y)]));
-  return { scores: make(b.pattern.lines.scores), cuts: make(b.pattern.lines.cuts) };
+  const pathSegs = b.pattern.lines.paths.flatMap((q) => q.pts.slice(0, q.closed ? q.pts.length : q.pts.length - 1).map((p, i) => ({ a: p, b: q.pts[(i + 1) % q.pts.length] })));
+  return { scores: make(b.pattern.lines.scores), cuts: make([...b.pattern.lines.cuts, ...pathSegs]) };
 }
 
 export function BandObject({ s, d, m, index, outlines }: { s: BandShown; d: Design; m: THREE.Matrix4; index: number; outlines: boolean }) {

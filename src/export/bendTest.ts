@@ -37,6 +37,10 @@ export function bendTestSheet(m: MaterialProfile, label: (r: number) => string, 
     const at = (q: { x: number; y: number }) => ({ x: x + q.x, y: q.y });
     for (const s of p.lines.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(at(s.a), at(s.b))] } });
     for (const s of p.lines.cuts) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(at(s.a), at(s.b))] } });
+    for (const q of p.lines.paths) {
+      const pts = q.pts.map(at);
+      contours.push({ op: 'cut', role: q.closed ? 'hole' : 'line', contour: { closed: q.closed, segs: pts.slice(0, q.closed ? pts.length : pts.length - 1).map((a, i) => L(a, pts[(i + 1) % pts.length])) } });
+    }
     // the zone's radius above it
     const lw = Math.max(12, width);
     for (const g of pieceLabel(label(r), lw, 8)) contours.push({ ...g, contour: xformContour({ tx: x + width / 2 - lw / 2, ty: H + 1, rot: 0 }, g.contour) });

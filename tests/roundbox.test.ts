@@ -68,8 +68,9 @@ describe('round boxes', () => {
       expect(k.parts.map((p) => p.kind)).toEqual(['crease', 'arc', 'crease']);
       // the band ends where the wall starts (3D), and is as long as the circle less the flat, at the neutral line
       const W = d.panels[c.a.panelId], b = bs[0];
+      // exactly for a wall at the edge (card); a wall standing in by a web meets its band within the web × tan(half the crease) at the seam
       const end = bandWorld(b, b.T2, 0), start = toWorld(W.frame, 0, 0, 0);
-      expect(Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2])).toBeLessThan(1e-6);
+      expect(Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2])).toBeLessThan(m.kind === 'card' ? 1e-6 : 1);
       expect(wingLength(d, c)).toBeCloseTo(b.phi * (b.r + b.k * b.t), 9);
       expect(b.phi).toBeGreaterThan(5.5);
       expect(issues(d)).toEqual([]);

@@ -1,7 +1,7 @@
 // Pre-export checks, explained in plain language by the UI.
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
-import { segDir, segInward } from './edges';
+import { findEdge, segDir, segInward } from './edges';
 import { toWorld } from './frame';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
 import { throughHits, throughRegions } from './through';
@@ -111,6 +111,20 @@ export function validate(d: Design): Issue[] {
  */
 function bendIssues(d: Design, guides: Set<string>): Issue[] {
   const out: Issue[] = [];
+  // corrugated bends are checked against the flutes as their piece lies on the sheet (milestone 66): laid out once, when there are any
+  let layout: { copies: ReturnType<typeof pieceCopies>; pl: ReturnType<typeof pack> } | null = null;
+  const sheetAxis = (panelId: string, axis: P2): P2 | null => {
+    layout ??= (() => {
+      const copies = pieceCopies(d);
+      return { copies, pl: pack(d, copies) };
+    })();
+    const copy = layout.copies.find((x) => x.copy === 0 && x.panels.some((n) => n.panelId === panelId));
+    const n = copy?.panels.find((q) => q.panelId === panelId);
+    const pl = copy && layout.pl[copy.key];
+    if (!copy || !n || !pl) return null;
+    const a = applyX({ ...n.xf, tx: 0, ty: 0 }, axis);
+    return pl.rot === 90 ? { x: -a.y, y: a.x } : a;
+  };
   for (const c of Object.values(d.connections)) {
     if (!((c.grown && c.kind === 'fold') || c.wing) || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
     const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
@@ -136,6 +150,19 @@ function bendIssues(d: Design, guides: Set<string>): Issue[] {
     } else if (!b.fits) out.push({ key: 'val.bendRoom', vars, target, pair });
     else if (b.pattern.why?.key === 'short') out.push({ key: 'val.bendShort', vars: { ...vars, len: b.pattern.why.value ?? 0 }, target, pair });
     else if (b.pattern.why) out.push({ key: b.pattern.auto ? 'val.bendTight' : 'val.bendStyle', vars: { ...vars, r: b.pattern.why.key === 'radius' ? asked(b.pattern.why.value ?? 0) : 0 }, target, pair });
+    else if (m.kind === 'corrugated' && m.grain !== 'none') {
+      // a smooth bend in corrugated needs its axis along the flutes: across them, the flutes crush (perforations or kiss scores work either way)
+      const across = all.find((x) => {
+        if (x.pattern.id !== 'smooth') return false;
+        const P = d.panels[x.parent];
+        const e = !x.wing && P ? findEdge(P, x.edge) : null;
+        const axis = x.wing ? { x: 0, y: 1 } : e ? { x: (e.b.x - e.a.x) / Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y), y: (e.b.y - e.a.y) / Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) } : null;
+        const on = axis && sheetAxis(x.parent, axis);
+        const flute = m.grain === 'y' ? { x: 0, y: 1 } : { x: 1, y: 0 };
+        return !!on && Math.abs(on.x * flute.x + on.y * flute.y) < Math.cos((15 * Math.PI) / 180);
+      });
+      if (across) out.push({ key: 'val.fluteBend', vars, target, pair });
+    }
   }
   return out;
 }

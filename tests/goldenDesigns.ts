@@ -127,7 +127,7 @@ export function v6CardGable(): Design {
 }
 
 /** A box (tray) with a lid folded off its back wall's top edge with a radius (milestone 63): a band of `radius`, or the material's own (plywood: a living hinge). */
-export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number): Design {
+export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number, pattern?: 'perf' | 'wave' | 'diamond'): Design {
   const d = createDesign(m);
   const base = addRootPanel(d, 0, 0, 120, 80);
   addTray(d, base, 60);
@@ -135,6 +135,7 @@ export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number): Desi
   const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === E(2))!.b.panelId;
   const g = growPanel(d, back, E(2), { height: 80, angle: 90, dir: 'up', kind: 'fold' })!;
   if (radius !== undefined) setConnection(d, g.connectionId, { radius });
+  if (pattern) setConnection(d, g.connectionId, { bend: { pattern } });
   solve(d);
   return d;
 }

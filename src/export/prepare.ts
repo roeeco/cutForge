@@ -7,6 +7,9 @@ import { flattenContour, pointInPolygon, xformContour } from '../geom/vec';
 import { pack, pieceCopies, placementXform, sheetGroups } from '../model/pack';
 import { offsetContour } from './offset';
 import { refitArcs } from '../geom/arcfit';
+import { pieceLabel } from './label';
+import { bandOf } from '../model/bands';
+import { wingBands } from '../model/wings';
 
 export type KerfMode = 'nominal' | 'compensated';
 
@@ -59,8 +62,23 @@ export function shortenOpen(c: Contour, k: number): Contour {
   return { closed: false, segs };
 }
 
-export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepared {
+/** Text the export writes on the GUIDE layer (the student's language). */
+export type ExportLabels = { kissUp: string; kissUpShort: string };
+const LABELS: ExportLabels = { kissUp: 'THIS SIDE UP (kiss scores)', kissUpShort: 'UP' };
+
+/** Boards whose bends are kiss-scored (milestone 66): their piece is cut with the band's inside face up. */
+function kissPanels(d: Design): Set<string> {
+  const out = new Set<string>();
+  for (const c of Object.values(d.connections)) {
+    const bs = c.wing ? wingBands(d, c) : [bandOf(d, c)].filter((b): b is NonNullable<typeof b> => !!b);
+    if (bs.some((b) => b.pattern.id === 'kiss')) out.add(bs[0].parent);
+  }
+  return out;
+}
+
+export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels: ExportLabels = LABELS): Prepared {
   const copies = pieceCopies(d);
+  const kissed = kissPanels(d);
   const placements = pack(d, copies);
   // each material its own sheets (milestone 36), in the layout's order: the working material first
   const groups = sheetGroups(d, placements).map((g) => ({
@@ -87,7 +105,11 @@ export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepar
       contours = r.contours;
     }
     const xf = placementXform(pl, c.h);
-    for (const tc of contours) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
+    // a piece with kiss-scored bends is cut inside up: mirrored in its box, with a note on the guide layer (milestone 66)
+    const kiss = c.panels.some((n) => kissed.has(n.panelId));
+    const flip = (tc: TaggedContour): TaggedContour => (kiss ? { ...tc, contour: xformContour({ tx: c.w, ty: 0, rot: 0, mirror: true }, tc.contour) } : tc);
+    const extra = kiss ? pieceLabel(labels.kissUp, c.w, c.h, labels.kissUpShort) : [];
+    for (const tc of [...contours.map(flip), ...extra]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   return {
     sheets: groups.flatMap((g) => g.list),

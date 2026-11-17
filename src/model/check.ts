@@ -32,7 +32,7 @@ const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(w
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
 const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'butt'] as const;
-const PATTERNS = ['auto', 'smooth', 'score', 'slits'] as const;
+const PATTERNS = ['auto', 'smooth', 'score', 'perf', 'kiss', 'slits', 'wave', 'diamond'] as const;
 const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;

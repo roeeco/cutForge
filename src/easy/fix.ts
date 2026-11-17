@@ -55,7 +55,7 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom']);
+const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -85,6 +85,7 @@ export function fixIssue(d: Design, i: Issue): boolean {
     case 'val.bendTight':
     case 'val.bendStyle':
     case 'val.bendRoom':
+    case 'val.fluteBend':
       return fixBend(d, i);
     case 'val.offSheet':
     case 'val.piecesOverlap':
@@ -110,6 +111,13 @@ function fixBend(d: Design, i: Issue): boolean {
     // the base's corner radius the check worked out
     setPointRound(d, k.base, k.i, Number(i.vars.r));
     return !validate(d).some((x) => x.key.startsWith('val.bend') && x.pair?.[0] === pid && x.pair?.[1] === cid);
+  }
+  // across the flutes: perforations bend either way (milestone 66)
+  if (i.key === 'val.fluteBend') {
+    const c = w ?? Object.values(d.connections).find((x) => x.grown && x.a.panelId === pid && x.b.panelId === cid);
+    if (!c) return false;
+    setConnection(d, c.id, { bend: { pattern: 'perf' } });
+    return !validate(d).some((x) => x.key === 'val.fluteBend' && x.pair?.[0] === pid && x.pair?.[1] === cid);
   }
   if (w && i.key === 'val.bendStyle') {
     setConnection(d, w.id, { bend: { pattern: 'auto' } });

@@ -290,21 +290,22 @@ function stripLayout(d: Design, c: Connection, k0: TrayCorner): { creases: numbe
  * end): the strip, its patterns' scores and slits, and a score at each
  * crease (card and corrugated; plywood's hinge takes the turn).
  */
-export function wingStrip(d: Design, c: Connection): { parent: string; child: string; strip: P2[]; scores: { a: P2; b: P2 }[]; cuts: { a: P2; b: P2 }[] } | null {
+export function wingStrip(d: Design, c: Connection): { parent: string; child: string; strip: P2[]; scores: { a: P2; b: P2 }[]; cuts: { a: P2; b: P2 }[]; paths: { pts: P2[]; closed: boolean }[] } | null {
   const k0 = cornerOf(d, c), bs = wingBands(d, c);
   const A = d.panels[c.a.panelId];
   const eA = A && wallEnd(A, 'e1');
   if (!k0 || !bs.length || !eA) return null;
   const x0 = eA.x, H = bs[0].span[1];
   const { creases, L } = stripLayout(d, c, k0);
-  const scores: { a: P2; b: P2 }[] = [], cuts: { a: P2; b: P2 }[] = [];
+  const scores: { a: P2; b: P2 }[] = [], cuts: { a: P2; b: P2 }[] = [], paths: { pts: P2[]; closed: boolean }[] = [];
   for (const b of bs) {
     const at = (q: { x: number; y: number }) => ({ x: x0 + (b.pos ?? 0) + q.x, y: q.y });
     for (const l of b.pattern.lines.scores) scores.push({ a: at(l.a), b: at(l.b) });
     for (const l of b.pattern.lines.cuts) cuts.push({ a: at(l.a), b: at(l.b) });
+    for (const q of b.pattern.lines.paths) paths.push({ pts: q.pts.map(at), closed: q.closed });
   }
   if (matOf(d, A.id).kind !== 'plywood') for (const x of creases) scores.push({ a: { x: x0 + x, y: 0 }, b: { x: x0 + x, y: H } });
-  return { parent: A.id, child: c.b.panelId, strip: [{ x: x0 - 0.01, y: 0 }, { x: x0 + L, y: 0 }, { x: x0 + L, y: H }, { x: x0 - 0.01, y: H }], scores, cuts };
+  return { parent: A.id, child: c.b.panelId, strip: [{ x: x0 - 0.01, y: 0 }, { x: x0 + L, y: 0 }, { x: x0 + L, y: H }, { x: x0 - 0.01, y: H }], scores, cuts, paths };
 }
 
 /**
@@ -332,6 +333,7 @@ export function wingGeom(d: Design, c: Connection): ConnGeom | null {
     g.adds.push({ panelId: A.id, poly: strip.strip });
     for (const l of strip.scores) g.scores.push({ panelId: A.id, a: l.a, b: l.b });
     if (strip.cuts.length) g.lines = strip.cuts.map((l) => ({ panelId: A.id, a: l.a, b: l.b }));
+    if (strip.paths.length) g.cutPaths = strip.paths.map((q) => ({ panelId: A.id, pts: q.pts, closed: q.closed }));
   }
   const end = x0 + L;
   if (c.kind === 'glue') {

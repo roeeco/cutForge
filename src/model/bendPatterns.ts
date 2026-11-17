@@ -35,7 +35,8 @@ export type BandCtx = {
 export type PatternWhy = { key: 'radius' | 'short' | 'material'; value?: number };
 
 export type Seg = { a: { x: number; y: number }; b: { x: number; y: number } };
-export type PatternLines = { scores: Seg[]; cuts: Seg[] };
+/** Lines across a band: scores, straight cut lines, and cut paths (milestone 66: a wave slit, open; a diamond, closed). */
+export type PatternLines = { scores: Seg[]; cuts: Seg[]; paths: { pts: { x: number; y: number }[]; closed: boolean }[] };
 
 /** A band's pattern as drawn: which, chosen automatically or not, why it falls short (null when it works), its lines and their spacing. */
 export type BandPattern = { id: PatternId; auto: boolean; why: PatternWhy | null; lines: PatternLines; spacing: number; count: number };
@@ -52,7 +53,7 @@ type Def = {
 };
 
 const neutral = (c: BandCtx) => c.r + bendOf(c.m).k * c.m.thickness;
-const none = () => ({ lines: { scores: [], cuts: [] }, spacing: 0, count: 0 });
+const none = () => ({ lines: { scores: [], cuts: [], paths: [] } as PatternLines, spacing: 0, count: 0 });
 
 /** Positions of n lines evenly across a band, half a spacing in from each side. */
 const across = (width: number, n: number) => Array.from({ length: n }, (_, k) => ((k + 0.5) * width) / n);
@@ -95,6 +96,72 @@ export function slitSpacing(m: MaterialProfile, rho: number, ell: number): numbe
   return p <= t ? p : (C * ell * rho) / t;
 }
 
+/** Perforations reach a little tighter than scores on card, as tight as the material's pattern on corrugated. */
+const perfReach = (m: MaterialProfile) => bendOf(m).patternR * (m.kind === 'card' ? 0.75 : 1);
+
+/**
+ * Plywood living hinges, slit by slit (milestone 66 adds two shapes): straight
+ * slits; wave slits (S-shaped: the links between them are longer, so they bend
+ * a little tighter, with columns further apart); diamonds (lens-shaped holes:
+ * loosest and lightest, least stiff, the tightest of the three). `ell` scales the links' free length,
+ * `gap` the closest the columns may be. Starting values, to calibrate with the
+ * bend test like the rest.
+ */
+type SlitKind = { ell: number; gap: number; shape: 'line' | 'wave' | 'diamond' };
+const SLITS: SlitKind = { ell: 1, gap: 1, shape: 'line' };
+const WAVE: SlitKind = { ell: 1.6, gap: 1.2, shape: 'wave' };
+const DIAMOND: SlitKind = { ell: 2.2, gap: 1.3, shape: 'diamond' };
+
+function slitLike(id: PatternId, sk: SlitKind): Def {
+  const pmin = (m: MaterialProfile) => minSlitSpacing(m) * sk.gap;
+  return {
+    id,
+    kinds: ['plywood'],
+    reach: (c) => {
+      const L = slitLayout(c.m, c.len);
+      if (!L) return Infinity;
+      // the radius at which the spacing reaches its smallest
+      const C = strainOf(c.m), t = c.m.thickness, pm = pmin(c.m), ell = L.ell * sk.ell;
+      const rho = pm <= t ? (pm * pm) / (C * ell) : (pm * t) / (C * ell);
+      return Math.max(0, rho - bendOf(c.m).k * t);
+    },
+    blocked: (c) => (slitLayout(c.m, c.len) ? null : { key: 'short', value: slitMinLen(c.m) }),
+    draw: (c, f) => {
+      const L = slitLayout(c.m, c.len);
+      if (!L) return none();
+      const p = Math.max(pmin(c.m), slitSpacing(c.m, neutral(c), L.ell * sk.ell) * f);
+      const n = Math.max(2, Math.ceil(c.width / p - 1e-9));
+      const pc = c.width / n;
+      const b = hingeBridge(c.m), step = L.S + b;
+      const cuts: Seg[] = [], paths: PatternLines['paths'] = [];
+      const one = (x: number, y0: number, y1: number) => {
+        if (sk.shape === 'line') return void cuts.push({ a: { x, y: y0 }, b: { x, y: y1 } });
+        if (sk.shape === 'wave') {
+          // two waves along the slit, a quarter of the column spacing either side
+          const amp = pc / 4, k = Math.max(8, Math.ceil(y1 - y0));
+          const pts = Array.from({ length: k + 1 }, (_, i) => ({ x: x + amp * Math.sin((4 * Math.PI * i) / k), y: y0 + ((y1 - y0) * i) / k }));
+          return void paths.push({ pts, closed: false });
+        }
+        // a diamond: pointed at both ends, as wide as a little under half the column spacing
+        const w = Math.min(0.45 * pc, 2.5), e = Math.min((y1 - y0) / 4, 3 * w);
+        paths.push({ pts: [{ x, y: y0 }, { x: x + w / 2, y: y0 + e }, { x: x + w / 2, y: y1 - e }, { x, y: y1 }, { x: x - w / 2, y: y1 - e }, { x: x - w / 2, y: y0 + e }], closed: true });
+      };
+      across(c.width, n).forEach((x, k) => {
+        if (k % 2 === 0) {
+          for (let j = 0; j < L.n; j++) one(x, b + j * step, b + j * step + L.S);
+          return;
+        }
+        // the other columns are shifted half a step: their slits end on this column's bridges, kept a bridge from the edges
+        for (let j = -1; j <= L.n; j++) {
+          const y0 = Math.max(b, b + j * step + step / 2), y1 = Math.min(c.len - b, b + j * step + step / 2 + L.S);
+          if (y1 - y0 >= b) one(x, y0, y1);
+        }
+      });
+      return { lines: { scores: [], cuts, paths }, spacing: pc, count: n };
+    },
+  };
+}
+
 const DEFS: Def[] = [
   {
     id: 'smooth',
@@ -108,40 +175,43 @@ const DEFS: Def[] = [
     reach: (c) => bendOf(c.m).patternR,
     draw: (c, f) => {
       const { xs, spacing, count } = lineDraw(c, f, bendOf(c.m).patternR);
-      return { lines: { scores: xs.map((x) => ({ a: { x, y: 0 }, b: { x, y: c.len } })), cuts: [] }, spacing, count };
+      return { lines: { scores: xs.map((x) => ({ a: { x, y: 0 }, b: { x, y: c.len } })), cuts: [], paths: [] }, spacing, count };
+    },
+  },
+  slitLike('slits', SLITS),
+  slitLike('wave', WAVE),
+  slitLike('diamond', DIAMOND),
+  {
+    id: 'kiss',
+    kinds: ['corrugated'],
+    reach: (c) => bendOf(c.m).patternR,
+    draw: (c, f) => {
+      // scores in the inner liner only: the band's inside faces up when cut (the piece is mirrored in the file)
+      const { xs, spacing, count } = lineDraw(c, f, bendOf(c.m).patternR);
+      return { lines: { scores: xs.map((x) => ({ a: { x, y: 0 }, b: { x, y: c.len } })), cuts: [], paths: [] }, spacing, count };
     },
   },
   {
-    id: 'slits',
-    kinds: ['plywood'],
-    reach: (c) => {
-      const L = slitLayout(c.m, c.len);
-      if (!L) return Infinity;
-      // the radius at which the spacing reaches its smallest
-      const C = strainOf(c.m), t = c.m.thickness, pm = minSlitSpacing(c.m);
-      const rho = pm <= t ? (pm * pm) / (C * L.ell) : (pm * t) / (C * L.ell);
-      return Math.max(0, rho - bendOf(c.m).k * t);
-    },
-    blocked: (c) => (slitLayout(c.m, c.len) ? null : { key: 'short', value: slitMinLen(c.m) }),
+    id: 'perf',
+    kinds: ['card', 'corrugated'],
+    reach: (c) => perfReach(c.m),
     draw: (c, f) => {
-      const L = slitLayout(c.m, c.len);
-      if (!L) return none();
-      const p = Math.max(minSlitSpacing(c.m), slitSpacing(c.m, neutral(c), L.ell) * f);
-      const n = Math.max(2, Math.ceil(c.width / p - 1e-9));
-      const b = hingeBridge(c.m), step = L.S + b;
+      const { xs, spacing, count } = lineDraw(c, f, perfReach(c.m));
+      const card = c.m.kind === 'card';
+      const dash = card ? 3 : 5, gap = card ? 1 : 1.5, br = minWeb(c.m);
       const cuts: Seg[] = [];
-      across(c.width, n).forEach((x, k) => {
-        if (k % 2 === 0) {
-          for (let j = 0; j < L.n; j++) cuts.push({ a: { x, y: b + j * step }, b: { x, y: b + j * step + L.S } });
-          return;
-        }
-        // the other columns are shifted half a step: their slits end on this column's bridges, kept a bridge from the edges
-        for (let j = -1; j <= L.n; j++) {
-          const y0 = Math.max(b, b + j * step + step / 2), y1 = Math.min(c.len - b, b + j * step + step / 2 + L.S);
-          if (y1 - y0 >= b) cuts.push({ a: { x, y: y0 }, b: { x, y: y1 } });
+      xs.forEach((x, k) => {
+        // dashes with a bridge from the band's edges; every other line staggered by half a dash
+        const y0 = br, y1 = c.len - br, L = y1 - y0;
+        if (L < dash) return;
+        const n = Math.max(1, Math.round((L + gap) / (dash + gap)));
+        const dl = (L - (n - 1) * gap) / n, sh = k % 2 ? (dl + gap) / 2 : 0;
+        for (let j = -1; j < n; j++) {
+          const a = Math.max(y0, y0 + j * (dl + gap) + sh), b = Math.min(y1, y0 + j * (dl + gap) + sh + dl);
+          if (b - a >= Math.min(dl / 2, gap)) cuts.push({ a: { x, y: a }, b: { x, y: b } });
         }
       });
-      return { lines: { scores: [], cuts }, spacing: c.width / n, count: n };
+      return { lines: { scores: [], cuts, paths: [] }, spacing, count };
     },
   },
 ];
@@ -177,6 +247,19 @@ export function bestReach(c: BandCtx): number {
  * one that reaches tightest (flagged). Drawn at the asked density.
  */
 export function bandPattern(c: BandCtx, choice: PatternId | 'auto' | undefined, density: BendDensity = 1): BandPattern {
+  // a pattern depends only on these numbers: worked out once (shared, so callers must not change it)
+  const m = c.m, b = bendOf(m);
+  const key = [m.kind, m.thickness, m.clearance, b.smoothR, b.patternR, b.pitch, b.k, b.strain ?? '', c.r, c.len, c.width, c.turn, choice ?? '', density].join('|');
+  const hit = patternCache.get(key);
+  if (hit) return hit;
+  const out = drawBand(c, choice, density);
+  if (patternCache.size > 500) patternCache.clear();
+  patternCache.set(key, out);
+  return out;
+}
+const patternCache = new Map<string, BandPattern>();
+
+function drawBand(c: BandCtx, choice: PatternId | 'auto' | undefined, density: BendDensity): BandPattern {
   const ok = patternsFor(c.m.kind);
   let id: PatternId, auto = true;
   if (choice && choice !== 'auto' && ok.includes(choice)) {

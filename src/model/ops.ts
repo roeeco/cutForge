@@ -332,7 +332,9 @@ export function addTray(d: Design, baseId: string, height: number, kinds?: Parti
   }
   const id = newId('tr');
   d.trays ??= {};
-  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + tOf(d, baseId), height), ...newTrayKinds(d, baseId), openEdges: [], ...kinds };
+  // a corrugated round box's wall is its own piece (milestone 66): its strip then lies on the sheet with the flutes up the wall, as a smooth bend needs
+  const roundCorr = base.sketch.kind === 'poly' && !!base.sketch.round && matOf(d, baseId).kind === 'corrugated' ? { wallKind: 'tabslot' as const } : {};
+  d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + tOf(d, baseId), height), ...newTrayKinds(d, baseId), ...roundCorr, openEdges: [], ...kinds };
   solve(d);
   for (const w of trayWalls(d, id)) connectSeams(d, w);
   return id;
