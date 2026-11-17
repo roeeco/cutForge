@@ -19,10 +19,10 @@ import { sheetToSvg } from '../src/export/svg';
 const [CARD, CORR16, , PLY] = MATERIALS;
 
 /** A box (tray) with a lid grown from its back wall's top edge by a fold. */
-function lidBox(m: typeof CARD, radius?: number) {
+function lidBox(m: typeof CARD, radius?: number, h = 60) {
   const d = createDesign(m);
   const base = addRootPanel(d, 0, 0, 120, 80);
-  addTray(d, base, 60);
+  addTray(d, base, h);
   autoConnect(d);
   // the back wall: the tray wall on the base's far edge (e2)
   const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === 'e2')!.b.panelId;
@@ -72,7 +72,8 @@ describe('the band of a fold with a radius', () => {
   });
 
   it('card at radius 8: one piece, scores across the band at the calculated spacing, export clean', () => {
-    const { d, cid } = lidBox(CARD, 8);
+    // 50 high: at 60 the net is too big for a card sheet, and the app cuts it in two (it used to stay whole, too big)
+    const { d, cid } = lidBox(CARD, 8, 50);
     const b = bandOf(d, d.connections[cid])!;
     expect(b.pattern.id).toBe('score');
     expect(b.pattern.why).toBeNull();
@@ -85,8 +86,14 @@ describe('the band of a fold with a radius', () => {
     const scores = pieces[0].contours.filter((x) => x.op === 'score' && x.ref?.foldId === cid);
     expect(scores).toHaveLength(b.pattern.count);
     expect(netOverlaps(d)).toEqual([]);
-    expect(validate(d).filter((i) => i.key.startsWith('val.bend'))).toEqual([]);
+    expect(validate(d).filter((i) => i.key.startsWith('val.bend') || i.key === 'val.tooBig')).toEqual([]);
     expect(() => sheetsToSvg(prepareExport(d).sheets)).not.toThrow();
+  });
+
+  it('card at radius 8 on a box too big for one sheet: cut in two so it fits, not left whole and too big', () => {
+    const { d } = lidBox(CARD, 8);
+    expect(buildPieces(d)).toHaveLength(2);
+    expect(validate(d).map((i) => i.key)).not.toContain('val.tooBig');
   });
 
   it('card at radius 12 bends smoothly (no lines); at radius 2 nothing reaches, and the check says so', () => {

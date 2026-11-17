@@ -216,15 +216,11 @@ export function fitSplit(d: Design): boolean {
     return had.some((c) => c.split);
   }
   const nets = wholeNets(d);
-  // the quick look: every net well inside its sheet and nothing cut by the app
-  const wings = d.order.some((id) => d.panels[id]?.sketch?.kind === 'poly') ? wingPoints(d) : new Map<string, P2[]>();
-  const ring = (id: string) => {
-    const p = d.panels[id];
-    return p ? panelEdges(p).map((e) => e.a).concat(wings.get(id) ?? []) : [];
-  };
-  const slack = 40;
-  if (!had.length && nets.every((n) => partsOf(d, n, new Set(), ring).every((p) => overflow(d, { ...p, w: p.w + slack, h: p.h + slack }) <= 0))) return false;
+  // the quick look: every net inside its sheet and nothing cut by the app. It measures what the
+  // cut plan cuts, flaps and lips included: an outline with a fixed allowance for them called a
+  // card box with a tuck lid "fitting" when its lip and dust flaps took it a few mm over the sheet
   const pts = panelPoints(d);
+  if (!had.length && nets.every((n) => partsOf(d, n, new Set(), pts).every((p) => overflow(d, p) <= 0))) return false;
   const fixed = new Set(Object.values(d.connections).filter((c) => c.cut === 'cut' && c.split).map((c) => c.id));
   const want = new Set<string>();
   for (const net of nets) {
