@@ -136,6 +136,8 @@ export type Panel = {
   customHeight?: boolean;
   /** Fold-over (double-wall) reinforcement on free edges (card and corrugated). */
   foldOvers?: FoldOver[];
+  /** Milestone 67: plain flaps on free edges (card and corrugated): a scored lip, `len` mm, tapered at its ends. */
+  edgeFlaps?: { id: string; edge: string; len: number }[];
   /**
    * Derived (re-made by `solve`): how far a wall reaches past the start/end of
    * its parent edge, to close an inside corner of a tray.
@@ -191,6 +193,7 @@ export type ConnectionKind =
   | 'halflap' // crossing panels with half-depth slots
   | 'lean' // angled plywood panel resting on its parent, held by side walls
   | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
+  | 'closure' // how a lid closes the box it seals: its lip, dust flaps, locks (milestone 67; derived from `Design.closures`)
   | 'butt'; // edge to edge, no joint
 
 /**
@@ -280,6 +283,8 @@ export type Connection = {
    * glued to it with a lip (`glue`), keyed into it (`key`), or plain (`butt`).
    */
   wing?: true;
+  /** Milestone 67: a lid's closure (derived while it seals its box): the walls it covers, whose joints with the lid it replaces. */
+  covers?: string[];
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -359,6 +364,12 @@ export type Design = {
   /** Objects placed in its compartments (milestone 40): view state kept with the design, ignored by pieces, packing and export. */
   contents?: Content[];
   /**
+   * Milestone 67: how each lid closes the box it seals, by lid panel id. Kept
+   * while the lid does not seal (pulled short), so its settings come back with
+   * it; the closure's joint is made from it only while it seals.
+   */
+  closures?: Record<string, Closure>;
+  /**
    * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
    * wall-to-base joints (grown panels and edge-on-face seams) and for corners
    * (wall-to-wall closing seams), used for new joints where allowed; and the
@@ -366,6 +377,18 @@ export type Design = {
    */
   joints?: JointChoices;
 };
+
+/**
+ * How a lid closes (milestone 67, PACKAGING_PLAN.md §7): a tuck lip inside the
+ * front wall with dust flaps on the side walls (`tuck`), the same with slit
+ * locks (`tuckLock`), a lip with a tongue through a slot in the front wall
+ * (`tab`), resting on the walls (`rest`), or glued to the front wall
+ * (`glued`). `lip`: the lip's length (null: 30% of the lid's depth, 12–22 mm);
+ * `thumb`: a half-round notch in the front wall's top; `dust`: dust flaps on
+ * the side walls (tuck and tab).
+ */
+export type Closure = { style: ClosureStyle; lip?: number | null; thumb?: boolean; dust?: boolean };
+export type ClosureStyle = 'tuck' | 'tuckLock' | 'tab' | 'rest' | 'glued';
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
 /**

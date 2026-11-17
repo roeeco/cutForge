@@ -1,11 +1,13 @@
 // Pure model operations. Each takes a Design (an immer draft when called
 import { planWings, reconcileWings } from './wings';
+import { autoFlap } from './seams';
+import { closureCovers, closureOf, reconcileClosures } from './closures';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch } from './types';
+import type { Connection, ConnectionKind, Design, Detail, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -197,6 +199,8 @@ function solveOnce(d: Design) {
   const guides = constructionSet(d);
   // the corners' bands once the walls stand: their kinds (plywood strips keyed shut and for the sheet)
   planWings(d);
+  // lids that seal their box get their closure (milestone 67)
+  reconcileClosures(d);
   for (const c of Object.values(d.connections)) {
     // construction panels are never joined: their connections carry no joint
     if (guides.has(c.a.panelId) || guides.has(c.b.panelId)) {
@@ -205,7 +209,7 @@ function solveOnce(d: Design) {
       delete c.thin;
       continue;
     }
-    if (!c.grown && !c.wing) {
+    if (!c.grown && !c.wing && c.kind !== 'closure') {
       const ok = pairKinds(d, c);
       const g = jointGroup(c);
       fitKind(c, ok, g ? designKind(d, g, ok, ownerMaterial(d, c).kind) : undefined);
@@ -562,8 +566,10 @@ export const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${
  */
 export function autoConnect(d: Design) {
   let removed = false;
+  // a lid's closure stands for its joints with the walls it covers (milestone 67): any other there goes
+  const covered = closureCovers(d);
   for (const c of Object.values(d.connections))
-    if (c.auto !== false && !c.grown && !c.wing && ((c.broken && !c.thin) || !seamStillFits(d, c))) {
+    if (c.auto !== false && !c.grown && !c.wing && c.kind !== 'closure' && ((c.broken && !c.thin) || !seamStillFits(d, c) || covered.has(pairKey(c.a.panelId, c.b.panelId)))) {
       delete d.connections[c.id];
       removed = true;
     }
@@ -587,7 +593,7 @@ export function autoConnect(d: Design) {
   // and none left broken by a seam joined after it: the next run would remove it again
   let late = false;
   for (const c of Object.values(d.connections))
-    if (c.auto !== false && !c.grown && !c.wing && c.broken && !c.thin) {
+    if (c.auto !== false && !c.grown && !c.wing && c.kind !== 'closure' && c.broken && !c.thin) {
       delete d.connections[c.id];
       late = true;
     }
@@ -1820,5 +1826,37 @@ export function setTrayCurveKind(d: Design, trayId: string, kind: Tray['curveKin
   if (!t) return;
   if (kind) t.curveKind = kind;
   else delete t.curveKind;
+  solve(d);
+}
+
+/** A lid's closure settings (milestone 67): its style, lip length, thumb notch, dust flaps; kept while it does not seal. */
+export function setClosure(d: Design, lidId: string, patch: Partial<Closure>) {
+  if (!d.panels[lidId]) return;
+  d.closures ??= {};
+  const cur = d.closures[lidId] ?? closureOf(d, lidId);
+  const next: Closure = { ...cur, ...patch };
+  if (patch.lip === null) delete next.lip;
+  d.closures[lidId] = next;
+  solve(d);
+  autoConnect(d);
+}
+
+/** Add a plain flap on a free edge of a card or corrugated board (milestone 67); returns its id. */
+export function addEdgeFlap(d: Design, panelId: string, edge: string, len?: number): string | null {
+  const p = d.panels[panelId];
+  if (!p || !findEdge(p, edge) || matOf(d, panelId).kind === 'plywood') return null;
+  const id = newId('fl');
+  p.edgeFlaps = [...(p.edgeFlaps ?? []).filter((f) => f.edge !== edge), { id, edge, len: len ?? Math.max(12, autoFlap(matOf(d, panelId))) }];
+  solve(d);
+  return id;
+}
+
+/** Change a plain flap's length, or remove it (null). */
+export function setEdgeFlap(d: Design, panelId: string, edge: string, len: number | null) {
+  const p = d.panels[panelId];
+  if (!p?.edgeFlaps) return;
+  if (len === null) p.edgeFlaps = p.edgeFlaps.filter((f) => f.edge !== edge);
+  else p.edgeFlaps = p.edgeFlaps.map((f) => (f.edge === edge ? { ...f, len: Math.max(2, len) } : f));
+  if (!p.edgeFlaps.length) delete p.edgeFlaps;
   solve(d);
 }

@@ -1,6 +1,7 @@
 // Seam geometry: how two panels meet in 3D, and what each connection kind
 import { bandCrossings, bandOf } from './bands';
 import { wingGeom } from './wings';
+import { closureCovers, closureGeom } from './closures';
 // cuts into them. Everything here is derived from panel frames and sizes, so
 // joints follow dimension, thickness, clearance, count, spacing and angle
 // changes automatically.
@@ -389,6 +390,8 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   // a tray's rounded corner (milestone 64)
   if (c.wing) return wingGeom(d, c);
+  // a lid's closure (milestone 67)
+  if (c.kind === 'closure') return closureGeom(d, c);
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -1065,12 +1068,15 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const guides = constructionSet(d);
   const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
   const conns = Object.values(d.connections);
+  const covered = closureCovers(d);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       const A = d.panels[ids[i]], B = d.panels[ids[j]];
       if (only && A.id !== only && B.id !== only) continue;
       const mine = conns.filter((c) => (c.a.panelId === A.id && c.b.panelId === B.id) || (c.a.panelId === B.id && c.b.panelId === A.id));
       if (mine.some((c) => c.grown)) continue;
+      // a lid's closure covers its joints with these walls (milestone 67)
+      if (covered.has(A.id < B.id ? `${A.id}|${B.id}` : `${B.id}|${A.id}`)) continue;
       // a flat panel placed on a face is a separate part, not joined to it
       if (flatOnHost(d, A.id, B.id)) continue;
       if (!nearEachOther(d, A, B)) continue;

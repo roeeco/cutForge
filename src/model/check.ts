@@ -31,7 +31,7 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'butt'] as const;
 const PATTERNS = ['auto', 'smooth', 'score', 'perf', 'kiss', 'slits', 'wave', 'diamond'] as const;
 const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
@@ -174,6 +174,10 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   v3(x.frame.v, `${where}.frame.v`, true);
   if (x.frame.side !== 1 && x.frame.side !== -1) fail(`${where}.frame.side`, 'not 1 or -1');
   arr(x.details, `${where}.details`).forEach((dt, i) => detail(dt, `${where}.details[${i}]`));
+  if (x.edgeFlaps !== undefined) {
+    if (!Array.isArray(x.edgeFlaps)) delete x.edgeFlaps;
+    else x.edgeFlaps = x.edgeFlaps.filter((f: any) => isObj(f) && typeof f.id === 'string' && typeof f.edge === 'string' && Number.isFinite(f.len) && f.len > 0 && f.len < 1000);
+  }
   if (x.foldOvers !== undefined) {
     arr(x.foldOvers, `${where}.foldOvers`).forEach((f, i) => {
       const w = `${where}.foldOvers[${i}]`;
@@ -363,6 +367,20 @@ export function checkDesign(raw: unknown): asserts raw is Design {
   if (typeof d.sheetMargin !== 'number' || !Number.isFinite(d.sheetMargin) || d.sheetMargin < 0 || d.sheetMargin > 1000) d.sheetMargin = 5;
   if (d.allowRotate !== undefined && typeof d.allowRotate !== 'boolean') d.allowRotate = false;
   if (d.noAutoSeams !== undefined) d.noAutoSeams = Array.isArray(d.noAutoSeams) ? d.noAutoSeams.filter((x: unknown) => typeof x === 'string') : [];
+  // lids' closures (milestone 67): settings only; a bad one is dropped
+  if (d.closures !== undefined) {
+    if (!isObj(d.closures)) delete d.closures;
+    else
+      for (const k of Object.keys(d.closures)) {
+        const c = d.closures[k];
+        if (!isObj(c) || !['tuck', 'tuckLock', 'tab', 'rest', 'glued'].includes(c.style)) delete d.closures[k];
+        else {
+          if (c.lip !== undefined && c.lip !== null && !(Number.isFinite(c.lip) && c.lip > 0 && c.lip < 1000)) delete c.lip;
+          if (c.thumb !== undefined && typeof c.thumb !== 'boolean') delete c.thumb;
+          if (c.dust !== undefined && typeof c.dust !== 'boolean') delete c.dust;
+        }
+      }
+  }
   if (d.contents !== undefined) {
     d.contents = Array.isArray(d.contents)
       ? d.contents.filter(

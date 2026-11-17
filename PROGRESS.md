@@ -1071,6 +1071,34 @@ Limitations
 - At a round box's seam a wall standing in from the edge meets its band within the web × tan(half the crease) (0.4 mm for corrugated): the closing lip or key takes it up.
 - Pattern line spacings and slit factors are starting values: calibrate with the bend test.
 
+## Milestone 67 — closures ✅
+
+Implemented (`PACKAGING_PLAN.md` §7; `src/model/closures.ts`, `src/model/types.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/geometry.ts`, `src/model/jointDefaults.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/ui/ClosureUI.tsx`, `src/ui/EdgeBar.tsx`, `src/ui/Inspector.tsx`)
+- **Sealing** (`sealFor`, `sealOf`): a panel folded off a tray wall's top edge seals the box when its far edge reaches the opposite wall, from 3 mm short of its inside face to its outside face; the walls under its sides are found the same way. The same test runs on the grow ghost.
+- **The closure joint:** while a lid seals its box, `reconcileClosures` (in solve, once frames are placed) keeps a connection of kind `closure` on it (`close:<lid>`), with the walls it covers (`covers`); its geometry (`closureGeom`) is the lid's settings made real, so nets, 3D flaps, export and the checks pick it up like any joint. Pulled short, the joint goes; the settings (`Design.closures[lid]`) stay and return with it; a lid deleted takes its settings.
+- **What it covers:** no other joint is made between the lid and the walls it covers (`findOpenSeams` and `autoConnect` skip them, and remove an automatic one already there); the touching-but-not-joined check counts them joined.
+- **Styles** (`closureStyles`): card *Tuck* (default), *Tuck with slit locks*, *Tab lock*, *Rests*, *Glued*; corrugated *Tab lock* (default), *Tuck*, *Rests*, *Glued*; plywood *Rests*.
+  - The lip: on the lid's far edge, inset by the thickness and 0.5 mm each side, corners rounded 4 mm, scored at the fold, 30% of the lid's depth (12–22 mm) unless set; in 3D folded down inside the front wall.
+  - Slit locks: 4 mm slits at the ends of the lip's fold into the lid; the dust flaps get a 3 mm shoulder.
+  - Tab lock: a tongue (at most 25 mm, 30% of the lip) a wall's thickness and 4 mm past the lip, through a slot (tongue and clearance by lid thickness and clearance) where the lip ends on the front wall.
+  - Dust flaps: on the side walls' top edges, up to 45% of the lid's width deep, tapered 15° at the hinge (clear of a hinge band's curve) and 8° at the front, relieved for the lip; in 3D folded in under the lid.
+  - Thumb notch: a half-round of 9 mm in the front wall's top, at its middle.
+  - Glued: a glue flap on the lid's far edge, inside the front wall.
+- **Plain edge flaps** (`Panel.edgeFlaps`, `addEdgeFlap`, `setEdgeFlap`, `edgeFlapGeom`): a scored lip on any free edge of a card or corrugated board, tapered 30° at its ends; *Add a flap* on the edge's card.
+- **Cards:** *Closes the box* on the lid's card (`closure-section`): what it reaches, the style, its help line, the lip, dust flaps, thumb notch. The grow card says when the ghost will close the box and with what (`grow-closes`).
+- Files: `check.ts` accepts `Design.closures`, `edgeFlaps` and the `closure` kind. English and Hebrew strings.
+
+Verified
+- `tests/closures.test.ts` (7): a card lid at the front wall's inside face seals the box (both side walls found), a tuck closure with its lip and two dust flaps folded in 3D, no other joint or open seam with the walls it covers, no issues, flat, one piece, exported; pulled short it goes and pushed back returns with its settings (slit locks, thumb notch); corrugated's tab lock with its slot; rests and glued; plywood rests on its living hinge with nothing named; the lip's length rule; idempotent and reopened; plain edge flaps (scored, 15 mm out, none on plywood, removed).
+- **Golden exports:** new `closure-card-tuck-lock`, `closure-corr-tab`; `band-card-score-r8` and `pattern-card-perf` regenerated (their lids reach the front wall, so they now close the box with a tuck); every other case byte-identical.
+- Unit suite: 635 pass, 7 skipped; typecheck clean.
+- Browser: new `tests/e2e/closures.spec.ts` (a card lid grown to the front wall: the grow card says it will close the box with a tuck flap; its card sets a tuck with slit locks and a thumb notch). Full app suite (`--grep-invert classroom`): 99 passed, 0 failed, 57 skipped.
+
+Limitations
+- The closing edge is the lid's far edge; per-edge roles (a lip on a side) are not offered yet.
+- A corner glue flap beside a lid's band is clipped by the band's corner cut and can leave a sliver.
+- Sealing is found for lids over tray walls only.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

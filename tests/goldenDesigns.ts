@@ -1,8 +1,9 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
+import { sealOf } from '../src/model/closures';
 import type { Design } from '../src/model/types';
 
 const [CARD, , CORR4, PLY] = MATERIALS;
@@ -155,5 +156,28 @@ export function roundBoxDesign(m: (typeof MATERIALS)[number], shape: 'circle' | 
   const base = addRoundPanel(d, 0, 0, w, h, { shape })!;
   addTray(d, base, 45);
   autoConnect(d);
+  return d;
+}
+
+/** A tray with a lid folded off its back wall to the front wall's inside face (milestone 67): its closure in the given style. */
+export function closedBox(m: (typeof MATERIALS)[number], style?: 'tuck' | 'tuckLock' | 'tab' | 'glued', thumb = false): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  addTray(d, base, 50);
+  autoConnect(d);
+  const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === E(2))!.b.panelId;
+  const g = growPanel(d, back, E(2), { height: 60, angle: 90, dir: 'up', kind: 'fold' })!;
+  solve(d);
+  const L = d.panels[g.panelId];
+  for (const h of [70, 74, 76, 77, 78, 79, 80]) {
+    L.h = h;
+    const s = sealOf(d, g.panelId);
+    if (s) {
+      setPanelSize(d, g.panelId, undefined, s.yIn);
+      break;
+    }
+  }
+  autoConnect(d);
+  if (style || thumb) setClosure(d, g.panelId, { ...(style ? { style } : {}), thumb });
   return d;
 }

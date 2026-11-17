@@ -79,6 +79,17 @@ function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
       x.linerHoles.push(...fo.g.linerHoles);
     }
   }
+  // plain flaps on free edges (milestone 67)
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.edgeFlaps?.length || !want(id)) continue;
+    for (const f of p.edgeFlaps) {
+      const g = edgeFlapGeom(d, p, f);
+      if (!g) continue;
+      at(id).adds.push(g.poly);
+      at(id).scores.push(g.score);
+    }
+  }
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;
     for (const k of c.geom.cuts ?? []) if (want(k.panelId)) at(k.panelId).cuts.push(k.poly);
@@ -308,4 +319,21 @@ export function detailBBox(dt: Detail) {
     minY: Math.min(...inst.map((x) => x.cy - x.h / 2)),
     maxY: Math.max(...inst.map((x) => x.cy + x.h / 2)),
   };
+}
+
+/**
+ * A plain flap on a free edge (milestone 67): a lip `len` mm out from the
+ * edge, its ends tapered 30°, scored where it folds. None on an edge that is
+ * gone or joined.
+ */
+export function edgeFlapGeom(d: Design, p: Panel, f: { edge: string; len: number }): { poly: P2[]; score: { a: P2; b: P2 } } | null {
+  const e = findEdge(p, f.edge);
+  if (!e) return null;
+  const joined = Object.values(d.connections).some((c) => (c.a.panelId === p.id && findEdge(p, c.a.edge)?.key === e.key) || (c.b.panelId === p.id && c.b.edge !== 'face' && findEdge(p, c.b.edge)?.key === e.key));
+  if (joined) return null;
+  const L = segLength(e), dir = segDir(e), inw = segInward(e);
+  const len = Math.max(2, f.len);
+  const taper = Math.min(len * Math.tan(Math.PI / 6), L / 3);
+  const at = (s: number, o: number): P2 => ({ x: e.a.x + dir.x * s - inw.x * o, y: e.a.y + dir.y * s - inw.y * o });
+  return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, 0), b: at(L, 0) } };
 }

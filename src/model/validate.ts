@@ -27,6 +27,7 @@ import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
 import { bandOf, foldRadius } from './bands';
 import { cornerOf, wingBands } from './wings';
+import { closureCovers } from './closures';
 import { bestReach } from './bendPatterns';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
@@ -478,7 +479,8 @@ const SHORT_CONTACT = 10;
 
 function contactIssues(d: Design, already: Issue[]): Issue[] {
   const name = (id: string) => d.panels[id]?.name ?? '?';
-  const joined = new Set(Object.values(d.connections).map((c) => pairKey(c.a.panelId, c.b.panelId)));
+  // a lid's closure joins it to every wall it covers (milestone 67)
+  const joined = new Set([...Object.values(d.connections).map((c) => pairKey(c.a.panelId, c.b.panelId)), ...closureCovers(d)]);
   const named = new Set(already.filter((i) => i.pair).map((i) => pairKey(i.pair![0], i.pair![1])));
   const unjoined = new Set(d.noAutoSeams ?? []);
   const out: Issue[] = [];

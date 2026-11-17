@@ -15,6 +15,9 @@ import { AngleDial, hingeText } from './AngleDial';
 import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { shown, useFeature } from '../easy/features';
+import { closureStyles, sealFor } from '../model/closures';
+import { addEdgeFlap, setEdgeFlap } from '../model/ops';
+import { matOf as matOfEB } from '../model/materials';
 
 export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const t = useT();
@@ -87,6 +90,12 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
               {t('grow.adapt')}
             </label>
             {eg.adaptive && !grow.sketch && <p className="note" data-testid="grow-adapted">{t('grow.adapted')}</p>}
+            {eg.kind === 'fold' && eg.plain && sealFor(design, eg.plain, panelId, 'ghost') && (
+              // the lid would seal the box (milestone 67): say what closes it
+              <p className="note" data-testid="grow-closes">
+                {t('grow.closes', { style: t(`closure.${closureStyles(matOfEB(design, panelId).kind)[0]}`) })}
+              </p>
+            )}
             <button
               className={grow.editGhost ? 'on' : ''}
               aria-pressed={!!grow.editGhost}
@@ -107,9 +116,33 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
               </>
             )}
             <p className="note">{t('edge.confirmOnStage')}</p>
+            {advanced && matOfEB(design, panelId).kind !== 'plywood' && <EdgeFlapField panelId={panelId} edge={edge} />}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A plain flap on this free edge (milestone 67): add it, set its length, take it off. */
+function EdgeFlapField({ panelId, edge }: { panelId: string; edge: string }) {
+  const t = useT();
+  const design = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const p = design.panels[panelId];
+  const f = p?.edgeFlaps?.find((x) => x.edge === edge);
+  if (!f)
+    return (
+      <button onClick={() => apply((d) => void addEdgeFlap(d, panelId, edge))} title={t('flap.addHelp')} data-testid="edge-add-flap">
+        {t('flap.add')}
+      </button>
+    );
+  return (
+    <div className="subsection" data-testid="edge-flap">
+      <NumField label={t('flap.len')} value={f.len} unit={t('unit.mm')} min={2} max={200} onCommit={(v) => apply((d) => setEdgeFlap(d, panelId, edge, v))} testId="edge-flap-len" />
+      <button className="link" onClick={() => apply((d) => setEdgeFlap(d, panelId, edge, null))} data-testid="edge-flap-remove">
+        {t('flap.remove')}
+      </button>
     </div>
   );
 }
