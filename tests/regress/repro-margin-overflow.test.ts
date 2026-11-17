@@ -11,6 +11,7 @@ import { validate } from '../../src/model/validate';
 describe('repro: piece placed in the sheet margin', () => {
   it('card tray net 311 x 291 on a 500 x 300 sheet with a 5 mm margin', () => {
     const d = createDesign(MATERIALS[0]); // card-0.5, sheet 500x300, margin 5
+    d.split = 'never'; // kept whole: milestone 69 would cut it to fit (tests/split.test.ts)
     const b = addRootPanel(d, 0, 0, 200, 180);
     addTray(d, b, 55);
     const c = pieceCopies(d)[0];

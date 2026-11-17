@@ -24,6 +24,8 @@ const BASES: Record<string, P2[]> = {
 
 function tray(pts: P2[], m = MATERIALS[0], h = 40) {
   const d = createDesign(m);
+  // these nets are about lying flat, not about the sheet: kept whole (milestone 69)
+  d.split = 'never';
   const b = addRootPanel(d, 0, 0, 100, 100);
   const mx = Math.min(...pts.map((q) => q.x)), my = Math.min(...pts.map((q) => q.y));
   d.panels[b].sketch = { kind: 'poly', pts: pts.map((q) => ({ x: q.x - mx, y: q.y - my })), edgeIds: pts.map((_, i) => `e${i}`) };

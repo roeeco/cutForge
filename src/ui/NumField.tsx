@@ -166,7 +166,7 @@ export function Stepper(props: NumProps & { step?: number; slider?: boolean }) {
 export function Segmented<T extends string | number>(props: {
   label?: string;
   value: T;
-  options: { value: T; label: ReactNode; title?: string; testId?: string }[];
+  options: { value: T; label: ReactNode; title?: string; testId?: string; disabled?: boolean }[];
   onChange: (v: T) => void;
   testId?: string;
 }) {
@@ -180,7 +180,9 @@ export function Segmented<T extends string | number>(props: {
           aria-checked={o.value === props.value}
           className={o.value === props.value ? 'on' : ''}
           title={o.title}
-          onClick={() => props.onChange(o.value)}
+          disabled={o.disabled}
+          aria-disabled={o.disabled || undefined}
+          onClick={() => !o.disabled && props.onChange(o.value)}
           data-testid={o.testId}
         >
           {o.label}

@@ -4,23 +4,32 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField, Segmented, Stepper } from './NumField';
-import { curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setPanelSize, setPanelYaw, setPointCurve, updateDetail } from '../model/ops';
+import { canMatch, copyOutlineFrom, leaderOf, matchWall, ownOutline } from '../model/ops';
+import { followersOf } from '../model/match';
+import { convertToPoints, curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setCornerRadius, setPanelSize, setPanelYaw, setPointCurve, setPointRound, setRoundShape, updateDetail } from '../model/ops';
 import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
 import { matOf } from '../model/materials';
-import { rotateCopy } from '../model/pack';
+import { materialName } from './materialName';
+import { ovalRadii } from '../model/round';
+import { quantityRoot, rotateCopy } from '../model/pack';
 import { DesignSettings } from './DesignSettings';
 import { edgeHasRoom } from '../model/adapt';
 import { ArraySection, MultiSelection, TextFields } from './Selection';
 import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
+import { BendSection } from './BendUI';
+import { CutChoice } from './SplitUI';
+import { ClosureSection } from './ClosureUI';
+import { roundedMin } from '../easy/recipes';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
 import { edgeLabel, isAutoName, panelLabel } from '../model/names';
-import { isCurveKey, panelEdges, segLength } from '../model/edges';
+import { isCurveKey, panelEdges, segLength, sketchFillets, sketchMaxRadius } from '../model/edges';
+import { KEEP_STRAIGHT } from '../geom/fillet';
 import { Icon } from './icons';
 import { EdgeBar } from './EdgeBar';
 import { BoardMaterial } from './BoardMaterial';
 import { MultiPanel } from './MultiPanel';
-import { PlacedSection, placedWhere } from './PlacedUI';
+import { DividerSection, PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
 import { Gate } from '../easy/Gate';
@@ -193,20 +202,33 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
-          <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+          {p.divider ? (
+            // a divider's length comes from its ends (milestone 44)
+            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} disabled onCommit={() => undefined} testId="panel-w" />
+          ) : (
+            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+          )}
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
           <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
-          {!parent && (
+          <RoundSection panelId={id} />
+          {p.divider && <DividerSection panelId={id} />}
+          {!parent && !p.divider && (
             <NumField label={t('insp.rotation')} value={panelYaw(p)} unit={t('unit.deg')} min={-360} max={360} onCommit={(v) => apply((x) => setPanelYaw(x, id, v))} testId="panel-yaw" />
           )}
           <Gate f="hinge">
             <PanelHinge panelId={id} />
+            {pc?.kind === 'fold' && <BendSection c={pc} />}
+            {pc && <CutChoice c={pc} />}
+            <ClosureSection panelId={id} />
           </Gate>
           <TrayWallNote panelId={id} />
+          <Gate f="curves">
+            <MatchSection panelId={id} />
+          </Gate>
           <Gate f="foldover">
             <FoldOverSection panelId={id} />
           </Gate>
-          {((!parent && p.sketch.kind === 'poly') || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
+          {((!parent && p.sketch.kind === 'poly' && !p.sketch.round) || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
               aria-pressed={editOutline === id}
@@ -223,11 +245,11 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           )}
           <Stepper
             label={t('insp.quantity')}
-            value={d.pieces[pieceKeyOf(d, id)]?.quantity ?? 1}
+            value={d.pieces[quantityRoot(d, pieceKeyOf(d, id))]?.quantity ?? 1}
             min={1}
             max={500}
             slider={false}
-            onCommit={(v) => apply((x) => void (x.pieces[pieceKeyOf(x, id)] = { quantity: Math.round(v) }))}
+            onCommit={(v) => apply((x) => void (x.pieces[quantityRoot(x, pieceKeyOf(x, id))] = { quantity: Math.round(v) }))}
             testId="panel-qty"
           />
           <Gate f="boardMaterial">
@@ -288,19 +310,38 @@ function PointCurve({ panelId }: { panelId: string }) {
   const d = useStore((s) => s.design);
   const sel = useStore((s) => s.selVertex);
   if (sel === null || sel === 'bl' || sel === 'br') return <p className="note">{t('outline.pickPoint')}</p>;
-  const curved = pointCurve(d, panelId, sel);
-  const blocked = !curved && curveBlocked(d, panelId, sel);
+  const p = d.panels[panelId];
+  // a base's point may also be a rounded corner (milestone 62)
+  const vertex = p?.sketch.kind === 'poly' && typeof sel === 'number' && !parentConnection(d, panelId) ? p.sketch.pts[sel] : undefined;
+  const kind = vertex?.curve === 'round' ? 'round' : pointCurve(d, panelId, sel) ? 'auto' : 'corner';
+  const blocked = kind !== 'auto' && curveBlocked(d, panelId, sel);
+  const apply = useStore.getState().apply;
+  const choose = (v: string) => {
+    if (v === 'auto' && blocked) return;
+    if (v === 'round' && typeof sel === 'number') apply((x) => void setPointRound(x, panelId, sel, vertex?.r ?? 10));
+    else if (v === 'auto') apply((x) => void setPointCurve(x, panelId, sel, true));
+    else apply((x) => void (kind === 'round' && typeof sel === 'number' ? setPointRound(x, panelId, sel, null) : setPointCurve(x, panelId, sel, false)));
+  };
   return (
     <div className="subsection" data-testid="point-curve">
       <Segmented
         label={t('outline.point')}
-        value={curved ? 'auto' : 'corner'}
+        value={kind}
         options={[
           { value: 'corner', label: t('outline.corner'), testId: 'point-corner' },
           { value: 'auto', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve-auto' },
+          ...(vertex ? [{ value: 'round', label: t('outline.round'), testId: 'point-round' }] : []),
         ]}
-        onChange={(v) => !(v === 'auto' && blocked) && useStore.getState().apply((x) => void setPointCurve(x, panelId, sel, v === 'auto'))}
+        onChange={choose}
       />
+      {kind === 'round' && typeof sel === 'number' && (
+        <NumField label={t('outline.radius')} value={vertex?.r ?? 0} unit={t('unit.mm')} min={0.5} onCommit={(v) => apply((x) => void setPointRound(x, panelId, sel, v))} testId="point-radius" />
+      )}
+      {kind === 'round' && typeof sel === 'number' && p.sketch.kind === 'poly' && !p.sketch.round && (vertex?.r ?? 0) > sketchMaxRadius(p.sketch, sel) + 1e-6 && (
+        <p className="note" data-testid="point-radius-max">
+          {t('round.largest', { r: Math.floor(sketchMaxRadius(p.sketch, sel) * 10) / 10, keep: KEEP_STRAIGHT })}
+        </p>
+      )}
       {blocked === 'joined' && <p className="note" data-testid="point-curve-blocked">{t('outline.curveJoined')}</p>}
     </div>
   );
@@ -350,6 +391,135 @@ function SheetPlacementControls({ panelId }: { panelId: string }) {
         {t('pack.rotate')}
       </button>
       {blocked && <p className="note">{t('pack.rotateBlocked')}</p>}
+    </div>
+  );
+}
+
+/**
+ * A round base's card section (milestone 62): its shape, an oval's end radius
+ * (and the side radius it gives), Convert to points; a base with rounded
+ * corners: one radius for them all. Width and depth are the panel's own fields.
+ */
+function RoundSection({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'poly' || parentConnection(d, panelId)) return null;
+  const s = p.sketch;
+  const rounded = s.pts.filter((q) => q.curve === 'round');
+  if (!s.round && !rounded.length) return null;
+  const mm = t('unit.mm');
+  const m = matOf(d, panelId);
+  // the tightest corner its walls bend round, at their height (milestone 64): the bend patterns' reach plus the wall's thickness
+  const tray = Object.values(d.trays ?? {}).find((x) => x.baseId === panelId);
+  const lim = roundedMin(m, tray?.height ?? 40);
+  // its tightest bend: the smallest radius as built (an oval's ends, a clamped corner)
+  const built = sketchFillets(s);
+  const tight = Math.min(...built.filter((f): f is NonNullable<typeof f> => !!f).map((f) => f.r));
+  // corners made smaller than asked so each wall keeps its straight edge (milestone 62)
+  const clamped = !s.round && s.pts.some((q, i) => q.curve === 'round' && built[i] && built[i]!.r < (q.r ?? 0) - 1e-6);
+  const clampNote = clamped && (
+    <p className="note" data-testid="round-clamped">
+      {t('round.clamped', { r: Math.round(Math.min(...built.filter((f): f is NonNullable<typeof f> => !!f).map((f) => f.r)) * 10) / 10, keep: KEEP_STRAIGHT })}
+    </p>
+  );
+  const tightNote = Number.isFinite(tight) && tight < lim - 1e-6 && (
+    <p className="note warn" data-testid="round-tight">
+      {t('round.tight', { mat: materialName(t, m), min: Math.round(lim * 10) / 10 })}
+    </p>
+  );
+  if (!s.round)
+    return (
+      <div className="subsection round" data-testid="round-section">
+        <NumField label={t('round.corner')} value={rounded[0].r ?? 0} unit={mm} min={0.5} onCommit={(v) => apply((x) => void setCornerRadius(x, panelId, v))} testId="round-corner-all" />
+        {clampNote}
+        {tightNote}
+      </div>
+    );
+  const shape = s.round.shape;
+  const a = Math.max(p.w, p.h) / 2, b = Math.min(p.w, p.h) / 2;
+  const radii = shape === 'oval' ? ovalRadii(a, b, s.round.rEnd) : null;
+  return (
+    <div className="subsection round" data-testid="round-section">
+      <h4>{t('round.title')}</h4>
+      <Segmented
+        label={t('round.shape')}
+        value={shape}
+        options={(['circle', 'oval', 'stadium'] as const).map((x) => ({ value: x, label: t(`round.${x}`), testId: `round-shape-${x}` }))}
+        onChange={(v) => apply((x) => void setRoundShape(x, panelId, { shape: v as 'circle' | 'oval' | 'stadium' }))}
+      />
+      {shape === 'oval' && radii && (
+        <>
+          <NumField label={t('round.end')} value={radii.r1} unit={mm} min={0.5} max={b} onCommit={(v) => apply((x) => void setRoundShape(x, panelId, { rEnd: v }))} testId="round-end" />
+          <p className="note" data-testid="round-side">
+            {Number.isFinite(radii.r2) ? t('round.side', { r: Math.round(radii.r2 * 10) / 10 }) : t('round.isStadium')}
+          </p>
+        </>
+      )}
+      {tightNote}
+      <button onClick={() => apply((x) => void convertToPoints(x, panelId))} title={t('round.toPointsNote')} data-testid="round-to-points">
+        {t('round.toPoints')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Matched walls (milestone 46, CURVED_WALLS.md §7.2): a wall's top outline can
+ * follow a parallel wall facing it (a stored link; *Own outline* drops it),
+ * or be copied once from any wall.
+ */
+function MatchSection({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const apply = useStore((s) => s.apply);
+  const p = d.panels[panelId];
+  if (!p || p.sketch.kind !== 'wall' || !parentConnection(d, panelId)) return null;
+  const leader = leaderOf(d, panelId);
+  const follow = followersOf(d, panelId);
+  const walls = d.order.filter((x) => x !== panelId && d.panels[x]?.sketch.kind === 'wall' && parentConnection(d, x));
+  const cands = walls.filter((x) => canMatch(d, panelId, x));
+  return (
+    <div className="subsection match" data-testid="match-section">
+      {leader ? (
+        <>
+          <p className="note" data-testid="match-follows">{t('match.follows', { wall: panelLabel(d, leader, t) })}</p>
+          <button onClick={() => apply((x) => void ownOutline(x, panelId))} title={t('match.ownNote')} data-testid="match-own">
+            {t('match.own')}
+          </button>
+        </>
+      ) : (
+        <>
+          {follow.length > 0 && <p className="note" data-testid="match-leads">{t('match.leads', { n: follow.length })}</p>}
+          {cands.length > 0 && !follow.length && (
+            <div className="field">
+              <label htmlFor={`match-${panelId}`}>{t('match.with')}</label>
+              <select id={`match-${panelId}`} value="" onChange={(e) => e.target.value && apply((x) => void matchWall(x, panelId, e.target.value))} data-testid="match-with">
+                <option value="">{t('match.choose')}</option>
+                {cands.map((x) => (
+                  <option key={x} value={x}>
+                    {panelLabel(d, x, t)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {walls.length > 0 && (
+            <div className="field">
+              <label htmlFor={`copy-${panelId}`}>{t('match.copy')}</label>
+              <select id={`copy-${panelId}`} value="" onChange={(e) => e.target.value && apply((x) => void copyOutlineFrom(x, panelId, e.target.value))} data-testid="match-copy">
+                <option value="">{t('match.choose')}</option>
+                {walls.map((x) => (
+                  <option key={x} value={x}>
+                    {panelLabel(d, x, t)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

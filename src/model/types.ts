@@ -19,7 +19,25 @@ export type MaterialProfile = {
   sheetH: number;
   /** Grain/flute direction on the sheet: along sheet x, along y, or none. */
   grain: 'x' | 'y' | 'none';
+  /** How tightly it bends (milestone 62, PACKAGING_PLAN.md §6.2); absent: its kind's defaults (`bendDefaults`). */
+  bend?: BendLimits;
 };
+
+/**
+ * How tightly a material bends (starting points: calibrate with a test strip).
+ * `smoothR`: the smallest radius it bends to on its own; `patternR`: with its
+ * kind's pattern (scores, liner scoring, a living hinge); `pitch`: that
+ * pattern's line spacing; `k`: the neutral-line factor (developed length =
+ * angle × (inner radius + k·t)). Millimetres.
+ */
+export type BendLimits = { smoothR: number; patternR: number; pitch: number; k: number; /** Plywood living hinges: the shear strain its links may take (milestone 63; absent: 0.016). */ strain?: number };
+
+/** A bend pattern (milestone 63, PACKAGING_PLAN.md §5.1). */
+export type PatternId = 'smooth' | 'score' | 'perf' | 'kiss' | 'slits' | 'wave' | 'diamond';
+/** How dense a band's pattern is: 1 automatic, less denser (never sparser than it must be). */
+export type BendDensity = 1 | 0.75 | 0.5;
+/** A band's stored bend choices (milestone 63); absent: automatic. */
+export type BendChoice = { pattern?: PatternId | 'auto'; density?: BendDensity };
 
 /**
  * A panel's placement in 3D. `o` is the origin of the panel's local 2D
@@ -66,15 +84,40 @@ export type WallInsert = { id: string; edge: 'e1' | 'e2' | 'e3'; t: number; off:
  * third of each side's length (src/model/edges.ts). Room for 'bezier'
  * (handles of its own) later.
  */
-export type CurveKind = 'auto';
-/** A sketch point (a polygon vertex) and how the outline passes it. */
-export type SketchPt = P2 & { curve?: CurveKind };
+export type CurveKind = 'auto' | 'round';
+/**
+ * A sketch point (a polygon vertex) and how the outline passes it. 'round'
+ * (milestone 62): a tangent circular arc of radius `r` replaces the corner
+ * (clamped so the arcs on an edge never overlap).
+ */
+export type SketchPt = P2 & { curve?: CurveKind; r?: number };
+/**
+ * A round base (milestone 62, PACKAGING_PLAN.md §6.2): a circle, a four-centre
+ * oval (end radius `rEnd`) or a stadium filling the panel's w × h. Its points
+ * are made from it (`roundPts`), so its card edits sizes, not points.
+ */
+export type RoundShape = {
+  shape: 'circle' | 'oval' | 'stadium';
+  rEnd?: number;
+  /**
+   * Milestone 65: a seam flat, a chord `w` mm wide where the outline's outward
+   * normal points at `at` (radians), so a wall can stand there and its strip
+   * start and close on a flat place. Added when a circle or oval is walled.
+   */
+  seam?: { at: number; w: number };
+};
 export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type WallSketch = {
   kind: 'wall';
   /** Free-corner offsets; the bottom corners move only along the attached edge (dx). */
   corners?: Partial<Record<WallCorner, { dx: number; dy: number; curve?: CurveKind }>>;
   inserts?: WallInsert[];
+  /**
+   * Milestone 46: the wall whose top outline this one follows (a parallel wall
+   * facing it), projected through 3D; its top corners and top-edge points are
+   * derived from it (src/model/match.ts).
+   */
+  match?: string;
 };
 /**
  * Layer 1 of a panel's outline (POLYGONS_AND_CUTS.md §3). Root panels are
@@ -82,7 +125,7 @@ export type WallSketch = {
  * grown panels are a parametric w × h rectangle with corner offsets and
  * inserted points on their free edges.
  */
-export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[] } | WallSketch;
+export type Sketch = { kind: 'poly'; pts: SketchPt[]; edgeIds: string[]; round?: RoundShape } | WallSketch;
 
 export type Panel = {
   id: string;
@@ -99,6 +142,8 @@ export type Panel = {
   customHeight?: boolean;
   /** Fold-over (double-wall) reinforcement on free edges (card and corrugated). */
   foldOvers?: FoldOver[];
+  /** Milestone 67: plain flaps on free edges (card and corrugated): a scored lip, `len` mm, tapered at its ends. */
+  edgeFlaps?: { id: string; edge: string; len: number }[];
   /**
    * Derived (re-made by `solve`): how far a wall reaches past the start/end of
    * its parent edge, to close an inside corner of a tray.
@@ -113,7 +158,21 @@ export type Panel = {
   place?: PanelPlace;
   /** A guide (milestone 28), on the root of a net: drawn and snapped to, never cut or joined. Grown panels inherit it. */
   construction?: true;
+  /**
+   * A divider (milestone 44): a standing board on its base (`place`) drawn as
+   * a line. Its ends are found on every solve (src/model/dividers.ts), so
+   * `place.x/y` and `w` are derived; this record is what the student drew.
+   */
+  divider?: DividerRec;
 };
+
+/**
+ * A divider as drawn, in its base's local coordinates: a point on its
+ * mid-plane, its direction (degrees), and how far the drawn line reached each
+ * way from that point (mm, `reach[0]` ≤ 0 ≤ `reach[1]`). Each end runs to the
+ * first board beyond its reach; dividers it passes on the way are crossed.
+ */
+export type DividerRec = { at: P2; rot: number; reach: [number, number] };
 
 /**
  * Where a placed panel sits (milestone 28). `host` null is the floor. `x`, `y`
@@ -151,8 +210,11 @@ export type ConnectionKind =
   | 'slide' // edge stops short of the other panel's face by the fit clearance (no slots)
   | 'fold' // panels stay one piece, joined by a score line
   | 'glue' // glue flap on one panel's edge, folded onto the other panel's face
+  | 'lock' // a glue flap whose tongues push through slits in the other panel: no glue (milestone 68)
   | 'halflap' // crossing panels with half-depth slots
   | 'lean' // angled plywood panel resting on its parent, held by side walls
+  | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
+  | 'closure' // how a lid closes the box it seals: its lip, dust flaps, locks (milestone 67; derived from `Design.closures`)
   | 'butt'; // edge to edge, no joint
 
 /**
@@ -222,11 +284,40 @@ export type Connection = {
   tabLen?: TabLock;
   lockDepth?: number | null;
   /**
+   * A fold's inner bend radius (milestone 63, mm): a band of material that
+   * curves round instead of a crease. Absent: a crease (card and corrugated),
+   * or the material's pattern radius on plywood (a living hinge).
+   */
+  radius?: number;
+  /** A band's bend pattern and density (milestone 63). Absent: automatic. */
+  bend?: BendChoice;
+  /**
    * Derived (milestone 35): a tray corner made a fold so a wall lies flat
    * beside its neighbour (`kind` 'fold' on a closing seam); the panel that
    * folds off the other one.
    */
   hingeOf?: string;
+  /**
+   * Milestone 64: the join round a tray's rounded corner, from the wall before
+   * it (`a`, its edge e1) to the wall after it (`b`, its edge e3). The curve is
+   * a band carried by the wall before: one piece with the next wall (`fold`),
+   * glued to it with a lip (`glue`), keyed into it (`key`), or plain (`butt`).
+   */
+  wing?: true;
+  /** Milestone 67: a lid's closure (derived while it seals its box): the walls it covers, whose joints with the lid it replaces. */
+  covers?: string[];
+  /**
+   * Milestone 69: the student's choice for a fold: cut the net here (the two
+   * parts join with the joint a wall cut as its own piece gets) or never cut it.
+   * Absent: the app cuts it only when the net does not fit its sheet.
+   */
+  cut?: 'cut' | 'keep';
+  /** Milestone 69: the app cut the net at this fold so it fits its sheet (kept until it is no longer needed). */
+  autoCut?: true;
+  /** Derived (milestone 69): this fold is cut; the parts join by `kind`. */
+  split?: true;
+  /** Derived (milestone 70): a divider's end on a tray corner's band (that corner's wing connection id); `b` is the wall carrying the band. */
+  bandEnd?: string;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -262,10 +353,19 @@ export type ConnGeom = {
   cuts?: { panelId: string; poly: P2[] }[];
   /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
   bolts?: number;
+  /** Open cut lines (milestone 63: a bend's perforations and living-hinge slits), on the CUT layer. */
+  lines?: { panelId: string; a: P2; b: P2 }[];
+  /** Cut paths of a bend pattern (milestone 66: wave slits, open; diamonds, closed), on the CUT layer; never part of the board's outline or its slots. */
+  cutPaths?: { panelId: string; pts: P2[]; closed: boolean }[];
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */
-export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90; manual: boolean; mat?: string };
+/**
+ * `rot` 180 and 270 (milestone 69): nested pieces turned half round (allowed
+ * whatever the grain) or a quarter the other way. `nested`: placed by the
+ * nester, for a piece of this size (kept while the piece keeps it).
+ */
+export type SheetPlacement = { sheet: number; x: number; y: number; rot: 0 | 90 | 180 | 270; manual: boolean; mat?: string; nested?: { w: number; h: number } };
 
 export type PieceSettings = { quantity: number };
 
@@ -291,6 +391,12 @@ export type Design = {
   sheetMargin: number;
   /** Let the packer turn pieces 90° against the grain/flute direction. */
   allowRotate?: boolean;
+  /**
+   * Milestone 69: when a net is cut into pieces: only when it does not fit its
+   * sheet (absent, the default), also where the student applies *Save
+   * material*'s plan, or never.
+   */
+  split?: 'must' | 'save' | 'never';
   /** Panel pairs ("idA|idB", sorted) the student unjoined: never connected automatically again. */
   noAutoSeams?: string[];
   /** Trays: bases extruded into walls on every edge (see src/model/trays.ts). */
@@ -302,6 +408,12 @@ export type Design = {
   /** Objects placed in its compartments (milestone 40): view state kept with the design, ignored by pieces, packing and export. */
   contents?: Content[];
   /**
+   * Milestone 67: how each lid closes the box it seals, by lid panel id. Kept
+   * while the lid does not seal (pulled short), so its settings come back with
+   * it; the closure's joint is made from it only while it seals.
+   */
+  closures?: Record<string, Closure>;
+  /**
    * Design-wide joint defaults (see src/model/jointDefaults.ts): the kind for
    * wall-to-base joints (grown panels and edge-on-face seams) and for corners
    * (wall-to-wall closing seams), used for new joints where allowed; and the
@@ -309,6 +421,18 @@ export type Design = {
    */
   joints?: JointChoices;
 };
+
+/**
+ * How a lid closes (milestone 67, PACKAGING_PLAN.md §7): a tuck lip inside the
+ * front wall with dust flaps on the side walls (`tuck`), the same with slit
+ * locks (`tuckLock`), a lip with a tongue through a slot in the front wall
+ * (`tab`), resting on the walls (`rest`), or glued to the front wall
+ * (`glued`). `lip`: the lip's length (null: 30% of the lid's depth, 12–22 mm);
+ * `thumb`: a half-round notch in the front wall's top; `dust`: dust flaps on
+ * the side walls (tuck and tab).
+ */
+export type Closure = { style: ClosureStyle; lip?: number | null; thumb?: boolean; dust?: boolean };
+export type ClosureStyle = 'tuck' | 'tuckLock' | 'tab' | 'rest' | 'glued';
 
 export type DesignJoints = { base?: ConnectionKind; corner?: ConnectionKind; flap?: number };
 /**
@@ -348,9 +472,25 @@ export type Tray = {
   fixPlan?: { hinge?: Record<string, string>; trim?: string[]; swap?: string[]; extOn?: Record<string, 'prev'> };
   /** The student's choice for a wall the app changed: hinge it, cut it as its own piece, or let the corner's other wall give way. */
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
+  /** Milestone 64: a plywood strip all round is closed with a key at the corner after this wall (absent: the corner nearest the back left). */
+  closeAt?: string;
+  /**
+   * Milestone 68: an open base (`open`): the base only places the walls (never
+   * cut or joined); the walls fold off each other in one strip, glued at one
+   * corner (the back left): a tube. Absent: a base that is cut.
+   */
+  base?: 'open';
+  /** Milestone 68: how the top closes: a tuck lid folded off the back wall (`tuck`), or four flaps (`seal`); absent: open. */
+  top?: 'tuck' | 'seal';
+  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`); absent: open (a sleeve). */
+  bottom?: 'seal' | 'snap' | 'tuck';
+  /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
+  curveKind?: 'teeth' | 'tabslot' | 'none';
+  /** Milestone 71: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
+  lidOf?: string;
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;

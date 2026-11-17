@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -50,6 +50,31 @@ CASES.push({ name: 'hand-ply-box-compensated', make: plyBox, kerf: 'compensated'
 CASES.push({ name: 'hand-card-tray', make: cardTray });
 CASES.push({ name: 'hand-ply-lean', make: plyLean });
 CASES.push({ name: 'hand-corr-dividers', make: corrDividers });
+// milestone 63: folds with a radius
+CASES.push({ name: 'band-card-score-r8', make: () => bandLidBox(MATERIALS[0], 8) });
+CASES.push({ name: 'band-ply-hinge', make: () => bandLidBox(MATERIALS[3]) });
+CASES.push({ name: 'band-ply-hinge-compensated', make: () => bandLidBox(MATERIALS[3]), kerf: 'compensated' });
+// milestone 64: curved tray walls
+CASES.push({ name: 'rounded-tray-card', make: () => roundedTray(MATERIALS[0], 15) });
+CASES.push({ name: 'rounded-tray-ply-strip', make: () => roundedTray(MATERIALS[3], 32) });
+// milestone 66: the pattern library
+CASES.push({ name: 'pattern-card-perf', make: () => bandLidBox(MATERIALS[0], 3.5) });
+CASES.push({ name: 'pattern-corr-kiss', make: () => roundedTray(MATERIALS[1], 14) });
+CASES.push({ name: 'pattern-ply-wave', make: () => bandLidBox(MATERIALS[3], 40, 'wave') });
+CASES.push({ name: 'pattern-ply-diamond', make: () => bandLidBox(MATERIALS[3], 40, 'diamond') });
+CASES.push({ name: 'pattern-ply-diamond-compensated', make: () => bandLidBox(MATERIALS[3], 40, 'diamond'), kerf: 'compensated' });
+// milestone 67: closures
+CASES.push({ name: 'closure-card-tuck-lock', make: () => closedBox(MATERIALS[0], 'tuckLock', true) });
+CASES.push({ name: 'closure-corr-tab', make: () => closedBox(MATERIALS[1]) });
+// milestone 68: glue-free joints and cartons
+CASES.push({ name: 'lock-card-tray', make: lockTray });
+CASES.push({ name: 'carton-card-tuck-snap', make: () => cartonDesign(MATERIALS[0], 'tuck', 'snap') });
+CASES.push({ name: 'carton-card-reverse-tuck', make: () => cartonDesign(MATERIALS[0], 'tuck', 'tuck') });
+CASES.push({ name: 'carton-corr-seal', make: () => cartonDesign(MATERIALS[1], 'seal', 'seal') });
+// milestone 65: round boxes
+CASES.push({ name: 'round-box-card-circle', make: () => roundBoxDesign(MATERIALS[0], 'circle', 90, 90) });
+CASES.push({ name: 'round-box-ply-circle', make: () => roundBoxDesign(MATERIALS[3], 'circle', 110, 110) });
+CASES.push({ name: 'round-box-corr-oval', make: () => roundBoxDesign(MATERIALS[1], 'oval', 150, 100) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

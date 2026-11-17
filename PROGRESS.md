@@ -318,7 +318,7 @@ Fixed during the final pass
 Commands run (all passing): `npm run typecheck` (app and Worker), `npm test` (178 tests in 22 files, including the Worker API tests and the ezdxf/svgpathtools reader checks), `npm run build`, and the full Playwright suite `npx playwright test` (23 passed, 12 screenshot-only specs skipped unless `SHOTS=1`), with `PW_CHROMIUM_PATH` pointing at the pre-installed headless shell.
 
 Remaining limitations (polygons, cuts and corrugated)
-- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments.
+- Arcs are not refitted after booleans: a curved shape that crosses an outline (or a through-cut region) exports as short straight segments. (Since milestone 62, circular arcs are given back at export; see there.)
 - Through-cuts go through the whole design; there is no per-cut depth.
 - Fold scores are plain SCORE lines: no crush-score style for 4 mm board.
 - The packer does not turn pieces for flute direction; fold-over scores across the flutes are only warned about.
@@ -923,10 +923,314 @@ Verified
 - `tests/e2e/tour.spec.ts`: **English, every step by hand** (the mouse on the stage, the `__cutforge` projection helpers for points): each card in turn with the ring around its anchor (the Board button, the floor point, the perpendicular button, Extrude walls and its ✓, the grow ✓, the material pill and the card material, the joints button, the *Corners* list, the Board tool again, the Shapes button and *Circle*, the shape's ✓, *Download for laser*), the steps advancing by themselves, and a final design with a tray, a lid, a divider and a cut-out on the front wall; **Hebrew**: the card sits left of the rail in RTL, *Skip step* through to the end makes the same box; *End tour* at step 4 keeps the design, the menu's *Take the tour* asks first (and No keeps the design), and the welcome screen after *New design* shows the footer link instead of the card; a first-time *Start* shows the *New here?* note, which opens the tour; a class locking Quick build gets no tour; at 1366 × 768 and 1280 × 800, in both languages, no card leaves the window or covers *Download for laser* or the rail. Screenshots of every card in English and Hebrew (and the welcome screen) in `docs/tour-shots/` (`SHOTS=1`).
 - Every spec that dismissed the tips dismisses the *New here?* note instead (`tour-nudge-dismiss`).
 
+## Milestone 61 — foundations: derived data outside the design, the harness ✅
+
+Plan: `PACKAGING_PLAN.md` (milestones 61–72; it replaces the parked curved-walls branch).
+
+Implemented (`src/model/derived.ts`, `src/model/geometry.ts`, `src/model/foldover.ts`, `src/model/pieces.ts`, `src/store/store.ts`, `tests/harness.ts`)
+- **Solving outside Immer.** The store's edits (`apply`, `preview`, the paste that follows the pointer) still make their change in a draft, but solve, connect and the Quick build guard now run on a plain copy (`settle`): solving reads the whole design many times over, and through Immer's proxies that cost about three times as much (a 160 × 110 card tray with three dividers: 23 ms in a draft, 8 ms on a copy, in Node here).
+- **Unchanged parts keep their identity.** `reconcile` swaps every part of the result equal to the same part before for the old object, so a design that solves to itself is the same object, and an edit to one panel leaves the other panels' objects as they were.
+- **Derived data cached per design.** `memo(d, key, fn)` caches against a frozen design (the store's are all frozen) and works it out every time for one still being edited, so it is never stale.
+  - `panelExtras` and `panelNotches` build every panel's joint geometry in one pass over the connections (and fold-overs) and serve each panel from it. Before, each call scanned every connection and recomputed every fold-over, once per panel asked about.
+  - `allFoldOvers` is cached the same way.
+  - `ConnGeom.lines` (open cut lines) is read now, for milestone 63's hinge slits.
+- **One fold strip function.** `foldBand(d, c)` draws the strip and score of a grown fold and of a tray corner made a fold (they were two near-copies in `groupPieces`); milestone 63 gives it a radius.
+- **The harness** (`tests/harness.ts`): `idempotence`, `roundTrip`, `sweepBack` (a setting swept and returned gives the same design, ids included), `lostShapes`, `timeOf` and `speedRatio` (ratios, so a budget holds on any machine).
+
+Verified
+- `tests/stability.test.ts` (13): trays in card, corrugated and plywood with dividers, a fold-over and a hole solve to themselves and save and reopen to themselves; a hexagon tray's height and a box's size swept and returned; resizing never removes a panel with shapes; on a frozen design `panelNotches`, `panelExtras`, `allFoldOvers` and the pieces equal the plain ones; `settle` equals solving in a draft, keeps an unchanged design's identity and freezes its result; an edit through the store equals solving it by hand; on the organiser (4 × 3 dividers) asking every panel for its joint geometry takes under half as long on a frozen design.
+- Golden exports byte-identical. Unit suite: 556 pass, 7 skipped; typecheck clean.
+- Browser (`--grep-invert classroom`): 90 passed, 0 failed, 57 skipped (`crash.spec` failed once while a file it served was being rewritten, and passed when run again).
+
+## Milestone 62 — round outlines and bend limits ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.2; `src/geom/fillet.ts`, `src/model/edges.ts`, `src/model/round.ts`, `src/model/ops.ts`, `src/geom/arcfit.ts`, `src/export/prepare.ts`, `src/export/offset.ts`, `src/model/materials.ts`, `src/views/polyTool.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`)
+- **Rebuilt from the parked branch's milestone 45**, which was sound (its problems were in the curved walls that came after it): its commits were taken and changed where the plan says.
+- **Rounded corners:** `curve: 'round'` with `r`; arcs keyed `<edge>^~<n>`. Point card: *Corner · Curve · Round*, with a radius (`point-round`, `point-radius`). Base card: *Corner radius* for all of them (`round-corner-all`).
+- **The clamp (new):** an edge at least 5 mm long before rounding keeps 5 mm of straight edge (`KEEP_STRAIGHT`, the same 5 mm as trays' `MIN_EDGE`), so rounding never takes a wall away. Shorter edges keep what they can (their arcs meet); round bases' arcs still meet. The card says when a corner was made smaller (`round-clamped`) and, on a point, how large it may be (`point-radius-max`, from `maxFillet`).
+- **The fillet maths** is in `src/geom/fillet.ts` (`fillets`, `maxFillet`, `arcPoints`), on plain points, so the waffle branch's `src/sculpt/round.ts` can be folded into it when both are in. `sketchFillets` / `sketchMaxRadius` pick the clamp for a sketch.
+- **Round bases:** circle, four-centre oval, stadium (`Sketch.round`, `roundPts`, `ovalRadii`, `defaultEnd`); ops `addRoundPanel`, `setRoundShape`, `convertToPoints`, `setPointRound`, `setCornerRadius`, `addRoundedRect`; their card (`round-section`).
+- **Polygon tool:** *Round* and *Rounded*; on a panel they draw the shape as a polygon shape.
+- **Arcs back at export** (`refitArcs`); kerf compensation follows arcs that meet tangentially. `src/geom/arcfit.ts` is byte-identical to the waffle branch's copy (SHA-256 `16d760b6…abb3d`).
+- **Bend limits** on materials (`bend`, `bendDefaults`, `bendOf`) and in the material drawer (`drawer-bend`, `mat-smoothR`, `mat-patternR`).
+- **No schema change** (still 9): the fields are new and optional; the plan bumps the schema once, at milestone 70.
+- English and Hebrew strings (two new: `round.clamped`, `round.largest`).
+
+Verified
+- `tests/round.test.ts` (17): the parked branch's cases (circles, stadiums, ovals both ways, the draftsman's default, resizing and shape changes, *Convert to points*, save/load with an identical export, rounded rectangles, bend defaults, export as SVG arcs and DXF bulges, kerf compensation of arcs, a 12-gon kept as lines), with the clamp case rewritten (a 40 × 20 rectangle at 15 is 7.5 round with 5 mm short sides; a 3 mm side's arcs meet; a stadium's still meet), plus a tray on a rounded rectangle keeping its four walls at every radius from 3 to 80 mm, and that radius swept and returned giving the same design.
+- Golden exports byte-identical. Unit suite: 573 pass, 7 skipped; typecheck clean.
+- Browser: new `round.spec.ts` (from the parked branch); full app suite (`--grep-invert classroom`): 92 passed, 0 failed, 57 skipped.
+
+Limitations
+- Tray walls stand on straight edges only: curves are left open until wings (milestone 64) and round boxes (milestone 65).
+- A converted oval's points sit outside it (the rhombus); its corners are dragged from there.
+- Auto (Bézier) curves are still exported as short segments; only circular arcs come back.
+
+## Milestone 63 — folds with a radius, and bend patterns ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.3, §5; `src/model/bands.ts`, `src/model/bendPatterns.ts`, `src/model/seams.ts`, `src/model/pieces.ts`, `src/model/validate.ts`, `src/easy/fix.ts`, `src/export/prepare.ts`, `src/export/bendTest.ts`, `src/export/label.ts`, `src/views/foldView.ts`, `src/views/bandMesh.tsx`, `src/ui/BendUI.tsx`, `src/ui/Connections.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`)
+- **The model.** `Connection.radius` (inner radius) and `Connection.bend` (`pattern`, `density`) on a grown fold. Absent: a crease on card and corrugated, the material's pattern radius on plywood. A band is derived (`bandOf`), never stored.
+- **The geometry: inside the corner.** Both panels keep the frames a sharp fold gives them, so the box's outer size, and everything built on it, stay where they were. In the fold's cross-section the outer faces' lines meet at a point O; the outer arc (radius r + t) is tangent to both, Ro·cot(a/2) from O; the parent is cut back to its tangent point (`trimP`, a notch along the edge) and the child to its own (`trimC`, a notch along its bottom). The developed width at the neutral line is θ·(r + k·t).
+- **In the net** the band is a strip of that width between the cut-back panels (`foldBand` → `bandStrip`): `foldXform`'s allowance becomes `lb − trimP − trimC`; at radius 0 nothing changes.
+- **Boards across a band** (side walls under a hinged lid) are cut back to its inner face (`bandCrossings`: the corner region from O out to the inner arc, mapped onto each board standing square to the edge within its span and overlapping it), so their corner is rounded to the hinge.
+- **Patterns** (`src/model/bendPatterns.ts`): a registry with `smooth` (all), `score` (card) and `slits` (plywood straight-slit living hinge).
+  - Lines: spacing ρ·pitch/reach, held between half and twice the pitch.
+  - Slits: link length ℓ from slits of at most 24 mm with bridges of max(3, t); spacing p = √(C·ℓ·ρ) while p ≤ t, else C·ℓ·ρ/t, with C the material's `strain` (0.016 for plywood, which gives 2.0 mm at ρ 30 with 20 mm slits); at least max(1.2, t/2). The reach follows from the smallest spacing, so a short band reaches less tight, and one too short for a slit cannot have slits.
+  - `patternWhy`: `radius` (with the radius it needs), `short` (with the length), `material`. `bandPattern`: the choice if offered, else the first that works, else the tightest-reaching (flagged). `density` 1, 0.75 or 0.5 only makes lines denser.
+- **Plywood folds** (a living hinge): `connectionsFor` offers `fold` last at every angle, never as a default; the design-wide joint lists leave it out. `pairFilter` allows a fold between boards of the same plywood.
+- **Export:** scores on the SCORE layer, slits as open CUT lines (`op: 'cut'`, `role: 'line'`), also from `ConnGeom.lines`; kerf compensation shortens an open cut line by half the kerf at each end (`shortenOpen`).
+- **Checks** (`bendIssues`): `val.bendTight` (no pattern reaches; a crease in plywood too), `val.bendStyle` (the chosen one does not), `val.bendShort`, `val.bendRoom` (the cuts would take a whole board). *Fix*: the radius needed, *Automatic*, or the largest radius that fits.
+- **3D:** `bandMesh.tsx` draws the band's curved slab with its lines on its outer face. In the fold view a band unrolls (`bandPose`, `bandChildMove`): it turns k·φ, its outer length going from the arc's to the strip's, so flat the child lands where the net puts it.
+- **Card:** the *Bend* section (*Living hinge* on plywood) on the folded board's card: *Bend radius*, *Pattern* (each pattern the material offers, greyed with its reason where it cannot work: `Segmented` options can now be disabled), *Lines* (*As needed*, *Denser*, *Densest*) and what that makes (`bend-makes`).
+- **Bend test:** *Download a bend test* in the material drawer (`mat-bend-test`): five zones at 0.7–1.6 × the pattern's reach on a 40 mm strip, each labelled on the GUIDE layer (`pieceLabel`, now in `src/export/label.ts`).
+- English and Hebrew strings.
+
+Verified
+- `tests/bands.test.ts` (15): a crease has no band; a quarter turn's developed width, the arc's points all Ro from its centre from one tangent point to the other, the notches at the trims, the child's cut-back bottom on the arc's end in 3D; the fold view (no move folded, the strip's end flat); a card lid at radius 8 is one piece with scores at the calculated spacing, lies flat and exports; radius 12 smooth, radius 2 named; a plywood lid on a living hinge is one piece with its back wall, its slits a bridge from the band's edges, compensated slits shorter by exactly the kerf; idempotence, save and reopen, a radius swept and returned; the slit formula; why a pattern cannot be used; denser on request; the four fixes; the bend test for card and plywood.
+- Updated `hinge`, `joints`, `jointdefaults`: plywood offers a living hinge last at every angle (not in the design-wide lists).
+- **Golden exports:** every existing case byte-identical; new `band-card-score-r8`, `band-ply-hinge`, `band-ply-hinge-compensated`.
+- Unit suite: 591 pass, 7 skipped; typecheck clean.
+- Browser: full app suite (`--grep-invert classroom`): 94 passed, 0 failed, 57 skipped. New `tests/e2e/bands.spec.ts` (a plywood lid's *Living hinge* card: radius 30, Automatic's slits, Smooth greyed with 150 mm, Densest, a radius of 5 named and 40 clear, the fold slider; a card fold given a radius of 8 is scored and of 0 a crease again). Checked by eye: the band closed, half open and flat.
+
+Limitations
+- Bands are on grown folds only; tray corners made folds (`hingeOf`) keep a crease: rounded corners come as wings (milestone 64).
+- Pattern lines show in 3D on the band's outer face only, and only with outlines on.
+- A lid grown flush on a box's walls is reported as overlapping them, as before (the band does not change that).
+
+## Milestone 64 — curved tray walls ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.4–§4.7; `src/model/wings.ts`, `src/model/bands.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/pieces.ts`, `src/model/jointDefaults.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/model/edges.ts`, `src/easy/fix.ts`, `src/easy/recipes.ts`, `src/easy/QuickRail.tsx`, `src/views/foldView.ts`, `src/views/View3D.tsx`, `src/ui/CornersUI.tsx`, `src/ui/BendUI.tsx`, `src/ui/connLabel.ts`)
+- **The model.** A tray on a base with rounded corners stands its walls on the straight edges only (milestone 62 keeps every one). Each rounded convex corner between two walls is a connection (`Connection.wing`, id `wing:<A>|<B>`), from the wall before it (A, edge e1) to the wall after it (B, edge e3). Its band (`wingBand`) is carried by A: cross-section from A's end into A and towards the box's inside, the arc on the base's fillet centre, outer radius from the wall's outer face, inner radius that less the thickness, developed width θ·(r + k·t). No wall is cut back: both end at the fillet's tangent points.
+- **Kinds** (`wingKinds`): plywood `fold` (one piece) · `key` · `butt`; card and corrugated `glue` · `fold` · `butt`. One piece only where B is not already folded off the base. New kind `key` (schema-free: optional). Their kinds are their own: `jointGroup` leaves them out of the design-wide lists, `autoConnect` never removes them; `reconcileWings` (after the tray walls stand) makes and removes them, and `planWings` fits the kinds.
+- **Geometry** (`wingGeom`): one piece adds nothing to the walls: B continues A in the net (`netFolds`, B at A's end plus the band) and `foldBand` draws the strip with its pattern. Otherwise the band is material added past A's end with its pattern, then a glue lip (as wide as fits between the walls in the flat net; folded onto B's inner face in 3D), a puzzle key with its socket in B, or nothing. Under a band whose wall stands down beside the base (plywood fingers) the base is cut back to the band's inner face, so it wraps round it.
+- **Plywood strips** (`planStrip`): the walls round one-piece corners are one strip; closed all round, it is keyed shut at the corner nearest the back left (`Tray.closeAt` moves it: *Closing seam* on the tray card); keyed again wherever it grows longer than the sheet (`stripMax`). A corner the student set by hand keeps its kind.
+- **Stability** (§4.6): corners are keyed by their two walls, so a radius swept up and down leaves the design as it was; a wall too short for fingers (5 mm) is still a wall (found by its joint's own key, not by whether the joint holds).
+- **Speed** (§4.7): no polygon clipping in solve for corners. A curved outline is worked out once per shape and shared, frozen (`sketchRing`), and looked up by key (`findEdge`'s index), instead of rebuilding a rounded base's arcs on every edge lookup; corners and their bands are worked out once per solve pass. A 120 × 80 rounded card tray solves in about 1.3 ms here (the parked branch: 12.4 ms), within twice the square tray.
+- **Checks:** the bend checks cover corners; for a corner the radius in the message and its *Fix* is the base's corner radius (the inner radius plus the wall's thickness and inset).
+- **3D:** every corner's band drawn (its pattern on its outer face), unrolling with the fold view; a one-piece corner carries the next wall. Joint labels sit in the middle of the band; a one-piece corner reads *One piece*, a plywood fold *Living hinge* (`connKindKey`).
+- **Cards:** the tray card's *Rounded corners (n)* (all corners one way, `setTrayCorners`) and *Closing seam* (`setClosingCorner`), with a note when the strip is keyed apart for the sheet; a corner's own card shows its band (radius read-only: the base's).
+- **Quick build:** *Box* · *Rounded* (`box-rounded`) with *Corner radius* (`box-corner`, default 15), raised to what the walls bend to at the box's height (`roundedMin`: the patterns' reach plus the thickness), with a note (`box-reach`). The base's corner note now uses the same reach.
+- **Fixed on the way:** the slit layout let one slit run past the 24 mm maximum (it rounded the count instead of rounding up), which made a 40 mm band look bendier than it is; the milestone-63 plywood hinge goldens changed with it. A three.js mesh had a `data-testid`, which React Three Fiber refuses: removed.
+- Files: `check.ts` accepts `key`, `radius`, `bend`, `wing` and `Tray.closeAt`. English and Hebrew strings.
+
+Verified
+- `tests/wings.test.ts` (8): a card rounded tray is five panels with four glued corners, one piece, flat, clean; each band leaves one wall's end and arrives exactly at the next wall's start (3D, card and plywood); plywood is one strip of four walls with three hinge corners and a key at the back left, slits in every band, the base cut back; a strip longer than the sheet keyed apart, and the closing corner moved; a corner set by hand keeps its kind, and one piece is not offered where the next wall folds off the base; corrugated corners at 15 named and fixed by rounding the base; walls and corners kept at every radius from 3 to 60, swept and returned, idempotent, saved and reopened; solve within twice the square tray.
+- **Golden exports:** new `rounded-tray-card`, `rounded-tray-ply-strip`; `band-ply-hinge*` regenerated (the slit layout fix); every other case byte-identical.
+- Unit suite: 599 pass, 7 skipped; typecheck clean.
+- Browser: new `tests/e2e/wings.spec.ts` (Quick build's Rounded box in plywood: the radius raised, the strip with three hinges and a key, ready to cut; Workshop: a card tray's corners all made plain from the tray card; a plywood strip's closing seam moved). Full app suite (`--grep-invert classroom`): 97 passed, 0 failed, 57 skipped.
+
+Limitations
+- Concave rounded corners (a reflex vertex) are left open.
+- A corner's lip on a many-sided base is narrowed to fit the flat net; very small radii on 6+ sides can leave too little lip (it is left off).
+- The joint labels of a corner list kinds in the menu, but the corner's band (pattern, density) is set on its card only.
+
+## Milestone 65 — round boxes ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.5, §6.2; `src/model/round.ts`, `src/model/wings.ts`, `src/model/ops.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/easy/recipes.ts`, `src/easy/QuickRail.tsx`, `src/views/foldView.ts`, `src/ui/CornersUI.tsx`)
+- **The seam flat** (`RoundShape.seam`, `withSeam`, `defaultSeam`): a chord where the outline's outward normal points at `at` (the back left), 12 / 16 / 20 mm wide by material. The rounded corner whose arc faces it is split: two rounded corners where the arc's tangents meet the chord's, and the chord's ends between them, sharp (edge `seam`); the rest of the outline stays on its circles. Added when a circle or oval is walled (`addTray`), kept by shape changes and resizing, and made from the start by Quick build's Round box (so the extrude ghost has a wall to show).
+- **Runs** (`cornersOf`): a corner is now the run between two walls, through every point and zero-length edge in between: arcs (fillets of one circle merged) and creases (a sharp point turning at most 35°: where the seam flat meets the curve). A run may come back to its own wall (`a` = `b`: a round box's one wall). A stadium's end is one 180° arc; an oval's rim with a seam flat, five.
+- **A band per arc** (`wingBands`): each from its arc's start, at the wall's offset in from the outline and its height; `pos` along the strip; `wingLength`, `wingStrip` (the strip with every band's pattern, and a score at each crease on card and corrugated). The fold view chains them (each band rides on the moves of those before it; a one-piece next wall on all of them). The bend checks take the first band that falls short.
+- **What holds the bands to the base** (`Tray.curveKind`, `curveKindOf`, `curveKinds`; *Curved walls held to the base by* on the tray card): glue teeth (card; corrugated under walls at the edge), folded in onto the base in 3D, left off where a wall folded off the base would put them on it in the net; tabs through slots that follow the curve (corrugated walls standing in by a web; the slots 0.05 mm further in, since a flattened circle runs inside the true one); nothing. Plywood bands wrap round the base, cut back per arc. By default only round bases hold their bands (their walls are nearly all band).
+- **Kinds:** a run back to its own wall cannot be one piece: card and corrugated glue it, plywood keys it shut.
+- **Quick build:** *Box* · *Round* (`box-round`): a drag within a tenth of square is a circle, else an oval with the draftsman's ends; a circle at least twice `roundedMin` across, an oval's ends at least `roundedMin` round, grown about the drag's centre.
+- Files: `check.ts` accepts `round.seam` and `Tray.curveKind`. English and Hebrew strings.
+
+Verified
+- `tests/roundbox.test.ts` (9): the seam flat in each material (its width, facing 135°, every other point on the circle); a stadium has none and two corners; a circle in card, corrugated and plywood is two panels, one corner from its wall back to itself (crease, arc, crease), its band ending exactly at the wall's start in 3D, its length the formula, no issues, flat, exported; card teeth folded onto the base and none near it in the net, one piece; corrugated tabs in curved slots with no slot too near the edge; a plywood circle keyed shut, the base cut back, slits; ovals (five bands, end to end in 3D and along the strip) and stadiums (one band per end), clean; idempotent, saved and reopened, resized and back; Quick build's recipe (circle, oval with ends of at least the minimum, a small drag grown).
+- Updated `round.test.ts`: a walled circle has one wall, on its seam flat.
+- **Golden exports:** new `round-box-card-circle`, `round-box-ply-circle`, `round-box-corr-oval`; `rounded-tray-ply-strip` regenerated (the base's cut-back is now sampled along the arc itself, a hair different); every other case byte-identical.
+- Unit suite: 613 pass, 7 skipped; typecheck clean.
+- Browser: `wings.spec.ts` gains Quick build's Round box in card (a circle with a 12 mm seam flat, one glued corner, ready to cut). Full app suite (`--grep-invert classroom`): 98 passed, 0 failed, 57 skipped.
+
+Limitations
+- Shapes, text and stickers are not drawn or picked on bands yet: put them on the wall's flat part (a round box's seam wall is narrow).
+- In the fold view a crease does not straighten as the net opens (the strip shows its small kinks flat).
+- A card oval's strip may be longer than a card sheet: it is reported (`val.tooBig`), not split (milestone 69).
+
+## Milestone 66 — the pattern library ✅
+
+Implemented (`PACKAGING_PLAN.md` §5.1–§5.3; `src/model/bendPatterns.ts`, `src/model/types.ts`, `src/model/geometry.ts`, `src/model/pieces.ts`, `src/model/wings.ts`, `src/model/validate.ts`, `src/easy/fix.ts`, `src/export/prepare.ts`, `src/export/bendTest.ts`, `src/ui/MaterialDrawer.tsx`, `src/ui/ExportDialog.tsx`, `src/views/bandMesh.tsx`)
+- **Four more patterns:** *Perforated* (card, corrugated: staggered cut dashes a web from the band's edges; card reaches 0.75 of its pattern radius), *Kiss-scored* (corrugated: scores in the inner liner), *Wave slits* and *Diamonds* (plywood). Automatic's order: card smooth, scored, perforated; corrugated smooth, kiss, perforated; plywood smooth, straight, wave, diamonds.
+- **Slit shapes on one rule** (`slitLike`): the links' free length and the closest column spacing are scaled per shape (wave 1.6 and 1.2, diamonds 2.2 and 1.3), so wave slits reach about 0.9 and diamonds about 0.77 of straight slits' radius, with columns further apart. Starting values, to calibrate with the bend test.
+- **Cut paths:** a pattern's lines gain `paths` (open polylines: wave slits; closed: diamonds), carried as `ConnGeom.cutPaths` and `PanelExtras.paths` (never part of a board's outline or slots), into the net (`pathContour`: an open line or a hole), the fold strips, 3D and the bend test; kerf compensation shortens an open path as one chain and shrinks a diamond as a hole.
+- **Kiss scores face up:** a piece with kiss-scored bends is mirrored in its box at export and labelled *THIS SIDE UP (kiss scores)* on the guide layer, in the student's language (`ExportLabels`).
+- **The flute check** (`val.fluteBend`): a smooth corrugated bend whose axis lies across the flutes as its piece is laid on the sheet (net turn and placement); *Fix* perforates it. A corrugated round box's wall is now tab-and-slot by default, so its strip is its own piece with the flutes up the wall.
+- **Bend test:** a pattern list beside *Download a bend test* (`mat-bend-test-pattern`).
+- **Speed:** a band's pattern depends only on its numbers and is worked out once (`bandPattern`'s cache); the harness's `speedRatio` now times batches in turn and compares each side's fastest, so a ratio is no longer at the mercy of a busy machine.
+- English and Hebrew strings.
+
+Verified
+- `tests/patterns.test.ts` (8): each material's patterns in order; diamonds reach tighter than wave slits, wave than straight; card perforations at 3.5 mm (dashes a web from the edges, at most 3 mm); corrugated kiss scores on a rounded tray at 14 mm, the export mirrored with its guide note, clean; wave slits as open paths and diamonds as holes, in the net and exported compensated; every reason (radius with its value, short, material) and Automatic's fallback; a corrugated rounded tray at 40 mm with bends across the flutes on two corners, fixed by perforating them; the bend test for every pattern.
+- Updated: `wings.test.ts` (corrugated corners named only below kiss scores' reach: 6 mm), `roundbox.test.ts` (a corrugated round box's wall stands in by its web and meets its band within 1 mm at the seam).
+- **Golden exports:** new `pattern-card-perf`, `pattern-corr-kiss`, `pattern-ply-wave`, `pattern-ply-diamond`, `pattern-ply-diamond-compensated`; `round-box-corr-oval` regenerated (its wall is now its own piece); every other case byte-identical.
+- Unit suite: 625 pass, 7 skipped; typecheck clean.
+- Browser: full app suite (`--grep-invert classroom`): 97 passed, 1 failed, 57 skipped; the failure (`settings.spec`, the start screen over the card after a reload under load) passed 9 times out of 9 run on its own.
+
+Limitations
+- The cut plan shows a kiss-scored piece as designed; only the file is mirrored.
+- At a round box's seam a wall standing in from the edge meets its band within the web × tan(half the crease) (0.4 mm for corrugated): the closing lip or key takes it up.
+- Pattern line spacings and slit factors are starting values: calibrate with the bend test.
+
+## Milestone 67 — closures ✅
+
+Implemented (`PACKAGING_PLAN.md` §7; `src/model/closures.ts`, `src/model/types.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/geometry.ts`, `src/model/jointDefaults.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/ui/ClosureUI.tsx`, `src/ui/EdgeBar.tsx`, `src/ui/Inspector.tsx`)
+- **Sealing** (`sealFor`, `sealOf`): a panel folded off a tray wall's top edge seals the box when its far edge reaches the opposite wall, from 3 mm short of its inside face to its outside face; the walls under its sides are found the same way. The same test runs on the grow ghost.
+- **The closure joint:** while a lid seals its box, `reconcileClosures` (in solve, once frames are placed) keeps a connection of kind `closure` on it (`close:<lid>`), with the walls it covers (`covers`); its geometry (`closureGeom`) is the lid's settings made real, so nets, 3D flaps, export and the checks pick it up like any joint. Pulled short, the joint goes; the settings (`Design.closures[lid]`) stay and return with it; a lid deleted takes its settings.
+- **What it covers:** no other joint is made between the lid and the walls it covers (`findOpenSeams` and `autoConnect` skip them, and remove an automatic one already there); the touching-but-not-joined check counts them joined.
+- **Styles** (`closureStyles`): card *Tuck* (default), *Tuck with slit locks*, *Tab lock*, *Rests*, *Glued*; corrugated *Tab lock* (default), *Tuck*, *Rests*, *Glued*; plywood *Rests*.
+  - The lip: on the lid's far edge, inset by the thickness and 0.5 mm each side, corners rounded 4 mm, scored at the fold, 30% of the lid's depth (12–22 mm) unless set; in 3D folded down inside the front wall.
+  - Slit locks: 4 mm slits at the ends of the lip's fold into the lid; the dust flaps get a 3 mm shoulder.
+  - Tab lock: a tongue (at most 25 mm, 30% of the lip) a wall's thickness and 4 mm past the lip, through a slot (tongue and clearance by lid thickness and clearance) where the lip ends on the front wall.
+  - Dust flaps: on the side walls' top edges, up to 45% of the lid's width deep, tapered 15° at the hinge (clear of a hinge band's curve) and 8° at the front, relieved for the lip; in 3D folded in under the lid.
+  - Thumb notch: a half-round of 9 mm in the front wall's top, at its middle.
+  - Glued: a glue flap on the lid's far edge, inside the front wall.
+- **Plain edge flaps** (`Panel.edgeFlaps`, `addEdgeFlap`, `setEdgeFlap`, `edgeFlapGeom`): a scored lip on any free edge of a card or corrugated board, tapered 30° at its ends; *Add a flap* on the edge's card.
+- **Cards:** *Closes the box* on the lid's card (`closure-section`): what it reaches, the style, its help line, the lip, dust flaps, thumb notch. The grow card says when the ghost will close the box and with what (`grow-closes`).
+- Files: `check.ts` accepts `Design.closures`, `edgeFlaps` and the `closure` kind. English and Hebrew strings.
+
+Verified
+- `tests/closures.test.ts` (7): a card lid at the front wall's inside face seals the box (both side walls found), a tuck closure with its lip and two dust flaps folded in 3D, no other joint or open seam with the walls it covers, no issues, flat, one piece, exported; pulled short it goes and pushed back returns with its settings (slit locks, thumb notch); corrugated's tab lock with its slot; rests and glued; plywood rests on its living hinge with nothing named; the lip's length rule; idempotent and reopened; plain edge flaps (scored, 15 mm out, none on plywood, removed).
+- **Golden exports:** new `closure-card-tuck-lock`, `closure-corr-tab`; `band-card-score-r8` and `pattern-card-perf` regenerated (their lids reach the front wall, so they now close the box with a tuck); every other case byte-identical.
+- Unit suite: 635 pass, 7 skipped; typecheck clean.
+- Browser: new `tests/e2e/closures.spec.ts` (a card lid grown to the front wall: the grow card says it will close the box with a tuck flap; its card sets a tuck with slit locks and a thumb notch). Full app suite (`--grep-invert classroom`): 99 passed, 0 failed, 57 skipped.
+
+Limitations
+- The closing edge is the lid's far edge; per-edge roles (a lip on a side) are not offered yet.
+- A corner glue flap beside a lid's band is clipped by the band's corner cut and can leave a sliver.
+- Sealing is found for lids over tray walls only.
+
+## Milestone 68 — glue-free joints and cartons ✅
+
+Implemented (`PACKAGING_PLAN.md` §8; `src/model/seams.ts` `slitLock`, `src/model/cartons.ts`, `src/model/place.ts`, `src/model/flatnet.ts`, `src/model/closures.ts`, `src/model/ops.ts`, `src/model/materials.ts`, `src/model/check.ts`, `src/easy/actions.ts`, `src/easy/QuickRail.tsx`, `src/easy/mode.ts`, `src/ui/CornersUI.tsx`, `src/ui/TrayUI.tsx`)
+- **Slit lock** (kind `lock`): offered just after every glue flap on card and corrugated (corners, edges on faces, grown boards at any angle). Its geometry is the glue flap's with tongues on the flap's far edge (one; two on a flap 60 mm or more): a neck (10 mm card, 14 corrugated, at most 35% of the edge) and a head wider each side (2 / 3 mm), 5 mm long on card, the other board's thickness and 4 mm on corrugated; in the other board, where the folded flap's far edge lies, a slit (card: one cut line) or a slot (corrugated: the flap's thickness and the clearance). It works on design-wide *Corners* too.
+- **Open-base trays** (`Tray.base 'open'`): the base joins the guides (never cut or joined; its walls are not), the walls are not joined to it, and `planOpenTrays` makes the tray's fold plan a strip: each wall folds off the one before it in the base's order, from the wall after the glue seam (the corner nearest the back left), so three corners become folds (milestone 35's hinged corners) and one stays the corner joint: the manufacturer's joint. `fixFlatNets` leaves an open tray's plan alone.
+- **Ends** (`Tray.top`, `Tray.bottom`):
+  - Tuck top: a lid the tray keeps (`<tray>/top`, folded off the back wall's top edge, its depth fitted to the front wall's inside face on every solve: `reconcileTopLids`, `fitTopLids`), closed by milestone 67's closure.
+  - Flapped ends (`end:<tray>:top|bottom`, closure joints derived by `endGeom`, kept by `reconcileEnds`): *seal* (front and back flaps meeting in the middle, side flaps a little under half the width); *snap* (the 1-2-3 bottom: the back flap over half the depth with a notch, the side flaps cut towards the front and hooked, the front flap with a tongue that locks under the back flap's notch); *tuck* (a reverse tuck bottom: the front wall's flap the whole depth with a lip, dust flaps on the sides). In 3D the flaps lie folded across the end, layer on layer, on the base's plane or at the walls' tops.
+- **Cards:** the tray card's *Base*, *Top* and *Bottom* (`setTrayEnds`); Quick build's *Box* · *Bottom: Base · Snap-lock · Tuck* (a carton: open base, that bottom, a tuck top), only for four-sided card and corrugated boxes. An open base is not shown as a Workshop guide in Quick build.
+- Files: `check.ts` accepts `lock` and the trays' `base`, `top`, `bottom`. English and Hebrew strings.
+
+Verified
+- `tests/cartons.test.ts` (8): a card tray's four slit-lock corners (a flap and a tongue on one wall, a slit in the other, no glue, clean, flat, exported); corrugated slit locks' slots clear of the edges; an open base (never cut; three folds and one glue seam; one piece of the four walls; flat; clean); a reverse tuck carton (the lid's closure, three bottom flaps, one piece, one glue seam); a tuck top with a snap-lock bottom (four shaped flaps, one piece); seal ends top and bottom; back to a cut base; idempotent and reopened.
+- Updated `jointdefaults`, `joints`: the slit lock after each glue flap.
+- **Golden exports:** new `lock-card-tray`, `carton-card-tuck-snap`, `carton-card-reverse-tuck`, `carton-corr-seal`; every other case byte-identical.
+- Unit suite: 647 pass, 7 skipped; typecheck clean.
+- Browser: `closures.spec.ts` gains Quick build's Box with a snap-lock bottom (an open base, snap bottom, tuck top, ready to cut). Full app suite (`--grep-invert classroom`): 100 passed, 0 failed, 57 skipped.
+
+Limitations
+- **The snap-lock bottom's proportions are not proven:** the plan called for cutting three sizes in card and corrugated 1.6 before this milestone; there is no laser here. Cut one and try it before a class set (the tray card says so).
+- Flapped ends and open bases need four walls; ends on other shapes are not offered.
+- A crash-lock (pre-glued) bottom is not offered.
+
+## Milestone 69 — splitting and nesting ✅
+
+Implemented (`PACKAGING_PLAN.md` §9; `src/model/split.ts`, `src/model/nest.ts`, `src/model/pack.ts`, `src/model/pieces.ts`, `src/model/ops.ts`, `src/model/check.ts`, `src/model/validate.ts`, `src/export/prepare.ts`, `src/export/batch.ts`, `src/ui/SplitUI.tsx`, `src/ui/Connections.tsx`, `src/ui/Inspector.tsx`, `src/ui/MaterialDrawer.tsx`, `src/views/Plan2D.tsx`)
+- **Cutting a net at a fold:** a grown crease (not a band, not a closure's hinge) can be cut. The cut fold becomes the joint a wall cut as its own piece gets: a tray wall the design's wall-to-base joint (`ownKind`), any other board a glue flap on the same edge (it keeps its place). The kind is re-derived on every pass (`applyCut`, after the joint's own kind is fitted); `Connection.split` marks it.
+- **Only when it must** (default, `Design.split` absent): after a solve, `fitSplit` looks at each net as it would be whole (every cut fold folded again) and, where it does not fit its sheet inside the margin (turned where the grain allows), cuts the fold that most reduces the overflow (then the one leaving the smallest largest part) until every part fits; the cuts are `Connection.autoCut`, kept while they still help and dropped once the net fits whole again (then solved again; at most three rounds). A fast look (the boards' outlines only, 40 mm of slack) skips all this for nets well inside their sheet. *Never* keeps every net whole (the export check reports it too big, as before). *To save material* also offers *Save material* (offered in every mode but *Never*).
+- **Pins:** each fold's card (and the folded board's card) has *Automatic · Keep whole · Cut here* (`Connection.cut`), which the app obeys; a note says why a fold is cut and how the parts join.
+- **Copies:** a part cut off a net is cut as many times as the net (`quantityRoot`); the board card's *Copies to cut* edits the net's number.
+- **Save material** (`planSaveMaterial`): a beam search (three wide, three cuts deep) over the free folds, each cut set scored by its parts' boxes laid out by the bounding-box packer: sheets, then the sheet area the layout takes (whole sheets and the used band of the last one), then the number of cuts. The best is then checked for real (the design solved with the cuts, laid out as the cut plan lays it out); it is offered only when it takes fewer sheets or at least a twentieth of a sheet less. The preview reads *16 pieces, not 4. 1 sheet, not 2 sheets. 3 more glue joints.*; *Apply* pins the folds as cut, in one undo step.
+- **True-shape nesting** (`nest`): each piece becomes a bitmap of cells (about 200 000 per sheet, never finer than 1 mm) of every cell its outline touches, grown by half the spacing; turned 0° or 180° (and 90°/270° where the grain allows), never mirrored. Largest first, each at its highest place (the sheet fills from the top left), choosing either the turn that sits highest or the one that reaches least far right; three orders × two choices, the best layout kept, and never more sheets than the bounding-box packer (its layout is used then). Free-run arrays per row make a test skip straight past what blocks it. *Nest* in the cut plan stores the layout (`SheetPlacement.nested`, with the piece's size): it is kept as manual moves are, until the piece changes size (then the box packer places it again). *Repack* drops it without asking. Placements can now turn 180° and 270°.
+- **The yield report** in the cut plan: sheets, percent used, metres of cut, pieces, glue joints, with *Nest* and *Save material*.
+- **Settings:** *Material & sheet* → *Split a net into pieces: Only when it must · To save material · Never*.
+- Files: `check.ts` accepts `cut`, `autoCut`, `split`, `Design.split`, rotations 180/270 and `nested`. English and Hebrew strings.
+
+Verified
+- `tests/split.test.ts` (9): a card tray net taller than the sheet is cut into pieces that fit (no *too big*); one that fits is not cut; *Never* keeps it whole and reports it; lowered, the app's cut goes; *Keep whole* moves the cut elsewhere, *Cut here* cuts a small tray, the cut part keeps the net's copies; idempotent and reopened; *Save material* on a class set of four 60 × 60 × 50 trays: 2 sheets → 1, the reported gain equals the one measured after *Apply*, idempotent; nothing to save without folds; kept folds are never in a plan.
+- `tests/nest.test.ts` (3): on twenty designs (the golden designs as a class cuts them, card and corrugated trays in sets of 4–12) nesting never takes more sheets than the box packer and takes fewer on five (round box 2 → 1, carton 2 → 1, square trays 2 → 1, 3 → 2, 4 → 3); every pair of nested pieces at least the spacing apart (polygon distance), inside the margin, only 0°/180° on corrugated; a nested layout checks clean and goes back to the packer when a piece changes size.
+- Updated `repro-margin-overflow`, `flatnet` (L base), `cartons` (back to a cut base): those nets are longer than the sheet, so they now keep `split: 'never'` to test what they were written for.
+- **Golden exports:** byte-identical.
+- Unit suite: 659 pass, 7 skipped; typecheck clean.
+- Browser: new `split.spec.ts` (a class set's yield report, *Save material* 2 sheets → 1 with one undo step, *Nest*; a tall tray cut to fit, *Keep whole* moves the cut). Full app suite (`--grep-invert classroom`): 100 passed, 2 failed, 57 skipped; both failures then fixed or passed alone: milestone 35's L tray (the flat-height probe cut its net to fit the sheet; the probe now never splits) and the gizmo steps (ran during a dev-server reload), both pass on a rerun.
+
+Limitations
+- **A board longer than the sheet with no fold to cut is not split across** (a puzzle key or a glued lap, §9.1): the export check still reports it too big.
+- Nesting runs on the main thread, on demand (0.1–0.5 s for the designs above), not in a Worker; copies are not tried as an interlocked pair explicitly (each copy tries 180° on its own, which finds the same interlock when there is one).
+- Nesting gains little on box nets with glue flaps on every arm (their flaps keep them from interlocking); it helps most with copies and pieces of different shapes.
+- *Save material* compares bounding-box layouts (as the sheet meter shows them before nesting); a nested layout may do better still.
+- A fold on a rounded tray's corner band (a wing) or with a radius is never cut.
+
+## Milestone 70 — dividers that find their own ends ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.1, `DIVIDERS_PLAN.md`; the parked branch's milestone 44 commits `3dacd3c`, `70a5e69`, `d9336cf`, and `src/model/dividers.ts`, `src/model/ops.ts`, `src/model/seams.ts`, `src/model/geometry.ts`, `src/model/split.ts`, `src/ui/PlacedUI.tsx`)
+- **Milestone 44, rebuilt by taking it:** a divider is a line drawn on its base (`Panel.divider` `{ at, rot, reach }`), a standing board whose ends `reconcileDividers` finds on every solve, in creation order (the far face of the first board beyond its reach; dividers within the reach crossed with half-laps, down to 30°); the Divider tool (`D`) in both modes with grid, Shift 30° and Alt free snapping and the ghost's end marks; the card's *Clear behind*, *Angle* and *Ends* ‹ ›; compartments as regions; schema 10 migrating grown dividers in place (golden exports byte-identical). Its tests (`dividerEnds`, the updated `dividers`, `arrange`, `joints`, `quickrecipes`, … and `e2e/dividers.spec.ts`) came with it. Conflicts only in `ops.ts` imports, `recipes.ts` imports, `Inspector.tsx` and the docs.
+- **Ends on curved walls (new):** `footprints` also returns each tray corner's band as facets (one per 7.5° of its arcs, between the band's two faces at the wall-before's distances from the base's edge, from the model like the walls'). An end meeting one stops at the band's inner face; its joint is derived (`bandend:<divider>:<end>`, `Connection.bandEnd`, kept by `reconcileDividers` like closures): a glue flap on the divider's end edge on card and corrugated (`flapOn`, milestone 67's flap), a slide fit on plywood. The card names it *The curved corner of …*.
+- **Fixed limitations of milestone 44:** a line run into a corner (another wall entered before it leaves the first) stops at the corner's inner point (`DividerEnd.corner`); a turn that would meet a board under 30° is refused (`rotatePlaced` returns false and leaves it), so no divider is left with an unjoined end.
+- **Splitting (milestone 69) counts corner bands:** the size estimate now includes the band strips a wall carries, so a card round box whose strip makes its net taller than the sheet is cut (base and strip) as it should be.
+
+Verified
+- `tests/dividerEnds.test.ts` (26): milestone 44's 20, and a divider across a round box in card, corrugated and plywood joined at both ends on its band (glue flaps, slide fit), stopping inside it, no overlap, idempotent, reopened; a rounded tray's divider near a corner ends on both bands, one on the straight on the walls, deleting it removes its band joints; a line into a corner; a turn under 30° refused.
+- **Golden exports:** byte-identical (including the organiser and the v7 divider file through the migration).
+- Unit suite: 685 pass, 7 skipped; typecheck clean.
+- Browser: the parked branch's `dividers.spec.ts` and updated `boards`, `quick`, `joints`, `refine` specs came with it. Full app suite (`--grep-invert classroom`): 106 passed, 0 failed, 57 skipped.
+
+Limitations
+- A divider's glue flap on a band is not drawn in 3D (it is cut and scored in the file).
+- Dividers still stand at 90° to the base and are straight (curved dividers are out of scope).
+
+## Milestone 71 — lids: telescoping, matched walls, arched ✅
+
+Implemented (`PACKAGING_PLAN.md` §6.3; `src/model/lid.ts`, `src/model/match.ts`, `src/model/ops.ts`, `src/model/closures.ts`, `src/model/seams.ts`, `src/model/check.ts`, `src/ui/CornersUI.tsx`, `src/ui/TrayUI.tsx`, `src/ui/Inspector.tsx`, `src/model/snap.ts`)
+- **Telescoping lid** (`Tray.lidOf`, `addLid`, `reconcileLids`; from the parked branch's milestone 46): a shallow tray of the box's outline grown by its wall's thickness and the clearance, turned over on top of it, rim 12 mm, re-made from the box on every solve (the box resized, the lid follows). Rectangles and polygons grow edge by edge, rounded corners' radii by the gap; a round base (circle, oval) is made again at the grown size (`roundPts`: an offset four-centre oval is one, radii + gap) with its seam flat, so the lid's band runs all round as the box's does. *Add a lid* on the tray card; the lid's card says it is one.
+- **Matched walls** (`WallSketch.match`, `src/model/match.ts`; the parked branch's commit `1356542`, taken): a wall's top follows a parallel wall facing it, projected through 3D (an off-centre arch is not mirrored); editing either edits the shared top; *Own outline* keeps the shape and drops the link; *Copy outline from…* for any wall once; facing walls' top points are outline snap targets. Its references to bent walls (the parked model) are gone.
+- **Arched lid** (`addArchedLid`, new on this branch's bands): folded off the back wall's top with a radius, a 4 mm flat strip across, and folded down with the same radius into a flap that tucks inside the front wall. The arch keeps the box's envelope (milestone 63): its radius is half the inside depth less the strip, never under the material's pattern radius, and leaves the flap at least 5 mm above the base (a deeper or lower box gets a flat-topped barrel; one too low is refused, and the button says why). The end walls are cut to the arch where the bands cross them (milestone 63's `bandCrossings`). Corrugated takes a perforated (or kiss-scored) bend where that reaches; the hinge wall's tab-and-slot corners become glue (the arch takes their top). No closure is derived for it (`sealOf` skips a lid with a flap off its far edge); its flap and sides count as covered like a closure's (`closureCovers` via `archLids`), so they are not reported unjoined. *Add an arched lid* on the tray card.
+- **Fixed on the way (milestone 63):** a joint on a board a band cuts back (a radiused lid's hinge wall) kept its flaps, slots and scores past the cut: the corner glue flaps of such a wall ran up into the band. `connectionGeom` now clips every joint's geometry to what the band leaves, on both boards (through 3D for the other one's).
+- Files: `check.ts` accepts `Tray.lidOf` and `WallSketch.match`. English and Hebrew strings.
+
+Verified
+- `tests/lids.test.ts` (14): telescoping lids in card, corrugated and plywood (sizes, above the box, following a resize, no overlap, idempotent, reopened; one lid per box, none on a lid); a round corrugated box's lid round with its band; a rounded box's lid with radii + gap. Arched lids in card, corrugated 1.6 and 4, plywood, at 120 × 80 × 60 and 150 × 120 × 50: two bands that fit, the end walls cut where they cross, no closure, a clean check, one piece on card and corrugated, idempotent, reopened; a plywood box 40 mm tall refused with the design unchanged.
+- `tests/matchedWalls.test.ts` (6, from the parked branch).
+- **Golden exports:** `band-card-score-r8` and `pattern-card-perf` change, as intended: the back wall's corner glue flaps stop at the band's cut-back instead of running into it (and a stray sliver on the side flap goes). Every other case byte-identical.
+- Unit suite: 705 pass, 7 skipped; typecheck clean.
+- Browser: new `lids.spec.ts` (the tray card's arched lid and telescoping lid, the lid's card, matched walls' card). Full app suite (`--grep-invert classroom`): 109 passed, 0 failed, 57 skipped.
+
+Limitations
+- The arched lid runs back to front only (from the wall on the base's e2); the flap is friction-held inside the front wall (glue it for a permanent box). The end walls' arched tops are their cut-back corners: the arch's sides rest on them unglued.
+- A telescoping lid's rim is 12 mm; change it with the lid tray's height. Lids are Workshop only (Quick build has none).
+
+## Milestone 72 — final verification ✅
+
+Everything re-run on the final commit of `PACKAGING_PLAN.md` (milestones 61–72):
+- Unit suite (`npx vitest run`): 705 pass, 7 skipped (the optional Python DXF reader check, no `ezdxf`); typecheck clean (app and Worker); `npm run build` succeeds (one ~1.7 MB chunk, as before).
+- Golden exports: byte-identical except the two listed at milestone 71 (`band-card-score-r8`, `pattern-card-perf`: a fix).
+- Browser, app (`--grep-invert classroom`): 109 passed, 0 failed, 57 skipped. Classroom (the real Worker with local D1 and R2, `--grep classroom`): 4 passed, 0 failed. Together the whole browser suite passes.
+
+What the plan delivered, in one line each
+- 61 Derived data outside the design (frozen designs, `memo`, `settle`), the harness (idempotence, round trip, sweep and return, lost shapes, speed ratios).
+- 62 Round outlines (rounded corners, circles, ovals, stadiums), the 5 mm clamp, arcs back at export, bend limits.
+- 63 Folds with a radius: bands that keep the box's envelope, boards across them cut back, scores and living-hinge slits.
+- 64 Rounded tray corners as bands carried by the wall before (one piece, glued lip, key or plain); plywood strips keyed shut and for the sheet.
+- 65 Round boxes: a seam flat, a band all round, glue teeth or curved slots to the base.
+- 66 The pattern library (smooth, scored, perforated, kiss-scored, straight / wave slits, diamonds), density from the radius and material, the bend test.
+- 67 Closures: a lid that reaches the opposite wall closes the box (tuck, tuck with slit locks, tab lock, rests, glued; dust flaps, thumb notch, lip).
+- 68 Slit-lock joints (no glue), open-base trays (tubes) and carton ends (tuck, snap-lock 1-2-3, seal).
+- 69 Splitting a net at a fold when it must or to save material (pins, the planner's stated gain), true-shape nesting, the yield report.
+- 70 Dividers drawn as lines that find their own ends, now also on curved walls; corner and shallow-turn fixes; schema 10.
+- 71 Telescoping lids, matched walls, arched lids; joints clipped where a band cuts a board back.
+
+Changes from the plan (each is recorded at its milestone)
+- Nesting runs on the main thread, on demand, not in a Worker; it takes 0.1–0.5 s here for class sets of up to 32 pieces. Copies try 180° one by one rather than as an explicit interlocked pair.
+- A single board longer than its sheet is not split across with a key or lap; it is reported.
+- The arched lid is two radiused folds with a narrow strip between (a barrel when the box is deep or low), back to front only; the end walls' arches are the band crossings' cuts.
+- The snap-lock bottom was built without the planned test cuts (no laser here).
+
+Resolved since they were listed
+- Milestone 65's card oval strip too long for its sheet: such a box is now cut at its base fold so the strip and base are separate pieces (milestones 69–70); a strip longer than the sheet itself is still reported (a band is never cut).
+- Milestone 67's sliver beside a lid's band: corner flaps now stop at the band's cut-back (milestone 71).
+
+Needs the owner (cannot be done here)
+- **Real cuts** on the school's materials, before a class set: the bend test strips (card scores and perforations, corrugated kiss scores, plywood slits: the spacings are starting values); a snap-lock bottom in card and corrugated 1.6 (three sizes); slit-lock tongues; a tuck closure's lip fit; an arched lid; a nested sheet (spacing and kerf).
+- **LightBurn**: import a nested, kiss-scored and mirrored file once on the classroom machine (layer colours, the *THIS SIDE UP* label).
+- **Safari and a Chromebook**: nesting and solve speed on a slow machine (*Nest* and *Save material* run on the main thread), and the 3D bands with software WebGL.
+- **Hebrew**: the new strings of milestones 61–72 should be read by a native speaker (plan §12, decision 12).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
-- Packing is bounding-box based (no true-shape nesting).
+- Packing is bounding-box based until *Nest* is pressed (true-shape raster nesting, milestone 69).
+- Bands (folds with a radius, rounded corners, round boxes) carry no shapes or text yet; a band is never cut to fit a sheet.
+- Nesting and *Save material* run on the main thread; a board longer than its sheet is not split across.
+- Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
 - The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.

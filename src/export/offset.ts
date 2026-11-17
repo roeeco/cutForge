@@ -198,7 +198,11 @@ function offsetOnce(src: Seg[], d: number): { ok: true; contour: Contour } | { o
     const t1 = tangentAt(src[i], true), t2 = tangentAt(src[j], false);
     const cr = cross(t1, t2);
     const V = src[i].b;
-    if (Math.abs(cr) < 1e-9 && dot(t1, t2) > 0) continue; // smooth: offsets meet
+    // smooth (within a microradian: an arc given back from a polyline meets its neighbour so): the offsets meet
+    if (Math.abs(cr) < 1e-6 && dot(t1, t2) > 0) {
+      segs[j] = { ...segs[j], a: segs[i].b };
+      continue;
+    }
     const convex = cr > 0;
     if ((convex && d > 0) || (!convex && d < 0)) {
       // gap: round join along the kerf circle around the original vertex

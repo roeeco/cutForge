@@ -37,7 +37,8 @@ export function workshopOnly(d: Design, panelId: string): WorkshopWhy | null {
   if (p.foldOvers?.length) return 'foldover';
   if (p.details.some((dt) => dt.through) || throughHits(d).has(panelId)) return 'through';
   if (p.material && p.material !== d.material.id) return 'material';
-  if (isConstruction(d, panelId)) return 'construction';
+  // an open tray's base (milestone 68) is not a guide the student drew: its box's card is Quick build's own
+  if (isConstruction(d, panelId) && !Object.values(d.trays ?? {}).some((t) => t.base === 'open' && t.baseId === panelId)) return 'construction';
   return null;
 }
 

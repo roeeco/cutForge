@@ -14,6 +14,8 @@ import { cornerDepths, cornerFit } from './seams';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
+import { bandOf, type Band } from './bands';
+import { wingLength, wingStrip } from './wings';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -59,13 +61,40 @@ export function foldHolds(d: Design, c: Connection): boolean {
   return !!findEdge(A, c.a.edge) && !!findEdge(B, c.b.edge);
 }
 
+/** Where a grown fold lays its child in the parent's flat frame (also for a fold cut into two pieces, milestone 69). */
+export function grownFoldXform(d: Design, c: Connection): Xform2 {
+  // a fold with a radius (milestone 63): the band's developed width lies between the cut-back panels
+  const b = bandOf(d, c);
+  const al = b ? b.lb - b.trimP - b.trimC : matOf(d, c.a.panelId).foldAllowance;
+  return foldXform(d.panels[c.a.panelId], c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
+}
+
 /** Every fold joining two panels into one net. */
 export function netFolds(d: Design): NetFold[] {
   const out: NetFold[] = [];
   for (const c of Object.values(d.connections)) {
     if (!foldHolds(d, c)) continue;
-    if (c.grown) out.push({ id: c.id, parent: c.a.panelId, child: c.b.panelId, xf: (dd) => foldXform(dd.panels[c.a.panelId], c.a.edge, matOf(dd, c.a.panelId).foldAllowance, c.span && !c.trayId ? Math.min(...c.span) : 0) });
-    else if (c.hingeOf) {
+    if (c.grown)
+      out.push({
+        id: c.id,
+        parent: c.a.panelId,
+        child: c.b.panelId,
+        xf: (dd) => grownFoldXform(dd, c),
+      });
+    else if (c.wing) {
+      // round a tray's rounded corner in one piece (milestone 64): the next wall continues past the band
+      out.push({
+        id: c.id,
+        parent: c.a.panelId,
+        child: c.b.panelId,
+        xf: (dd) => {
+          const L = wingLength(dd, c);
+          const A = dd.panels[c.a.panelId], B = dd.panels[c.b.panelId];
+          const eA = A && findEdge(A, 'e1'), eB = B && findEdge(B, 'e3');
+          return L > 0 && eA && eB ? { tx: eA.a.x + L - eB.b.x, ty: 0, rot: 0 } : null;
+        },
+      });
+    } else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
       const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
       out.push({ id: c.id, parent, child, xf: (dd) => cornerFoldXform(dd, parent, pe, child, ce) });
@@ -160,8 +189,81 @@ export function panelPiece(d: Design, panelId: string): Piece {
   return ps.length === 1 ? ps[0] : { ...ps[0], contours: ps.flatMap((p) => p.contours), frag: undefined };
 }
 
+/**
+ * The strip a fold adds between its two panels in the flat net, in the parent
+ * panel's local coordinates: the fold allowance along the edge where they
+ * meet, with its score line along the middle (PACKAGING_PLAN.md §4.3; one
+ * function for grown folds and for tray corners made folds). Null when the
+ * fold no longer has its edges.
+ */
+/** A bend pattern's cut path as a contour (milestone 66): a wave slit open, a diamond a closed hole. */
+function pathContour(pts: P2[], closed: boolean, ref: { panelId: string; foldId?: string }): TaggedContour {
+  const segs = pts.slice(0, closed ? pts.length : pts.length - 1).map((p, i) => L(p, pts[(i + 1) % pts.length]));
+  return { op: 'cut', role: closed ? 'hole' : 'line', contour: { closed, segs }, ref };
+}
+
+export type FoldStrip = { parent: string; child: string; strip: P2[] | null; scores: { a: P2; b: P2 }[]; cuts?: { a: P2; b: P2 }[]; paths?: { pts: P2[]; closed: boolean }[] };
+
+/** A band's strip in the net (milestone 63): its developed width beyond the parent's cut-back edge, with its pattern's scores and slits. */
+function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
+  const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
+  const i = edgeInwardLocal(P, pe);
+  // band coordinates (x across from the parent's cut-back edge, outward; y along the edge from the span's start) to the parent's
+  const at = (x: number, y: number): P2 => {
+    const s = b.span[0] + y, depth = b.trimP - x;
+    return { x: A0.x + ux * s + i.x * depth, y: A0.y + uy * s + i.y * depth };
+  };
+  const L = b.span[1] - b.span[0], ov = 1e-5;
+  const strip = [at(-ov, 0), at(-ov, L), at(b.lb + ov, L), at(b.lb + ov, 0)];
+  const map = (q: { a: { x: number; y: number }; b: { x: number; y: number } }) => ({ a: at(q.a.x, q.a.y), b: at(q.b.x, q.b.y) });
+  return { parent: P.id, child: b.child, strip, scores: b.pattern.lines.scores.map(map), cuts: b.pattern.lines.cuts.map(map), paths: b.pattern.lines.paths.map((q) => ({ pts: q.pts.map((p) => at(p.x, p.y)), closed: q.closed })) };
+}
+
+export function foldBand(d: Design, c: Connection): FoldStrip | null {
+  let parentId: string, child: string, pe: string, A: P2, B: P2, ov: number;
+  if (c.wing) return wingStrip(d, c);
+  if (!c.grown) {
+    // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
+    child = c.hingeOf!;
+    parentId = child === c.a.panelId ? c.b.panelId : c.a.panelId;
+    pe = child === c.a.panelId ? c.b.edge : c.a.edge;
+    const ce = child === c.a.panelId ? c.a.edge : c.b.edge;
+    const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
+    const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+    if (!P || !fit) return null;
+    const [A0, B0] = edgeLocal(P, pe);
+    const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
+    A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 };
+    B = { x: A0.x + ux * fit.s1, y: A0.y + uy * fit.s1 };
+    ov = 1e-5;
+  } else {
+    parentId = c.a.panelId;
+    child = c.b.panelId;
+    pe = c.a.edge;
+    const P = d.panels[parentId];
+    if (!P) return null;
+    [A, B] = edgeLocal(P, pe);
+    const band = bandOf(d, c);
+    if (band) return bandStrip(P, pe, A, B, band);
+    if (c.span && !c.trayId) {
+      // the fold strip runs along the part of the edge the child stands on
+      const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
+      const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
+      [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
+    }
+    // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
+    ov = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9 ? 1e-5 : 0;
+  }
+  const P = d.panels[parentId];
+  const i = edgeInwardLocal(P, pe);
+  const al = matOf(d, parentId).foldAllowance;
+  const off = (q: P2, k: number) => ({ x: q.x - i.x * k, y: q.y - i.y * k });
+  const strip = al > 1e-9 ? [off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)] : null;
+  return { parent: parentId, child, strip, scores: [{ a: off(A, al / 2), b: off(B, al / 2) }] };
+}
+
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
-  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
+  const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf || c.wing) && foldHolds(d, c));
   {
     const polys: Polygon[] = [];
     const contours: TaggedContour[] = [];
@@ -185,6 +287,8 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      for (const s of ex.lines) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      for (const q of ex.paths) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId }));
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
       for (const dt of p.details) {
         // Adds and Cuts across the edge are part of the outline already
@@ -201,42 +305,14 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     // fold strips (fold allowance) and their score lines
     for (const c of folds) {
       if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
-      if (!c.grown) {
-        // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
-        const child = c.hingeOf, parentId = child === c.a.panelId ? c.b.panelId : c.a.panelId;
-        const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
-        const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
-        const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
-        const gx = group.find((g) => g.panelId === parentId);
-        if (!fit || !gx) continue;
-        const [A0, B0] = edgeLocal(P, pe);
-        const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
-        const A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 }, B = { x: A0.x + ux * fit.s1, y: A0.y + uy * fit.s1 };
-        const i = edgeInwardLocal(P, pe);
-        const al = matOf(d, parentId).foldAllowance;
-        const off = (q: P2, k: number) => applyX(gx.xf, { x: q.x - i.x * k, y: q.y - i.y * k });
-        const ov = 1e-5;
-        if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
-        contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: child!, foldId: c.id } });
-        continue;
-      }
-      const parent = d.panels[c.a.panelId];
-      const xf = group.find((g) => g.panelId === parent.id)!.xf;
-      let [A, B] = edgeLocal(parent, c.a.edge);
-      if (c.span && !c.trayId) {
-        // the fold strip runs along the part of the edge the child stands on
-        const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
-        const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
-        [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
-      }
-      const i = edgeInwardLocal(parent, c.a.edge);
-      const al = matOf(d, parent.id).foldAllowance;
-      const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });
-      // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
-      const sloped = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9;
-      const ov = sloped ? 1e-5 : 0;
-      if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
-      contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: c.b.panelId, foldId: c.id } });
+      const band = foldBand(d, c);
+      const gx = band && group.find((g) => g.panelId === band.parent);
+      if (!band || !gx) continue;
+      const tf = (q: P2) => applyX(gx.xf, q);
+      if (band.strip) polys.push([toRing(band.strip.map(tf))]);
+      for (const ln of band.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
+      for (const ln of band.cuts ?? []) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
+      for (const q of band.paths ?? []) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId: band.child, foldId: c.id }));
     }
     let merged: MultiPolygon = safeUnion(polys);
     // material joints remove past a corner (layer 7)

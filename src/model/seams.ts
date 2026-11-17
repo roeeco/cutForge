@@ -1,4 +1,8 @@
 // Seam geometry: how two panels meet in 3D, and what each connection kind
+import { bandCrossings, bandOf } from './bands';
+import { wingGeom } from './wings';
+import { bandEndGeom } from './dividers';
+import { closureCovers, closureGeom } from './closures';
 // cuts into them. Everything here is derived from panel frames and sizes, so
 // joints follow dimension, thickness, clearance, count, spacing and angle
 // changes automatically.
@@ -220,25 +224,31 @@ function distToSeg(p: P2, a: P2, b: P2): number {
 
 export type CrossFit = { xA: number; xB: number; widthA: number; widthB: number; depthA: number; depthB: number };
 
-/** Two upright panels crossing each other in their interiors (dividers). */
+/**
+ * Two upright panels crossing each other in their interiors (dividers), square
+ * or at an angle α down to MIN_CORNER (milestone 44). Each slot clears the
+ * other board's slab where it passes obliquely through this one:
+ * t_other / sin α + t_own · |cot α| wide (at 90°: t_other, as before).
+ */
 export function crossFit(A: Panel, B: Panel, t: number, tB = t): CrossFit | null {
   const tA = t;
-  const nA = frameNormal(A.frame), nB = frameNormal(B.frame);
-  if (Math.abs(v3dot(nA, nB)) > PERP || v3dot(A.frame.v, B.frame.v) < 0.999) return null;
+  if (v3dot(A.frame.v, B.frame.v) < 0.999) return null;
   const mA = matDir(A.frame), mB = matDir(B.frame);
   const ka = v3dot(A.frame.u, mB), kb = v3dot(B.frame.u, mA);
-  if (Math.abs(ka) < 0.99 || Math.abs(kb) < 0.99) return null;
+  if (Math.abs(ka) < SIN_MIN || Math.abs(kb) < SIN_MIN) return null;
+  const cot = (k: number) => Math.sqrt(Math.max(0, 1 - k * k)) / Math.abs(k);
+  const widthA = tB / Math.abs(ka) + tA * cot(ka), widthB = tA / Math.abs(kb) + tB * cot(kb);
   const midA = v3add(A.frame.o, v3mul(mA, tA / 2)), midB = v3add(B.frame.o, v3mul(mB, tB / 2));
   const xA = v3dot(v3sub(midB, midA), mB) / ka; // where B's mid-plane crosses A
   const xB = v3dot(v3sub(midA, midB), mA) / kb;
-  const hA = tB / 2 + 0.5, hB = tA / 2 + 0.5;
+  const hA = widthA / 2 + 0.5, hB = widthB / 2 + 0.5;
   if (xA < hA || xA > A.w - hA || xB < hB || xB > B.w - hB) return null;
   // vertical overlap along the shared v axis
   const yA0 = v3dot(A.frame.o, A.frame.v), yB0 = v3dot(B.frame.o, A.frame.v);
   const lo = Math.max(yA0, yB0), hi = Math.min(yA0 + A.h, yB0 + B.h);
   if (hi - lo < 2) return null;
   const mid = (lo + hi) / 2;
-  return { xA, xB, widthA: tB, widthB: tA, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
+  return { xA, xB, widthA, widthB, depthA: yA0 + A.h - mid, depthB: mid - yB0 };
 }
 
 /** Normalise notches on one edge: cuts win over protrusions where they overlap. */
@@ -383,8 +393,87 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
   return out;
 }
 
-/** Geometry for one connection, or null when its panels no longer meet. */
+/**
+ * Geometry for one connection, or null when its panels no longer meet. A
+ * joint between boards one of which a fold's band cuts back (milestone 63:
+ * a radiused lid's hinge wall) keeps only what lies on the board that is left
+ * (milestone 71): its flaps, slots and scores past the cut go.
+ */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
+  const g = connectionGeomRaw(d, c);
+  if (!g || c.grown || c.wing || c.bandEnd || c.kind === 'closure') return g;
+  let out = g;
+  for (const x of Object.values(d.connections)) {
+    if (!x.grown || x.kind !== 'fold' || !((x.radius ?? 0) > 0) || (x.a.panelId !== c.a.panelId && x.a.panelId !== c.b.panelId)) continue;
+    const b = bandOf(d, x);
+    if (b) out = clipToBand(d, out, b.parent, b.edge, b.trimP, b.span);
+  }
+  return out;
+}
+
+/** Keep a joint's geometry on panel `pid` to the part a band leaves: at least `trim` in from `edge` (only for a band along the whole edge). */
+function clipToBand(d: Design, g: ConnGeom, pid: string, edge: string, trim: number, span: [number, number]): ConnGeom {
+  const P = d.panels[pid];
+  if (!P || !findEdge(P, edge) || trim <= 1e-6) return g;
+  const [a, bb] = edgeLocal(P, edge);
+  const L = Math.hypot(bb.x - a.x, bb.y - a.y);
+  if (span[0] > 1e-3 || span[1] < L - 1e-3) return g;
+  const inw = edgeInwardLocal(P, edge);
+  const f = (q: P2) => (q.x - a.x) * inw.x + (q.y - a.y) * inw.y - trim;
+  const touches = (pts: P2[]) => pts.some((q) => f(q) < -1e-6);
+  // the same rule in another panel's coordinates, through 3D
+  const Aw = toWorld(P.frame, a.x, a.y, 0);
+  const iw: V3 = v3add(v3mul(P.frame.u, inw.x), v3mul(P.frame.v, inw.y));
+  const fOn = (Q: Panel) => (q: P2) => v3dot(v3sub(toWorld(Q.frame, q.x, q.y, 0), Aw), iw) - trim;
+  const clipPoly = (pts: P2[], h: (q: P2) => number): P2[] => {
+    const o: P2[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const fp = h(p), fq = h(q);
+      if (fp >= 0) o.push(p);
+      if ((fp < 0 && fq > 0) || (fp > 0 && fq < 0)) {
+        const k = fp / (fp - fq);
+        o.push({ x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k });
+      }
+    }
+    return o;
+  };
+  const clipSeg = (s: { a: P2; b: P2 }, h: (q: P2) => number) => {
+    const fa = h(s.a), fb = h(s.b);
+    if (fa >= 0 && fb >= 0) return s;
+    if (fa < 0 && fb < 0) return null;
+    const k = fa / (fa - fb), m = { x: s.a.x + (s.b.x - s.a.x) * k, y: s.a.y + (s.b.y - s.a.y) * k };
+    return fa < 0 ? { a: m, b: s.b } : { a: s.a, b: m };
+  };
+  // the rule on each panel the joint touches: in its own coordinates (the other board's flaps and slots against the cut-away part go too)
+  const rules = new Map<string, (q: P2) => number>();
+  const rule = (id: string) => {
+    let h = rules.get(id);
+    if (!h) {
+      const Q = d.panels[id];
+      h = id === pid ? f : Q ? fOn(Q) : () => 0;
+      rules.set(id, h);
+    }
+    return h;
+  };
+  const anyCut = [...g.adds, ...g.holes, ...(g.cuts ?? []), ...g.flaps3d].some((x) => x.poly.some((q) => rule(x.panelId)(q) < -1e-6)) || g.scores.some((x) => rule(x.panelId)(x.a) < -1e-6 || rule(x.panelId)(x.b) < -1e-6);
+  if (!anyCut || !touches) return g;
+  const polys = <T extends { panelId: string; poly: P2[] }>(xs: T[]) => xs.map((x) => ({ ...x, poly: clipPoly(x.poly, rule(x.panelId)) })).filter((x) => x.poly.length >= 3);
+  const segs = <T extends { panelId: string; a: P2; b: P2 }>(xs: T[]) =>
+    xs.flatMap((x) => {
+      const r = clipSeg(x, rule(x.panelId));
+      return r ? [{ ...x, ...r }] : [];
+    });
+  const flaps = polys(g.flaps3d);
+  return { ...g, adds: polys(g.adds), holes: polys(g.holes), scores: segs(g.scores), ...(g.cuts ? { cuts: polys(g.cuts) } : {}), ...(g.lines ? { lines: segs(g.lines) } : {}), flaps3d: flaps };
+}
+
+function connectionGeomRaw(d: Design, c: Connection): ConnGeom | null {
+  // a tray's rounded corner (milestone 64)
+  if (c.wing) return wingGeom(d, c);
+  if (c.bandEnd) return bandEndGeom(d, c);
+  // a lid's closure (milestone 67)
+  if (c.kind === 'closure') return closureGeom(d, c);
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -486,6 +575,11 @@ function mergeGeoms(parts: (ConnGeom | null)[]): ConnGeom | null {
 }
 
 function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): ConnGeom | null {
+  // a slit lock (milestone 68): the glue flap, with tongues through slits instead of glue
+  if (c.kind === 'lock') {
+    const glue = connectionGeomOne(d, { ...c, kind: 'glue' }, rng);
+    return glue ? slitLock(d, c, glue) : null;
+  }
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
@@ -505,6 +599,19 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     else {
       const b0 = fit.mapB(fit.s0), b1 = fit.mapB(fit.s1);
       g.edges.push({ panelId: B.id, edge: c.b.edge, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cut }] });
+    }
+    return g;
+  }
+  if (c.kind === 'fold' && c.grown) {
+    // a fold with a radius (milestone 63): both panels cut back to where the band's arc meets their outer faces
+    const b = bandOf(d, c);
+    if (b) {
+      const eC = findEdge(B, 'e0');
+      g.edges.push({ panelId: A.id, edge: c.a.edge, notches: [{ s0: b.span[0], s1: b.span[1], depth: b.trimP }] });
+      if (eC && b.trimC > 1e-9) g.edges.push({ panelId: B.id, edge: 'e0', notches: [{ s0: 0, s1: segLength(eC), depth: b.trimC }] });
+      // boards standing across it (side walls at a hinged lid) are cut back to its inner face
+      const across = bandCrossings(d, b);
+      if (across.length) g.cuts = across;
     }
     return g;
   }
@@ -1048,12 +1155,15 @@ export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
   const guides = constructionSet(d);
   const ids = d.order.filter((id) => d.panels[id] && !guides.has(id));
   const conns = Object.values(d.connections);
+  const covered = closureCovers(d);
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       const A = d.panels[ids[i]], B = d.panels[ids[j]];
       if (only && A.id !== only && B.id !== only) continue;
       const mine = conns.filter((c) => (c.a.panelId === A.id && c.b.panelId === B.id) || (c.a.panelId === B.id && c.b.panelId === A.id));
       if (mine.some((c) => c.grown)) continue;
+      // a lid's closure covers its joints with these walls (milestone 67)
+      if (covered.has(A.id < B.id ? `${A.id}|${B.id}` : `${B.id}|${A.id}`)) continue;
       // a flat panel placed on a face is a separate part, not joined to it
       if (flatOnHost(d, A.id, B.id)) continue;
       if (!nearEachOther(d, A, B)) continue;
@@ -1100,7 +1210,54 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
   if (type === 'cross') return ['halflap'];
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
-  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'slide', 'butt'] : ['glue', 'tabslot', 'slide', 'butt'];
+  // a slit lock (milestone 68) wherever a glue flap is offered, just after it
+  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'lock', 'slide', 'butt'] : ['glue', 'lock', 'tabslot', 'slide', 'butt'];
   // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
-  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'slide', 'butt'];
+  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'slide', 'butt'];
+}
+
+/**
+ * A slit lock (milestone 68, PACKAGING_PLAN.md §8.1) from a glue flap's
+ * geometry: on each flap's far edge one tongue (two on a flap 60 mm or more),
+ * a neck as wide as its slit and a head a little wider each side, so it
+ * flexes through and stays; in the other panel, where the folded flap's far
+ * edge lies, a slit (card: one cut line, the kerf is the gap) or a slot
+ * (corrugated: as thick as the flap and the clearance).
+ */
+function slitLock(d: Design, c: Connection, glue: ConnGeom): ConnGeom {
+  const g: ConnGeom = { ...glue, adds: [...glue.adds], holes: [...glue.holes], lines: [...(glue.lines ?? [])] };
+  const flaps = glue.flaps3d;
+  glue.adds.forEach((a, i) => {
+    const f = flaps[i];
+    if (!f || a.poly.length !== 4 || f.poly.length !== 4) return;
+    const mO = matOf(d, a.panelId), mR = matOf(d, f.panelId);
+    const [n0, A1, A2, n3] = a.poly, [, F1, F2] = f.poly;
+    const L = Math.hypot(A2.x - A1.x, A2.y - A1.y);
+    if (L < 6) return;
+    const ux = (A2.x - A1.x) / L, uy = (A2.y - A1.y) / L;
+    // outwards: from the flap's fold to its far edge
+    const mid = { x: (A1.x + A2.x) / 2 - (n0.x + n3.x) / 2, y: (A1.y + A2.y) / 2 - (n0.y + n3.y) / 2 };
+    const ml = Math.hypot(mid.x, mid.y) || 1, ox = mid.x / ml, oy = mid.y / ml;
+    const card = mO.kind === 'card';
+    const neck = Math.min(card ? 10 : 14, 0.35 * L), barb = card ? 2 : 3, depth = card ? 5 : mR.thickness + 4;
+    const at = (f0: number, along: number, out: number) => ({ x: A1.x + ux * (f0 * L + along) + ox * out, y: A1.y + uy * (f0 * L + along) + oy * out });
+    const FL = Math.hypot(F2.x - F1.x, F2.y - F1.y) || 1;
+    const fx = (F2.x - F1.x) / FL, fy = (F2.y - F1.y) / FL;
+    for (const f0 of L >= 60 ? [0.25, 0.75] : [0.5]) {
+      g.adds.push({
+        panelId: a.panelId,
+        poly: [at(f0, -neck / 2, -0.01), at(f0, neck / 2, -0.01), at(f0, neck / 2 + barb, depth * 0.45), at(f0, neck * 0.35, depth), at(f0, -neck * 0.35, depth), at(f0, -neck / 2 - barb, depth * 0.45)],
+      });
+      // where the folded flap's far edge lies on the other panel
+      const cx = F1.x + (F2.x - F1.x) * f0, cy = F1.y + (F2.y - F1.y) * f0;
+      const half = (neck + mR.clearance) / 2;
+      if (card) g.lines!.push({ panelId: f.panelId, a: { x: cx - fx * half, y: cy - fy * half }, b: { x: cx + fx * half, y: cy + fy * half } });
+      else {
+        const w = (mO.thickness + mR.clearance) / 2, nx = -fy, ny = fx;
+        g.holes.push({ panelId: f.panelId, poly: [-1, 1, 1, -1].map((k, j) => ({ x: cx + fx * half * k + nx * w * (j < 2 ? -1 : 1), y: cy + fy * half * k + ny * w * (j < 2 ? -1 : 1) })) });
+      }
+    }
+  });
+  if (!g.lines?.length) delete g.lines;
+  return g;
 }

@@ -74,7 +74,7 @@ export function batchExport(items: BatchItem[], kerfMode: KerfMode = 'nominal'):
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey });
       contours = r.contours;
     }
-    const xf = placementXform(pl, c.h);
+    const xf = placementXform(pl, c.h, c.w);
     for (const tc of [...contours, ...label(c.owner, c.w, c.h)]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   const sheets = groups.flatMap((g) => g.list);

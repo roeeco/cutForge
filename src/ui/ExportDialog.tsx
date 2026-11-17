@@ -22,7 +22,7 @@ export function ExportDialog() {
   const [format, setFormat] = useState<'svg' | 'dxf'>('svg');
   const [split, setSplit] = useState(false);
   const [mode, setMode] = useState<KerfMode>('nominal');
-  const prepared = useMemo(() => prepareExport(d, mode), [d, mode]);
+  const prepared = useMemo(() => prepareExport(d, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') }), [d, mode, t]);
   const issues = useMemo(() => validate(d), [d]);
   const check = shown(useFeature('exportCheck'));
   const pieces = Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);

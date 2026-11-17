@@ -1,7 +1,7 @@
 // Pre-export checks, explained in plain language by the UI.
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
-import { segDir, segInward } from './edges';
+import { findEdge, segDir, segInward } from './edges';
 import { toWorld } from './frame';
 import { instancePolys, isOutlineShape, ownOutline } from './outline';
 import { throughHits, throughRegions } from './through';
@@ -10,7 +10,7 @@ import { polygonArea } from '../geom/vec';
 import type { MsgKey } from '../i18n';
 import { crossesItself, detailBBox, panelExtras, panelNotches, panelOutline, panelOutlines } from './geometry';
 import { bboxOf } from '../geom/vec';
-import { matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
+import { bendOf, matOf, minWeb as materialMinWeb, profileOf, tOf } from './materials';
 import { findOpenSeams } from './seams';
 import { leanSupported, pairKey } from './ops';
 import { panelContacts, TOUCH_EPS } from './contact';
@@ -25,6 +25,10 @@ import polygonClipping from 'polygon-clipping';
 import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
+import { bandOf, foldRadius } from './bands';
+import { cornerOf, wingBands } from './wings';
+import { closureCovers } from './closures';
+import { bestReach } from './bendPatterns';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
@@ -96,7 +100,72 @@ export function validate(d: Design): Issue[] {
     if (s.overlapping) issues.push({ key: 'val.overlap', vars: { a: name(s.a.panelId), b: name(s.b.panelId) }, target: { kind: 'panel', id: s.a.panelId }, pair: [s.a.panelId, s.b.panelId] });
   }
   issues.push(...contactIssues(d, issues));
+  issues.push(...bendIssues(d, guides));
   return issues;
+}
+
+/**
+ * Folds with a radius (milestone 63): a bend tighter than any of its material's
+ * patterns reaches (a crease in plywood included), a chosen pattern that does
+ * not reach it, a band too short for its pattern's lines, and a radius so
+ * large that the cuts would take a whole board.
+ */
+function bendIssues(d: Design, guides: Set<string>): Issue[] {
+  const out: Issue[] = [];
+  // corrugated bends are checked against the flutes as their piece lies on the sheet (milestone 66): laid out once, when there are any
+  let layout: { copies: ReturnType<typeof pieceCopies>; pl: ReturnType<typeof pack> } | null = null;
+  const sheetAxis = (panelId: string, axis: P2): P2 | null => {
+    layout ??= (() => {
+      const copies = pieceCopies(d);
+      return { copies, pl: pack(d, copies) };
+    })();
+    const copy = layout.copies.find((x) => x.copy === 0 && x.panels.some((n) => n.panelId === panelId));
+    const n = copy?.panels.find((q) => q.panelId === panelId);
+    const pl = copy && layout.pl[copy.key];
+    if (!copy || !n || !pl) return null;
+    const a = applyX({ ...n.xf, tx: 0, ty: 0 }, axis);
+    return pl.rot === 90 || pl.rot === 270 ? { x: -a.y, y: a.x } : a;
+  };
+  for (const c of Object.values(d.connections)) {
+    if (!((c.grown && c.kind === 'fold') || c.wing) || c.broken || guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
+    const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
+    if (!P || !C) continue;
+    const vars = { panel: C.name, other: P.name };
+    const pair: [string, string] = [P.id, C.id];
+    const target: IssueTarget = { kind: 'panel', id: C.id };
+    const m = matOf(d, P.id);
+    if (m.kind === 'plywood' && foldRadius(d, c) <= 1e-6) {
+      out.push({ key: 'val.bendTight', vars: { ...vars, r: bendOf(m).patternR }, target, pair });
+      continue;
+    }
+    // a corner may go round several arcs (milestone 65): the first band that falls short speaks for it
+    const all = c.wing ? wingBands(d, c) : [bandOf(d, c)].filter((x): x is NonNullable<typeof x> => !!x);
+    const b = all.find((x) => !x.fits || x.pattern.why) ?? all[0];
+    if (!b) continue;
+    // round a tray's rounded corner (milestone 64) the radius to set is the base corner's: the band's inner radius plus the wall's thickness and how far in it stands
+    const k = c.wing ? cornerOf(d, c) : null;
+    const asked = (inner: number) => Math.ceil((k ? inner + b.t + (k.r - b.Ro) : inner) * 10) / 10;
+    if (c.wing && !b.fits) {
+      const need = bestReach({ m, r: 0, len: b.span[1] - b.span[0], width: b.lb, turn: b.phi });
+      out.push({ key: 'val.bendTight', vars: { ...vars, r: asked(Number.isFinite(need) ? Math.max(need, 0.5) : 0.5) }, target, pair });
+    } else if (!b.fits) out.push({ key: 'val.bendRoom', vars, target, pair });
+    else if (b.pattern.why?.key === 'short') out.push({ key: 'val.bendShort', vars: { ...vars, len: b.pattern.why.value ?? 0 }, target, pair });
+    else if (b.pattern.why) out.push({ key: b.pattern.auto ? 'val.bendTight' : 'val.bendStyle', vars: { ...vars, r: b.pattern.why.key === 'radius' ? asked(b.pattern.why.value ?? 0) : 0 }, target, pair });
+    else if (m.kind === 'corrugated' && m.grain !== 'none') {
+      // a smooth bend in corrugated needs its axis along the flutes: across them, the flutes crush (perforations or kiss scores work either way)
+      const across = all.find((x) => {
+        if (x.pattern.id !== 'smooth') return false;
+        const P = d.panels[x.parent];
+        const e = !x.wing && P ? findEdge(P, x.edge) : null;
+        const axis = x.wing ? { x: 0, y: 1 } : e ? { x: (e.b.x - e.a.x) / Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y), y: (e.b.y - e.a.y) / Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) } : null;
+        const on = axis && sheetAxis(x.parent, axis);
+        const flute = m.grain === 'y' ? { x: 0, y: 1 } : { x: 1, y: 0 };
+        return !!on && Math.abs(on.x * flute.x + on.y * flute.y) < Math.cos((15 * Math.PI) / 180);
+      });
+      if (across) out.push({ key: 'val.fluteBend', vars, target, pair });
+    }
+  }
+  return out;
 }
 
 /** What the export check needs to place shapes on a panel (milestone 39: shared with Quick build's guard). */
@@ -255,7 +324,7 @@ function foldOverIssues(d: Design): Issue[] {
         const e = g.liner.e;
         const a = applyX(n.xf, e.a), b = applyX(n.xf, e.b);
         let dx = b.x - a.x, dy = b.y - a.y;
-        if (place.rot === 90) [dx, dy] = [-dy, dx];
+        if (place.rot === 90 || place.rot === 270) [dx, dy] = [-dy, dx];
         const along = fm.grain === 'x' ? Math.abs(dx) : Math.abs(dy);
         if (along < 0.7 * Math.hypot(dx, dy)) out.push({ key: 'val.flute', vars, target });
       }
@@ -362,7 +431,7 @@ function sheetIssues(d: Design): Issue[] {
   const placed = copies
     .filter((c) => pl[c.key])
     .map((c) => {
-      const xf = placementXform(pl[c.key], c.h);
+      const xf = placementXform(pl[c.key], c.h, c.w);
       const outer = c.contours.find((x) => x.role === 'outer');
       const pts = outer ? flattenContour(outer.contour, 0.2).map((q) => applyX(xf, q)) : [];
       const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
@@ -410,7 +479,8 @@ const SHORT_CONTACT = 10;
 
 function contactIssues(d: Design, already: Issue[]): Issue[] {
   const name = (id: string) => d.panels[id]?.name ?? '?';
-  const joined = new Set(Object.values(d.connections).map((c) => pairKey(c.a.panelId, c.b.panelId)));
+  // a lid's closure joins it to every wall it covers (milestone 67)
+  const joined = new Set([...Object.values(d.connections).map((c) => pairKey(c.a.panelId, c.b.panelId)), ...closureCovers(d)]);
   const named = new Set(already.filter((i) => i.pair).map((i) => pairKey(i.pair![0], i.pair![1])));
   const unjoined = new Set(d.noAutoSeams ?? []);
   const out: Issue[] = [];

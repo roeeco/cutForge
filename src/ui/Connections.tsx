@@ -15,8 +15,14 @@ import { clearSpans } from '../model/measure';
 import { edgeLength } from '../model/frame';
 import type { Connection, ConnectionKind, Design, TabLock } from '../model/types';
 import { fmtNum } from '../i18n';
+import { BendSection } from './BendUI';
+import { CutChoice } from './SplitUI';
+import { connKindKey } from './connLabel';
+import { pairKinds } from '../model/jointDefaults';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
+  // a tray's rounded corner (milestone 64)
+  if (c.wing) return pairKinds(d, c);
   if (c.grown) return connectionsFor(d.material, c.angle);
   return seamKinds(d.material, seamTypeOf(c));
 }
@@ -70,7 +76,7 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           <select id={`k-${c.id}`} value={c.kind} onChange={(e) => apply((x) => setConnection(x, c.id, { kind: e.target.value as ConnectionKind }))} data-testid="conn-kind">
             {kinds.map((o) => (
               <option key={o} value={o}>
-                {t(`conn.${o}` as 'conn.fold')}
+                {t(connKindKey(d, c, o))}
               </option>
             ))}
           </select>
@@ -106,6 +112,9 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
       {c.grown && isChild && (c.kind === 'tabslot' || c.offset > 0) && (
         <NumField label={t('conn.offset')} value={c.offset} unit={mm} min={0} max={2000} onCommit={(v) => apply((x) => setConnection(x, c.id, { offset: v }))} testId="conn-offset" />
       )}
+      {/* the folded board's own card shows its bend; here only the bends of boards folded off this one */}
+      {!isChild && <BendSection c={c} />}
+      {c.grown && <CutChoice c={c} />}
       {c.kind === 'fold' && (
         <Segmented
           label={t('conn.foldDir')}
@@ -155,7 +164,7 @@ export function PanelConnections({ panelId }: { panelId: string }) {
                 <span className="kind-ico">
                   <Icon name={c.kind} size={18} />
                 </span>
-                <span className="conn-title">{t(`conn.${c.kind}` as 'conn.fold')}</span>
+                <span className="conn-title">{t(connKindKey(d, c, c.kind))}</span>
                 <span className="conn-sub">{panelLabel(d, other, t)}</span>
               </button>
               {isOpen && <ConnectionEditor c={c} panelId={panelId} />}

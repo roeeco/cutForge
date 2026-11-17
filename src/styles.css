@@ -245,6 +245,7 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .segmented { display: inline-flex; background: var(--surface-sunk); border-radius: var(--r-sm); padding: 2px; gap: 2px; }
 .segmented button { border: none; background: transparent; padding: 3px 10px; min-height: 28px; border-radius: 6px; font-size: 13px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 6px; }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-soft); }
 .op-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .op-dot.cut { background: var(--op-cut); }
@@ -782,3 +783,22 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .mat-pill .mat-name { display: none; }
   .topbar:has(.ready-wrap) .mat-pill { padding-inline-end: 8px; }
 }
+
+/* milestone 69: the cut plan's yield report, Nest and Save material */
+.yield-bar { position: relative; display: flex; gap: 6px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 3px 3px 3px 10px; box-shadow: var(--shadow-soft); font-size: 13px; color: var(--ink-muted); }
+.yield-bar button { min-height: 30px; height: 30px; padding: 0 10px; }
+.yield-bar button.on { color: var(--ink); font-weight: 600; }
+.save-pop { position: absolute; top: calc(100% + 8px); inset-inline-end: 0; z-index: 30; width: 320px; padding: 12px 14px; color: var(--ink); }
+.save-pop p { margin: 0 0 10px; }
+.save-pop .row { display: flex; gap: 8px; justify-content: flex-end; }
+.cut-choice { margin: 6px 0; }
+/* Dividers (milestone 44): what each end of a divider ghost meets, and a refused line */
+.div-mark { pointer-events: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; font-size: 11px; line-height: 1; background: white; color: #0b4f4a; border: 2px solid #0b4f4a; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.div-mark.edge { color: #6b7280; border-style: dashed; border-color: #6b7280; }
+.div-mark.cross { color: #8a5a00; border-color: #e0a21b; }
+.w-dim.ghost.refused, .ghost-bar .note.refused { color: var(--danger); background: var(--danger-soft); }
+.div-ends { display: grid; gap: 4px; margin: 6px 0; }
+.div-ends .label { font-size: 12px; color: var(--muted, #6b7280); }
+.div-end { display: flex; align-items: center; gap: 6px; }
+.div-end span { flex: 1; font-size: 13px; }
+.div-end button { min-width: 28px; font-size: 16px; }

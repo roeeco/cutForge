@@ -52,8 +52,8 @@ describe('what can be built at each angle', () => {
   it('plywood on the floor: only impossible angles block; the rest are notes', () => {
     const { d, id } = base();
     expect(checkHinge(d, id, 0, 90, 50)).toMatchObject({ zone: 'ok', blocking: false });
-    expect(checkHinge(d, id, 0, 60, 50)).toMatchObject({ zone: 'support', reason: 'needsWalls', blocking: false, sideWalls: true, kinds: ['lean', 'butt'] });
-    expect(checkHinge(d, id, 0, 120, 50)).toMatchObject({ zone: 'support', reason: 'outward', blocking: false, kinds: ['butt'] });
+    expect(checkHinge(d, id, 0, 60, 50)).toMatchObject({ zone: 'support', reason: 'needsWalls', blocking: false, sideWalls: true, kinds: ['lean', 'butt', 'fold'] });
+    expect(checkHinge(d, id, 0, 120, 50)).toMatchObject({ zone: 'support', reason: 'outward', blocking: false, kinds: ['butt', 'fold'] });
     expect(checkHinge(d, id, 0, 180, 50)).toMatchObject({ zone: 'support', reason: 'flat', blocking: false });
     expect(checkHinge(d, id, 0, 270, 50)).toMatchObject({ zone: 'bad', reason: 'floor', blocking: true });
     expect(checkHinge(d, id, 0, 5, 50)).toMatchObject({ zone: 'bad', reason: 'onPanel', blocking: true });
@@ -69,7 +69,7 @@ describe('what can be built at each angle', () => {
   it('side walls turn a needs-support lean into a buildable one', () => {
     const { d, id } = base();
     addSideWalls(d, id, 0, 60, 50);
-    expect(checkHinge(d, id, 0, 60, 50)).toMatchObject({ zone: 'ok', kinds: ['lean', 'butt'] });
+    expect(checkHinge(d, id, 0, 60, 50)).toMatchObject({ zone: 'ok', kinds: ['lean', 'butt', 'fold'] });
     const r = growPanel(d, id, 0, { height: 50, ...fromHinge(60), kind: 'lean' })!;
     expect(leanSupported(d, r.panelId)).toBe(true);
   });

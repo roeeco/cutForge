@@ -8,8 +8,10 @@ import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './typ
 import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
 import { matOf, minWeb, tOf } from './materials';
 import { removePanelRecord } from './place';
+import { KEEP_STRAIGHT } from '../geom/fillet';
 
-export const MIN_EDGE = 5;
+/** The shortest straight edge a wall stands on (mm); rounding keeps it (`KEEP_STRAIGHT`). */
+export const MIN_EDGE = KEEP_STRAIGHT;
 
 /** Defaults by material: walls fold up from the base on card and corrugated (one net). */
 export function trayKinds(m: MaterialProfile): { wallKind: ConnectionKind; cornerKind: ConnectionKind } {

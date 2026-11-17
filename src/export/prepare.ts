@@ -6,6 +6,10 @@ import type { Contour, TaggedContour } from '../geom/types';
 import { flattenContour, pointInPolygon, xformContour } from '../geom/vec';
 import { pack, pieceCopies, placementXform, sheetGroups } from '../model/pack';
 import { offsetContour } from './offset';
+import { refitArcs } from '../geom/arcfit';
+import { pieceLabel } from './label';
+import { bandOf } from '../model/bands';
+import { wingBands } from '../model/wings';
 
 export type KerfMode = 'nominal' | 'compensated';
 
@@ -26,6 +30,8 @@ export function compensatePiece(contours: TaggedContour[], kerf: number): { cont
   const polys = cuts.map((c) => flattenContour(c.contour, 0.05));
   let ok = true;
   const out = contours.map((c) => {
+    // an open cut line (a living hinge's slit, milestone 63) is shortened by half the kerf at each end, so it cuts its drawn length
+    if (c.op === 'cut' && !c.contour.closed) return { ...c, contour: shortenOpen(c.contour, kerf / 2) };
     const i = cuts.indexOf(c);
     if (i < 0) return c;
     const probe = polys[i][0];
@@ -41,8 +47,38 @@ export function compensatePiece(contours: TaggedContour[], kerf: number): { cont
   return { contours: out, ok };
 }
 
-export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepared {
+/** An open chain of straight segments with `k` mm taken off each end (a chain shorter than 2k is left as it is). */
+export function shortenOpen(c: Contour, k: number): Contour {
+  if (k <= 0 || c.closed || !c.segs.length || c.segs.some((s) => s.k !== 'L')) return c;
+  const segs = c.segs.map((s) => ({ ...s, a: { ...s.a }, b: { ...s.b } }));
+  const len = (s: { a: { x: number; y: number }; b: { x: number; y: number } }) => Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y);
+  const total = segs.reduce((t, s) => t + len(s), 0);
+  if (total <= 2 * k + 1e-6) return c;
+  const f = segs[0], l = segs[segs.length - 1];
+  const lf = len(f);
+  if (lf > k) f.a = { x: f.a.x + ((f.b.x - f.a.x) * k) / lf, y: f.a.y + ((f.b.y - f.a.y) * k) / lf };
+  const ll = len(l);
+  if (ll > k) l.b = { x: l.b.x - ((l.b.x - l.a.x) * k) / ll, y: l.b.y - ((l.b.y - l.a.y) * k) / ll };
+  return { closed: false, segs };
+}
+
+/** Text the export writes on the GUIDE layer (the student's language). */
+export type ExportLabels = { kissUp: string; kissUpShort: string };
+const LABELS: ExportLabels = { kissUp: 'THIS SIDE UP (kiss scores)', kissUpShort: 'UP' };
+
+/** Boards whose bends are kiss-scored (milestone 66): their piece is cut with the band's inside face up. */
+function kissPanels(d: Design): Set<string> {
+  const out = new Set<string>();
+  for (const c of Object.values(d.connections)) {
+    const bs = c.wing ? wingBands(d, c) : [bandOf(d, c)].filter((b): b is NonNullable<typeof b> => !!b);
+    if (bs.some((b) => b.pattern.id === 'kiss')) out.add(bs[0].parent);
+  }
+  return out;
+}
+
+export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels: ExportLabels = LABELS): Prepared {
   const copies = pieceCopies(d);
+  const kissed = kissPanels(d);
   const placements = pack(d, copies);
   // each material its own sheets (milestone 36), in the layout's order: the working material first
   const groups = sheetGroups(d, placements).map((g) => ({
@@ -52,20 +88,28 @@ export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal'): Prepar
   const groupOf = (mat: string | undefined) => groups.find((g) => g.mat === (mat ?? d.material.id)) ?? groups[0];
   const errors: PrepError[] = [];
   const compensated = new Map<string, { contours: TaggedContour[]; ok: boolean }>();
+  // arcs the outline pipeline flattened become true arcs again (milestone 62), once per piece
+  const arced = new Map<string, TaggedContour[]>();
   for (const c of copies) {
     const pl = placements[c.key];
     if (!pl) continue;
     const g = groupOf(pl.mat);
-    let contours = c.contours;
+    if (!arced.has(c.pieceKey)) arced.set(c.pieceKey, c.contours.map((tc) => (tc.op === 'cut' && tc.contour.closed ? { ...tc, contour: refitArcs(tc.contour) } : tc)));
+    const base = arced.get(c.pieceKey)!;
+    let contours = base;
     if (kerfMode === 'compensated') {
       // copies share geometry: compensate once per piece, with its own material's kerf
-      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(c.contours, g.profile.kerf));
+      if (!compensated.has(c.pieceKey)) compensated.set(c.pieceKey, compensatePiece(base, g.profile.kerf));
       const r = compensated.get(c.pieceKey)!;
       if (!r.ok && c.copy === 0) errors.push({ pieceKey: c.pieceKey, panelId: c.pieceKey });
       contours = r.contours;
     }
-    const xf = placementXform(pl, c.h);
-    for (const tc of contours) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
+    const xf = placementXform(pl, c.h, c.w);
+    // a piece with kiss-scored bends is cut inside up: mirrored in its box, with a note on the guide layer (milestone 66)
+    const kiss = c.panels.some((n) => kissed.has(n.panelId));
+    const flip = (tc: TaggedContour): TaggedContour => (kiss ? { ...tc, contour: xformContour({ tx: c.w, ty: 0, rot: 0, mirror: true }, tc.contour) } : tc);
+    const extra = kiss ? pieceLabel(labels.kissUp, c.w, c.h, labels.kissUpShort) : [];
+    for (const tc of [...contours.map(flip), ...extra]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   return {
     sheets: groups.flatMap((g) => g.list),

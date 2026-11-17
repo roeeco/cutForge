@@ -9,6 +9,7 @@ import { normalizeNotches } from './seams';
 // the own outline (Add/Cut shapes) feeds the edge layer
 import './outline';
 import { allFoldOvers } from './foldover';
+import { memo } from './derived';
 import type { Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
 import { polygonArea } from '../geom/vec';
@@ -17,43 +18,95 @@ export type { Notch };
 
 /** Joint notches on every edge of a panel by edge key, from all its connections (normalised). */
 export function panelNotches(d: Design, p: Panel): Record<string, Notch[]> {
+  // a frozen design: every panel's notches from one pass over the connections (milestone 61)
+  if (Object.isFrozen(d) && d.panels[p.id] === p) {
+    const all = memo(d, 'notches', () => {
+      const by = new Map<string, { edge: string; notches: Notch[] }[]>();
+      for (const c of Object.values(d.connections)) {
+        if (!c.geom) continue;
+        for (const e of c.geom.edges) {
+          if (e.panelId !== c.a.panelId && e.panelId !== c.b.panelId) continue;
+          const list = by.get(e.panelId);
+          if (list) list.push(e);
+          else by.set(e.panelId, [e]);
+        }
+      }
+      return by;
+    });
+    return notchesFrom(p, all.get(p.id) ?? []);
+  }
+  const mine: { edge: string; notches: Notch[] }[] = [];
+  for (const c of Object.values(d.connections)) {
+    if (!c.geom || (c.a.panelId !== p.id && c.b.panelId !== p.id)) continue;
+    for (const e of c.geom.edges) if (e.panelId === p.id) mine.push(e);
+  }
+  return notchesFrom(p, mine);
+}
+
+function notchesFrom(p: Panel, list: { edge: string; notches: Notch[] }[]): Record<string, Notch[]> {
   const ring = panelEdges(p);
   const raw: Record<string, Notch[]> = {};
   for (const e of ring) raw[e.key] = [];
-  for (const c of Object.values(d.connections)) {
-    if (!c.geom || (c.a.panelId !== p.id && c.b.panelId !== p.id)) continue;
-    for (const e of c.geom.edges) {
-      if (e.panelId !== p.id) continue;
-      // a joint kept on an edge a cut split lands on the piece that key now means
-      const k = raw[e.edge] ? e.edge : findEdge(p, e.edge)?.key;
-      if (k && raw[k]) raw[k].push(...e.notches);
-    }
+  for (const e of list) {
+    // a joint kept on an edge a cut split lands on the piece that key now means
+    const k = raw[e.edge] ? e.edge : findEdge(p, e.edge)?.key;
+    if (k && raw[k]) raw[k].push(...e.notches);
   }
   const out: Record<string, Notch[]> = {};
   for (const e of ring) out[e.key] = normalizeNotches(raw[e.key], segLength(e));
   return out;
 }
 
-/** Slots, glue flaps and flap score lines that connections add to a panel. */
-export function panelExtras(d: Design, p: Panel) {
-  const holes: P2[][] = [], adds: P2[][] = [], scores: { a: P2; b: P2 }[] = [], cuts: P2[][] = [], linerHoles: P2[][] = [];
+export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2 }[]; cuts: P2[][]; linerHoles: P2[][]; lines: { a: P2; b: P2 }[]; paths: { pts: P2[]; closed: boolean }[] };
+const noExtras = (): PanelExtras => ({ holes: [], adds: [], scores: [], cuts: [], linerHoles: [], lines: [], paths: [] });
+
+/** Every panel's slots, flaps, scores, cuts and open cut lines, from one pass over the fold-overs and connections. */
+export function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras> {
+  const out = new Map<string, PanelExtras>();
+  const at = (id: string) => {
+    let x = out.get(id);
+    if (!x) out.set(id, (x = noExtras()));
+    return x;
+  };
+  const want = (id: string) => !only || id === only;
   // fold-overs: rim and liner on their wall, lock slots in the base
   for (const fo of allFoldOvers(d)) {
-    for (const h of fo.g.holes) if (h.panelId === p.id) holes.push(h.poly);
-    if (fo.panelId === p.id) {
-      for (const a of fo.g.adds) adds.push(a.poly);
-      for (const s of fo.g.scores) scores.push(s);
-      linerHoles.push(...fo.g.linerHoles);
+    for (const h of fo.g.holes) if (want(h.panelId)) at(h.panelId).holes.push(h.poly);
+    if (want(fo.panelId)) {
+      const x = at(fo.panelId);
+      for (const a of fo.g.adds) x.adds.push(a.poly);
+      for (const s of fo.g.scores) x.scores.push(s);
+      x.linerHoles.push(...fo.g.linerHoles);
+    }
+  }
+  // plain flaps on free edges (milestone 67)
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.edgeFlaps?.length || !want(id)) continue;
+    for (const f of p.edgeFlaps) {
+      const g = edgeFlapGeom(d, p, f);
+      if (!g) continue;
+      at(id).adds.push(g.poly);
+      at(id).scores.push(g.score);
     }
   }
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;
-    for (const k of c.geom.cuts ?? []) if (k.panelId === p.id) cuts.push(k.poly);
-    for (const h of c.geom.holes) if (h.panelId === p.id) holes.push(h.poly);
-    for (const a of c.geom.adds) if (a.panelId === p.id) adds.push(a.poly);
-    for (const s of c.geom.scores) if (s.panelId === p.id) scores.push(s);
+    for (const k of c.geom.cuts ?? []) if (want(k.panelId)) at(k.panelId).cuts.push(k.poly);
+    for (const h of c.geom.holes) if (want(h.panelId)) at(h.panelId).holes.push(h.poly);
+    for (const a of c.geom.adds) if (want(a.panelId)) at(a.panelId).adds.push(a.poly);
+    for (const s of c.geom.scores) if (want(s.panelId)) at(s.panelId).scores.push(s);
+    for (const l of c.geom.lines ?? []) if (want(l.panelId)) at(l.panelId).lines.push(l);
+    for (const q of c.geom.cutPaths ?? []) if (want(q.panelId)) at(q.panelId).paths.push({ pts: q.pts, closed: q.closed });
   }
-  return { holes, adds, scores, cuts, linerHoles };
+  return out;
+}
+
+/** Slots, glue flaps and flap score lines that connections add to a panel (and open cut lines, milestone 63). */
+export function panelExtras(d: Design, p: Panel): PanelExtras {
+  const x = Object.isFrozen(d) ? memo(d, 'extras', () => extrasByPanel(d)).get(p.id) : extrasByPanel(d, p.id).get(p.id);
+  // fresh arrays: callers may add to them
+  return x ? { holes: [...x.holes], adds: [...x.adds], scores: [...x.scores], cuts: [...x.cuts], linerHoles: [...x.linerHoles], lines: [...x.lines], paths: [...x.paths] } : noExtras();
 }
 
 const EPS = 1e-7;
@@ -266,4 +319,26 @@ export function detailBBox(dt: Detail) {
     minY: Math.min(...inst.map((x) => x.cy - x.h / 2)),
     maxY: Math.max(...inst.map((x) => x.cy + x.h / 2)),
   };
+}
+
+/**
+ * A plain flap on a free edge (milestone 67): a lip `len` mm out from the
+ * edge, its ends tapered 30°, scored where it folds. None on an edge that is
+ * gone or joined.
+ */
+export function edgeFlapGeom(d: Design, p: Panel, f: { edge: string; len: number }): { poly: P2[]; score: { a: P2; b: P2 } } | null {
+  const e = findEdge(p, f.edge);
+  if (!e) return null;
+  const joined = Object.values(d.connections).some((c) => (c.a.panelId === p.id && findEdge(p, c.a.edge)?.key === e.key) || (c.b.panelId === p.id && c.b.edge !== 'face' && findEdge(p, c.b.edge)?.key === e.key));
+  if (joined) return null;
+  return flapOn(e, f.len);
+}
+
+/** A flap `len` mm out from an edge, its ends tapered 30°, and its score line (milestone 67; a divider's end on a curved band, milestone 70). */
+export function flapOn(e: EdgeSeg, len0: number): { poly: P2[]; score: { a: P2; b: P2 } } {
+  const L = segLength(e), dir = segDir(e), inw = segInward(e);
+  const len = Math.max(2, len0);
+  const taper = Math.min(len * Math.tan(Math.PI / 6), L / 3);
+  const at = (s: number, o: number): P2 => ({ x: e.a.x + dir.x * s - inw.x * o, y: e.a.y + dir.y * s - inw.y * o });
+  return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, 0), b: at(L, 0) } };
 }

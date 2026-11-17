@@ -3,7 +3,7 @@ import type { Design, MaterialProfile, SheetPlacement } from './types';
 import { profileOf } from './materials';
 import type { TaggedContour, Xform2 } from '../geom/types';
 import { contourBBox, xformContour } from '../geom/vec';
-import { buildPieces, pieceMat, pieceRoot, type NetPanel } from './pieces';
+import { buildPieces, pieceKeyOf, pieceMat, pieceRoot, type NetPanel } from './pieces';
 
 export type PieceCopy = {
   key: string; // `${pieceKey}#${copy}`
@@ -32,24 +32,53 @@ export function pieceCopies(d: Design): PieceCopy[] {
     const maxX = Math.max(...bbs.map((b) => b.maxX)), maxY = Math.max(...bbs.map((b) => b.maxY));
     const shift: Xform2 = { tx: -minX, ty: -minY, rot: 0 };
     const contours = raw.map((c) => ({ ...c, contour: xformContour(shift, c.contour) }));
-    const q = Math.max(1, d.pieces[pieceRoot(piece.key)]?.quantity ?? 1);
+    const q = quantityOf(d, pieceRoot(piece.key));
     for (let i = 0; i < q; i++)
       out.push({ key: `${piece.key}#${i}`, pieceKey: piece.key, copy: i, contours, w: maxX - minX, h: maxY - minY, origin: { x: minX, y: minY }, panels: piece.panels, frag: piece.frag, mat: pieceMat(d, piece.key) });
   }
   return out;
 }
 
+/** How many copies of a piece: its own setting, or for a part cut off a net (milestone 69) the net's. */
+export function quantityOf(d: Design, root: string): number {
+  return Math.max(1, d.pieces[quantityRoot(d, root)]?.quantity ?? 1);
+}
+
+/** The piece whose setting says how many copies a piece is cut (itself, or the net a part was cut off). */
+export function quantityRoot(d: Design, root: string): string {
+  let id = root;
+  for (let i = 0; i < 50; i++) {
+    const c = Object.values(d.connections).find((x) => x.split && x.b.panelId === id);
+    if (!c) break;
+    id = pieceKeyOf(d, c.a.panelId);
+  }
+  return id;
+}
+
+/** A piece's size as the nester records it. */
+export const nestSize = (c: Pick<PieceCopy, 'w' | 'h'>) => ({ w: Math.round(c.w * 100) / 100, h: Math.round(c.h * 100) / 100 });
+
+/** Is a placement still good for this piece: any but a nested one, which holds while the piece keeps its size (milestone 69)? */
+export function nestHolds(p: SheetPlacement, c: Pick<PieceCopy, 'w' | 'h'>): boolean {
+  if (!p.nested) return true;
+  const s = nestSize(c);
+  return Math.abs(p.nested.w - s.w) < 0.011 && Math.abs(p.nested.h - s.h) < 0.011;
+}
+
 /** Transform from piece-local (bbox at origin) coordinates to sheet coordinates. */
-export function placementXform(p: SheetPlacement, pieceH: number): Xform2 {
-  // rot 90: rotate CCW about origin, then shift so the bbox starts at (x, y).
-  return p.rot === 90 ? { tx: p.x + pieceH, ty: p.y, rot: Math.PI / 2 } : { tx: p.x, ty: p.y, rot: 0 };
+export function placementXform(p: SheetPlacement, pieceH: number, pieceW = 0): Xform2 {
+  // turned CCW about the origin, then shifted so the bbox starts at (x, y)
+  if (p.rot === 90) return { tx: p.x + pieceH, ty: p.y, rot: Math.PI / 2 };
+  if (p.rot === 180) return { tx: p.x + pieceW, ty: p.y + pieceH, rot: Math.PI };
+  if (p.rot === 270) return { tx: p.x, ty: p.y + pieceW, rot: -Math.PI / 2 };
+  return { tx: p.x, ty: p.y, rot: 0 };
 }
 
 type Rect = { sheet: number; x0: number; y0: number; x1: number; y1: number };
 
 /** Footprint of a placed copy on its sheet (bounding box). */
 export function placedRect(p: SheetPlacement, w: number, h: number): Rect {
-  const [ww, hh] = p.rot === 90 ? [h, w] : [w, h];
+  const [ww, hh] = p.rot === 90 || p.rot === 270 ? [h, w] : [w, h];
   return { sheet: p.sheet, x0: p.x, y0: p.y, x1: p.x + ww, y1: p.y + hh };
 }
 
@@ -90,7 +119,7 @@ function packOne(d: Design, mat: MaterialProfile, copies: PieceCopy[], matId: st
   for (const c of copies) {
     const mp = d.placements[c.key];
     // a manual move stays on its own material's sheets (a board switched material is placed again)
-    if (mp?.manual && (mp.mat ?? undefined) === matId) {
+    if (mp?.manual && (mp.mat ?? undefined) === matId && nestHolds(mp, c)) {
       result[c.key] = mp;
       occupied.push(placedRect(mp, c.w, c.h));
     }
@@ -151,7 +180,7 @@ export function rotateCopy(d: Design, key: string): boolean {
   const p = pack(d, copies)[key];
   if (!c || !p) return false;
   const r0 = placedRect(p, c.w, c.h);
-  const rot: 0 | 90 = p.rot === 90 ? 0 : 90;
+  const rot: 0 | 90 = p.rot === 90 || p.rot === 270 ? 0 : 90;
   const r1 = placedRect({ ...p, rot }, c.w, c.h);
   d.placements[key] = { sheet: p.sheet, x: p.x, y: r0.y1 - (r1.y1 - r1.y0), rot, manual: true, ...(p.mat ? { mat: p.mat } : {}) };
   return true;
