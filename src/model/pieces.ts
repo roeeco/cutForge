@@ -160,6 +160,53 @@ export function panelPiece(d: Design, panelId: string): Piece {
   return ps.length === 1 ? ps[0] : { ...ps[0], contours: ps.flatMap((p) => p.contours), frag: undefined };
 }
 
+/**
+ * The strip a fold adds between its two panels in the flat net, in the parent
+ * panel's local coordinates: the fold allowance along the edge where they
+ * meet, with its score line along the middle (PACKAGING_PLAN.md §4.3; one
+ * function for grown folds and for tray corners made folds). Null when the
+ * fold no longer has its edges.
+ */
+export function foldBand(d: Design, c: Connection): { parent: string; child: string; strip: P2[] | null; scores: { a: P2; b: P2 }[] } | null {
+  let parentId: string, child: string, pe: string, A: P2, B: P2, ov: number;
+  if (!c.grown) {
+    // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
+    child = c.hingeOf!;
+    parentId = child === c.a.panelId ? c.b.panelId : c.a.panelId;
+    pe = child === c.a.panelId ? c.b.edge : c.a.edge;
+    const ce = child === c.a.panelId ? c.a.edge : c.b.edge;
+    const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
+    const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+    if (!P || !fit) return null;
+    const [A0, B0] = edgeLocal(P, pe);
+    const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
+    A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 };
+    B = { x: A0.x + ux * fit.s1, y: A0.y + uy * fit.s1 };
+    ov = 1e-5;
+  } else {
+    parentId = c.a.panelId;
+    child = c.b.panelId;
+    pe = c.a.edge;
+    const P = d.panels[parentId];
+    if (!P) return null;
+    [A, B] = edgeLocal(P, pe);
+    if (c.span && !c.trayId) {
+      // the fold strip runs along the part of the edge the child stands on
+      const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
+      const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
+      [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
+    }
+    // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
+    ov = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9 ? 1e-5 : 0;
+  }
+  const P = d.panels[parentId];
+  const i = edgeInwardLocal(P, pe);
+  const al = matOf(d, parentId).foldAllowance;
+  const off = (q: P2, k: number) => ({ x: q.x - i.x * k, y: q.y - i.y * k });
+  const strip = al > 1e-9 ? [off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)] : null;
+  return { parent: parentId, child, strip, scores: [{ a: off(A, al / 2), b: off(B, al / 2) }] };
+}
+
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
   const folds = Object.values(d.connections).filter((c) => (c.grown || c.hingeOf) && foldHolds(d, c));
   {
@@ -201,42 +248,12 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
     // fold strips (fold allowance) and their score lines
     for (const c of folds) {
       if (!ids.has(c.a.panelId) || !ids.has(c.b.panelId)) continue;
-      if (!c.grown) {
-        // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
-        const child = c.hingeOf, parentId = child === c.a.panelId ? c.b.panelId : c.a.panelId;
-        const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
-        const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
-        const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
-        const gx = group.find((g) => g.panelId === parentId);
-        if (!fit || !gx) continue;
-        const [A0, B0] = edgeLocal(P, pe);
-        const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
-        const A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 }, B = { x: A0.x + ux * fit.s1, y: A0.y + uy * fit.s1 };
-        const i = edgeInwardLocal(P, pe);
-        const al = matOf(d, parentId).foldAllowance;
-        const off = (q: P2, k: number) => applyX(gx.xf, { x: q.x - i.x * k, y: q.y - i.y * k });
-        const ov = 1e-5;
-        if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
-        contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: child!, foldId: c.id } });
-        continue;
-      }
-      const parent = d.panels[c.a.panelId];
-      const xf = group.find((g) => g.panelId === parent.id)!.xf;
-      let [A, B] = edgeLocal(parent, c.a.edge);
-      if (c.span && !c.trayId) {
-        // the fold strip runs along the part of the edge the child stands on
-        const l = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / l, uy = (B.y - A.y) / l;
-        const [s0, s1] = [Math.min(...c.span), Math.max(...c.span)];
-        [A, B] = [{ x: A.x + ux * s0, y: A.y + uy * s0 }, { x: A.x + ux * s1, y: A.y + uy * s1 }];
-      }
-      const i = edgeInwardLocal(parent, c.a.edge);
-      const al = matOf(d, parent.id).foldAllowance;
-      const off = (q: P2, k: number) => applyX(xf, { x: q.x - i.x * k, y: q.y - i.y * k });
-      // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
-      const sloped = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9;
-      const ov = sloped ? 1e-5 : 0;
-      if (al > 1e-9) polys.push([toRing([off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)])]);
-      contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(off(A, al / 2), off(B, al / 2))] }, ref: { panelId: c.b.panelId, foldId: c.id } });
+      const band = foldBand(d, c);
+      const gx = band && group.find((g) => g.panelId === band.parent);
+      if (!band || !gx) continue;
+      const tf = (q: P2) => applyX(gx.xf, q);
+      if (band.strip) polys.push([toRing(band.strip.map(tf))]);
+      for (const ln of band.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
     }
     let merged: MultiPolygon = safeUnion(polys);
     // material joints remove past a corner (layer 7)

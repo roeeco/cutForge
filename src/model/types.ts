@@ -262,6 +262,8 @@ export type ConnGeom = {
   cuts?: { panelId: string; poly: P2[] }[];
   /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
   bolts?: number;
+  /** Open cut lines (milestone 63: a bend's perforations and living-hinge slits), on the CUT layer. */
+  lines?: { panelId: string; a: P2; b: P2 }[];
 };
 
 /** `sheet` counts the sheets of the copy's own material; `mat` is that material's id (absent: the working material). */

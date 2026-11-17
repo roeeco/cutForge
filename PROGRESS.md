@@ -923,6 +923,25 @@ Verified
 - `tests/e2e/tour.spec.ts`: **English, every step by hand** (the mouse on the stage, the `__cutforge` projection helpers for points): each card in turn with the ring around its anchor (the Board button, the floor point, the perpendicular button, Extrude walls and its ✓, the grow ✓, the material pill and the card material, the joints button, the *Corners* list, the Board tool again, the Shapes button and *Circle*, the shape's ✓, *Download for laser*), the steps advancing by themselves, and a final design with a tray, a lid, a divider and a cut-out on the front wall; **Hebrew**: the card sits left of the rail in RTL, *Skip step* through to the end makes the same box; *End tour* at step 4 keeps the design, the menu's *Take the tour* asks first (and No keeps the design), and the welcome screen after *New design* shows the footer link instead of the card; a first-time *Start* shows the *New here?* note, which opens the tour; a class locking Quick build gets no tour; at 1366 × 768 and 1280 × 800, in both languages, no card leaves the window or covers *Download for laser* or the rail. Screenshots of every card in English and Hebrew (and the welcome screen) in `docs/tour-shots/` (`SHOTS=1`).
 - Every spec that dismissed the tips dismisses the *New here?* note instead (`tour-nudge-dismiss`).
 
+## Milestone 61 — foundations: derived data outside the design, the harness ✅
+
+Plan: `PACKAGING_PLAN.md` (milestones 61–72; it replaces the parked curved-walls branch).
+
+Implemented (`src/model/derived.ts`, `src/model/geometry.ts`, `src/model/foldover.ts`, `src/model/pieces.ts`, `src/store/store.ts`, `tests/harness.ts`)
+- **Solving outside Immer.** The store's edits (`apply`, `preview`, the paste that follows the pointer) still make their change in a draft, but solve, connect and the Quick build guard now run on a plain copy (`settle`): solving reads the whole design many times over, and through Immer's proxies that cost about three times as much (a 160 × 110 card tray with three dividers: 23 ms in a draft, 8 ms on a copy, in Node here).
+- **Unchanged parts keep their identity.** `reconcile` swaps every part of the result equal to the same part before for the old object, so a design that solves to itself is the same object, and an edit to one panel leaves the other panels' objects as they were.
+- **Derived data cached per design.** `memo(d, key, fn)` caches against a frozen design (the store's are all frozen) and works it out every time for one still being edited, so it is never stale.
+  - `panelExtras` and `panelNotches` build every panel's joint geometry in one pass over the connections (and fold-overs) and serve each panel from it. Before, each call scanned every connection and recomputed every fold-over, once per panel asked about.
+  - `allFoldOvers` is cached the same way.
+  - `ConnGeom.lines` (open cut lines) is read now, for milestone 63's hinge slits.
+- **One fold strip function.** `foldBand(d, c)` draws the strip and score of a grown fold and of a tray corner made a fold (they were two near-copies in `groupPieces`); milestone 63 gives it a radius.
+- **The harness** (`tests/harness.ts`): `idempotence`, `roundTrip`, `sweepBack` (a setting swept and returned gives the same design, ids included), `lostShapes`, `timeOf` and `speedRatio` (ratios, so a budget holds on any machine).
+
+Verified
+- `tests/stability.test.ts` (13): trays in card, corrugated and plywood with dividers, a fold-over and a hole solve to themselves and save and reopen to themselves; a hexagon tray's height and a box's size swept and returned; resizing never removes a panel with shapes; on a frozen design `panelNotches`, `panelExtras`, `allFoldOvers` and the pieces equal the plain ones; `settle` equals solving in a draft, keeps an unchanged design's identity and freezes its result; an edit through the store equals solving it by hand; on the organiser (4 × 3 dividers) asking every panel for its joint geometry takes under half as long on a frozen design.
+- Golden exports byte-identical. Unit suite: 556 pass, 7 skipped; typecheck clean.
+- Browser (`--grep-invert classroom`): 90 passed, 0 failed, 57 skipped (`crash.spec` failed once while a file it served was being rewritten, and passed when run again).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

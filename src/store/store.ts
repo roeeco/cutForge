@@ -7,6 +7,7 @@ import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch 
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
+import { settle } from '../model/derived';
 import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
@@ -417,10 +418,10 @@ export const useStore = create<State>()((set, get) => ({
       const sn = ctx ? snapBox(ctx, box, tol) : null;
       if (sn) q = { x: x + sn.dx, y: y + sn.dy };
     }
-    const next = produce(g.base, (dd) => {
-      pasteInto(dd, panelId, q.x, q.y, clip, g.ids);
-      solve(dd as Design);
-      autoConnect(dd as Design);
+    const pasted = produce(g.base, (dd) => void pasteInto(dd, panelId, q.x, q.y, clip, g.ids));
+    const next = settle(pasted, (dd) => {
+      solve(dd);
+      autoConnect(dd);
     });
     set({ design: next, pending: { ...g, panelId } });
   },
@@ -450,9 +451,7 @@ export const useStore = create<State>()((set, get) => ({
     const edited = produce(cur, (d) => void fn(d));
     if (edited === cur) return;
     // shapes can change outlines, and outlines move walls and joints
-    const next = produce(edited, (d) => {
-      guarded(d as Design, cur);
-    });
+    const next = settle(edited, (d) => guarded(d, cur));
     if (next === cur) return;
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
@@ -460,10 +459,7 @@ export const useStore = create<State>()((set, get) => ({
     const base = get().txnBase ?? get().design;
     set({
       txnBase: base,
-      design: produce(base, (d) => {
-        fn(d);
-        guarded(d as Design, base);
-      }),
+      design: settle(produce(base, (d) => void fn(d)), (d) => guarded(d, base)),
     });
   },
   commit: () => {

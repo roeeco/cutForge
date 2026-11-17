@@ -18,6 +18,7 @@ import { matOf, minWeb, tOf } from './materials';
 import { offsetConvex } from './seams';
 import { holeCuts } from './outline';
 import { flattenContour } from '../geom/vec';
+import { memo } from './derived';
 
 const parentConn = (d: Design, id: string) => Object.values(d.connections).find((c) => c.grown && c.b.panelId === id);
 
@@ -147,6 +148,10 @@ function hull(pts: P2[]): P2[] {
 
 /** Every fold-over's geometry in a design. */
 export function allFoldOvers(d: Design): { panelId: string; f: FoldOver; g: FoldOverGeom }[] {
+  return memo(d, 'foldovers', () => foldOversOf(d));
+}
+
+function foldOversOf(d: Design): { panelId: string; f: FoldOver; g: FoldOverGeom }[] {
   const out: { panelId: string; f: FoldOver; g: FoldOverGeom }[] = [];
   for (const id of d.order) {
     const p = d.panels[id];
