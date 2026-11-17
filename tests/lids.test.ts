@@ -11,6 +11,7 @@ import { toWorld } from '../src/model/frame';
 import type { Design } from '../src/model/types';
 import { roundBoxDesign, roundedTray } from './goldenDesigns';
 import { idempotence, roundTrip } from './harness';
+import { panelShape } from '../src/views/three-geom';
 
 const [CARD, CORR16, CORR4, PLY] = MATERIALS;
 
@@ -98,6 +99,22 @@ describe('arched lids', () => {
         expect(idempotence(d)).toBeNull();
         expect(roundTrip(d)).toBeNull();
       });
+
+  for (const m of [CARD, PLY])
+    it(`${m.id}: the end walls are cut back past the box's faces at the arch, leaving no sliver or stick`, () => {
+      const { d, tray } = box(m, 120, 80, 60);
+      addArchedLid(d, tray);
+      const [a] = archLids(d);
+      for (const id of a.sides) {
+        const p = d.panels[id];
+        // under the arch (its top 10 mm) nothing stands at the wall's sides: a column as wide as the
+        // material (0.5 mm × 37.5 mm on card; on plywood a 3 mm stick cut off as its own piece) stood there
+        const t = m.thickness;
+        const out = panelShape(d, p).rings.flat().filter((q) => q.y > p.h - 10 && (q.x < 1.5 * t || q.x > p.w - 1.5 * t));
+        expect(out, p.name).toEqual([]);
+      }
+      expect(buildPieces(d).filter((pc) => pc.frag)).toEqual([]);
+    });
 
   it('a box too low for the material’s bend and a flap: refused, nothing changed', () => {
     const { d, tray } = box(PLY, 150, 120, 40);

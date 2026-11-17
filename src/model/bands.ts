@@ -209,9 +209,27 @@ export function bandCorner(b: Band, n = 16): C2[] {
 }
 
 /**
+ * The corner region carried `m` past the box's outer faces, beyond the sharp
+ * corner: a crossed board's joint pokes out past those faces (a side wall's
+ * edge reaching over its neighbour's end), and left there it was a sliver as
+ * wide as the material standing beside the arc, or on plywood a stick of its
+ * own (an arched lid's end walls).
+ */
+function cornerPastFaces(corner: C2[], m: number): C2[] {
+  const O = corner[0], o0 = corner[1], oN = corner[corner.length - 1];
+  const unit = (a: C2, b: C2) => {
+    const dx = a.x - b.x, dy = a.y - b.y, l = Math.hypot(dx, dy) || 1;
+    return { x: dx / l, y: dy / l };
+  };
+  // along each face towards the corner, and on past it
+  const e1 = unit(O, o0), e2 = unit(O, oN);
+  return [{ x: o0.x + e2.x * m, y: o0.y + e2.y * m }, ...corner.slice(1), { x: oN.x + e1.x * m, y: oN.y + e1.y * m }, { x: O.x + (e1.x + e2.x) * m, y: O.y + (e1.y + e2.y) * m }];
+}
+
+/**
  * Boards a band runs across (milestone 63): standing square to its edge, their
  * slab within its span, and reaching into its corner. Each with the corner
- * region in its own coordinates, to cut away.
+ * region in its own coordinates (carried past the outer faces), to cut away.
  */
 export function bandCrossings(d: Design, b: Band): { panelId: string; poly: { x: number; y: number }[] }[] {
   const out: { panelId: string; poly: { x: number; y: number }[] }[] = [];
@@ -227,11 +245,11 @@ export function bandCrossings(d: Design, b: Band): { panelId: string; poly: { x:
     const lo = Math.min(s0, s1), hi = Math.max(s0, s1);
     if (hi <= b.span[0] + 1e-6 || lo >= b.span[1] - 1e-6) continue;
     const mid = (lo + hi) / 2;
-    const poly = corner.map((q) => {
-      const w = bandWorld(b, q, mid);
-      const r = v3sub(w, p.frame.o);
+    const local = (q: C2) => {
+      const r = v3sub(bandWorld(b, q, mid), p.frame.o);
       return { x: v3dot(r, p.frame.u), y: v3dot(r, p.frame.v) };
-    });
+    };
+    const poly = corner.map(local);
     // only a board whose outline reaches into the corner (by more than a touch)
     const ring = panelEdges(p).map((e) => e.a);
     let area = 0;
@@ -242,7 +260,7 @@ export function bandCrossings(d: Design, b: Band): { panelId: string; poly: { x:
       area = 0;
     }
     if (area < 0.01) continue;
-    out.push({ panelId: id, poly });
+    out.push({ panelId: id, poly: cornerPastFaces(corner, Math.max(5, 4 * t)).map(local) });
   }
   return out;
 }
