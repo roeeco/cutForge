@@ -15,6 +15,7 @@ import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines 
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
 import { bandOf, type Band } from './bands';
+import { wingLength, wingStrip } from './wings';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -84,10 +85,10 @@ export function netFolds(d: Design): NetFold[] {
         parent: c.a.panelId,
         child: c.b.panelId,
         xf: (dd) => {
-          const b = bandOf(dd, c);
+          const L = wingLength(dd, c);
           const A = dd.panels[c.a.panelId], B = dd.panels[c.b.panelId];
           const eA = A && findEdge(A, 'e1'), eB = B && findEdge(B, 'e3');
-          return b && eA && eB ? { tx: eA.a.x + b.lb - eB.b.x, ty: 0, rot: 0 } : null;
+          return L > 0 && eA && eB ? { tx: eA.a.x + L - eB.b.x, ty: 0, rot: 0 } : null;
         },
       });
     } else if (c.hingeOf) {
@@ -211,12 +212,7 @@ function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
 
 export function foldBand(d: Design, c: Connection): FoldStrip | null {
   let parentId: string, child: string, pe: string, A: P2, B: P2, ov: number;
-  if (c.wing) {
-    const P = d.panels[c.a.panelId], band = bandOf(d, c);
-    if (!P || !band || !findEdge(P, 'e1')) return null;
-    const [a0, b0] = edgeLocal(P, 'e1');
-    return bandStrip(P, 'e1', a0, b0, band);
-  }
+  if (c.wing) return wingStrip(d, c);
   if (!c.grown) {
     // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
     child = c.hingeOf!;

@@ -1,9 +1,10 @@
 // Quick build's five actions as recipes over the existing ops (milestone 38).
 import { bestReach } from '../model/bendPatterns';
+import { defaultEnd, defaultSeam } from '../model/round';
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
 import type { Design, DetailOp, DetailShape, MaterialProfile, P2, V3 } from '../model/types';
-import { addRoundedRect, addDetail, addDividerBetween, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, DIVIDER_GAP, MIN_PANEL, parentConnection, planDividerBetween, regularPolygon, type BetweenPlan, type FacePick } from '../model/ops';
+import { addRoundPanel, addRoundedRect, addDetail, addDividerBetween, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, DIVIDER_GAP, MIN_PANEL, parentConnection, planDividerBetween, regularPolygon, type BetweenPlan, type FacePick } from '../model/ops';
 import { matDir, toLocal, toWorld } from '../model/frame';
 import { tOf } from '../model/materials';
 import { effectiveGrow, growWith } from '../views/ghost';
@@ -17,7 +18,9 @@ export type Footprint =
   | { kind: 'rect'; x0: number; z0: number; x1: number; z1: number }
   | { kind: 'regular'; x0: number; z0: number; x1: number; z1: number; sides: number }
   /** milestone 64: a rectangle with its corners rounded to `r` (at least what its walls bend to) */
-  | { kind: 'rounded'; x0: number; z0: number; x1: number; z1: number; r: number; height?: number };
+  | { kind: 'rounded'; x0: number; z0: number; x1: number; z1: number; r: number; height?: number }
+  /** milestone 65: a circle (a drag about as wide as deep) or an oval, no tighter than its walls bend */
+  | { kind: 'round'; x0: number; z0: number; x1: number; z1: number; height?: number };
 
 /**
  * The smallest corner radius a box's walls can bend round in this material
@@ -36,9 +39,32 @@ export function addBoxBase(d: Design, f: Footprint): string | null {
   if (x1 - x0 < MIN_PANEL || z1 - z0 < MIN_PANEL) return null;
   if (f.kind === 'rect') return addRootPanel(d, x0, z1, x1 - x0, z1 - z0);
   if (f.kind === 'rounded') return addRoundedRect(d, x0, z1, x1 - x0, z1 - z0, Math.max(f.r, roundedMin(d.material, f.height)));
+  if (f.kind === 'round') return addRoundBox(d, x0, z0, x1, z1, roundedMin(d.material, f.height));
   // a regular polygon inside the dragged square, centred on it
   const r = Math.min(x1 - x0, z1 - z0) / 2;
   return addPolygonPanel(d, (x0 + x1) / 2, (z0 + z1) / 2, regularPolygon(f.sides, r));
+}
+
+/**
+ * A round base for Quick build's Round box (milestone 65): a circle when the
+ * drag is about as wide as deep (within a tenth), else an oval with the
+ * draftsman's ends. Its curves are no tighter than `min` (what its walls bend
+ * round): a circle at least twice that across, an oval's ends at least that
+ * round (a stadium when its depth allows no more), grown about its centre.
+ */
+export function addRoundBox(d: Design, x0: number, z0: number, x1: number, z1: number, min: number): string | null {
+  let w = x1 - x0, h = z1 - z0;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const circle = Math.abs(w - h) <= 0.1 * Math.max(w, h);
+  if (circle) w = h = Math.max(w, h, 2 * min);
+  else {
+    // an oval's ends at least `min` round: its short side at least twice that
+    if (Math.min(w, h) < 2 * min) (w < h ? (w = 2 * min) : (h = 2 * min));
+  }
+  const rEnd = circle ? undefined : Math.min(Math.min(w, h) / 2, Math.max(defaultEnd(w, h), min));
+  // with its seam flat from the start, so the walls rising as a ghost stand on it
+  const seam = defaultSeam(d.material.kind);
+  return addRoundPanel(d, cx - w / 2, cz + h / 2, w, h, circle ? { shape: 'circle', seam } : { shape: 'oval', rEnd, seam });
 }
 
 /** Box: a base from the footprint and a tray of walls at `height`, with the design's tray joints. */

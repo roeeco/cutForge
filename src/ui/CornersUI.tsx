@@ -2,8 +2,8 @@
 // how they join the next wall, all at once, and where a plywood strip that
 // runs all round is keyed shut.
 import { useStore, useT } from '../store/store';
-import { setClosingCorner, setTrayCorners } from '../model/ops';
-import { closingCorner, trayCorners, wingId, wingKinds } from '../model/wings';
+import { setClosingCorner, setTrayCorners, setTrayCurveKind } from '../model/ops';
+import { closingCorner, curveKindOf, curveKinds, trayCorners, wingId, wingKinds } from '../model/wings';
 import { matOf } from '../model/materials';
 import { panelLabel } from '../model/names';
 import { connKindKey } from './connLabel';
@@ -34,6 +34,18 @@ export function TrayCorners({ tray }: { tray: Tray }) {
           ))}
         </select>
       </div>
+      {curveKinds(matOf(d, tray.baseId)).length > 1 && (
+        <div className="field">
+          <label htmlFor={`tch-${tray.id}`}>{t('corners.holds')}</label>
+          <select id={`tch-${tray.id}`} value={curveKindOf(d, tray)} onChange={(e) => apply((x) => setTrayCurveKind(x, tray.id, e.target.value as 'teeth' | 'tabslot' | 'none'))} data-testid="tray-corners-holds">
+            {curveKinds(matOf(d, tray.baseId)).map((k) => (
+              <option key={k} value={k}>
+                {t(`corners.holds.${k}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {close && (
         <div className="field">
           <label htmlFor={`tcl-${tray.id}`}>{t('corners.closeAt')}</label>

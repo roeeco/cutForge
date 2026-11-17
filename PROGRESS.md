@@ -1024,6 +1024,29 @@ Limitations
 - A corner's lip on a many-sided base is narrowed to fit the flat net; very small radii on 6+ sides can leave too little lip (it is left off).
 - The joint labels of a corner list kinds in the menu, but the corner's band (pattern, density) is set on its card only.
 
+## Milestone 65 — round boxes ✅
+
+Implemented (`PACKAGING_PLAN.md` §4.2, §4.5, §6.2; `src/model/round.ts`, `src/model/wings.ts`, `src/model/ops.ts`, `src/model/validate.ts`, `src/model/check.ts`, `src/easy/recipes.ts`, `src/easy/QuickRail.tsx`, `src/views/foldView.ts`, `src/ui/CornersUI.tsx`)
+- **The seam flat** (`RoundShape.seam`, `withSeam`, `defaultSeam`): a chord where the outline's outward normal points at `at` (the back left), 12 / 16 / 20 mm wide by material. The rounded corner whose arc faces it is split: two rounded corners where the arc's tangents meet the chord's, and the chord's ends between them, sharp (edge `seam`); the rest of the outline stays on its circles. Added when a circle or oval is walled (`addTray`), kept by shape changes and resizing, and made from the start by Quick build's Round box (so the extrude ghost has a wall to show).
+- **Runs** (`cornersOf`): a corner is now the run between two walls, through every point and zero-length edge in between: arcs (fillets of one circle merged) and creases (a sharp point turning at most 35°: where the seam flat meets the curve). A run may come back to its own wall (`a` = `b`: a round box's one wall). A stadium's end is one 180° arc; an oval's rim with a seam flat, five.
+- **A band per arc** (`wingBands`): each from its arc's start, at the wall's offset in from the outline and its height; `pos` along the strip; `wingLength`, `wingStrip` (the strip with every band's pattern, and a score at each crease on card and corrugated). The fold view chains them (each band rides on the moves of those before it; a one-piece next wall on all of them). The bend checks take the first band that falls short.
+- **What holds the bands to the base** (`Tray.curveKind`, `curveKindOf`, `curveKinds`; *Curved walls held to the base by* on the tray card): glue teeth (card; corrugated under walls at the edge), folded in onto the base in 3D, left off where a wall folded off the base would put them on it in the net; tabs through slots that follow the curve (corrugated walls standing in by a web; the slots 0.05 mm further in, since a flattened circle runs inside the true one); nothing. Plywood bands wrap round the base, cut back per arc. By default only round bases hold their bands (their walls are nearly all band).
+- **Kinds:** a run back to its own wall cannot be one piece: card and corrugated glue it, plywood keys it shut.
+- **Quick build:** *Box* · *Round* (`box-round`): a drag within a tenth of square is a circle, else an oval with the draftsman's ends; a circle at least twice `roundedMin` across, an oval's ends at least `roundedMin` round, grown about the drag's centre.
+- Files: `check.ts` accepts `round.seam` and `Tray.curveKind`. English and Hebrew strings.
+
+Verified
+- `tests/roundbox.test.ts` (9): the seam flat in each material (its width, facing 135°, every other point on the circle); a stadium has none and two corners; a circle in card, corrugated and plywood is two panels, one corner from its wall back to itself (crease, arc, crease), its band ending exactly at the wall's start in 3D, its length the formula, no issues, flat, exported; card teeth folded onto the base and none near it in the net, one piece; corrugated tabs in curved slots with no slot too near the edge; a plywood circle keyed shut, the base cut back, slits; ovals (five bands, end to end in 3D and along the strip) and stadiums (one band per end), clean; idempotent, saved and reopened, resized and back; Quick build's recipe (circle, oval with ends of at least the minimum, a small drag grown).
+- Updated `round.test.ts`: a walled circle has one wall, on its seam flat.
+- **Golden exports:** new `round-box-card-circle`, `round-box-ply-circle`, `round-box-corr-oval`; `rounded-tray-ply-strip` regenerated (the base's cut-back is now sampled along the arc itself, a hair different); every other case byte-identical.
+- Unit suite: 613 pass, 7 skipped; typecheck clean.
+- Browser: `wings.spec.ts` gains Quick build's Round box in card (a circle with a 12 mm seam flat, one glued corner, ready to cut). Full app suite (`--grep-invert classroom`): 98 passed, 0 failed, 57 skipped.
+
+Limitations
+- Shapes, text and stickers are not drawn or picked on bands yet: put them on the wall's flat part (a round box's seam wall is narrow).
+- In the fold view a crease does not straighten as the net opens (the strip shows its small kinks flat).
+- A card oval's strip may be longer than a card sheet: it is reported (`val.tooBig`), not split (milestone 69).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

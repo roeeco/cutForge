@@ -26,7 +26,7 @@ import { outlineText } from '../text/outline';
 import type { FontId } from '../text/fonts';
 import { constructionSet } from './place';
 import { bandOf, foldRadius } from './bands';
-import { cornerOf } from './wings';
+import { cornerOf, wingBands } from './wings';
 import { bestReach } from './bendPatterns';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
@@ -123,7 +123,9 @@ function bendIssues(d: Design, guides: Set<string>): Issue[] {
       out.push({ key: 'val.bendTight', vars: { ...vars, r: bendOf(m).patternR }, target, pair });
       continue;
     }
-    const b = bandOf(d, c);
+    // a corner may go round several arcs (milestone 65): the first band that falls short speaks for it
+    const all = c.wing ? wingBands(d, c) : [bandOf(d, c)].filter((x): x is NonNullable<typeof x> => !!x);
+    const b = all.find((x) => !x.fits || x.pattern.why) ?? all[0];
     if (!b) continue;
     // round a tray's rounded corner (milestone 64) the radius to set is the base corner's: the band's inner radius plus the wall's thickness and how far in it stands
     const k = c.wing ? cornerOf(d, c) : null;

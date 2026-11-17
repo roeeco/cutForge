@@ -704,7 +704,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <BendBead key={b.id} b={b} d={design} index={design.order.indexOf(b.panelId)} outlines={prefs.outlines} />
       ))}
       {display.bands.map((s) => (
-        <BandObject key={s.band.id} s={s} d={design} m={display.xf.get(s.band.parent) ?? IDM} index={design.order.indexOf(s.band.parent)} outlines={prefs.outlines} />
+        <BandObject key={s.band.id} s={s} d={design} m={s.pre ? (display.xf.get(s.band.parent) ?? IDM).clone().multiply(s.pre) : (display.xf.get(s.band.parent) ?? IDM)} index={design.order.indexOf(s.band.parent)} outlines={prefs.outlines} />
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
       {selEdge && !folded && !jointsOn && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}

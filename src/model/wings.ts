@@ -30,8 +30,16 @@ export function wingKinds(m: MaterialProfile): ConnectionKind[] {
   return m.kind === 'plywood' ? ['fold', 'key', 'butt'] : ['glue', 'fold', 'butt'];
 }
 
-/** A rounded corner of a tray's base between two of its walls. */
-export type TrayCorner = { tray: string; base: string; i: number; a: string; b: string; c: P2; r: number; turn: number };
+/**
+ * A run of a tray's base outline between two of its walls (milestone 64; runs
+ * of several arcs and closed runs, milestone 65): its arcs (fillets, those of
+ * one circle merged) and its creases (a point the outline turns at without a
+ * fillet: where a round base's seam flat meets its curve), in order.
+ */
+export type RunPart = { kind: 'arc'; c: P2; r: number; turn: number; t1: P2; t2: P2 } | { kind: 'crease'; at: P2; turn: number };
+
+/** A rounded corner of a tray's base between two of its walls (`a` = `b`: a round base's one wall, round to itself); `i` the point of its first arc. */
+export type TrayCorner = { tray: string; base: string; i: number; a: string; b: string; parts: RunPart[]; turn: number; c: P2; r: number };
 
 /** The tray wall standing on a base edge (by key): by the joint's own edge key, else (an edge a cut split) by looking the edge up. */
 function wallOnEdge(d: Design, t: Tray, base: Panel, key: string): string | undefined {
@@ -46,7 +54,7 @@ function wallOnEdge(d: Design, t: Tray, base: Panel, key: string): string | unde
  * or its walls until the next. A frozen design's are kept with it.
  */
 const passCorners = new WeakMap<object, Map<string, TrayCorner[]>>();
-const passBands = new WeakMap<object, Map<string, Band | null>>();
+const passBands = new WeakMap<object, Map<string, Band[]>>();
 
 /** A tray's rounded convex corners with a wall on each side, in the base's point order. */
 export function trayCorners(d: Design, t: Tray): TrayCorner[] {
@@ -58,24 +66,65 @@ export function trayCorners(d: Design, t: Tray): TrayCorner[] {
   return out;
 }
 
+/** The largest turn a crease in a run may make (a sharper one is a corner, joined as such). */
+const CREASE_MAX = (35 * Math.PI) / 180;
+
 function cornersOf(d: Design, t: Tray): TrayCorner[] {
   const base = d.panels[t.baseId];
   if (!base || base.sketch.kind !== 'poly') return [];
   const s = base.sketch, n = s.pts.length;
   const fs = sketchFillets(s);
+  // each edge's straight part, after the fillets at its ends
+  const from = (i: number) => fs[i]?.t2 ?? s.pts[i], to = (i: number) => fs[(i + 1) % n]?.t1 ?? s.pts[(i + 1) % n];
+  const straight = (i: number) => Math.hypot(to(i).x - from(i).x, to(i).y - from(i).y);
+  const dir = (i: number) => {
+    const a = s.pts[i], b = s.pts[(i + 1) % n], L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { x: (b.x - a.x) / L, y: (b.y - a.y) / L };
+  };
+  const walls = s.edgeIds.map((k, i) => (straight(i) > 1e-6 ? wallOnEdge(d, t, base, k) : undefined));
   const out: TrayCorner[] = [];
   for (let i = 0; i < n; i++) {
-    const f = fs[i];
-    if (!f) continue;
-    const prev = s.edgeIds[(i + n - 1) % n], next = s.edgeIds[i];
-    const a = wallOnEdge(d, t, base, prev), b = wallOnEdge(d, t, base, next);
-    if (!a || !b || a === b) continue;
-    // the turn the outline makes there (CCW outlines turn left at a convex corner)
-    const P = s.pts[(i + n - 1) % n], V = s.pts[i], N = s.pts[(i + 1) % n];
-    const d1 = { x: V.x - P.x, y: V.y - P.y }, d2 = { x: N.x - V.x, y: N.y - V.y };
-    const turn = Math.atan2(d1.x * d2.y - d1.y * d2.x, d1.x * d2.x + d1.y * d2.y);
-    if (turn <= 1e-6) continue;
-    out.push({ tray: t.id, base: base.id, i, a, b, c: f.c, r: f.r, turn });
+    const a = walls[i];
+    if (!a) continue;
+    const parts: RunPart[] = [];
+    let b: string | undefined, ok = true, fi = -1;
+    for (let step = 1; step <= n; step++) {
+      const j = (i + step) % n;
+      // the point the run passes: a fillet's arc, or a crease
+      const f = fs[j];
+      const d1 = dir((j + n - 1) % n), d2 = dir(j);
+      const turn = Math.atan2(d1.x * d2.y - d1.y * d2.x, d1.x * d2.x + d1.y * d2.y);
+      if (f) {
+        if (turn <= 1e-6) {
+          ok = false;
+          break;
+        }
+        const last = parts[parts.length - 1];
+        if (last?.kind === 'arc' && Math.hypot(last.c.x - f.c.x, last.c.y - f.c.y) < 1e-6 && Math.abs(last.r - f.r) < 1e-6) {
+          last.turn += turn;
+          last.t2 = f.t2;
+        } else parts.push({ kind: 'arc', c: f.c, r: f.r, turn, t1: f.t1, t2: f.t2 });
+        if (fi < 0) fi = j;
+      } else if (Math.abs(turn) > 1e-6) {
+        if (turn < 0 || turn > CREASE_MAX) {
+          ok = false;
+          break;
+        }
+        parts.push({ kind: 'crease', at: s.pts[j], turn });
+      }
+      // the edge after it: a wall ends the run; an open straight edge breaks it
+      if (walls[j]) {
+        b = walls[j];
+        break;
+      }
+      if (straight(j) > 1e-6) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok || !b || !parts.some((q) => q.kind === 'arc')) continue;
+    const arcs = parts.filter((q): q is Extract<RunPart, { kind: 'arc' }> => q.kind === 'arc');
+    out.push({ tray: t.id, base: base.id, i: fi, a, b, parts, turn: parts.reduce((x, q) => x + q.turn, 0), c: arcs[0].c, r: Math.min(...arcs.map((q) => q.r)) });
   }
   return out;
 }
@@ -93,55 +142,97 @@ function wallEnd(p: Panel, edge: 'e1' | 'e3'): { x: number; h: number } | null {
 }
 
 /**
- * The band round a corner, from the end of the wall before it: its
- * cross-section is horizontal, from that wall's end into it (`dIn`) and
- * towards the box's inside (`up`, the wall's material side), with the arc
- * centred on the base's fillet centre.
+ * The bands round a corner, one per arc, from the end of the wall before it
+ * (milestone 65: several, for a stadium's end, an oval's arcs, a round base's
+ * rim). Each one's cross-section is horizontal, from where it starts back
+ * along the outline (`dIn`) and towards the box's inside (`up`), its arc on
+ * its fillet's centre, at the wall's offset in from the outline and its height.
+ * `pos`: where it starts along the strip, from the wall's end.
  */
-export function wingBand(d: Design, c: Connection): Band | null {
-  if (!c.wing) return null;
+export function wingBands(d: Design, c: Connection): Band[] {
+  if (!c.wing) return [];
   // once per pass (the walls' frames are set before the first ask), once per frozen design
-  const store = Object.isFrozen(d) ? memo(d, 'wingBands', () => new Map<string, Band | null>()) : passBands.get(d);
+  const store = Object.isFrozen(d) ? memo(d, 'wingBands', () => new Map<string, Band[]>()) : passBands.get(d);
   const key = `${c.id}|${c.bend?.pattern ?? ''}|${c.bend?.density ?? ''}`;
-  if (store?.has(key)) return store.get(key)!;
-  const b = wingBandOf(d, c);
-  store?.set(key, b);
-  return b;
+  const hit = store?.get(key);
+  if (hit) return hit;
+  const bs = wingBandsOf(d, c);
+  store?.set(key, bs);
+  return bs;
 }
 
-function wingBandOf(d: Design, c: Connection): Band | null {
+/** The first band round a corner (the one joint labels and old callers use). */
+export const wingBand = (d: Design, c: Connection): Band | null => wingBands(d, c)[0] ?? null;
+
+/** The developed length of all a corner's bands (mm). */
+export const wingLength = (d: Design, c: Connection) => wingBands(d, c).reduce((x, b) => x + b.lb, 0);
+
+function wingBandsOf(d: Design, c: Connection): Band[] {
   const k0 = cornerOf(d, c);
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId], base = k0 ? d.panels[k0.base] : undefined;
-  if (!k0 || !A || !B || !base) return null;
+  if (!k0 || !A || !B || !base) return [];
   const eA = wallEnd(A, 'e1'), eB = wallEnd(B, 'e3');
-  if (!eA || !eB) return null;
+  if (!eA || !eB) return [];
   const m = matOf(d, A.id);
   const t = m.thickness, kk = bendOf(m).k;
-  const O: V3 = toWorld(A.frame, eA.x, 0, 0);
-  const U = v3norm(A.frame.v);
-  const dIn = v3mul(v3norm(A.frame.u), -1);
-  const up = matDir(A.frame);
-  // the fillet's centre, at the wall's bottom: in the cross-section it lies Ro from the wall's outer face, over its end
-  const Cw = toWorld(base.frame, k0.c.x, k0.c.y, 0);
-  const rel = v3sub(Cw, O);
-  const Ro = v3dot(rel, up);
-  const r = Ro - t;
-  const phi = k0.turn;
-  const lb = phi * (Math.max(0, r) + kk * t);
-  const T1 = { x: 0, y: 0 }, Cc = { x: 0, y: Ro };
-  const T2 = { x: -Ro * Math.sin(phi), y: Ro * (1 - Math.cos(phi)) };
   const H = Math.min(eA.h, eB.h);
-  const pattern = bandPattern({ m, r: Math.max(0, r), len: H, width: lb, turn: phi }, c.bend?.pattern, c.bend?.density);
-  return { id: c.id, parent: A.id, child: B.id, edge: 'e1', r: Math.max(0, r), t, k: kk, Ro, phi, lb, trimP: 0, trimC: 0, span: [0, H], A: O, U, dIn, up, T1, T2, C: Cc, pattern, fits: r > 1e-6 && H > 1, wing: true };
+  // where the wall stands: how far in from the outline its outer face is, and how high its bottom
+  const O: V3 = toWorld(A.frame, eA.x, 0, 0);
+  const q = toLocal(base.frame, O);
+  const first = k0.parts[0];
+  const start = first.kind === 'arc' ? first.t1 : first.at;
+  const off = Math.hypot(q.x - start.x, q.y - start.y);
+  const lift = v3dot(v3sub(O, base.frame.o), matDir(base.frame));
+  const U = v3norm(A.frame.v);
+  const W = (p: P2): V3 => toWorld(base.frame, p.x, p.y, lift);
+  const out: Band[] = [];
+  let pos = 0, idx = 0;
+  for (const part of k0.parts) {
+    if (part.kind !== 'arc') continue;
+    const Ro = part.r - off, r = Ro - t;
+    const phi = part.turn;
+    const lb = phi * (Math.max(0, r) + kk * t);
+    // its start: the fillet's first tangent point, in by the wall's offset
+    const nrm = { x: (part.c.x - part.t1.x) / part.r, y: (part.c.y - part.t1.y) / part.r };
+    const P = { x: part.t1.x + nrm.x * off, y: part.t1.y + nrm.y * off };
+    const tangent = { x: -nrm.y, y: nrm.x };
+    const Aw = W(P);
+    // back along the outline, into the wall before it (`tangent` points that way: the outline runs CCW, the inside on its left)
+    const dIn = v3norm(v3sub(W({ x: P.x + tangent.x, y: P.y + tangent.y }), Aw));
+    const up = v3norm(v3sub(W({ x: P.x + nrm.x, y: P.y + nrm.y }), Aw));
+    const T1 = { x: 0, y: 0 }, Cc = { x: 0, y: Ro };
+    const T2 = { x: -Ro * Math.sin(phi), y: Ro * (1 - Math.cos(phi)) };
+    const pattern = bandPattern({ m, r: Math.max(0, r), len: H, width: lb, turn: phi }, c.bend?.pattern, c.bend?.density);
+    out.push({ id: `${c.id}#${idx++}`, parent: A.id, child: B.id, edge: 'e1', r: Math.max(0, r), t, k: kk, Ro, phi, lb, trimP: 0, trimC: 0, span: [0, H], A: Aw, U, dIn, up, T1, T2, C: Cc, pattern, fits: r > 1e-6 && H > 1, wing: true, pos });
+    pos += lb;
+  }
+  return out;
 }
 
 /** Is this wing's next wall folded off the base (so it cannot also continue the band in the net)? */
 const foldsFromBase = (d: Design, wallId: string) => Object.values(d.connections).some((x) => x.grown && x.b.panelId === wallId && x.kind === 'fold');
 
-/** Kinds this corner may take: one piece only where the next wall is not already folded off the base. */
+/** Kinds this corner may take: one piece only where the next wall is another wall not already folded off the base. */
 export function wingKindsFor(d: Design, c: Connection): ConnectionKind[] {
   const ks = wingKinds(matOf(d, c.a.panelId));
-  return foldsFromBase(d, c.b.panelId) ? ks.filter((k) => k !== 'fold') : ks;
+  return c.a.panelId === c.b.panelId || foldsFromBase(d, c.b.panelId) ? ks.filter((k) => k !== 'fold') : ks;
+}
+
+/** Extra web outside slots that follow a curve (mm): the curve's chords lie up to its flattening tolerance inside it. */
+const CURVE_WEB = 0.05;
+
+/** What holds a tray's bands to its base: glue teeth, tabs in curved slots, or nothing; by default only on a round base (its walls are nearly all band). */
+export function curveKindOf(d: Design, t: Tray): 'teeth' | 'tabslot' | 'none' {
+  if (t.curveKind) return t.curveKind;
+  const base = d.panels[t.baseId];
+  if (base?.sketch.kind !== 'poly' || !base.sketch.round) return 'none';
+  const m = matOf(d, t.baseId);
+  return m.kind === 'card' ? 'teeth' : m.kind === 'corrugated' ? 'tabslot' : 'none';
+}
+
+/** What may hold a tray's bands to its base, by material (plywood: wrapped round the cut-back base). */
+export function curveKinds(m: MaterialProfile): ('teeth' | 'tabslot' | 'none')[] {
+  return m.kind === 'card' ? ['teeth', 'none'] : m.kind === 'corrugated' ? ['tabslot', 'teeth', 'none'] : ['none'];
 }
 
 // ---------------------------------------------------------------------------
@@ -182,34 +273,71 @@ const emptyGeom = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [],
 /** The flap width a wing's lip gets: the joint's, the design's, else the material's. */
 const lipOf = (d: Design, c: Connection, m: MaterialProfile) => c.flap ?? d.joints?.[m.kind]?.flap ?? autoFlap(m);
 
+/** Where along a corner's strip (from the wall's end) each crease is, and the strip's whole length. */
+function stripLayout(d: Design, c: Connection, k0: TrayCorner): { creases: number[]; L: number } {
+  const bs = wingBands(d, c);
+  const creases: number[] = [];
+  let pos = 0, i = 0;
+  for (const part of k0.parts) {
+    if (part.kind === 'crease') creases.push(pos);
+    else pos += bs[i++]?.lb ?? 0;
+  }
+  return { creases, L: pos };
+}
+
+/**
+ * A corner's band material in the wall's coordinates (from x0, the wall's
+ * end): the strip, its patterns' scores and slits, and a score at each
+ * crease (card and corrugated; plywood's hinge takes the turn).
+ */
+export function wingStrip(d: Design, c: Connection): { parent: string; child: string; strip: P2[]; scores: { a: P2; b: P2 }[]; cuts: { a: P2; b: P2 }[] } | null {
+  const k0 = cornerOf(d, c), bs = wingBands(d, c);
+  const A = d.panels[c.a.panelId];
+  const eA = A && wallEnd(A, 'e1');
+  if (!k0 || !bs.length || !eA) return null;
+  const x0 = eA.x, H = bs[0].span[1];
+  const { creases, L } = stripLayout(d, c, k0);
+  const scores: { a: P2; b: P2 }[] = [], cuts: { a: P2; b: P2 }[] = [];
+  for (const b of bs) {
+    const at = (q: { x: number; y: number }) => ({ x: x0 + (b.pos ?? 0) + q.x, y: q.y });
+    for (const l of b.pattern.lines.scores) scores.push({ a: at(l.a), b: at(l.b) });
+    for (const l of b.pattern.lines.cuts) cuts.push({ a: at(l.a), b: at(l.b) });
+  }
+  if (matOf(d, A.id).kind !== 'plywood') for (const x of creases) scores.push({ a: { x: x0 + x, y: 0 }, b: { x: x0 + x, y: H } });
+  return { parent: A.id, child: c.b.panelId, strip: [{ x: x0 - 0.01, y: 0 }, { x: x0 + L, y: 0 }, { x: x0 + L, y: H }, { x: x0 - 0.01, y: H }], scores, cuts };
+}
+
 /**
  * A wing's joint geometry. One piece (`fold`): nothing on the walls (the
- * strip is drawn with the net, `foldBand`). Otherwise the band is material
- * added past the wall's end, with its pattern, and at its end a glue lip, a
- * key (its socket in the next wall) or nothing. Under a band whose wall
- * stands down beside the base (fingers), the base is cut back so the band
- * wraps round it.
+ * strip is drawn with the net, `foldBand`). Otherwise the bands are material
+ * added past the wall's end, with their patterns, and at the end a glue lip,
+ * a key (its socket in the next wall) or nothing. Under them, what holds them
+ * to the base (milestone 65): glue teeth folded onto it, or tabs through
+ * curved slots. Under bands whose wall stands down beside the base (fingers)
+ * the base is cut back so they wrap round it.
  */
 export function wingGeom(d: Design, c: Connection): ConnGeom | null {
-  const b = wingBand(d, c);
-  if (!b) return null;
-  const A = d.panels[b.parent], B = d.panels[b.child];
-  const k0 = cornerOf(d, c)!;
+  const bs = wingBands(d, c);
+  const k0 = cornerOf(d, c);
+  const strip = wingStrip(d, c);
+  if (!bs.length || !k0 || !strip) return null;
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   const base = d.panels[k0.base];
+  const tray = d.trays[k0.tray];
   const g = emptyGeom();
   const mA = matOf(d, A.id);
-  const x0 = wallEnd(A, 'e1')!.x, H = b.span[1];
-  const at = (q: { x: number; y: number }) => ({ x: x0 + q.x, y: q.y });
+  const x0 = wallEnd(A, 'e1')!.x, H = bs[0].span[1];
+  const L = bs.reduce((x, b) => x + b.lb, 0);
   if (c.kind !== 'fold') {
-    g.adds.push({ panelId: A.id, poly: [at({ x: -0.01, y: 0 }), at({ x: b.lb, y: 0 }), at({ x: b.lb, y: H }), at({ x: -0.01, y: H })] });
-    for (const s of b.pattern.lines.scores) g.scores.push({ panelId: A.id, a: at(s.a), b: at(s.b) });
-    const cuts = b.pattern.lines.cuts.map((s) => ({ panelId: A.id, a: at(s.a), b: at(s.b) }));
-    if (cuts.length) g.lines = cuts;
+    g.adds.push({ panelId: A.id, poly: strip.strip });
+    for (const l of strip.scores) g.scores.push({ panelId: A.id, a: l.a, b: l.b });
+    if (strip.cuts.length) g.lines = strip.cuts.map((l) => ({ panelId: A.id, a: l.a, b: l.b }));
   }
-  const end = x0 + b.lb;
+  const end = x0 + L;
   if (c.kind === 'glue') {
     // the lip, as wide as fits between the two walls in the flat net (they open apart from the corner's centre)
-    const room = b.phi < Math.PI / 2 - 0.05 ? b.Ro * Math.tan(b.phi - 0.05) - b.lb : Infinity;
+    const last = bs[bs.length - 1];
+    const room = k0.turn < Math.PI / 2 - 0.05 ? last.Ro * Math.tan(k0.turn - 0.05) - L : Infinity;
     const fh = Math.min(lipOf(d, c, mA), room, B.w / 3);
     const y0 = 0.5, y1 = H - 0.5;
     if (fh > 1 && y1 - y0 > 2) {
@@ -234,28 +362,76 @@ export function wingGeom(d: Design, c: Connection): ConnGeom | null {
       g.cuts = [...(g.cuts ?? []), { panelId: B.id, poly: keySocket(xB, H / 2, k, matOf(d, B.id).clearance) }];
     }
   }
-  // the base under a band whose wall stands down beside it is cut back to the band's inner face
-  if (base) {
-    const tB = tOf(d, base.id);
-    const lift = v3dot(v3sub(A.frame.o, base.frame.o), matDir(base.frame));
-    if (lift < tB - 1e-6) {
-      const cl = matOf(d, base.id).clearance;
-      const ro = k0.r + 0.5, ri = Math.max(0.1, b.r - cl / 2);
-      const centre = k0.c;
-      // the corner's angles: from the band's start to its end, as seen from the fillet's centre, in the base's coordinates
-      const pBase = (w: V3) => toLocal(base.frame, w);
-      const s = pBase(b.A), e = pBase(toWorld(B.frame, wallEnd(B, 'e3')!.x, 0, 0));
-      const a0 = Math.atan2(s.y - centre.y, s.x - centre.x);
-      let a1 = Math.atan2(e.y - centre.y, e.x - centre.x);
-      while (a1 < a0) a1 += 2 * Math.PI;
-      const n = Math.max(4, Math.ceil((a1 - a0) / 0.05));
-      const outer: P2[] = [], inner: P2[] = [];
-      for (let j = 0; j <= n; j++) {
-        const a = a0 - 0.002 + ((a1 - a0 + 0.004) * j) / n;
-        outer.push({ x: centre.x + ro * Math.cos(a), y: centre.y + ro * Math.sin(a) });
-        inner.push({ x: centre.x + ri * Math.cos(a), y: centre.y + ri * Math.sin(a) });
+  if (!base || !tray) return g;
+  const tB = tOf(d, base.id), clB = matOf(d, base.id).clearance;
+  const lift = v3dot(v3sub(A.frame.o, base.frame.o), matDir(base.frame));
+  const arcs = k0.parts.filter((q): q is Extract<RunPart, { kind: 'arc' }> => q.kind === 'arc');
+  // a point at `x` along band j's strip, `inward` mm in from the outline (base coordinates)
+  const off = arcs[0].r - bs[0].Ro;
+  const onArc = (j: number, x: number, inward: number): P2 => {
+    const arc = arcs[j], b = bs[j];
+    const a0 = Math.atan2(arc.t1.y - arc.c.y, arc.t1.x - arc.c.x);
+    const th = a0 + (Math.max(0, Math.min(b.lb, x)) / Math.max(1e-9, b.lb)) * arc.turn;
+    const rr = arc.r - inward;
+    return { x: arc.c.x + rr * Math.cos(th), y: arc.c.y + rr * Math.sin(th) };
+  };
+  const sector = (j: number, x1: number, x2: number, in0: number, in1: number): P2[] => {
+    const n = Math.max(3, Math.ceil(((x2 - x1) / Math.max(1e-9, bs[j].lb)) * arcs[j].turn / 0.05));
+    const outer: P2[] = [], inner: P2[] = [];
+    for (let q = 0; q <= n; q++) {
+      const x = x1 + ((x2 - x1) * q) / n;
+      outer.push(onArc(j, x, in0));
+      inner.push(onArc(j, x, in1));
+    }
+    return [...outer, ...inner.reverse()];
+  };
+  // the base under bands whose wall stands down beside it is cut back to their inner face
+  if (lift < tB - 1e-6)
+    for (let j = 0; j < arcs.length; j++) {
+      const b = bs[j], arc = arcs[j];
+      const ext = 0.002 * b.lb;
+      g.cuts = [...(g.cuts ?? []), { panelId: base.id, poly: sector(j, -ext, b.lb + ext, -0.5, arc.r - b.r + clB / 2) }];
+    }
+  // tabs need a web between their slots and the base's edge: under a wall standing at the edge (a fold) the bands are glued with teeth instead
+  const want = curveKindOf(d, tray);
+  const holds = want === 'tabslot' && off < minWeb(matOf(d, base.id)) - 1e-6 ? 'teeth' : want;
+  if (holds === 'teeth' && lift >= tB - 1e-6) {
+    const fh = Math.min(lipOf(d, c, mA), H / 2);
+    // a wall folded off the base lies beside it in the net: teeth near its end would lie on the base
+    const inNet = Object.values(d.connections).some((x) => x.grown && x.b.panelId === A.id && x.kind === 'fold');
+    const R1 = arcs[0].r;
+    const sMin = inNet ? (R1 > fh + 1 ? Math.sqrt(R1 * R1 - (R1 - fh - 1) ** 2) : R1) : 0;
+    for (let j = 0; j < bs.length; j++) {
+      const b = bs[j], pitch = Math.max(2 * fh, 8);
+      const n = Math.max(1, Math.round(b.lb / pitch));
+      const step = b.lb / n, gap = Math.min(step / 4, Math.max(1, 2 * mA.thickness));
+      for (let q = 0; q < n; q++) {
+        const s0 = q * step + gap / 2, s1 = (q + 1) * step - gap / 2, w = s1 - s0;
+        if ((b.pos ?? 0) + s0 < sMin) continue;
+        // tapered so neighbours do not overlap when folded in round the curve
+        const inset = Math.min(w / 2 - 0.5, Math.max(fh * 0.25, (w * fh) / (2 * Math.max(1, b.r)) + 0.5));
+        const X = x0 + (b.pos ?? 0);
+        g.adds.push({ panelId: A.id, poly: [{ x: X + s0, y: 0.01 }, { x: X + s1, y: 0.01 }, { x: X + s1 - inset, y: -fh }, { x: X + s0 + inset, y: -fh }] });
+        g.scores.push({ panelId: A.id, a: { x: X + s0, y: 0 }, b: { x: X + s1, y: 0 } });
+        // folded in onto the base's top face, from the band's inner face
+        const ri = off + mA.thickness;
+        g.flaps3d.push({ panelId: base.id, poly: [onArc(j, s0, ri), onArc(j, s1, ri), onArc(j, s1 - inset, ri + fh), onArc(j, s0 + inset, ri + fh)], z0: tB, z1: tB + mA.thickness });
       }
-      g.cuts = [...(g.cuts ?? []), { panelId: base.id, poly: [...outer, ...inner.reverse()] }];
+    }
+  } else if (holds === 'tabslot' && lift >= tB - 1e-6) {
+    const tw = Math.max(8, 3 * mA.thickness);
+    for (let j = 0; j < bs.length; j++) {
+      const b = bs[j];
+      const n = Math.max(1, Math.round(b.lb / (3 * tw)));
+      const seg = b.lb / (2 * n + 1);
+      const X = x0 + (b.pos ?? 0);
+      for (let q = 1; q < 2 * n + 1; q += 2) {
+        const s0 = q * seg, s1 = (q + 1) * seg;
+        g.adds.push({ panelId: A.id, poly: [{ x: X + s0, y: 0.01 }, { x: X + s1, y: 0.01 }, { x: X + s1, y: -tB }, { x: X + s0, y: -tB }] });
+        // the slot follows the curve: the tab's band through the base, grown by half the clearance
+        // shifted in a hair: the base's flattened circle runs up to 0.02 mm inside the true one, and the web outside the slot must stay whole
+        g.holes.push({ panelId: base.id, poly: sector(j, s0 - clB / 2, s1 + clB / 2, off - clB / 2 + CURVE_WEB, off + mA.thickness + clB / 2 + CURVE_WEB) });
+      }
     }
   }
   return g;
@@ -332,12 +508,12 @@ function planStrip(d: Design, t: Tray) {
     if (!k) break;
     const c = wing(k);
     if (c.kind === 'fold') {
-      const b = wingBand(d, c);
-      const add = (b?.lb ?? 0) + (d.panels[k.b]?.w ?? 0);
+      const lb = wingLength(d, c);
+      const add = lb + (d.panels[k.b]?.w ?? 0);
       if (acc + add > max + 1e-6) {
         c.kind = 'key';
         acc = 0;
-      } else acc += b?.lb ?? 0;
+      } else acc += lb;
     } else acc = 0;
     id = k.b;
   }

@@ -16,7 +16,7 @@ import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jo
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo } from './flatnet';
-import { defaultEnd, MIN_END, roundPts } from './round';
+import { defaultEnd, defaultSeam, MIN_END, roundPts } from './round';
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
@@ -325,6 +325,11 @@ function makeTrayWall(d: Design, tray: Tray, edge: string) {
 export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'flat' | 'pin' | 'openEdges' | 'tabLen'>>): string | null {
   const base = d.panels[baseId];
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
+  // a circle or an oval walled gets its seam flat (milestone 65): a straight place for its one wall, where its strip starts and closes
+  if (base.sketch.kind === 'poly' && base.sketch.round && base.sketch.round.shape !== 'stadium' && !base.sketch.round.seam) {
+    base.sketch.round = { ...base.sketch.round, seam: defaultSeam(matOf(d, baseId).kind) };
+    remakeRound(base, base.w, base.h);
+  }
   const id = newId('tr');
   d.trays ??= {};
   d.trays[id] = { id, baseId, height: Math.max(MIN_PANEL + tOf(d, baseId), height), ...newTrayKinds(d, baseId), openEdges: [], ...kinds };
@@ -1707,7 +1712,7 @@ export function addRoundPanel(d: Design, x: number, z: number, w: number, h: num
   if (w < MIN_PANEL || h < MIN_PANEL) return null;
   const id = addRootPanel(d, x, z, w, h);
   const p = d.panels[id];
-  const shape: RoundShape = round.shape === 'oval' ? { shape: 'oval', rEnd: round.rEnd ?? defaultEnd(w, h) } : { shape: round.shape };
+  const shape: RoundShape = { ...(round.shape === 'oval' ? { shape: 'oval', rEnd: round.rEnd ?? defaultEnd(w, h) } : { shape: round.shape }), ...(round.seam && round.shape !== 'stadium' ? { seam: round.seam } : {}) };
   const r = roundPts(w, h, shape);
   p.sketch = { kind: 'poly', pts: r.pts, edgeIds: r.edgeIds, round: shape };
   normalizeSketch(p);
@@ -1725,7 +1730,7 @@ export function setRoundShape(d: Design, panelId: string, patch: Partial<RoundSh
   // a circle is as wide as it is deep: the size typed (or the larger, from another shape)
   if (shape === 'circle') w = h = patch.w ?? patch.h ?? Math.max(w, h);
   const rEnd = shape === 'oval' ? (patch.rEnd ?? (cur.shape === 'oval' ? cur.rEnd : undefined) ?? defaultEnd(w, h)) : undefined;
-  p.sketch.round = { shape, ...(rEnd !== undefined ? { rEnd: Math.max(MIN_END, Math.round(rEnd * 100) / 100) } : {}) };
+  p.sketch.round = { shape, ...(rEnd !== undefined ? { rEnd: Math.max(MIN_END, Math.round(rEnd * 100) / 100) } : {}), ...(cur.seam && shape !== 'stadium' ? { seam: cur.seam } : {}) };
   remakeRound(p, w, h);
   solve(d);
   return true;
@@ -1804,5 +1809,14 @@ export function setClosingCorner(d: Design, trayId: string, wallId: string | nul
   if (!t) return;
   if (wallId) t.closeAt = wallId;
   else delete t.closeAt;
+  solve(d);
+}
+
+/** What holds a tray's curved walls to its base (milestone 65): glue teeth, tabs in curved slots, or nothing; null: by the base and material. */
+export function setTrayCurveKind(d: Design, trayId: string, kind: Tray['curveKind'] | null) {
+  const t = d.trays[trayId];
+  if (!t) return;
+  if (kind) t.curveKind = kind;
+  else delete t.curveKind;
   solve(d);
 }

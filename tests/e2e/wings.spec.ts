@@ -48,6 +48,35 @@ test.describe('Quick build', () => {
   });
 });
 
+test.describe('Quick build round', () => {
+  test.use({ storageState: QUICK_STATE });
+  test('a Round box in card: a square drag is a circle with a seam flat, its wall all round with glue teeth, ready to cut', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/');
+    await page.getByTestId('mat-card-0.5').click();
+    await page.getByTestId('start-go').click();
+    await S(page, () => (window as any).__cutforge.setCamera([0, 300, 260], [0, 0, 0]));
+    await page.waitForTimeout(300);
+    await page.getByTestId('quick-box').click();
+    await page.getByTestId('box-round').click();
+    await expect(page.getByTestId('box-round-help')).toBeVisible();
+    await drag(page, await pt(page, -45, 0, -45), await pt(page, 45, 0, 45));
+    await page.getByTestId('extrude-go').click();
+    const d = await design(page);
+    const base = d.panels[d.order[0]];
+    expect(base.sketch.round.shape).toBe('circle');
+    expect(base.sketch.round.seam.w).toBe(12);
+    expect(d.order).toHaveLength(2);
+    const ws = wings(d);
+    expect(ws).toHaveLength(1);
+    expect(ws[0].kind).toBe('glue');
+    await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-ok', 'true');
+    await page.screenshot({ path: test.info().outputPath('round-box.png') });
+    expect(errors).toEqual([]);
+  });
+});
+
 async function roundedTray(page: Page, mat: string) {
   await page.goto('/');
   await page.getByTestId(`mat-${mat}`).click();

@@ -170,7 +170,7 @@ type State = {
   /** Quick build's guardrails (milestone 39): what the last edit was kept from, for the tooltip. */
   guardNote: (GuardNote & { at: number }) | null;
   /** Quick build's Box (milestone 38): the footprint, a regular footprint's sides, and the last height used. */
-  boxFoot: 'rect' | 'regular' | 'rounded';
+  boxFoot: 'rect' | 'regular' | 'rounded' | 'round';
   boxSides: number;
   /** Quick build's Rounded box: its corner radius (milestone 64). */
   boxCorner: number;

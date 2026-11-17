@@ -55,6 +55,8 @@ export type Band = {
   fits: boolean;
   /** Round a tray's rounded corner (milestone 64), carried by the wall before it. */
   wing?: boolean;
+  /** A corner's band: where it starts along the strip from the wall's end (milestone 65: a corner may have several). */
+  pos?: number;
 };
 
 /** A fold's inner radius: its own, else the material's pattern radius on plywood (a living hinge), else a crease (0). */

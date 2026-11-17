@@ -189,7 +189,7 @@ describe('rounded corners', () => {
     expect(d.panels[w].w).toBeCloseTo(85, 9);
   });
 
-  it('a tray on a rounded rectangle stands walls on its straight sides only; a circle gets none yet (round boxes: milestone 65)', () => {
+  it('a tray on a rounded rectangle stands walls on its straight sides only; a circle one wall, on the seam flat it gets (milestone 65)', () => {
     const d = createDesign(CORR16);
     const rr = addRoundedRect(d, 0, 0, 120, 80, 15)!;
     addTray(d, rr, 40);
@@ -198,7 +198,8 @@ describe('rounded corners', () => {
     expect(walls(rr)).toHaveLength(4);
     const c = addRoundPanel(d, 300, 0, 80, 80, { shape: 'circle' })!;
     addTray(d, c, 40);
-    expect(walls(c)).toHaveLength(0);
+    expect(walls(c)).toHaveLength(1);
+    expect(walls(c)[0].a.edge).toBe('seam');
   });
 });
 

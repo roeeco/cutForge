@@ -96,10 +96,12 @@ function ActionCard() {
             { value: 'rect', label: t('quick.boxRect'), testId: 'box-rect' },
             { value: 'regular', label: t('quick.boxRegular'), testId: 'box-regular' },
             { value: 'rounded', label: t('quick.boxRounded'), testId: 'box-rounded' },
+            { value: 'round', label: t('quick.boxRound'), testId: 'box-round' },
           ]}
           onChange={(v) => set({ boxFoot: v })}
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
+        {boxFoot === 'round' && <p className="note" data-testid="box-round-help">{t('quick.boxRoundHelp', { r: fmtNum(roundedMin(material, boxHeight), 1) })}</p>}
         {boxFoot === 'rounded' && (
           <>
             <NumField label={t('quick.boxCorner')} value={boxCorner} unit={t('unit.mm')} min={1} max={200} onCommit={(v) => set({ boxCorner: v })} testId="box-corner" />

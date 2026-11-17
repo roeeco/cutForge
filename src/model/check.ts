@@ -33,6 +33,7 @@ const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(w
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
 const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'butt'] as const;
 const PATTERNS = ['auto', 'smooth', 'score', 'slits'] as const;
+const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;
 const TAB_LOCKS = ['flush', 'through', 'snap', 'bolt'] as const;
@@ -132,6 +133,8 @@ function sketch(s: unknown, where: string) {
       if (!isObj(k.round)) fail(`${where}.round`, 'not a round shape');
       oneOf(k.round.shape, ['circle', 'oval', 'stadium'] as const, `${where}.round.shape`);
       if (k.round.rEnd !== undefined) num(k.round.rEnd, `${where}.round.rEnd`, { min: 0 });
+      // its seam flat (milestone 65)
+      if (k.round.seam !== undefined && !(isObj(k.round.seam) && Number.isFinite(k.round.seam.at) && Number.isFinite(k.round.seam.w) && k.round.seam.w > 0)) delete k.round.seam;
     }
   } else if (k.kind === 'wall') {
     if (k.corners !== undefined) {
@@ -291,6 +294,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.fixes !== undefined && !isObj(x.fixes)) delete x.fixes;
   if (x.fixPlan !== undefined && !isObj(x.fixPlan)) delete x.fixPlan;
   if (x.closeAt !== undefined && typeof x.closeAt !== 'string') delete x.closeAt;
+  if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;
     else for (const k of Object.keys(x.pin)) if (!['hinge', 'own', 'other'].includes(x.pin[k])) delete x.pin[k];

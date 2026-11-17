@@ -96,7 +96,16 @@ export type SketchPt = P2 & { curve?: CurveKind; r?: number };
  * oval (end radius `rEnd`) or a stadium filling the panel's w × h. Its points
  * are made from it (`roundPts`), so its card edits sizes, not points.
  */
-export type RoundShape = { shape: 'circle' | 'oval' | 'stadium'; rEnd?: number };
+export type RoundShape = {
+  shape: 'circle' | 'oval' | 'stadium';
+  rEnd?: number;
+  /**
+   * Milestone 65: a seam flat, a chord `w` mm wide where the outline's outward
+   * normal points at `at` (radians), so a wall can stand there and its strip
+   * start and close on a flat place. Added when a circle or oval is walled.
+   */
+  seam?: { at: number; w: number };
+};
 export type WallCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type WallSketch = {
   kind: 'wall';
@@ -396,6 +405,8 @@ export type Tray = {
   pin?: Record<string, 'hinge' | 'own' | 'other'>;
   /** Milestone 64: a plywood strip all round is closed with a key at the corner after this wall (absent: the corner nearest the back left). */
   closeAt?: string;
+  /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
+  curveKind?: 'teeth' | 'tabslot' | 'none';
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
