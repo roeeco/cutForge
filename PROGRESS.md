@@ -1224,11 +1224,49 @@ Needs the owner (cannot be done here)
 - **Safari and a Chromebook**: nesting and solve speed on a slow machine (*Nest* and *Save material* run on the main thread), and the 3D bands with software WebGL.
 - **Hebrew**: the new strings of milestones 61–72 should be read by a native speaker (plan §12, decision 12).
 
+## Maintenance round (after milestone 72) ✅
+
+Reported on the live site: the 3D view out of step with edits, general instability, floating stage labels, and a busy contextual card. Then: Round and Rounded as rail buttons of their own, and a check that each feature of milestones 61–72 exists for a student. Every fix has a test that fails without it (`tests/e2e/maintenance.spec.ts` for the interface).
+
+3D view
+- **A joint changed on the card, the cut plan changed, the stage did not.** The selected panel's highlight (drei `Edges`) reused one fat-line buffer whose draw count three.js fixes the first time it is drawn: after a joint change it kept the old outline, or drew stray segments across the stage. Every outline is now its own (`MeshEdges`, panels and ghosts). A panel's slab is rebuilt whenever its 2D outline changes (`panelShape` / `shapeKey`), not when a hand-kept list of inputs changes: a neighbour's slots and a fold-over's lock slots were missing from that list.
+- **Rich quality turned the stage grey**: its output pass tone-maps the whole picture, background included. The background is drawn in the colour that tone-maps back to `#eef1f5` (three's ACES curve inverted).
+- Plain edge flaps (milestone 67) show on the stage, flat in the board's plane as on the cut plan; a reverse tuck bottom's lip turns up inside the back wall instead of running 18 mm past it; bend beads and bands take their board's own material colour.
+- The view cube sits above the view buttons on the left in Hebrew.
+
+Floating stage elements
+- Zoomed in, a ghost's ✓/✕ bar and a standing board's flip badge slid under the contextual card, seen but not clickable. They follow their point but are kept in the part of the stage the rail, the card and the bottom bars leave free (`StageHtml keepInStage`). Dimension, compartment and angle labels hide while their box would be under that chrome (`hideUnderChrome`). Both look again on the frame after they first appear (the stage draws on demand).
+- Stage cards follow the interface direction: in Hebrew the polygon card hid behind the settings card.
+- The bottom hint wraps clear of the corner cards and stacks under the fold slider; Round, Rounded and Regular show their own hint.
+- The top bar overflowed between 1000 and 1180 px (Download and the language off the bar, both directions): the compact bar now starts at 1180 px. The top bar spec covers 1024, 1100 and 1180 px.
+
+The contextual card
+- Sections 14 px apart, fields 10 px, buttons 8 px; lists of big buttons no longer 4 px apart. Multi-selection cards are sections (Group size, Align, Distribute) and say why instead of showing greyed grids; Joints (advanced) is one header with a count; Edges lists only edges a board can still grow from. A field whose control does not fit wraps it under its label; Quick build's Box footprint picker (130 px out of its card) is a 2 × 2 grid.
+
+Round and Rounded
+- Rail buttons of their own (`tool-round`, `tool-rounded`, icons of a round and a rounded board); the Polygon card offers click corners and Regular only, and G goes back to polygon corners. Underneath it is still the one drawing tool.
+
+Milestones 61–72, driven through the interface
+- Works: rounded corners and round bases, folds with a radius and the pattern library, curved tray walls, Quick build's Round and Rounded boxes, closures, slit locks and carton ends, splitting, Save material, Nest, dividers on round boxes, telescoping lids, matched walls, arched lids.
+- Fixed:
+  - Workshop could not wall a circle or oval (Extrude: "each of the 0 edges", no ghost, no ✓): the ghost now previews the seam flat `addTray` makes (`withSeam`), with a ribbon along curved edges.
+  - An arched lid's end walls kept a column as wide as the material beside the arc (0.5 × 37.5 mm on card; on plywood a stick cut as its own piece): the band's crossing cut now carries on past the box's faces.
+  - A card box with a tuck lid (Quick build's Box and Lid) was "too big for the sheet" and not cut, and Quick build's Fix shrank the box, losing the closure: `fitSplit` measured outlines plus 40 mm, not the flaps and lips. It measures what the cut plan cuts now.
+  - Check messages named boards by number ("The bend between 3 and 4"); walls on rounded bases were "Wall 1, 24, 47, 70"; "close the box with a Rests on the walls", "1 pieces"; the glue joint count counted finger joints and slit locks, not glued corners, nor copies; the export dialog counted boards as pieces; a divider in a round box snapped to 45°; Quick build's lid card hid the closure style behind More….
+- Not changed here: shapes cannot be drawn on a band (listed below); on corrugated, the automatic bend pattern can choose Smooth across the flutes and the check then asks for a Fix per corner (choosing well needs the sheet layout).
+
+Tests
+- `wings.spec` read `__cutforge.issues()`, which did not exist, so its "no bend issue" check could not fail: the hook exists now. `slice.spec` and `settings.spec` reloaded before the autosave had run.
+- Goldens: `band-card-score-r8` and `pattern-card-perf` are regenerated. Their designs were too big for a card sheet and stayed whole; they are now cut in two. `bands.test`'s radius-8 case uses a box that fits.
+- Stability: seeded random interaction runs (1,100 random clicks, drags, tool and view switches, undo and redo) with no page error or crash card.
+- Final run: unit suite 716 pass, 7 skipped; typecheck clean; `npm run build` succeeds; browser, app (`--grep-invert classroom`): 129 passed, 0 failed, 57 skipped (screenshot specs). The classroom specs (they need the Worker) were not run; nothing in the Worker or the teacher view changed.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
 - Packing is bounding-box based until *Nest* is pressed (true-shape raster nesting, milestone 69).
-- Bands (folds with a radius, rounded corners, round boxes) carry no shapes or text yet; a band is never cut to fit a sheet.
+- Bands (folds with a radius, rounded corners, round boxes) carry no shapes or text yet; a band is never cut to fit a sheet. (Milestone 65 planned shapes on a round box's wall; not done.)
+- Corrugated: the automatic bend pattern can choose Smooth for a bend that lies across the flutes on the sheet; the export check flags it and its Fix (per corner) perforates it.
 - Nesting and *Save material* run on the main thread; a board longer than its sheet is not split across.
 - Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
