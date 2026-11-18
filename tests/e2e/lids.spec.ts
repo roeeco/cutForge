@@ -74,7 +74,7 @@ test('matched walls: the left wall follows the right wall’s top', async ({ pag
 test('a cap lies beside the box and Put on shows it in place; a hinged lid is shown open until Close', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const { tray, base } = await box(page, 'ply-3');
+  const { tray, base } = await box(page, 'corr-4');
   await page.getByTestId('lid-liftoff').click();
   let d = await design(page);
   const lt: any = Object.values(d.trays).find((t: any) => t.lidOf === tray);
@@ -98,7 +98,7 @@ test('a cap lies beside the box and Put on shows it in place; a hinged lid is sh
 });
 
 // milestone 79 (LIDS_LINES_PROJECTS_PLAN.md §3.2): the kind of lid that lifts off, Automatic, why not, a cap's rim
-test('Lifts off on plywood makes a Flat lid; Cap and its rim; on card the Flat lid is greyed with why', async ({ page }) => {
+test('Lifts off on plywood makes a Flat lid; Cap and its rim', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const { tray } = await box(page, 'ply-3');
@@ -114,7 +114,12 @@ test('Lifts off on plywood makes a Flat lid; Cap and its rim; on card the Flat l
   const cap: any = Object.values(d.trays).find((t: any) => t.lidOf === tray);
   expect(cap.height).toBeCloseTo(60 + 3, 6);
   await page.screenshot({ path: test.info().outputPath('cap-full.png') });
-  // card: Flat greyed, and why when tapped
+  expect(errors).toEqual([]);
+});
+
+test('on card the Flat lid is greyed, and says why', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
   const c = await box(page, 'card-0.5');
   await page.getByTestId('lid-liftoff').click();
   await expect(page.getByTestId('lid-style-flat')).toHaveAttribute('aria-disabled', 'true');

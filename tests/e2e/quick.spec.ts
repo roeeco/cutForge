@@ -156,11 +156,11 @@ test('the five actions: Box, two Dividers, Lid, Hole, Text and a Sticker, each o
   await page.getByTestId('grow-go').click();
   s = await st(page);
   expect(s.past).toBe(4);
-  // the cap: its top and four rim walls
-  expect(s.order).toHaveLength(12);
+  // plywood's lid that lifts off (milestone 79): a Flat lid, one board
+  expect(s.order).toHaveLength(8);
   expect(s.tool).toBe('select');
   const dl = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
-  expect((Object.values(dl.trays) as any[]).filter((t) => t.lidOf)).toHaveLength(1);
+  expect((Object.values(dl.panels) as any[]).filter((p) => p.lidOf?.kind === 'flat')).toHaveLength(1);
   expect((Object.values(dl.connections) as any[]).some((c) => c.grown && c.a.panelId === back && c.a.edge === 'e2')).toBe(false);
   await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'liftoff');
 

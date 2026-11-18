@@ -52,9 +52,10 @@ for (const lang of ['en', 'he'])
       const d = await box(page, 'lid');
       // one undo step: the box and its lid
       expect(await S(page, () => (window as any).__cutforge.store.getState().past.length)).toBe(1);
+      // plywood's automatic lid that lifts off is a Flat lid (milestone 79): one board, its tabs through its slots
       const trays = Object.values(d.trays) as any[];
-      expect(trays).toHaveLength(2);
-      expect(trays.filter((t) => t.lidOf)).toHaveLength(1);
+      expect(trays).toHaveLength(1);
+      expect((Object.values(d.panels) as any[]).filter((p) => p.lidOf?.kind === 'flat')).toHaveLength(1);
       await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'liftoff');
       await expect(page.getByTestId('lid-liftoff')).toHaveAttribute('aria-checked', 'true');
       await expect(page.locator('.field', { has: page.getByTestId('panel-h') })).toContainText(lang === 'en' ? 'Depth' : 'עומק');
@@ -82,7 +83,8 @@ for (const lang of ['en', 'he'])
       await page.getByTestId('grow-go').click();
       const w = await design(page);
       expect((Object.values(w.connections) as any[]).filter((c) => c.grown && c.a.panelId === back && c.a.edge === 'e2')).toEqual([]);
-      expect((Object.values(w.trays) as any[]).filter((t) => t.lidOf)).toHaveLength(1);
+      // the box's lid that lifts off: on plywood a Flat lid (milestone 79)
+      expect((Object.values(w.panels) as any[]).filter((p) => p.lidOf?.kind === 'flat')).toHaveLength(1);
       expect(errors).toEqual([]);
     });
 
