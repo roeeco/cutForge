@@ -54,7 +54,7 @@ test('a card lid grown to the front wall: the grow card says it will close the b
 
 test.describe('Quick build cartons (milestone 68)', () => {
   test.use({ storageState: QUICK_STATE });
-  test('a Box with a snap-lock bottom is a carton: no base cut, one strip of walls, a tuck lid, ready to cut', async ({ page }) => {
+  test('a Box of kind Carton: no base cut, one strip of walls, a tuck lid, a bottom that snaps shut, ready to cut', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto('/');
@@ -63,7 +63,7 @@ test.describe('Quick build cartons (milestone 68)', () => {
     await S(page, () => (window as any).__cutforge.setCamera([0, 300, 260], [0, 0, 0]));
     await page.waitForTimeout(300);
     await page.getByTestId('quick-box').click();
-    await page.getByTestId('box-bottom-snap').click();
+    await page.getByTestId('box-kind-carton').click();
     await expect(page.getByTestId('box-carton-help')).toBeVisible();
     const pt = (x: number, z: number) => S<{ x: number; y: number }>(page, (a: number[]) => (window as any).__cutforge.projectWorld(a[0], 0, a[1]), [x, z]);
     const a = await pt(-45, -30), b = await pt(45, 30);

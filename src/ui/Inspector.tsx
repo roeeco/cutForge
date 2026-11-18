@@ -19,6 +19,7 @@ import { ClearSizes, JointsAdvanced, PanelHinge } from './Connections';
 import { BendSection } from './BendUI';
 import { CutChoice } from './SplitUI';
 import { ClosureSection } from './ClosureUI';
+import { LidSection } from './LidUI';
 import { roundedMin } from '../easy/recipes';
 import type { DetailOp } from '../model/types';
 import { fmtNum } from '../i18n';
@@ -96,6 +97,8 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
   const opsAll = shown(useFeature('op.scoreAdd'));
+  // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
+  const quickWords = useMode() === 'quick';
   const mm = t('unit.mm');
   if (sel?.kind === 'edge') return view === '3d' ? <EdgeBar panelId={sel.panelId} edge={sel.edge} /> : null;
 
@@ -210,7 +213,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
           )}
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
-          <NumField label={t('insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          <NumField label={t(quickWords && !parent && !p.divider && p.place?.pose !== 'standing' ? 'insp.depth' : 'insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
           <RoundSection panelId={id} />
           {p.divider && <DividerSection panelId={id} />}
           {!parent && !p.divider && (
@@ -224,7 +227,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           {/* how a lid closes its box is on the lid's card in Quick build too (PACKAGING_PLAN.md decision 8); it was behind More… */}
           <ClosureSection panelId={id} />
           <TrayWallNote panelId={id} />
-          <Gate f="curves">
+          <Gate f="match">
             <MatchSection panelId={id} />
           </Gate>
           <Gate f="foldover">
@@ -262,6 +265,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           </Gate>
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
+          <LidSection panelId={id} />
           <InsideSection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
@@ -270,7 +274,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           </Gate>
           {/* only the edges a board can still grow from: a row of greyed buttons for the walled ones was noise */}
           {growable.length > 0 && (
-            <div className="subsection">
+            <div className="subsection" data-testid="edges-section">
               <h4>{t('insp.edges')}</h4>
               <div className="edge-buttons">
                 {growable.map(({ key: e }) => (
@@ -387,7 +391,7 @@ function SheetPlacementControls({ panelId }: { panelId: string }) {
   if (view !== '2d' || !key || pieceRoot(placementPiece(key)) !== pieceKeyOf(d, panelId)) return null;
   const blocked = matOf(d, panelId).grain !== 'none' && !d.allowRotate;
   return (
-    <div className="subsection">
+    <div className="subsection" data-testid="sheet-placement">
       {d.placements[key]?.manual && <p className="note">{t('pack.manual')}</p>}
       <button disabled={blocked} onClick={() => useStore.getState().apply((x) => void rotateCopy(x, key))} data-testid="rotate-copy">
         {t('pack.rotate')}

@@ -247,6 +247,17 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .segmented button { border: none; background: transparent; padding: 3px 10px; min-height: 28px; border-radius: 6px; font-size: 13px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 6px; }
 .segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-soft); }
+/* one question answered with pictures (milestone 73): at most four in a row, the greyed ones still say why */
+.field.pictures-field { flex-direction: column; align-items: stretch; gap: 6px; }
+.pictures { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 4px; background: var(--surface-sunk); border-radius: var(--r-sm); padding: 3px; }
+.pictures button { border: none; background: transparent; border-radius: 6px; padding: 6px 2px 5px; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink-muted); font-size: 12px; line-height: 1.2; text-align: center; }
+.pictures button:hover:not(.on) { background: rgba(255, 255, 255, 0.55); }
+.pictures button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-soft); }
+.pictures button.off { opacity: 0.45; }
+.pictures .pic { display: block; }
+.quick-card .pictures.n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pictures-field .warn-text { color: #8a5a00; }
+.lid-section .link { margin-top: 2px; }
 .op-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .op-dot.cut { background: var(--op-cut); }
 .op-dot.score { background: var(--op-score); }

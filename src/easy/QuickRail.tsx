@@ -9,6 +9,8 @@ import { NumField, Segmented, Stepper } from '../ui/NumField';
 import { roundedMin } from './recipes';
 import { fmtNum } from '../i18n';
 import { STICKERS } from './stickers';
+import { PictureChoice } from '../ui/Pictures';
+import { boxKindFor, cartonWhy } from './actions';
 
 export type QuickAction = 'box' | 'wall' | 'divider' | 'standing' | 'hole' | 'text';
 
@@ -87,7 +89,7 @@ function ActionCard() {
   const boxCorner = useStore((s) => s.boxCorner);
   const material = useStore((s) => s.design.material);
   const boxHeight = useStore((s) => s.boxHeight);
-  const boxBottom = useStore((s) => s.boxBottom);
+  const boxKind = useStore((s) => s.viewPrefs.boxKind ?? 'open');
   const sticker = useStore((s) => s.sticker);
   const set = useStore((s) => s.set);
   const a = QUICK_ACTIONS.find((x) => x.tools.includes(tool));
@@ -96,31 +98,33 @@ function ActionCard() {
   if (a.id === 'box')
     body = (
       <>
-        <Segmented
+        <PictureChoice
           label={t('quick.boxFoot')}
           value={boxFoot}
           options={[
-            { value: 'rect', label: t('quick.boxRect'), testId: 'box-rect' },
-            { value: 'regular', label: t('quick.boxRegular'), testId: 'box-regular' },
-            { value: 'rounded', label: t('quick.boxRounded'), testId: 'box-rounded' },
-            { value: 'round', label: t('quick.boxRound'), testId: 'box-round' },
+            { value: 'rect', label: t('quick.boxRect'), pic: 'footRect', testId: 'box-rect' },
+            { value: 'regular', label: t('quick.boxRegular'), pic: 'footRegular', testId: 'box-regular' },
+            { value: 'rounded', label: t('quick.boxRounded'), pic: 'footRounded', testId: 'box-rounded' },
+            { value: 'round', label: t('quick.boxRound'), pic: 'footRound', testId: 'box-round' },
           ]}
           onChange={(v) => set({ boxFoot: v })}
+          testId="box-foot"
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
-        {boxFoot === 'rect' && material.kind !== 'plywood' && (
-          <Segmented
-            label={t('quick.boxBottom')}
-            value={boxBottom}
-            options={[
-              { value: 'flat', label: t('quick.boxBottom.flat'), testId: 'box-bottom-flat' },
-              { value: 'snap', label: t('quick.boxBottom.snap'), testId: 'box-bottom-snap' },
-              { value: 'tuck', label: t('quick.boxBottom.tuck'), testId: 'box-bottom-tuck' },
-            ]}
-            onChange={(v) => set({ boxBottom: v })}
-          />
-        )}
-        {boxFoot === 'rect' && material.kind !== 'plywood' && boxBottom !== 'flat' && <p className="note" data-testid="box-carton-help">{t('quick.boxCartonHelp')}</p>}
+        {/* what the box is (milestone 73): the last kind made is remembered */}
+        <PictureChoice
+          label={t('quick.kind')}
+          value={boxKindFor(boxKind, material.kind, boxFoot)}
+          options={[
+            { value: 'open', label: t('quick.kind.open'), pic: 'open', testId: 'box-kind-open' },
+            { value: 'lid', label: t('quick.kind.lid'), pic: 'lidded', testId: 'box-kind-lid' },
+            { value: 'carton', label: t('quick.kind.carton'), pic: 'carton', testId: 'box-kind-carton', why: cartonWhy(material.kind, boxFoot) ? t('quick.kind.cartonNo') : undefined },
+          ]}
+          onChange={(v) => useStore.getState().setPrefs({ boxKind: v })}
+          testId="box-kind"
+        />
+        {boxKindFor(boxKind, material.kind, boxFoot) === 'carton' && <p className="note" data-testid="box-carton-help">{t('quick.boxCartonHelp')}</p>}
+        {boxKindFor(boxKind, material.kind, boxFoot) === 'lid' && <p className="note" data-testid="box-lid-help">{t('quick.kind.lidHelp')}</p>}
         {boxFoot === 'round' && <p className="note" data-testid="box-round-help">{t('quick.boxRoundHelp', { r: fmtNum(roundedMin(material, boxHeight), 1) })}</p>}
         {boxFoot === 'rounded' && (
           <>

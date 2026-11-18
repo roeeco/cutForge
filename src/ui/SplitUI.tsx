@@ -9,13 +9,15 @@ import { nest } from '../model/nest';
 import { applySavePlan, setFoldCut, solve } from '../model/ops';
 import type { Connection } from '../model/types';
 import { fmtNum } from '../i18n';
+import { shown, useFeature } from '../easy/features';
 
 /** A fold's cut choice: let the app decide, keep the net whole here, or cut it here. */
 export function CutChoice({ c }: { c: Connection }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
-  if (!canCut(d, c)) return null;
+  const f = shown(useFeature('split'));
+  if (!f || !canCut(d, c)) return null;
   const v = c.cut ?? 'auto';
   return (
     <div className="cut-choice" data-testid="cut-choice">
@@ -45,6 +47,8 @@ export function YieldBar() {
   const d = useDeferredValue(live);
   const y = useMemo(() => (d.order.length ? yieldReport(d) : null), [d]);
   const [plan, setPlan] = useState<SavePlan | null | 'none'>(null);
+  const [less, setLess] = useState<LessBoard | null>(null);
+  const fYield = shown(useFeature('yield')), fSteps = shown(useFeature('saveBoard.steps')), fLess = shown(useFeature('saveBoard'));
   if (!y) return null;
   const nested = Object.values(d.placements).some((p) => p.nested);
   const doNest = () => useStore.getState().apply((x) => void (x.placements = nest(x)));
@@ -54,18 +58,62 @@ export function YieldBar() {
     setPlan(p ?? 'none');
   };
   const sheetsText = (n: number) => (n === 1 ? t('yield.sheet1') : t('yield.sheets', { n }));
+  const glueText = (n: number) => (n === 1 ? t('less.glue1') : t('less.glue', { n }));
   return (
     <div className="yield-bar" dir="auto" data-testid="yield" data-sheets={y.sheets} data-pieces={y.pieces}>
-      <span className="yield-text" title={t('yield.title')}>
-        {t('yield.line', { sheets: sheetsText(y.sheets), pct: y.pct, cut: fmtNum(y.cut / 1000, 1), pieces: y.pieces === 1 ? t('yield.piece1') : t('yield.pieces', { n: y.pieces }), glue: y.glue === 1 ? t('yield.glue1') : t('yield.glues', { n: y.glue }) })}
-      </span>
-      <button onClick={doNest} title={t('yield.nestHelp')} data-testid="nest" className={nested ? 'on' : ''}>
-        {t('yield.nest')}
-      </button>
-      {splitMode(d) !== 'never' && (
-        <button onClick={look} title={t('yield.saveHelp')} data-testid="save-material">
+      {fYield && (
+        <span className="yield-text" title={t('yield.title')}>
+          {t('yield.line', { sheets: sheetsText(y.sheets), pct: y.pct, cut: fmtNum(y.cut / 1000, 1), pieces: y.pieces === 1 ? t('yield.piece1') : t('yield.pieces', { n: y.pieces }), glue: y.glue === 1 ? t('yield.glue1') : t('yield.glues', { n: y.glue }) })}
+        </span>
+      )}
+      {fLess && (
+        <button onClick={() => (setPlan(null), setLess(lessBoard()))} title={t('less.help')} data-testid="use-less">
+          {t('less.button')}
+        </button>
+      )}
+      {fSteps && (
+        <button onClick={doNest} title={t('yield.nestHelp')} data-testid="nest" className={nested ? 'on' : ''}>
+          {t('yield.nest')}
+        </button>
+      )}
+      {fSteps && splitMode(d) !== 'never' && (
+        <button onClick={() => (setLess(null), look())} title={t('yield.saveHelp')} data-testid="save-material">
           {t('yield.save')}
         </button>
+      )}
+      {less && (
+        <div className="save-pop card" role="dialog" aria-label={t('less.button')} data-testid="less-pop">
+          <p data-testid="less-text">
+            {less.plan
+              ? less.plan.after.sheets < less.now
+                ? t('less.canSheets', { now: sheetsText(less.now), can: sheetsText(less.plan.after.sheets), glue: glueText(less.plan.after.glue - less.plan.before.glue) })
+                : t('less.canArea', { now: sheetsText(less.now), pct: Math.round((100 * (less.plan.before.area - less.plan.after.area)) / less.plan.before.area), glue: glueText(less.plan.after.glue - less.plan.before.glue) })
+              : less.now < less.was
+                ? t('less.nested', { now: sheetsText(less.now), was: sheetsText(less.was) })
+                : t('less.least')}
+          </p>
+          <span className="row">
+            {less.plan && (
+              <button
+                className="primary"
+                onClick={() => {
+                  const cuts = less.plan!.cuts;
+                  useStore.getState().apply((x) => {
+                    applySavePlan(x, cuts);
+                    x.placements = nest(x);
+                  });
+                  setLess(null);
+                }}
+                data-testid="less-apply"
+              >
+                {t('less.apply')}
+              </button>
+            )}
+            <button onClick={() => setLess(null)} data-testid="less-close">
+              {t(less.plan ? 'less.leave' : 'yield.close')}
+            </button>
+          </span>
+        </div>
       )}
       {plan && (
         <div className="save-pop card" role="dialog" aria-label={t('yield.save')} data-testid="save-pop">
@@ -103,11 +151,31 @@ export function YieldBar() {
   );
 }
 
+/** What *Use less board* found: the sheets before and after nesting, and the folds that would save more. */
+export type LessBoard = { was: number; now: number; plan: SavePlan | null };
+
+/**
+ * *Use less board* (LIDS_LINES_PROJECTS_PLAN.md §10.6): nest the pieces (one
+ * undo step), then look for folds to cut. The cuts are only offered: *Do it*
+ * applies them.
+ */
+export function lessBoard(): LessBoard {
+  const st = useStore.getState();
+  const was = yieldReport(st.design).sheets;
+  st.apply((x) => void (x.placements = nest(x)));
+  const d = useStore.getState().design;
+  const now = yieldReport(d).sheets;
+  const plan = splitMode(d) === 'never' ? null : planSaveMaterial(d, solve, (x) => measureYield(x, boxPlan));
+  // a plan worth offering: fewer sheets, or less of them
+  return { was, now, plan: plan && (plan.after.sheets < now || plan.after.area < plan.before.area) ? plan : null };
+}
+
 /** The design's split setting, in *Material & sheet*. */
 export function SplitSetting() {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
+  if (!shown(useFeature('split'))) return null;
   return (
     <Segmented
       label={t('split.mode')}

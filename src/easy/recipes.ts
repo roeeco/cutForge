@@ -10,6 +10,8 @@ import { matDir, toLocal, toWorld } from '../model/frame';
 import { tOf } from '../model/materials';
 import { effectiveGrow, growWith } from '../views/ghost';
 import { heightTargets } from '../model/adapt';
+import { boxLid, setBoxLid, wallClosesBox } from './lid';
+import type { BoxKind } from '../store/store';
 
 /** The first box rises this high (mm); later boxes at the last height used. */
 export const BOX_HEIGHT = 45;
@@ -68,17 +70,42 @@ export function addRoundBox(d: Design, x0: number, z0: number, x1: number, z1: n
   return addRoundPanel(d, cx - w / 2, cz + h / 2, w, h, circle ? { shape: 'circle', seam } : { shape: 'oval', rEnd, seam });
 }
 
-/** Box: a base from the footprint and a tray of walls at `height`, with the design's tray joints. */
-export function boxRecipe(d: Design, f: Footprint, height: number): { baseId: string } | null {
+/**
+ * The walls of a Box of this kind on its base (milestone 73): an open box; a
+ * box with its automatic lid (the cap until milestone 74); or a carton, a tube
+ * with a tuck top and a bottom that snaps shut. Returns the tray.
+ */
+export function boxTray(d: Design, baseId: string, height: number, kind: BoxKind = 'open'): string | null {
+  const tray = addTray(d, baseId, height, kind === 'carton' ? { base: 'open', bottom: 'snap', top: 'tuck' } : undefined);
+  if (tray && kind === 'lid') setBoxLid(d, tray, 'liftoff');
+  return tray;
+}
+
+/** Box: a base from the footprint and a tray of walls at `height`, with the design's tray joints, of the kind chosen. */
+export function boxRecipe(d: Design, f: Footprint, height: number, kind: BoxKind = 'open'): { baseId: string } | null {
   const baseId = addBoxBase(d, f);
   if (!baseId) return null;
-  addTray(d, baseId, height);
+  boxTray(d, baseId, height, kind === 'carton' && (d.material.kind === 'plywood' || f.kind !== 'rect') ? 'open' : kind);
   return { baseId };
 }
 
 /** Wall / lid: grown at 90° on the whole edge, fitted to its neighbours, with the design's joint (Workshop's grow card with its defaults). */
 export function wallRecipe(d: Design, panelId: string, edge: string, height: number): string | null {
   return growWith(d, panelId, edge, { height, angle: 90, adapt: true, span: null, sketch: null })?.panelId ?? null;
+}
+
+/**
+ * Quick build's Wall / lid as its ✓ makes it (milestone 73): a ghost that
+ * closes a box makes the box's lid (`setBoxLid`); any other is a wall.
+ * Returns the board made (a lid's top), or null.
+ */
+export function quickWallRecipe(d: Design, panelId: string, edge: string, height: number): string | null {
+  const g = effectiveGrow(d, panelId, edge, { height, angle: 90, adapt: true, span: null, sketch: null });
+  const closes = wallClosesBox(d, panelId, edge, g.ghost);
+  if (!closes) return wallRecipe(d, panelId, edge, height);
+  setBoxLid(d, closes.tray, closes.choice);
+  const lid = boxLid(d, closes.tray);
+  return lid.kind === 'liftoff' ? lid.top : lid.kind === 'hinged' ? lid.lid : null;
 }
 
 /** Hole: a circle, rectangle or rounded rectangle, cut out (or engraved). */

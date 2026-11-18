@@ -30,7 +30,7 @@ export function MultiSelection({ ids }: { ids: string[] }) {
         <h3>{t('multi.title', { n: ids.length })}</h3>
       </div>
       {box && (
-        <div className="subsection">
+        <div className="subsection" data-testid="multi-size">
           <h4 className="section-title">{t('multi.size')}</h4>
           <NumField
             label={t('insp.width')}
@@ -50,7 +50,7 @@ export function MultiSelection({ ids }: { ids: string[] }) {
           />
         </div>
       )}
-      <div className="subsection">
+      <div className="subsection" data-testid="multi-align">
         <h4>{t('multi.align')}</h4>
         {!surface && <p className="warn-text" data-testid="align-unavailable">{t('multi.differentPlanes')}</p>}
         {surface && (
@@ -65,7 +65,7 @@ export function MultiSelection({ ids }: { ids: string[] }) {
       </div>
       {/* shapes on different surfaces: the reason above is enough, no grids of greyed buttons */}
       {surface && (
-        <div className="subsection">
+        <div className="subsection" data-testid="multi-distribute">
           <h4>{t('multi.distribute')}</h4>
           {ids.length < 3 ? (
             <p className="note">{t('multi.needThree')}</p>
@@ -108,7 +108,7 @@ export function ArraySection({ dt }: { dt: Detail }) {
   const step = Math.round(Math.max(dt.w, dt.h) * 1.5);
   if (!a)
     return (
-      <div className="subsection">
+      <div className="subsection" data-testid="array-new">
         <h4>{t('array.title')}</h4>
         <div className="btn-grid">
           <button onClick={() => apply((x) => setArray(x, dt.id, { nx: 3, ny: 1, dx: step, dy: step }))} data-testid="array-linear">

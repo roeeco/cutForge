@@ -157,6 +157,42 @@ Suggested order, after milestones 30 and 35's engine: **37, 38, 39, 40, 41.** Bu
 
 37 is a few days (mostly hiding controls, plus the class column). 38 is about a week. 39 is about a week; the keep-out zones and the fuzz test are the largest part. 40 is one to two weeks; missions, objects and the animation can each ship on their own. 41 is two or three days.
 
+## 4b. Later: Quick build revised (milestone 73)
+
+Built from `LIDS_LINES_PROJECTS_PLAN.md` Part E. The decisions above stand; five rules are added so that Quick build stays small as the engine grows:
+
+1. **The rail does not grow.** Select and six actions. A new ability goes on the card of the thing it belongs to.
+2. **One question per thing, in a student's words, answered with pictures.** At most four choices in a row; the rest under *More…*. A choice that cannot be made is greyed, and tapping it says why.
+3. **Every control has a row in the feature table.** `tests/quickTable.test.ts` fails when a card section has no row (`SECTIONS` in `src/easy/features.ts`), and spells out what Quick build shows.
+4. **One way to make each thing.** A box's lid is made by `setBoxLid` (`src/easy/lid.ts`) from the Box's *With a lid*, the box's *Lid* section and Wall / lid across its top alike.
+5. **Nothing made in Quick build needs Workshop to work.** A lid opens; a carton closes; a file is ready to cut.
+
+What changed for a student:
+
+- **Box** asks for the footprint and the **Kind** as pictures: *Open box*, *With a lid* (the box and a cap that lifts off, one ✓), *Carton* (card and corrugated, on a rectangle; greyed elsewhere with the reason). The last kind made is remembered.
+- **A box's card** has **Lid: None · Lifts off · Hinged** (and the lid's card the same). Hinged is a tuck lid on card, a tab lid on corrugated, a living hinge on plywood where the box is large enough. A carton's card has its lid and **Bottom: Snaps shut · Tucks in · Flaps to glue**, and none of the *Base / Top / Bottom* lists.
+- **Wall / lid** across a box's top makes the box's lid (it lifts off on plywood, hinges on card and corrugated). It can no longer finger-joint or glue a box shut.
+- **No glue** in the settings card's *Joints*; **Use less board** over the cut plan; the download is nominal with the kerf named.
+- Footprints read *Width · Depth*, a box's walls *Height*; a lid is *Lid* with a *Lid rim*.
+
+New rows of the feature table:
+
+| Feature | Controls | Quick build |
+| --- | --- | --- |
+| `lid` | The *Lid* section; a folded lid's closure style | show |
+| `lid.advanced` | *Arched*, *Fixed*; a closure's lip, dust flaps and thumb notch | auto |
+| `tray.ends` | *Base*, *Top*, *Bottom* lists (68) | hide (*Kind*, *Lid* and the *Bottom* pictures) |
+| `tray.corners` | *Rounded corners*, *Closing seam* (64), *Curved walls held to the base by* (65) | auto |
+| `bend` | *Bend radius*, *Pattern*, *Lines* (63, 66) | auto |
+| `edgeFlap` | *Add a flap* (67) | hide |
+| `match` | *Match top with*, *Own outline*, *Copy outline from* (71) | hide |
+| `split` | A fold's *Automatic · Keep whole · Cut here*; the design's split setting (69) | auto |
+| `yield` | The yield line (69) | hide |
+| `saveBoard` | *Use less board* | show |
+| `saveBoard.steps` | *Nest*, *Save material* (69) | hide |
+| `joints.noGlue` | *No glue* | show |
+| `export.kerf` | *Nominal · Compensated* | auto: nominal |
+
 ## 5. Illustrations
 
 Concept images made with GPT Image. They show the idea, not the exact interface: labels, controls and the top bar differ from what the milestones above describe (for example, there is no *Design / Prepare / Cut* switch and no finger width field).

@@ -21,7 +21,7 @@ const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping
 const SHORT_STAGE = 700;
 
 export function DesignSettings() {
-  const fj = useFeature('settings.joints'), fs = useFeature('settings.snapping'), fm = useFeature('settings.material');
+  const fj = useFeature('settings.joints'), fs = useFeature('settings.snapping'), fm = useFeature('settings.material'), fNoGlue = shown(useFeature('joints.noGlue'));
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
@@ -133,6 +133,18 @@ export function DesignSettings() {
         t('settings.joints'),
         `${short_(groupShown(d, 'base'))} · ${short_(groupShown(d, 'corner'))}`,
         <>
+          {fNoGlue && paper && groupKinds(d, 'corner').includes('lock') && (
+            // one switch for slit locks at every corner (LIDS_LINES_PROJECTS_PLAN.md §10.2)
+            <label className="check" title={t('settings.noGlueHelp')}>
+              <input
+                type="checkbox"
+                checked={groupShown(d, 'corner') === 'lock'}
+                onChange={(e) => choose('corner', e.target.checked ? 'lock' : (groupKinds(d, 'corner').find((k) => k !== 'lock') ?? 'glue'))}
+                data-testid="settings-no-glue"
+              />
+              {t('settings.noGlue')}
+            </label>
+          )}
           {list('base', t('settings.jointsBase'))}
           {list('corner', t('settings.jointsCorner'))}
           {paper && (

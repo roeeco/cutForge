@@ -66,7 +66,89 @@ export const FEATURES = {
   hinge: 'auto',
   /** The first-use hints (Quick build has missions or one line under the rail). */
   hints: 'hide',
+  // ---- milestones 61–72 and LIDS_LINES_PROJECTS_PLAN.md §10.5 (milestone 73) ----
+  /** A box's *Lid* section (lid, style, open), and a folded lid's closure style (PACKAGING_PLAN.md decision 8). */
+  lid: 'show',
+  /** *Arched* and *Fixed* lids; a closure's lip, dust flaps and thumb notch. */
+  'lid.advanced': 'auto',
+  /** A tray's *Base*, *Top* and *Bottom* lists (68): *Kind* and *Lid* replace them; a carton's *Bottom* shows as pictures. */
+  'tray.ends': 'hide',
+  /** *Rounded corners* join, *Closing seam* (64), *Curved walls held to the base by* (65). */
+  'tray.corners': 'auto',
+  /** *Bend radius*, *Pattern* and *Lines* of a fold (63, 66). */
+  bend: 'auto',
+  /** *Add a flap* on a free edge (67). */
+  edgeFlap: 'hide',
+  /** *Match top with*, *Own outline*, *Copy outline from* (71). */
+  match: 'hide',
+  /** A fold's *Automatic · Keep whole · Cut here*, and the design's split setting (69): only when it must. */
+  split: 'auto',
+  /** The cut plan's yield line: cut length, pieces, glue joints (69); the sheet meter already says sheets and percent. */
+  yield: 'hide',
+  /** *Use less board* over the cut plan: nest, then offer the folds to cut that save board (§10.6). */
+  saveBoard: 'show',
+  /** *Nest* and *Save material* as two steps (69); Quick build has *Use less board*. */
+  'saveBoard.steps': 'hide',
+  /** *Slit lock* for corners (68): in Quick build one switch, *No glue*, in the settings card. */
+  'joints.noGlue': 'show',
+  /** The download dialog's *Nominal · Compensated*: nominal, the kerf shown. */
+  'export.kerf': 'auto',
 } as const satisfies Record<string, FeatureState>;
+
+/**
+ * Every section a card can render, and the feature that shows it (rule 3 of
+ * LIDS_LINES_PROJECTS_PLAN.md §10.1). `null`: part of the core card, shown in
+ * both modes. `tests/quickTable.test.ts` fails when a card section (an element
+ * with `className="subsection…"` and a `data-testid`) is missing here, so a
+ * new engine control cannot reach Quick build unnoticed.
+ */
+export const SECTIONS: Record<string, Feature | null> = {
+  // the settings card
+  'settings-template': null,
+  'settings-joints': 'settings.joints',
+  'settings-material': 'settings.material',
+  'settings-snapping': 'settings.snapping',
+  // the material drawer
+  'drawer-calibration': 'drawer',
+  'drawer-bend': 'drawer',
+  'drawer-sheet': 'drawer',
+  'drawer-in-use': 'drawer',
+  // a box
+  'extrude-button': null,
+  'extrude-card': null,
+  'tray-card': null,
+  'tray-corners': 'tray.corners',
+  'tray-ends': 'tray.ends',
+  'carton-bottom': 'lid',
+  'lid-section': 'lid',
+  'inside-section': null,
+  // a board
+  'bend-section': 'bend',
+  'closure-section': 'lid',
+  'fold-section': 'foldover',
+  'match-section': 'match',
+  'point-curve': 'curves',
+  'round-section': null,
+  'divider-section': null,
+  'placed-section': 'construction',
+  'board-material-section': 'boardMaterial',
+  'joints-section': 'joints',
+  'open-seams': 'joints',
+  'clear-sizes': null,
+  'sheet-placement': null,
+  'edges-section': null,
+  // an edge (the grow card)
+  'edge-flap': 'edgeFlap',
+  // shapes and several boards
+  'array-section': 'arrays',
+  'array-new': 'arrays',
+  'multi-size': null,
+  'multi-align': 'align',
+  'multi-distribute': 'align',
+  'multi-panel-align': 'align',
+  'multi-panel-distribute': 'align',
+  'multi-panel-dividers': null,
+};
 
 export type Feature = keyof typeof FEATURES;
 

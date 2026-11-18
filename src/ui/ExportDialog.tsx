@@ -27,6 +27,8 @@ export function ExportDialog() {
   const prepared = useMemo(() => prepareExport(d, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') }), [d, mode, t]);
   const issues = useMemo(() => validate(d), [d]);
   const check = shown(useFeature('exportCheck'));
+  // Quick build: nominal, the kerf set on the laser (LIDS_LINES_PROJECTS_PLAN.md §10.6)
+  const kerfChoice = shown(useFeature('export.kerf'));
   // what is cut, counted as the cut plan counts it (it summed every board's copies: a five-board net was "5 pieces")
   const pieces = useMemo(() => pieceCopies(d).length, [d]);
   const blocked = prepared.errors.length > 0;
@@ -74,7 +76,8 @@ export function ExportDialog() {
             </label>
           </fieldset>
         )}
-        <fieldset>
+        {kerfChoice && (
+        <fieldset data-testid="kerf-choice">
           <legend>{t('export.kerfMode')}</legend>
           <label>
             <input type="radio" name="kerf" checked={mode === 'nominal'} onChange={() => setMode('nominal')} data-testid="kerf-nominal" /> {t('export.nominal')}
@@ -83,8 +86,9 @@ export function ExportDialog() {
             <input type="radio" name="kerf" checked={mode === 'compensated'} onChange={() => setMode('compensated')} data-testid="kerf-compensated" /> {t('export.compensated')}
           </label>
         </fieldset>
+        )}
         <div className="kerf-box" data-testid="kerf-box">
-          <strong>{mode === 'nominal' ? t('export.kerf', { k: fmtNum(d.material.kerf, 2) }) : t('export.kerfComp', { h: fmtNum(d.material.kerf / 2, 3) })}</strong>
+          <strong>{!kerfChoice ? t('export.kerfQuick', { k: fmtNum(d.material.kerf, 2) }) : mode === 'nominal' ? t('export.kerf', { k: fmtNum(d.material.kerf, 2) }) : t('export.kerfComp', { h: fmtNum(d.material.kerf / 2, 3) })}</strong>
           {mode === 'nominal' && <p className="note">{t('export.kerfNote')}</p>}
           <p className="note">{t('export.layers')}</p>
           <p className="note">{t('export.offline')}</p>

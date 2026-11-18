@@ -128,7 +128,11 @@ export type ViewPrefs = {
   modeLocked?: boolean;
   /** The missions the class offers (milestone 40); absent: all. */
   missions?: string[];
+  /** Quick build's Box: the kind last made (milestone 73); absent: an open box. */
+  boxKind?: BoxKind;
 };
+/** What Quick build's Box makes (LIDS_LINES_PROJECTS_PLAN.md §10.3): an open box, a box with a lid of its own, or a carton. */
+export type BoxKind = 'open' | 'lid' | 'carton';
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping';
 const PREFS_KEY = 'cutforge.viewPrefs';
 function initialPrefs(): ViewPrefs {
@@ -174,8 +178,6 @@ type State = {
   boxSides: number;
   /** Quick build's Rounded box: its corner radius (milestone 64). */
   boxCorner: number;
-  /** Quick build's Box bottom (milestone 68): a base, or a carton's snap-lock or tuck bottom (with a tuck top). */
-  boxBottom: 'flat' | 'snap' | 'tuck';
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
@@ -269,7 +271,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxBottom' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -332,7 +334,6 @@ export const useStore = create<State>()((set, get) => ({
   boxFoot: 'rect',
   boxSides: 6,
   boxCorner: 15,
-  boxBottom: 'flat',
   boxHeight: 45,
   sticker: 'star',
   assemble: null,

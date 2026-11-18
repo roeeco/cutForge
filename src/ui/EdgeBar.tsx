@@ -131,6 +131,8 @@ function EdgeFlapField({ panelId, edge }: { panelId: string; edge: string }) {
   const apply = useStore((s) => s.apply);
   const p = design.panels[panelId];
   const f = p?.edgeFlaps?.find((x) => x.edge === edge);
+  const fe = shown(useFeature('edgeFlap'));
+  if (!fe) return null;
   if (!f)
     return (
       <button onClick={() => apply((d) => void addEdgeFlap(d, panelId, edge))} title={t('flap.addHelp')} data-testid="edge-add-flap">

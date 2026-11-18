@@ -20,8 +20,9 @@ import { boltCount, seamKinds, tabLocks } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind, TabLock } from '../model/types';
 import { Gate } from '../easy/Gate';
-import { TrayCorners, TrayEnds, TrayLids } from './CornersUI';
-import { shown, useFeature } from '../easy/features';
+import { TrayCorners, TrayEnds } from './CornersUI';
+import { CartonBottom } from './LidUI';
+import { shown, useFeature, useMode } from '../easy/features';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
 export function canExtrude(d: ReturnType<typeof useStore.getState>['design'], id: string): boolean {
@@ -39,7 +40,7 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
   const mm = t('unit.mm');
   if (!ex || ex.baseId !== panelId)
     return (
-      <div className="subsection">
+      <div className="subsection" data-testid="extrude-button">
         <button onClick={() => set({ extrude: { baseId: panelId, height: 40 } })} data-testid="extrude">
           <Icon name="grow" size={16} /> {t('tray.extrude')}
         </button>
@@ -72,6 +73,7 @@ export function TraySection({ panelId }: { panelId: string }) {
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const tray = trayOf(d, panelId);
+  const quickWords = useMode() === 'quick';
   if (!tray || tray.baseId !== panelId) return null;
   const mm = t('unit.mm');
   const bm = matOf(d, panelId);
@@ -82,7 +84,7 @@ export function TraySection({ panelId }: { panelId: string }) {
   return (
     <div className="subsection tray-card" data-testid="tray-card">
       <h4>{t('tray.title')}</h4>
-      <NumField label={t('tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
+      <NumField label={t(quickWords ? 'insp.height' : 'tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
       <FlatNote baseId={panelId} height={tray.height} tray={tray} />
       <Gate f="tray.joints">
       <div className="field">
@@ -126,7 +128,7 @@ export function TraySection({ panelId }: { panelId: string }) {
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
       <TrayCorners tray={tray} />
       <TrayEnds tray={tray} />
-      <TrayLids tray={tray} />
+      <CartonBottom tray={tray} />
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
         <div className="tray-open" data-testid="tray-open">

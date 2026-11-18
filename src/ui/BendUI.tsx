@@ -9,12 +9,14 @@ import { bendOf, matOf } from '../model/materials';
 import { setConnection } from '../model/ops';
 import type { BendDensity, Connection, PatternId } from '../model/types';
 import { fmtNum } from '../i18n';
+import { shown, useFeature } from '../easy/features';
 
 export function BendSection({ c }: { c: Connection }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
-  if (!c.wing && (!c.grown || c.kind !== 'fold')) return null;
+  const f = shown(useFeature('bend'));
+  if (!f || (!c.wing && (!c.grown || c.kind !== 'fold'))) return null;
   const m = matOf(d, c.a.panelId);
   const mm = t('unit.mm');
   const b = bandOf(d, c);

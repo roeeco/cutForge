@@ -8,6 +8,7 @@ import { defaults, generate, templateById } from '../templates/registry';
 import { createDesign, newId, parentConnection, solve } from '../model/ops';
 import { validate } from '../model/validate';
 import { blocking } from './fix';
+import { boxLid } from './lid';
 import { sheetUse } from './sheet';
 import { boxBases, bestCell, capacity, compartments, contentFit, objectById, sizeOf } from './objects';
 import { boxRecipe } from './recipes';
@@ -87,6 +88,11 @@ const hasLid: Goal = {
   label: 'goal.lid',
   check: (d) => {
     if (d.template?.params.lid === 'liftoff') return { ok: true };
+    // a box's lid, however it was made (milestone 73): a cap, a hinged or arched lid, a carton's top
+    for (const t of Object.values(d.trays ?? {})) {
+      const l = boxLid(d, t.id);
+      if (l.kind !== 'none') return { ok: true, target: l.kind === 'liftoff' ? l.top : l.kind === 'flaps' ? t.baseId : l.lid };
+    }
     for (const c of Object.values(d.connections)) if (c.grown && parentConnection(d, c.a.panelId) && c.a.edge === 'e2' && Math.abs(c.angle - 90) < 1e-6) return { ok: true, target: c.b.panelId };
     return { ok: false, target: mainBox(d) };
   },

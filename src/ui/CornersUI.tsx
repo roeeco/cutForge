@@ -2,23 +2,22 @@
 // how they join the next wall, all at once, and where a plywood strip that
 // runs all round is keyed shut.
 import { useStore, useT } from '../store/store';
-import { useMemo } from 'react';
-import { addArchedLid, addLid, setClosingCorner, setTrayCorners, setTrayCurveKind, setTrayEnds } from '../model/ops';
-import { lidOn } from '../model/lid';
-import { archLids } from '../model/closures';
+import { setClosingCorner, setTrayCorners, setTrayCurveKind, setTrayEnds } from '../model/ops';
 import { trayRing } from '../model/cartons';
 import { closingCorner, curveKindOf, curveKinds, trayCorners, wingId, wingKinds } from '../model/wings';
 import { matOf } from '../model/materials';
 import { panelLabel } from '../model/names';
 import { connKindKey } from './connLabel';
-import type { ConnectionKind, Design, Tray } from '../model/types';
+import type { ConnectionKind, Tray } from '../model/types';
+import { shown, useFeature } from '../easy/features';
 
 export function TrayCorners({ tray }: { tray: Tray }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
+  const f = shown(useFeature('tray.corners'));
   const corners = trayCorners(d, tray);
-  if (!corners.length) return null;
+  if (!f || !corners.length) return null;
   const wings = corners.map((k) => d.connections[wingId(k.a, k.b)]).filter(Boolean);
   const kinds = wingKinds(matOf(d, tray.baseId));
   const prefs = new Set(wings.map((c) => c.pref ?? c.kind));
@@ -72,10 +71,11 @@ export function TrayEnds({ tray }: { tray: Tray }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
+  const f = shown(useFeature('tray.ends'));
   const ring = trayRing(d, tray);
   const four = ring.length === 4;
   const card = matOf(d, tray.baseId).kind !== 'plywood';
-  if (!card) return null;
+  if (!f || !card) return null;
   return (
     <div className="subsection" data-testid="tray-ends">
       <div className="field">
@@ -106,39 +106,6 @@ export function TrayEnds({ tray }: { tray: Tray }) {
       )}
       {tray.base === 'open' && <p className="note">{t('carton.openHelp')}</p>}
       {tray.bottom === 'snap' && <p className="note" data-testid="tray-snap-note">{t('carton.snapHelp')}</p>}
-    </div>
-  );
-}
-
-/** A box's lids (milestone 71): a telescoping lid over it, or an arched lid folded off its back wall. */
-export function TrayLids({ tray }: { tray: Tray }) {
-  const t = useT();
-  const d = useStore((s) => s.design);
-  const apply = useStore((s) => s.apply);
-  const has = !!lidOn(d, tray.id) || archLids(d).some((a) => {
-    const hinge = Object.values(d.connections).find((c) => c.grown && c.b.panelId === a.lid)?.a.panelId;
-    return trayRing(d, tray).some((r) => r.wall === hinge);
-  });
-  // an arched lid needs room for its radius and a flap: tried on a copy
-  const archOk = useMemo(() => {
-    if (tray.lidOf || has || tray.top || tray.base === 'open') return false;
-    const probe = structuredClone(d) as Design;
-    return !!addArchedLid(probe, tray.id);
-  }, [d, tray, has]);
-  if (tray.lidOf) return <p className="note" data-testid="tray-is-lid">{t('tray.isLid')}</p>;
-  if (has) return null;
-  return (
-    <div className="subsection tray-lid" data-testid="tray-lids">
-      <span className="row">
-        <button onClick={() => apply((x) => void addLid(x, tray.id))} data-testid="tray-lid">
-          {t('tray.lid')}
-        </button>
-        <button onClick={() => apply((x) => void addArchedLid(x, tray.id))} disabled={!archOk} title={archOk ? t('tray.archHelp') : t('tray.archNo')} data-testid="tray-arch">
-          {t('tray.arch')}
-        </button>
-      </span>
-      <p className="note">{t('tray.lidHelp')}</p>
-      <p className="note" data-testid="tray-arch-note">{archOk ? t('tray.archHelp') : t('tray.archNo')}</p>
     </div>
   );
 }

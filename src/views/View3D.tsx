@@ -52,7 +52,8 @@ import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 import { featureState, shown, useFeature, useMode } from '../easy/features';
-import { boxFootprintGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
+import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
+import { wallClosesBox } from '../easy/lid';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
 import { keepOutZones } from '../easy/guard';
 import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
@@ -1490,6 +1491,8 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   }, [panelId, edge, advanced]);
   // a fold whose net would overlap when flat (milestone 35): amber, with a way out
   const over = useMemo(() => (parent && free && eg?.ghost ? growOverlap(d, panelId, edge, grow) : []), [d, panelId, edge, grow, !!eg?.ghost, free]);
+  // Quick build (milestone 73): a ghost across a box's top makes the box's lid, one that opens, never a board jointed shut
+  const closes = useMemo(() => (advanced ? null : wallClosesBox(d, panelId, edge, eg?.ghost ?? null)), [d, panelId, edge, eg, advanced]);
   if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
   // the height arrow sits on the ghost's (trimmed) outline, at half its width
@@ -1525,13 +1528,18 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       <ConfirmBar
         at={barAt}
         below
-        onOk={() => void doGrow(panelId, edge)}
+        onOk={() => void (closes ? closeBoxGo(closes.tray, closes.choice) : doGrow(panelId, edge))}
         onCancel={() => useStore.getState().select({ kind: 'panel', id: panelId })}
-        okDisabled={blocked}
+        okDisabled={blocked && !closes}
         okTestId="grow-go"
         testId="grow-ghost-bar"
       >
-        {over.length > 0 && (
+        {closes && (
+          <span data-testid="grow-closes" data-lid={closes.choice}>
+            {t(closes.choice === 'hinged' ? 'quick.closesHinged' : 'quick.closesLiftoff')}
+          </span>
+        )}
+        {over.length > 0 && !closes && (
           <>
             <span className="warn" data-testid="grow-overlap">{t('grow.overlap', { panels: over.map((x) => panelLabel(d, x, t)).join(', ') })}</span>
             <button onClick={() => void doGrow(panelId, edge, ownGrowKind(d, panelId))} data-testid="grow-own">

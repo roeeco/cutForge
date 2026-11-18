@@ -98,7 +98,7 @@ async function drag(page: Page, a: { x: number; y: number }, b: { x: number; y: 
 }
 const st = (page: Page) => S<any>(page, () => { const s = (window as any).__cutforge.store.getState(); return { tool: s.tool, past: s.past.length, order: s.design.order, sel: s.selection }; });
 
-test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each one ✓ and one undo step', async ({ page }) => {
+test('the five actions: Box, two Dividers, Lid, Hole, Text and a Sticker, each one ✓ and one undo step', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
@@ -123,21 +123,6 @@ test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each o
   const back = wallAt(d0, 'e2'), front = wallAt(d0, 'e0');
   expect(d0.panels[front].h).toBeGreaterThan(40);
 
-  // Lid: the Wall tool, click the back wall's top edge, ✓
-  await page.getByTestId('quick-wall').click();
-  const bw = d0.panels[back];
-  const e2 = await S<{ x: number; y: number }>(page, (a: any) => (window as any).__cutforge.project(a.id, a.x, a.y), { id: back, x: bw.w * 0.2, y: bw.h });
-  await page.mouse.move(e2.x, e2.y, { steps: 3 });
-  await page.mouse.click(e2.x, e2.y);
-  await expect(page.getByTestId('grow-go')).toBeVisible();
-  // Quick build: no angle dial on the ghost
-  await expect(page.getByTestId('ghost-hinge')).toHaveCount(0);
-  await page.getByTestId('grow-go').click();
-  s = await st(page);
-  expect(s.past).toBe(2);
-  expect(s.order).toHaveLength(6);
-  expect(s.tool).toBe('select');
-
   // two Dividers: lines across the base from the front wall to the back one (seen from above)
   await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
   await page.waitForTimeout(300);
@@ -148,17 +133,41 @@ test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each o
     await page.getByTestId('ghost-ok').click();
   }
   s = await st(page);
-  expect(s.past).toBe(4);
-  expect(s.order).toHaveLength(8);
+  expect(s.past).toBe(3);
+  expect(s.order).toHaveLength(7);
   const d1 = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
   // milestone 44: dividers stand on the base, drawn as lines
   const divs = (Object.values(d1.panels) as any[]).filter((p) => p.divider && p.place?.host === base);
   expect(divs).toHaveLength(2);
 
+  // Lid: the Wall tool, click the back wall's top edge: on plywood the ghost closes the box with a lid that
+  // lifts off (milestone 73: never a board finger-jointed shut), ✓
+  await S(page, () => (window as any).__cutforge.setCamera([0, 300, 260], [0, 0, 0]));
+  await page.waitForTimeout(300);
+  await page.getByTestId('quick-wall').click();
+  const bw = d0.panels[back];
+  const e2 = await S<{ x: number; y: number }>(page, (a: any) => (window as any).__cutforge.project(a.id, a.x, a.y), { id: back, x: bw.w * 0.2, y: bw.h });
+  await page.mouse.move(e2.x, e2.y, { steps: 3 });
+  await page.mouse.click(e2.x, e2.y);
+  await expect(page.getByTestId('grow-go')).toBeVisible();
+  // Quick build: no angle dial on the ghost
+  await expect(page.getByTestId('ghost-hinge')).toHaveCount(0);
+  await expect(page.getByTestId('grow-closes')).toHaveAttribute('data-lid', 'liftoff');
+  await page.getByTestId('grow-go').click();
+  s = await st(page);
+  expect(s.past).toBe(4);
+  // the cap: its top and four rim walls
+  expect(s.order).toHaveLength(12);
+  expect(s.tool).toBe('select');
+  const dl = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
+  expect((Object.values(dl.trays) as any[]).filter((t) => t.lidOf)).toHaveLength(1);
+  expect((Object.values(dl.connections) as any[]).some((c) => c.grown && c.a.panelId === back && c.a.edge === 'e2')).toBe(false);
+  await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'liftoff');
+
   // Hole on the front wall (seen from the front), then Text and a Sticker
   await S(page, () => (window as any).__cutforge.setCamera([0, 60, 320], [0, 20, 0]));
   await page.waitForTimeout(300);
-  const fw = d1.panels[front];
+  const fw = dl.panels[front];
   await page.getByTestId('quick-hole').click();
   await page.getByTestId('hole-circle').click();
   await drag(page, await onFace(page, front, fw.w * 0.2, fw.h * 0.4), await onFace(page, front, fw.w * 0.2 + 12, fw.h * 0.4 + 12));

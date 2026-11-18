@@ -326,7 +326,7 @@ export function JointsAdvanced({ panelId }: { panelId: string }) {
           </button>
         </div>
       )}
-      <div className="subsection">
+      <div className="subsection" data-testid="joints-section">
         <button
           className="collapse-head"
           aria-expanded={expanded}

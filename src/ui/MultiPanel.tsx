@@ -28,7 +28,7 @@ export function MultiPanel({ ids }: { ids: string[] }) {
         <h3>{t('multiPanel.title', { n: live.length })}</h3>
       </div>
       <p className="note" dir="auto">{live.map((id) => panelLabel(d, id, t)).join(', ')}</p>
-      <div className="subsection">
+      <div className="subsection" data-testid="multi-panel-align">
         <h4>{t('multi.align')}</h4>
         {why && <p className="warn-text" data-testid="panel-align-unavailable">{t(why)}</p>}
         {ok && (
@@ -43,7 +43,7 @@ export function MultiPanel({ ids }: { ids: string[] }) {
       </div>
       {/* boards that share no surface: the reason above is enough, no grids of greyed buttons */}
       {ok && (
-        <div className="subsection">
+        <div className="subsection" data-testid="multi-panel-distribute">
           <h4>{t('multi.distribute')}</h4>
           {live.length < 3 ? (
             <p className="note">{t('multiPanel.needThree')}</p>
@@ -59,7 +59,7 @@ export function MultiPanel({ ids }: { ids: string[] }) {
         </div>
       )}
       {divs && (
-        <div className="subsection">
+        <div className="subsection" data-testid="multi-panel-dividers">
           <button onClick={() => apply((x) => void distributeDividers(x, live))} data-testid="dividers-distribute">
             {t('multiPanel.dividers')}
           </button>

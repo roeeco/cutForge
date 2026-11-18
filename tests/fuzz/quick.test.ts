@@ -4,7 +4,8 @@ import { loadFonts, rng, seedMath, type R } from './gen';
 import type { Design } from '../../src/model/types';
 import { MATERIALS } from '../../src/model/materials';
 import { createDesign, solve } from '../../src/model/ops';
-import { boxRecipe, dividerLine, holeRecipe, isBoxBase, planDividerLine, quickWallHeight, stickerRecipe, textRecipe, wallRecipe } from '../../src/easy/recipes';
+import { boxRecipe, dividerLine, holeRecipe, isBoxBase, planDividerLine, quickWallHeight, quickWallRecipe, stickerRecipe, textRecipe } from '../../src/easy/recipes';
+import { boxLid, lidParts, lidWhy, setBoxLid, type LidChoice } from '../../src/easy/lid';
 import { quickGuard, shapeAllowed } from '../../src/easy/guard';
 import { canFix, fixIssue } from '../../src/easy/fix';
 import { MISSIONS, missionState, startMission } from '../../src/easy/missions';
@@ -53,13 +54,15 @@ function session(seed: number, fails: Fail[], stats: Record<string, number>) {
   for (let step = 0; step < STEPS; step++) {
     const base = clone(d);
     const roots = d.order.filter((id) => d.panels[id]);
-    const act = roots.length === 0 ? 'box' : r.pick(['box', 'wall', 'wall', 'hole', 'hole', 'text', 'sticker', 'divider', 'divider'] as const);
+    const act = roots.length === 0 ? 'box' : r.pick(['box', 'wall', 'wall', 'lid', 'hole', 'hole', 'text', 'sticker', 'divider', 'divider'] as const);
     let newDetail: string | null = null;
     if (act === 'box') {
       const f = footprint(r);
       const h = r.pick([r.num(1, 10), r.num(10, 80), r.num(80, 400)]);
-      const res = tryRun('boxRecipe throws', () => boxRecipe(d, f, h));
-      log.push(`box(${JSON.stringify(f)},h=${h.toFixed(2)}) -> ${res?.baseId ?? null}`);
+      // the Box's kind (milestone 73): open, with a lid, or a carton
+      const kind = r.pick(['open', 'open', 'lid', 'carton'] as const);
+      const res = tryRun('boxRecipe throws', () => boxRecipe(d, f, h, kind));
+      log.push(`box(${JSON.stringify(f)},h=${h.toFixed(2)},${kind}) -> ${res?.baseId ?? null}`);
       if (res === undefined) return;
     } else if (act === 'wall') {
       const pid = r.pick(roots);
@@ -68,9 +71,27 @@ function session(seed: number, fails: Fail[], stats: Record<string, number>) {
       const h = tryRun('quickWallHeight throws', () => quickWallHeight(d, pid, e, 40));
       if (h === undefined) return;
       if (!Number.isFinite(h) || h <= 0) fail('quickWallHeight not positive/finite', `${pid} ${e} ${h}`);
-      const id = tryRun('wallRecipe throws', () => wallRecipe(d, pid, e, h));
+      const id = tryRun('quickWallRecipe throws', () => quickWallRecipe(d, pid, e, h));
       log.push(`wall(${pid},${e},h=${h}) -> ${id}`);
       if (id === undefined) return;
+    } else if (act === 'lid') {
+      // the box card's Lid section (milestone 73): a choice it offers makes that lid and leaves nothing of the old one
+      const trays = Object.values(d.trays ?? {}).filter((t) => !t.lidOf && d.panels[t.baseId]);
+      if (!trays.length) continue;
+      const t = r.pick(trays);
+      const choice = r.pick(['none', 'liftoff', 'hinged', 'arched'] as LidChoice[]);
+      const why = tryRun('lidWhy throws', () => lidWhy(d, t.id, choice));
+      if (why === undefined) return;
+      const old = lidParts(d, boxLid(d, t.id));
+      const res = tryRun('setBoxLid throws', () => setBoxLid(d, t.id, choice));
+      log.push(`lid(${t.id},${choice}) why=${why} -> ${JSON.stringify(res)}`);
+      if (res === undefined) return;
+      if (!why && !res.ok) fail('lid offered but not made', `${choice}`);
+      const now = boxLid(d, t.id);
+      if (!why && now.kind !== choice) fail('lid kind after setBoxLid', `${choice} -> ${now.kind}`);
+      if (now.kind !== boxLid(d, t.id).kind) fail('boxLid unstable', now.kind);
+      const kept = lidParts(d, now);
+      for (const p of old) if (d.panels[p] && !kept.includes(p) && choice !== 'none' && now.kind !== 'none') fail('old lid board left', p);
     } else if (act === 'hole' || act === 'text' || act === 'sticker') {
       const pid = r.pick(roots);
       const p = d.panels[pid];

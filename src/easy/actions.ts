@@ -1,9 +1,9 @@
 // The stage side of Quick build's actions (milestone 38): each runs a recipe
 // as a ghost that ✓ makes, as one undo step, then the rail goes back to Select.
-import type { P2, V3 } from '../model/types';
-import { detailSel, useStore } from '../store/store';
-import { addTray } from '../model/ops';
-import { addBoxBase, dividerLine, stickerRecipe } from './recipes';
+import type { MaterialKind, P2, V3 } from '../model/types';
+import { detailSel, useStore, type BoxKind } from '../store/store';
+import { addBoxBase, boxTray, dividerLine, stickerRecipe, type Footprint } from './recipes';
+import { boxLid, setBoxLid, type LidChoice } from './lid';
 import { stickerById, stickerSize } from './stickers';
 
 /** Box: the dragged footprint becomes a base waiting for ✓, with its walls rising as a ghost at the last height used. */
@@ -23,9 +23,11 @@ export function extrudeGo() {
   const st = useStore.getState();
   const ex = st.extrude;
   if (!ex) return;
-  // a carton's bottom (milestone 68): an open base closed by its flaps, and a tuck top; only a four-sided card or corrugated box
-  const carton = st.boxBottom !== 'flat' && st.design.material.kind !== 'plywood' && st.boxFoot === 'rect';
-  st.apply((x) => void addTray(x, ex.baseId, ex.height, carton ? { base: 'open', bottom: st.boxBottom as 'snap' | 'tuck', top: 'tuck' } : undefined));
+  // the Box action's kind (milestone 73): only for a box made with it, never for Workshop's Extrude
+  const fromBox = !!st.pending?.ids.includes(ex.baseId);
+  const kind = fromBox ? boxKindFor(st.viewPrefs.boxKind, st.design.material.kind, st.boxFoot) : 'open';
+  // a carton (milestone 68), or a box with its automatic lid made with it (LIDS_LINES_PROJECTS_PLAN.md §3.2)
+  st.apply((x) => void boxTray(x, ex.baseId, ex.height, kind));
   st.set({ extrude: null, boxHeight: ex.height });
   const g = useStore.getState().pending;
   if (g && g.ids.includes(ex.baseId)) {
@@ -33,6 +35,27 @@ export function extrudeGo() {
     useStore.getState().confirmPending();
     useStore.getState().select({ kind: 'panel', id: ex.baseId });
   }
+}
+
+/** Why the Box action cannot make a carton here (null when it can): a carton folds from card or corrugated, on a rectangle. */
+export function cartonWhy(material: MaterialKind, foot: Footprint['kind']): 'quick.kind.cartonNo' | null {
+  return material === 'plywood' || foot !== 'rect' ? 'quick.kind.cartonNo' : null;
+}
+
+/** The kind the Box action makes: the one chosen, unless a carton cannot be made here. */
+export function boxKindFor(kind: BoxKind | undefined, material: MaterialKind, foot: Footprint['kind']): BoxKind {
+  const k = kind ?? 'open';
+  return k === 'carton' && cartonWhy(material, foot) ? 'open' : k;
+}
+
+/** ✓ on Quick build's Wall / lid across a box's top: the box's lid (one undo step), then the lid is selected and the rail goes back to Select. */
+export function closeBoxGo(trayId: string, choice: LidChoice) {
+  const st = useStore.getState();
+  st.apply((x) => void setBoxLid(x, trayId, choice));
+  const lid = boxLid(useStore.getState().design, trayId);
+  const top = lid.kind === 'liftoff' ? lid.top : lid.kind === 'hinged' ? lid.lid : null;
+  if (top) useStore.getState().select({ kind: 'panel', id: top });
+  if (useStore.getState().tool === 'wall') useStore.getState().setTool('select');
 }
 
 /** ✕ on the rising walls: a Box's base goes too. */

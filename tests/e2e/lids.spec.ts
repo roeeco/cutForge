@@ -26,13 +26,14 @@ test('the tray card adds an arched lid: two bands, the end walls cut to the arch
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await box(page, 'card-0.5');
-  await expect(page.getByTestId('tray-lids')).toBeVisible();
-  await expect(page.getByTestId('tray-arch')).toBeEnabled();
-  await page.getByTestId('tray-arch').click();
+  // the box's Lid section (milestone 73): Arched is one of its pictures in Workshop
+  await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'none');
+  await expect(page.getByTestId('lid-arched')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.getByTestId('lid-arched').click();
   const d = await design(page);
   const bands = Object.values(d.connections).filter((c: any) => c.grown && c.kind === 'fold' && c.radius > 0);
   expect(bands).toHaveLength(2);
-  await expect(page.getByTestId('tray-lids')).toHaveCount(0);
+  await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'arched');
   await page.screenshot({ path: test.info().outputPath('arched.png') });
   expect(errors).toEqual([]);
 });
@@ -41,7 +42,7 @@ test('the tray card adds a telescoping lid; the lid’s own card says it is a li
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const { tray } = await box(page, 'corr-1.6');
-  await page.getByTestId('tray-lid').click();
+  await page.getByTestId('lid-liftoff').click();
   const d = await design(page);
   const lid: any = Object.values(d.trays).find((t: any) => t.lidOf === tray);
   expect(lid).toBeTruthy();

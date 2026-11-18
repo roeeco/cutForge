@@ -6,6 +6,7 @@
 // renames parts and old projects get role names too.
 import type { Design } from './types';
 import { defaultOffset } from './ops';
+import { reachFor, sealFor } from './closures';
 import { isCurveKey, isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
 import type { MsgKey } from '../i18n';
 
@@ -54,6 +55,9 @@ export function panelLabel(d: Design, id: string, t: T): string {
   const tr = templateRole(t, id);
   if (tr) return tr;
   const conns = Object.values(d.connections);
+  // a box's lid (milestone 73): a cap is *Lid* with a *Lid rim*, a lid folded off a wall is *Lid* (they were *Panel 6*, *Wall 1*)
+  const lid = lidRole(d, id, t);
+  if (lid) return lid;
   // a divider (milestone 44): numbered among the dividers
   if (p.divider) return t('part.divider', { n: d.order.filter((x) => d.panels[x]?.divider).indexOf(id) + 1 });
   const parentC = conns.find((c) => c.grown && c.b.panelId === id);
@@ -77,6 +81,36 @@ export function panelLabel(d: Design, id: string, t: T): string {
     if (n >= 0) return t('part.wallN', { n: n + 1 });
   }
   return t('part.panel', { n: d.order.indexOf(id) + 1 });
+}
+
+/** A board's name as part of a box's lid, or null. */
+function lidRole(d: Design, id: string, t: T): string | null {
+  const trays = Object.values(d.trays ?? {});
+  if (trays.some((x) => x.lidOf && x.baseId === id)) return t('part.lid');
+  const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === id);
+  if (!c) return null;
+  const tray = c.trayId ? d.trays?.[c.trayId] : undefined;
+  if (tray?.lidOf) {
+    // a cap's rim: by its side on a rectangle, else numbered
+    const base = d.panels[tray.baseId];
+    const side = base && isRectSketch(base) ? rectEdgeIndex(c.a.edge) : null;
+    if (side !== null) return t('part.lidRimSide', { side: t(SIDE[side]) });
+    const n = base ? panelEdges(base).filter((e) => !isCurveKey(e.key)).findIndex((e) => e.key === c.a.edge) : -1;
+    return t('part.lidRimN', { n: n + 1 });
+  }
+  // folded off a box wall's top edge, across the box: a lid (a tuck top, a living hinge, an arched lid)
+  const wallC = Object.values(d.connections).find((x) => x.grown && x.b.panelId === c.a.panelId);
+  const onWallTop = !!wallC?.trayId && c.a.edge.split('#')[0] === 'e2' && Math.abs(c.angle - 90) < 1e-6;
+  if (onWallTop && (id.endsWith('/top') || sealFor(d, d.panels[id], c.a.panelId, c.id) || reachesAcross(d, id, c.a.panelId, c.id))) return t('part.lid');
+  // an arched lid's front flap
+  if (c.kind === 'fold' && lidRole(d, c.a.panelId, t) === t('part.lid') && !trays.some((x) => x.lidOf && x.baseId === c.a.panelId)) return t('part.lidFlap');
+  return null;
+}
+
+/** An arched lid reaches the far wall at its depth (its flap goes down inside it). */
+function reachesAcross(d: Design, id: string, parentId: string, cid: string): boolean {
+  const r = reachFor(d, d.panels[id], parentId, cid);
+  return !!r && Object.values(d.connections).some((x) => x.grown && x.kind === 'fold' && x.a.panelId === id);
 }
 
 /**

@@ -82,7 +82,7 @@ async function cramped(page: Page, selector: string, gap = 6) {
         const name = (el: Element) => (el as HTMLElement).dataset.testid ?? el.textContent?.trim().slice(0, 24) ?? el.tagName;
         const ctl = [...card.querySelectorAll('button, input, select')].filter((el) => {
           const r = el.getBoundingClientRect();
-          return r.width > 0 && r.height > 0 && !el.closest('.segmented, .seg, .stepper-row, .num-wrap, .dial, .collapse-head, .conn-row');
+          return r.width > 0 && r.height > 0 && !el.closest('.segmented, .pictures, .seg, .stepper-row, .num-wrap, .dial, .collapse-head, .conn-row');
         });
         for (const el of ctl) {
           const r = el.getBoundingClientRect();
@@ -143,7 +143,7 @@ test('the contextual card keeps its controls inside it and apart', async ({ page
 
 test('the narrow tool cards keep their pickers inside them, in both languages', async ({ page }) => {
   await page.goto('/');
-  // card: the Box card also offers its bottoms (flat, snap-lock, tuck)
+  // card: the Box card also offers its kinds (open, with a lid, carton) as pictures
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('start-go').click();
   for (const lang of ['en', 'he']) {

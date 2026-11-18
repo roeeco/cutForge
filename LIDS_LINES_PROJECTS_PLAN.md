@@ -1,6 +1,6 @@
 # CutForge: lids, lines, projects, dieline sheets, and Quick build revised: plan (milestones 73–86)
 
-Planning notes from 2026-11-17, revised 2026-11-18. **Status: plan only, nothing built.**
+Planning notes from 2026-11-17, revised 2026-11-18. **Status: milestone 73 built (see `PROGRESS.md`); 74–86 not started.**
 
 This plan covers the first four items of the gap review of 2026-11-17 (a packaging designer's view, and a pedagogy student's view: escape boxes, props, game sets), a revision of Quick build so that it carries them, and the owner's addition of 2026-11-18:
 

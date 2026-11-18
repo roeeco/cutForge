@@ -79,7 +79,7 @@ export function MaterialDrawer() {
           ))}
         </div>
         <p className="note">{m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}</p>
-        <div className="subsection">
+        <div className="subsection" data-testid="drawer-calibration">
           <h4>{t('drawer.calibration')}</h4>
           <NumField label={t('mat.thickness')} value={m.thickness} decimals={2} unit={mm} min={0.1} max={20} onCommit={(v) => setM({ thickness: v })} testId="mat-thickness" />
           <NumField label={t('mat.kerf')} value={m.kerf} decimals={2} unit={mm} min={0} max={2} onCommit={(v) => setM({ kerf: v })} testId="mat-kerf" />
@@ -112,7 +112,7 @@ export function MaterialDrawer() {
           <p className="note">{t('mat.bendTestHelp')}</p>
         </div>
         <MaterialsInUse />
-        <div className="subsection">
+        <div className="subsection" data-testid="drawer-sheet">
           <h4>{t('drawer.sheet')}</h4>
           <NumField label={t('mat.sheetW')} value={m.sheetW} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetW: v })} />
           <NumField label={t('mat.sheetH')} value={m.sheetH} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetH: v })} />
