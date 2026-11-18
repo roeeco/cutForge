@@ -8,7 +8,7 @@ export default defineConfig({
     viewport: { width: 1400, height: 850 },
     trace: 'off',
     // the existing specs drive the Workshop (milestone 37: a new browser starts in Quick build); Quick build specs clear this
-    storageState: { cookies: [], origins: ['http://localhost:5199', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })) },
+    storageState: { cookies: [], origins: ['http://localhost:5199', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop', growMore: true, settingsOpen: true, edgesOpen: true }) }] })) },
     launchOptions: {
       // Software WebGL so the 3D view renders in headless CI.
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],

@@ -15,7 +15,10 @@ import { AngleDial, hingeText } from './AngleDial';
 import { Icon } from './icons';
 import { edgeLabel, panelLabel } from '../model/names';
 import { shown, useFeature } from '../easy/features';
-import { closureStyles, sealFor } from '../model/closures';
+import { closeChoice, closeChoices } from '../easy/lid';
+import { PictureChoice, type PicName } from './Pictures';
+import type { CloseAs } from '../store/store';
+import type { MsgKey } from '../i18n';
 import { addEdgeFlap, setEdgeFlap } from '../model/ops';
 import { matOf as matOfEB } from '../model/materials';
 
@@ -27,6 +30,7 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const panel = design.panels[panelId];
   // Quick build (milestone 37): only the height; the app grows at 90° on the whole edge
   const advanced = shown(useFeature('grow.advanced'));
+  const more = useStore((s) => s.viewPrefs.growMore);
   if (!panel) return null;
   const check = checkHinge(design, panelId, edge, grow.angle, grow.height);
   const options = check.kinds;
@@ -36,6 +40,8 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const L = edgeLength(panel, edge);
   const span = eg.span ?? [0, L];
   const { angle, dir } = fromHinge(grow.angle);
+  const closes = advanced ? closeChoices(design, panelId, edge, eg.ghost ?? null) : null;
+  const closeAs = closes ? closeChoice(closes, grow.closeAs) : null;
   return (
     <div className="card-dock">
       <div className="card inspector grow-card-inner" role="toolbar" aria-label={t('edge.grow')} data-testid="edgebar">
@@ -51,7 +57,25 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
         ) : (
           <>
             <NumField label={t('edge.height')} value={grow.height} unit={t('unit.mm')} min={5} max={2000} onCommit={(v) => setGrow({ height: v })} testId="grow-height" />
+            {advanced && closes && (
+              // the ghost would close the box (milestone 77): what ✓ makes, chosen before it, as pictures
+              <div className="subsection" data-testid="grow-closes" data-close={closeAs}>
+                <PictureChoice
+                  label={t('grow.closesBox')}
+                  value={closeAs}
+                  options={closes.options.map((o) => ({ value: o, label: t(closeLabel(o)), pic: closePic(o), testId: `grow-close-${o.replace('style:', '')}`, why: closes.why[o] ? t(closes.why[o]!) : undefined }))}
+                  onChange={(v) => setGrow({ closeAs: v })}
+                  testId="grow-close"
+                />
+              </div>
+            )}
             {advanced && (
+              // milestone 78: one row holds the rest (remembered per browser)
+              <button className="link more-row" aria-expanded={!!more} onClick={() => useStore.getState().setPrefs({ growMore: !more })} data-testid="grow-more">
+                {t(more ? 'grow.less' : 'grow.more')}
+              </button>
+            )}
+            {advanced && more && (
               <>
             <div className="field dial-field">
               <span className="label" title={t('edge.angleNote')}>
@@ -90,12 +114,6 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
               {t('grow.adapt')}
             </label>
             {eg.adaptive && !grow.sketch && <p className="note" data-testid="grow-adapted">{t('grow.adapted')}</p>}
-            {eg.kind === 'fold' && eg.plain && sealFor(design, eg.plain, panelId, 'ghost') && (
-              // the lid would seal the box (milestone 67): say what closes it
-              <p className="note" data-testid="grow-closes">
-                {t('grow.closes', { style: t(`closure.${closureStyles(matOfEB(design, panelId).kind)[0]}`) })}
-              </p>
-            )}
             <button
               className={grow.editGhost ? 'on' : ''}
               aria-pressed={!!grow.editGhost}
@@ -115,8 +133,8 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
             )}
               </>
             )}
-            <p className="note">{t('edge.confirmOnStage')}</p>
-            {advanced && matOfEB(design, panelId).kind !== 'plywood' && <EdgeFlapField panelId={panelId} edge={edge} />}
+            {/* milestone 78: how to grow it is the stage's bottom hint, not repeated here */}
+            {advanced && more && matOfEB(design, panelId).kind !== 'plywood' && <EdgeFlapField panelId={panelId} edge={edge} />}
           </>
         )}
       </div>
@@ -147,4 +165,14 @@ function EdgeFlapField({ panelId, edge }: { panelId: string; edge: string }) {
       </button>
     </div>
   );
+}
+
+/** A closing choice's name (milestone 77). */
+export function closeLabel(o: CloseAs): MsgKey {
+  return o.startsWith('style:') ? (`closure.${o.slice(6)}` as MsgKey) : (`lid.kind.${o}` as MsgKey);
+}
+/** And its picture. */
+function closePic(o: CloseAs): PicName {
+  if (o === 'liftoff' || o === 'hinged' || o === 'fixed') return o;
+  return o === 'style:glued' ? 'fixed' : o === 'style:rest' ? 'hinged' : o === 'style:tab' ? 'snap' : 'tuck';
 }

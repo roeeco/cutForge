@@ -63,8 +63,10 @@ function WorkshopRail() {
     const r = importSvg(await f.text());
     if ('error' in r) return alert(t('import.failed', { reason: t(`import.${r.error}` as MsgKey) }));
     const s = useStore.getState();
-    // the operator *Board* (milestone 75): the largest outline becomes a board on the floor, at its own size
-    if (s.shapeBoard && s.view === '3d') {
+    // the operator *Board* (milestone 75): the largest outline becomes a board on the floor, at its own size;
+    // with a board selected and the Shapes tool not on Board, it is a shape on that board, as before
+    const onBoard = shapeOf(s.tool, s.polyMode, s.shapeBoard)?.board ?? false;
+    if (s.view === '3d' && (onBoard || (s.shapeBoard && !targetPanel()))) {
       const area = (q: P2[]) => Math.abs(q.reduce((a, p, i) => a + p.x * q[(i + 1) % q.length].y - q[(i + 1) % q.length].x * p.y, 0)) / 2;
       const ring = [...r.polys].sort((a, b) => area(b) - area(a))[0];
       if (!ring) return alert(t('import.failed', { reason: t('import.noClosed') }));
@@ -179,7 +181,8 @@ function WorkshopRail() {
               const on = !isBoard && op === o;
               const pick = () => {
                 setOp(o);
-                if (inShapes) useStore.getState().chooseShape(foot, false);
+                // from Board to an operator: the drawing tool changes; otherwise only the operator (a shape waiting for ✓ keeps it)
+                if (inShapes && isBoard) useStore.getState().chooseShape(foot, false);
               };
               return (
                 <button key={o} role="radio" aria-checked={on} className={on ? 'on' : ''} data-op={o} onClick={pick} data-testid={`op-${o}`}>

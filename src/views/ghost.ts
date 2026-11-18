@@ -2,7 +2,8 @@
 // part of the edge, and the outline (edited by hand on the ghost, or trimmed to
 // what it would run into when adapting is on).
 import type { Design, Panel, WallSketch } from '../model/types';
-import { growKind, useStore, type GrowOptions } from '../store/store';
+import { growKind, useStore, type CloseAs, type GrowOptions } from '../store/store';
+import { closeAsRecipe } from '../easy/lid';
 import { fromHinge } from '../model/hinge';
 import { defaultOffset, growPanel, seatingOf } from '../model/ops';
 import { connectionsFor, matOf } from '../model/materials';
@@ -63,6 +64,20 @@ export function doGrow(panelId: string, edge: string, own?: ConnectionKind): str
   // Quick build's Wall / lid goes back to Select (milestone 38)
   if (r && useStore.getState().tool === 'wall') useStore.getState().setTool('select');
   return r?.panelId ?? null;
+}
+
+/**
+ * ✓ on a grow that closes a box (milestone 77): what the grow card chose, in
+ * one undo step: the box's lid (lifts off, hinged), or the board grown with its
+ * joint (*Fixed*), or folded with that closure style. Selects what was made.
+ */
+export function closeAsGo(panelId: string, edge: string, tray: string, choice: CloseAs): string | null {
+  const st = useStore.getState();
+  const grow = st.grow;
+  let id: string | null = null;
+  st.apply((d) => void (id = closeAsRecipe(d, tray, choice, () => growWith(d, panelId, edge, grow, choice.startsWith('style:') ? 'fold' : undefined)?.panelId ?? null)));
+  if (id) useStore.getState().select({ kind: 'panel', id });
+  return id;
 }
 
 /** Grow what the grow ghost shows for these options (the edit `doGrow` makes). */

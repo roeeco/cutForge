@@ -1311,6 +1311,18 @@ Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-i
 - Tests: `tests/lidPose.test.ts` (5): beside, put on (lands on the on-box pose), picked stays beside, on while going together; moving a cap changes no piece and Put on still lands it; a new lid skips a board in its way; a folded lid in card and plywood is open by default, shut when closed, picked, folding or going together, and the design is never changed. `tests/lids.test.ts` follows the new pose. Browser: `lids.spec` gains the Put on and Close controls.
 - Golden exports byte-identical.
 
+## Milestone 77 — grow that closes the box ✅
+
+`UI_CLEANUP_PLAN.md` Part 5. When the grow ghost would close a box, whatever its joint, the grow card shows *Closes the box* with what ✓ makes as pictures: on card and corrugated each closure style or a lid that lifts off; on plywood *Hinged* (living hinge, where it fits), *Lifts off* or *Fixed*. One ✓, one undo step; the ghost's bar says what it makes.
+- Tests: `tests/growCloses.test.ts` (12): the choices per material and joint (finger, tab and slot, the design's), each choice made gives that lid and passes the export check, idempotent; a ghost short of the far wall closes nothing. Browser: `grow-cleanup.spec.ts`.
+- Not done: *Rests* on plywood (it is the Flat lid of milestone 79) and boxes built from boards without a tray.
+
+## Milestone 78 — grow made easier, a quieter interface ✅
+
+`UI_CLEANUP_PLAN.md` Parts 4 and 6. The height arrow snaps to and names the far wall and the neighbours' heights; the grow card is height, *Closes the box*, and one *More…* row; the settings card folds to its header once there are boards; the view cube and buttons are one cluster; the bottom hint says how to grow an edge and the card no longer repeats it; *Edges* starts closed with its count.
+- Found and fixed on the way: a spec that selects an edge by number crashed the new closing check; the view settings opened under the cards once the cluster grew; the Shapes card's operators dropped a shape still waiting for ✓; Import with a board selected made a board instead of a shape on it (both milestone 75).
+- Tests: `growCloses.test.ts` height marks; browser `grow-cleanup.spec.ts` (first visit: folded settings, More…, the hint, Edges).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

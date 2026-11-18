@@ -7,10 +7,11 @@
 // open). `boxLid` reads what a box has; `setBoxLid` replaces it with another,
 // in one edit, carrying the shapes on the old lid's top to the new one. Both
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
-import type { Design, Detail, Panel } from '../model/types';
-import { addArchedLid, addLid, parentConnection, setTrayEnds, solve } from '../model/ops';
+import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
+import type { CloseAs } from '../store/store';
+import { addArchedLid, addLid, parentConnection, setClosure, setTrayEnds, solve } from '../model/ops';
 import { lidOn, lidOnFrame } from '../model/lid';
-import { archLids, sealFor, sealOf } from '../model/closures';
+import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { matOf } from '../model/materials';
 import { removePanelRecord } from '../model/place';
@@ -34,7 +35,7 @@ export type BoxLid =
 /** What can be chosen in the *Lid* section. */
 export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched';
 
-const topEdge = (edge: string) => edge.split('#')[0] === 'e2';
+const topEdge = (edge: string | number) => (typeof edge === 'number' ? `e${edge}` : String(edge)).split('#')[0] === 'e2';
 
 /** The boards grown off `id`, and theirs (not `id` itself). */
 function grownOff(d: Design, id: string): string[] {
@@ -243,4 +244,63 @@ export function boxOfWallTop(d: Design, wallId: string, edge: string): string | 
   const c = parentConnection(d, wallId);
   const t = c?.trayId ? d.trays?.[c.trayId] : undefined;
   return t && !t.lidOf ? t.id : null;
+}
+
+/**
+ * A grow that would close a box (milestone 77, UI_CLEANUP_PLAN.md Part 5):
+ * what ✓ can make, the default first. Card and corrugated: the fold with each
+ * closure style of the material, or a lid that lifts off. Plywood: a living
+ * hinge where it fits, a lid that lifts off, or the board with its joint
+ * (*Fixed*). A carton closes with its tuck top. Null when the ghost does not
+ * close a box. Whatever the ghost's joint: the box is closed by where the
+ * board reaches, not by how it is joined.
+ */
+export function closeChoices(d: Design, wallId: string, edge: string, ghost: Pick<Panel, 'id' | 'w' | 'h' | 'frame'> | null): { tray: string; options: CloseAs[]; why: Partial<Record<CloseAs, MsgKey>> } | null {
+  const tr = ghost ? boxOfWallTop(d, wallId, edge) : null;
+  if (!tr || !sealFor(d, ghost!, wallId, 'ghost')) return null;
+  const t = d.trays[tr];
+  if (t.base === 'open') return { tray: tr, options: ['hinged'], why: {} };
+  const kind = matOf(d, t.baseId).kind;
+  if (kind === 'plywood') {
+    const why = lidWhy(d, tr, 'hinged');
+    // one that opens comes first
+    return { tray: tr, options: why ? ['liftoff', 'hinged', 'fixed'] : ['hinged', 'liftoff', 'fixed'], why: why ? { hinged: why } : {} };
+  }
+  return { tray: tr, options: [...closureStyles(kind).map((s) => `style:${s}` as CloseAs), 'liftoff'], why: {} };
+}
+
+/** Make what a grow that closes a box was chosen to make (one edit): the board made (a lid's top), or null. */
+export function closeAsRecipe(d: Design, tray: string, choice: CloseAs, grow: () => string | null): string | null {
+  if (choice === 'liftoff' || choice === 'hinged') {
+    setBoxLid(d, tray, choice);
+    const lid = boxLid(d, tray);
+    return lid.kind === 'liftoff' ? lid.top : lid.kind === 'hinged' ? lid.lid : null;
+  }
+  const id = grow();
+  if (id && choice.startsWith('style:')) setClosure(d, id, { style: choice.slice(6) as ClosureStyle });
+  return id;
+}
+
+/** The choice in force: the one picked if it is still offered, else the default (the first). */
+export function closeChoice(c: { options: CloseAs[]; why: Partial<Record<CloseAs, MsgKey>> }, picked: CloseAs | null | undefined): CloseAs {
+  return picked && c.options.includes(picked) && !c.why[picked] ? picked : c.options.find((o) => !c.why[o]) ?? c.options[0];
+}
+
+/**
+ * Heights that mean something for a grow (milestone 78, UI_CLEANUP_PLAN.md
+ * Part 4): the far wall a lid reaches, and the height of the boards grown
+ * beside it from the same board (the neighbouring walls, the opposite one).
+ * The height arrow snaps to them and names the one it is on.
+ */
+export function heightMarks(d: Design, panelId: string, ghost: Pick<Panel, 'id' | 'w' | 'h' | 'frame'> | null): { y: number; key: MsgKey; vars?: Record<string, string> }[] {
+  const out: { y: number; key: MsgKey; vars?: Record<string, string> }[] = [];
+  if (!ghost) return out;
+  const r = reachFor(d, ghost, panelId, 'ghost');
+  if (r) out.push({ y: Math.round(r.yIn * 100) / 100, key: 'grow.mark.reach' });
+  // the boards grown from the same board as the ghost: its neighbours and the one across
+  for (const c of Object.values(d.connections)) {
+    const P = c.grown && c.a.panelId === panelId ? d.panels[c.b.panelId] : undefined;
+    if (P && P.id !== ghost.id && !out.some((m) => Math.abs(m.y - P.h) < 0.05)) out.push({ y: P.h, key: 'grow.mark.asTall', vars: { panel: P.id } });
+  }
+  return out;
 }

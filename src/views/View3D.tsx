@@ -40,7 +40,7 @@ import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { dividerAxes, dividerRow, snapDividerLine, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
-import { doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
+import { closeAsGo, doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
@@ -54,7 +54,8 @@ import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 import { featureState, shown, useFeature, useMode } from '../easy/features';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
-import { wallClosesBox } from '../easy/lid';
+import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
+import { closeLabel } from '../ui/EdgeBar';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
 import { keepOutZones } from '../easy/guard';
 import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
@@ -63,6 +64,9 @@ import { assembleFold, assembleLift, playAssembly } from '../easy/assemble';
 import { workshopOnly } from '../easy/mode';
 import { registerStage } from '../tour/stage';
 import { TOUR_STEPS } from '../tour/steps';
+
+/** Where the view cube sits from the stage's corner (px): over the view cluster's slot (milestone 78). */
+const CUBE_MARGIN = [82, 112] as const;
 
 // mm grid (from the settings, 1 mm by default) used when no smart-snap target is near
 const snap = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
@@ -800,7 +804,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         </mesh>
       )}
       <OrbitControls makeDefault enableDamping={false} />
-      <GizmoHelper alignment={rtl ? 'bottom-left' : 'bottom-right'} margin={[78, 128]} renderPriority={quality === 'rich' ? 2 : 1}>
+      <GizmoHelper alignment={rtl ? 'bottom-left' : 'bottom-right'} margin={[CUBE_MARGIN[0], CUBE_MARGIN[1]]} renderPriority={quality === 'rich' ? 2 : 1}>
         <GizmoViewcube
           faces={[t('cube.right'), t('cube.left'), t('cube.top'), t('cube.bottom'), t('cube.front'), t('cube.back')]}
           font='600 26px "Rubik UI", system-ui, sans-serif'
@@ -1508,7 +1512,9 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const pointAt = useMemo(() => (a: number) => W(m, frameAt(a), knobAt(w), arcR, th / 2), [m, parent, edge, kind, arcR, w, span?.[0], span?.[1]]);
   const zoneAt = useMemo(() => (a: number) => checkHinge(d, panelId, edge, a, grow.height).zone, [d, panelId, edge, grow.height]);
   const angTargets = useMemo(() => (parent ? angleTargets(d, panelId, edge, grow.height, defaultOffset(d, kind), span) : []), [d, panelId, edge, grow.height, kind, span?.[0], span?.[1]]);
-  const hTargets = useMemo(() => (eg?.plain ? heightTargets(d, eg.plain, new Set([panelId])) : []), [d, eg?.plain, panelId]);
+  // heights that mean something (milestone 78): the far wall a lid reaches, the neighbours' heights; named while the arrow is on one
+  const marks = useMemo(() => (eg?.plain ? heightMarks(d, panelId, eg.plain) : []), [d, eg?.plain, panelId]);
+  const hTargets = useMemo(() => (eg?.plain ? [...heightTargets(d, eg.plain, new Set([panelId])), ...marks.map((k) => k.y)] : []), [d, eg?.plain, panelId, marks]);
   // Quick build (milestone 37): 90°, the whole edge, adapting: no dial, span ends or outline handles
   const advanced = shown(useFeature('grow.advanced'));
   // … and it starts at the height that fits: a lid across to the opposite wall, a wall as tall as its neighbours (milestone 38)
@@ -1519,6 +1525,9 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   const over = useMemo(() => (parent && free && eg?.ghost ? growOverlap(d, panelId, edge, grow) : []), [d, panelId, edge, grow, !!eg?.ghost, free]);
   // Quick build (milestone 73): a ghost across a box's top makes the box's lid, one that opens, never a board jointed shut
   const closes = useMemo(() => (advanced ? null : wallClosesBox(d, panelId, edge, eg?.ghost ?? null)), [d, panelId, edge, eg, advanced]);
+  // Workshop (milestone 77): a ghost that closes the box makes what the grow card chose
+  const closesW = useMemo(() => (advanced ? closeChoices(d, panelId, edge, eg?.ghost ?? null) : null), [d, panelId, edge, eg, advanced]);
+  const closeAs = closesW ? closeChoice(closesW, grow.closeAs) : null;
   if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
   // the height arrow sits on the ghost's (trimmed) outline, at half its width
@@ -1554,12 +1563,17 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       <ConfirmBar
         at={barAt}
         below
-        onOk={() => void (closes ? closeBoxGo(closes.tray, closes.choice) : doGrow(panelId, edge))}
+        onOk={() => void (closes ? closeBoxGo(closes.tray, closes.choice) : closesW && closeAs ? closeAsGo(panelId, edge, closesW.tray, closeAs) : doGrow(panelId, edge))}
         onCancel={() => useStore.getState().select({ kind: 'panel', id: panelId })}
-        okDisabled={blocked && !closes}
+        okDisabled={blocked && !closes && !(closesW && closeAs && closeAs !== 'fixed' && !closeAs.startsWith('style:'))}
         okTestId="grow-go"
         testId="grow-ghost-bar"
       >
+        {closesW && closeAs && (
+          <span data-testid="grow-closes-bar" data-lid={closeAs}>
+            {t('grow.makes', { what: t(closeLabel(closeAs)) })}
+          </span>
+        )}
         {closes && (
           <span data-testid="grow-closes" data-lid={closes.choice}>
             {t(closes.choice === 'hinged' ? 'quick.closesHinged' : 'quick.closesLiftoff')}
@@ -1575,6 +1589,17 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         )}
       </ConfirmBar>
       {snapped !== null && <DimLine a={W(m, f, 0, snapped, th / 2)} b={W(m, f, w, snapped, th / 2)} tick={[0, 0, 0]} />}
+      {snapped !== null &&
+        marks
+          .filter((k) => Math.abs(k.y - snapped) < 0.05)
+          .slice(0, 1)
+          .map((k) => (
+            <StageHtml key="mark" position={W(m, f, w, snapped, th / 2)} style={{ pointerEvents: 'none' }} hideUnderChrome={false}>
+              <span className="grow-mark" data-testid="grow-mark" data-mark={k.key}>
+                {t(k.key, k.vars?.panel ? { name: panelLabel(d, k.vars.panel, t) } : {})}
+              </span>
+            </StageHtml>
+          ))}
       {advanced && <AngleArc
         pointAt={pointAt}
         hinge={hingeBasis(d, parent, edge, m, sp[0], w)}
@@ -2759,6 +2784,7 @@ export function View3D() {
   const polyMode = useStore((s) => s.polyMode);
   // the joints view shows one panel's joints at a time
   const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
+  const edgeSel = useStore((s) => s.selection?.kind === 'edge');
   const hint =
     foldT < 0.999
       ? 'fold.hint'
@@ -2770,6 +2796,8 @@ export function View3D() {
         ? 'outline.help'
         : trayCut && tool === 'select'
           ? 'tray.cutHint'
+        : tool === 'select' && edgeSel
+          ? 'edge.confirmOnStage'
         : tool === 'select'
           ? 'tool.hint.select'
           : tool === 'panel'
@@ -2808,6 +2836,9 @@ export function View3D() {
         </div>
       )}
       <div className="view-dock" dir={uiDir()}>
+        {/* milestone 78: the view cube and the view buttons are one cluster (the cube is drawn by the stage over this slot) */}
+        <div className="view-stack" data-testid="view-cluster">
+        <div className="cube-slot" aria-hidden />
         <div className="cluster">
           <button className={ortho ? 'on' : ''} onClick={() => setOrtho((o) => !o)} title={`${ortho ? t('view.ortho') : t('view.persp')} (O)`} aria-label={ortho ? t('view.ortho') : t('view.persp')} data-testid="toggle-ortho">
             <Icon name={ortho ? 'ortho' : 'persp'} />
@@ -2832,6 +2863,7 @@ export function View3D() {
           <button className={settings ? 'on' : ''} onClick={() => setSettings((s) => !s)} title={t('viewset.title')} aria-label={t('viewset.title')} aria-expanded={settings} data-testid="open-view-settings">
             <Icon name="settings" />
           </button>
+        </div>
         </div>
         {settings && <ViewSettings onClose={() => setSettings(false)} />}
         <MaterialLegend />

@@ -342,3 +342,19 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A lid shown away from its place cannot be drawn on** (its boards are inert), so picking never aims through a display move: the risk the plan asked to spike. Selecting the lid (*Select the lid*) shows it where it is: a folded lid shut, a lid of its own beside the box. The fold view and *Show how it goes together* show folded lids shut; the assembly shows a lid of its own on the box. The fold view shows a lid of its own beside the box, where its net unfolds.
 - **Dust flaps ride on their side walls** (`Flap3d.frame` with `planeOf`): before, they rode on the lid and would have swung up with it.
 - **Shapes carried from one lid to another** are carried by their place on the closed box (a cap's pose on its box), so changing a cap to a hinged lid keeps them where they were.
+
+## Milestone 77: grow that closes the box (UI_CLEANUP_PLAN.md Part 5, LIDS_LINES_PROJECTS_PLAN.md §3.1)
+- **The grow card chooses what ✓ makes** when the ghost would close a box (`closeChoices`, `closeAsRecipe` in `src/easy/lid.ts`), as pictures, before ✓, in one undo step. Card and corrugated: the fold with each of the material's closure styles, or a lid that lifts off. Plywood: *Hinged* (the living hinge, where `lidWhy` allows it, else greyed with the reason), *Lifts off*, *Fixed* (the board with the joint it was grown with). A carton closes with its tuck top. The default is the first that opens: plywood no longer gets a finger-jointed lid unless *Fixed* is picked.
+- **Whatever the ghost's joint.** A ghost closes the box by where it reaches (`sealFor` on the ghost), not by how it is joined: the old check needed a fold, so plywood never got it.
+- **Rests (plywood)** is left to the generated *Flat* lid (milestone 79): a board resting on the walls with nothing holding it is that lid. The pin hinge joins *Hinged* when it is built (milestone 81).
+- **Rings of boards built with the Shapes tool** are not yet recognised as a box (they have no tray). Left for the lid generator, which needs the same "what is a box" answer; recorded in `ROADMAP.md`.
+- Quick build's Wall / lid is unchanged: it already makes the box's lid with the same `setBoxLid`.
+
+## Milestone 78: grow made easier, a quieter interface (UI_CLEANUP_PLAN.md Parts 4 and 6)
+- **Heights that mean something** (`heightMarks`): the far wall a lid reaches, and the height of each board grown from the same board (the neighbours, the one across). The height arrow already snapped to edges and faces; it snaps to these too and names the one it is on (*Reaches the far wall*, *As tall as Back wall*).
+- **A shorter grow card**: height, then *Closes the box* when it applies, then one *More…* row with the angle, joint, part of the edge, adapt, outline and edge flap. The row's state is remembered per browser (`ViewPrefs.growMore`); it starts shut.
+- **The settings card folds to its header** once a board is on the stage and nothing is selected (`ViewPrefs.settingsOpen`, remembered); an empty stage still shows it open, since that is when its choices matter.
+- **One cluster**: the view cube sits in a frame above the view buttons (a slot the stage draws the cube over); the view settings open over that slot.
+- **One hint**: while an edge is selected the bottom hint says how to grow it, and the grow card no longer repeats it. The polygon hint no longer says what the floor or a board makes (the operator says that now).
+- **Sections closed by default**: *Edges* on a board's card, with its count (`ViewPrefs.edgesOpen`). *Joints (advanced)* was already one closed header with a count; *Split* shows only where a fold can be cut, and stays as it is.
+- **The test configuration opens what is closed by default** (`growMore`, `settingsOpen`, `edgesOpen` in the app and full Playwright configs and `tests/e2e/util.ts`), so the existing specs keep reaching their controls; `grow-cleanup.spec.ts` checks the defaults from a first visit.

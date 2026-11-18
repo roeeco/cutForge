@@ -96,6 +96,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
+  const edgesOpen = useStore((s) => s.viewPrefs.edgesOpen);
   const opsAll = shown(useFeature('op.scoreAdd'));
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
   const quickWords = useMode() === 'quick';
@@ -275,8 +276,11 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           {/* only the edges a board can still grow from: a row of greyed buttons for the walled ones was noise */}
           {growable.length > 0 && (
             <div className="subsection" data-testid="edges-section">
-              <h4>{t('insp.edges')}</h4>
-              <div className="edge-buttons">
+              {/* milestone 78: closed by default, with its count (remembered per browser) */}
+              <button className="sub-toggle" aria-expanded={!!edgesOpen} onClick={() => useStore.getState().setPrefs({ edgesOpen: !edgesOpen })} data-testid="edges-toggle">
+                <Icon name={edgesOpen ? 'chevDown' : 'chevRight'} size={14} /> {t('insp.edges')} <span className="count">{growable.length}</span>
+              </button>
+              {edgesOpen && <div className="edge-buttons">
                 {growable.map(({ key: e }) => (
                   <button
                     key={e}
@@ -289,7 +293,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
                     {t('insp.growFrom', { edge: edgeLabel(d, id, e, t) })}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
         </section>

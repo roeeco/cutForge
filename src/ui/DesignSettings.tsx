@@ -122,10 +122,32 @@ export function DesignSettings() {
   };
   // Quick build (milestone 37): the app chooses joints and snapping; the material is shown, not changed
   const fJoints = shown(fj), fSnap = shown(fs), fMaterial = shown(fm), matRO = fm === 'readonly';
+  // milestone 78 (UI_CLEANUP_PLAN.md Part 6.1): once there is a board on the stage, the card folds to its header until opened
+  const folded = d.order.length > 0 && !prefs.settingsOpen;
+  const head = (
+    <button className="settings-fold" aria-expanded={!folded} onClick={() => setPrefs({ settingsOpen: folded })} data-testid="settings-toggle">
+      <span className="kicker">{t('settings.kicker')}</span>
+      <span className="settings-title">
+        {t('settings.title')} <Icon name={folded ? 'chevRight' : 'chevDown'} size={16} />
+      </span>
+    </button>
+  );
+  if (folded)
+    return (
+      <section ref={ref} data-testid="inspector-design" data-folded="true">
+        {head}
+      </section>
+    );
   return (
     <section ref={ref} data-testid="inspector-design">
-      <p className="kicker">{t('settings.kicker')}</p>
-      <h3>{t('settings.title')}</h3>
+      {d.order.length > 0 ? (
+        head
+      ) : (
+        <>
+          <p className="kicker">{t('settings.kicker')}</p>
+          <h3>{t('settings.title')}</h3>
+        </>
+      )}
       {tplSum !== null && section('template', t('tpl.title'), tplSum, <TemplateSection bare />)}
       {fJoints &&
         section(

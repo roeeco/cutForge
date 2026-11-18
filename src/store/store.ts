@@ -3,7 +3,7 @@ import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { produce, type Draft } from 'immer';
-import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ClosureStyle, ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -88,7 +88,12 @@ export type GrowOptions = {
   sketch?: WallSketch | null;
   /** The ghost's outline handles are shown. */
   editGhost?: boolean;
+  /** When the ghost would close a box (milestone 77): what ✓ makes, chosen on the grow card (absent: the default). */
+  closeAs?: CloseAs | null;
 };
+
+/** What a grow that closes a box makes (milestone 77): a lid of the *Lid* section, the board with its joint (*Fixed*), or a fold with this closure. */
+export type CloseAs = 'liftoff' | 'hinged' | 'fixed' | `style:${ClosureStyle}`;
 
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
 export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
@@ -135,6 +140,12 @@ export type ViewPrefs = {
   missions?: string[];
   /** Quick build's Box: the kind last made (milestone 73); absent: an open box. */
   boxKind?: BoxKind;
+  /** The grow card's *More…* (angle, joint, part of the edge, adapt, outline) is open (milestone 78). */
+  growMore?: boolean;
+  /** A board's *Edges* list is open (milestone 78; closed by default). */
+  edgesOpen?: boolean;
+  /** The settings card is open while there are boards and nothing is selected (milestone 78; it folds to its header by default). */
+  settingsOpen?: boolean;
 };
 /** What Quick build's Box makes (LIDS_LINES_PROJECTS_PLAN.md §10.3): an open box, a box with a lid of its own, or a carton. */
 export type BoxKind = 'open' | 'lid' | 'carton';

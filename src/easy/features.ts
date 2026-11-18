@@ -139,6 +139,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'edges-section': null,
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
+  // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)
+  'grow-closes': 'grow.advanced',
   // shapes and several boards
   'array-section': 'arrays',
   'array-new': 'arrays',

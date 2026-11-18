@@ -330,7 +330,10 @@ textarea { width: 100%; resize: vertical; }
 .view-dock {
   position: absolute; bottom: 16px; inset-inline-end: 16px; z-index: 6; display: flex; gap: 6px; align-items: center;
 }
-.view-dock .cluster { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 3px; box-shadow: var(--shadow-soft); }
+.view-dock .view-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; border: 1px solid var(--line); border-radius: var(--r-md); padding: 3px; background: transparent; }
+.view-dock .view-stack .cluster { background: var(--surface); border-radius: var(--r-sm); box-shadow: var(--shadow-soft); }
+.view-dock .cube-slot { width: 108px; height: 104px; pointer-events: none; }
+.view-dock .cluster { display: flex; gap: 2px; }
 .view-dock .cluster button { border: none; background: transparent; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--ink-muted); }
 .view-dock .cluster button:hover:not(:disabled) { background: var(--surface-sunk); color: var(--ink); }
 .view-dock .cluster button.on { color: var(--accent); background: var(--accent-soft); }
@@ -877,3 +880,16 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .div-ends { gap: 8px; }
 .op-list { gap: 6px; }
 .shape-pick, .sticker-grid { gap: 6px; }
+
+/* milestone 78: the grow arrow's meaningful heights, named while it is on one */
+.grow-mark { display: inline-block; transform: translate(10px, -50%); padding: 3px 8px; border-radius: 999px; background: var(--accent, #0f766e); color: white; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+/* milestone 78: the settings card folds to its header */
+.settings-fold { all: unset; display: flex; flex-direction: column; gap: 2px; cursor: pointer; width: 100%; }
+.settings-fold .settings-title { font-size: 18px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.settings-fold:focus-visible { outline: 2px solid var(--accent, #0f766e); outline-offset: 4px; border-radius: 6px; }
+section[data-folded='true'] .settings-fold .kicker { margin: 0; }
+.sub-toggle { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2, #555); }
+.sub-toggle .count { font-weight: 600; opacity: 0.7; }
+/* the view settings open just above the view buttons, over the cube's slot (milestone 78) */
+.view-dock > .popover { bottom: 56px; }
