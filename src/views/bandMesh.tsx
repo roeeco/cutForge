@@ -8,11 +8,13 @@ import { bandPose, bandWorld } from '../model/bands';
 import type { BandShown } from './foldView';
 import { boardColors } from './palette';
 
-const ARC_STEPS = 24;
+/** Steps along a band's arc: about one per 4° of its turn (a round box's band turns nearly all the way round), at least 24. */
+export const arcSteps = (b: { phi: number }) => Math.max(24, Math.min(128, Math.ceil((b.phi * 180) / Math.PI / 4)));
 
 /** The band's slab as triangles in world coordinates (design pose): outer and inner faces and the two ends. */
 export function bandGeometry(s: BandShown): THREE.BufferGeometry {
   const b = s.band;
+  const ARC_STEPS = arcSteps(b);
   const { outer, inner } = bandPose(b, s.k, ARC_STEPS);
   const [s0, s1] = b.span;
   const P = (q: { x: number; y: number }, at: number) => new THREE.Vector3(...bandWorld(b, q, at));
@@ -33,6 +35,7 @@ export function bandGeometry(s: BandShown): THREE.BufferGeometry {
 /** The pattern's lines on the band's outer face (lifted a hair so they show), scores and cuts apart. */
 export function bandLines(s: BandShown): { scores: THREE.BufferGeometry; cuts: THREE.BufferGeometry } {
   const b = s.band;
+  const ARC_STEPS = arcSteps(b);
   const { outer, inner } = bandPose(b, s.k, ARC_STEPS);
   // a point x across the band (0..lb) on its outer face, nudged outward
   const at = (x: number, y: number) => {

@@ -4,12 +4,13 @@
 // ends are found again on every solve (`reconcileDividers`), so moving,
 // turning, adding or deleting boards stretches the dividers that meet them.
 // Also: even spacing, and snapping a dragged divider to equal compartments.
-import type { ConnGeom, Connection, Design, DividerRec, P2, Panel, PanelPlace, Tray } from './types';
+import type { ConnGeom, Connection, Design, DividerRec, P2, Panel, PanelPlace, Tray, V3 } from './types';
 import { flapOn } from './geometry';
 import { autoFlap } from './seams';
 import { trayCorners, wingId, type RunPart } from './wings';
 import { pieceRoot, placementPiece } from './keys';
-import { findEdge, isRectSketch, panelEdges, rectSketch, sketchOf } from './edges';
+import { findEdge, isRectSketch, panelEdges, rectSketch, segInward, sketchOf } from './edges';
+import { v3add, v3cross, v3dot, v3mul, v3norm, v3sub } from '../geom/v3';
 import { matDir, toLocal, toWorld } from './frame';
 import { matOf, tOf } from './materials';
 import { spanFrame, spanOf } from './adapt';
@@ -418,6 +419,17 @@ export function bandEndGeom(d: Design, c: Connection): ConnGeom | null {
   const f = flapOn(e, c.flap ?? autoFlap(matOf(d, p.id)));
   g.adds.push({ panelId: p.id, poly: f.poly });
   g.scores.push({ panelId: p.id, ...f.score });
+  // in 3D (milestone 74): the flap turned a quarter about its crease, against the band, in a plane of its own
+  const a0 = toWorld(p.frame, e.a.x, e.a.y), a1 = toWorld(p.frame, e.b.x, e.b.y);
+  const ax = v3norm(v3sub(a1, a0));
+  const inw = segInward(e);
+  const W = v3norm(v3add(v3mul(p.frame.u, -inw.x), v3mul(p.frame.v, -inw.y)));
+  const N = matDir(p.frame);
+  // the turn that takes the flap's outward direction W to the board's material direction N
+  const A = v3dot(v3cross(ax, W), N) >= 0 ? ax : v3mul(ax, -1);
+  const rot = (x: V3): V3 => v3add(v3mul(x, 0), v3add(v3mul(A, v3dot(A, x)), v3cross(A, x))); // a quarter turn: x∥ + A × x
+  const turn = (x: V3): V3 => v3add(a0, rot(v3sub(x, a0)));
+  g.flaps3d.push({ panelId: p.id, poly: f.poly, z0: 0, z1: tOf(d, p.id), owner: p.id, frame: { o: turn(p.frame.o), u: rot(p.frame.u), v: rot(p.frame.v), side: p.frame.side } });
   return g;
 }
 

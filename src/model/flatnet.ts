@@ -168,7 +168,9 @@ function trimFlap(d: Design, c: Connection, xfs: Map<string, NetPanel & { root: 
     for (const f of g.flaps3d) {
       if (f.owner !== O.id || f.poly.length !== flat.length) continue;
       const m = affine(flat[0], flat[1], flat[flat.length - 1], f.poly[0], f.poly[1], f.poly[f.poly.length - 1]);
-      if (m) f.poly = cut.length >= 3 ? cut.map(m) : [];
+      // only this flap's own folded copy (a slit lock's tongues are flaps of the same owner and size)
+      if (!m || flat.some((q, i) => { const r = m(q); return Math.hypot(r.x - f.poly[i].x, r.y - f.poly[i].y) > 1e-3 * (1 + L); })) continue;
+      f.poly = cut.length >= 3 ? cut.map(m) : [];
     }
     a.poly = cut;
   }

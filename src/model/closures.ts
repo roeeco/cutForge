@@ -214,7 +214,10 @@ export function closureGeom(d: Design, c: Connection): ConnGeom | null {
         // a tongue on the lip's end, through a slot in the front wall where the lip ends
         const tw = Math.min(25, 0.3 * (s1 - s0)), tl = tF + 4;
         const mid = (s0 + s1) / 2;
-        g.adds.push({ panelId: L.id, poly: roundedTab(mid - tw / 2, mid + tw / 2, L.h + len - 0.01, L.h + len + tl, 2) });
+        const tongue = roundedTab(mid - tw / 2, mid + tw / 2, L.h + len - 0.01, L.h + len + tl, 2);
+        g.adds.push({ panelId: L.id, poly: tongue });
+        // in 3D it folds down with the lip, its end through the slot (it was cut but never drawn)
+        g.flaps3d.push({ panelId: F.id, poly: tongue.map((q) => down(q.x, q.y - L.h)), z0: tF, z1: tF + tL });
         const at = down(mid, len);
         const sw = tw + clr, sh = tL + clr;
         g.holes.push({ panelId: F.id, poly: [{ x: at.x - sw / 2, y: at.y - sh / 2 }, { x: at.x + sw / 2, y: at.y - sh / 2 }, { x: at.x + sw / 2, y: at.y + sh / 2 }, { x: at.x - sw / 2, y: at.y + sh / 2 }] });

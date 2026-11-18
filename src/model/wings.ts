@@ -330,7 +330,7 @@ export function wingGeom(d: Design, c: Connection): ConnGeom | null {
   const x0 = wallEnd(A, 'e1')!.x, H = bs[0].span[1];
   const L = bs.reduce((x, b) => x + b.lb, 0);
   if (c.kind !== 'fold') {
-    g.adds.push({ panelId: A.id, poly: strip.strip });
+    g.adds.push({ panelId: A.id, poly: strip.strip, band: true });
     for (const l of strip.scores) g.scores.push({ panelId: A.id, a: l.a, b: l.b });
     if (strip.cuts.length) g.lines = strip.cuts.map((l) => ({ panelId: A.id, a: l.a, b: l.b }));
     if (strip.paths.length) g.cutPaths = strip.paths.map((q) => ({ panelId: A.id, pts: q.pts, closed: q.closed }));
@@ -359,8 +359,11 @@ export function wingGeom(d: Design, c: Connection): ConnGeom | null {
   } else if (c.kind === 'key') {
     const k = keyDims(mA, H);
     if (k) {
-      g.adds.push({ panelId: A.id, poly: keyAdd(end, H / 2, k) });
+      const key = keyAdd(end, H / 2, k);
+      g.adds.push({ panelId: A.id, poly: key });
       const xB = wallEnd(B, 'e3')!.x;
+      // in 3D the key sits in its socket at the next wall's start, in that wall's slab
+      g.flaps3d.push({ panelId: B.id, poly: key.map((q) => ({ x: xB + (q.x - end), y: q.y })), z0: 0, z1: tOf(d, B.id), owner: A.id });
       g.cuts = [...(g.cuts ?? []), { panelId: B.id, poly: keySocket(xB, H / 2, k, matOf(d, B.id).clearance) }];
     }
   }
@@ -430,6 +433,8 @@ export function wingGeom(d: Design, c: Connection): ConnGeom | null {
       for (let q = 1; q < 2 * n + 1; q += 2) {
         const s0 = q * seg, s1 = (q + 1) * seg;
         g.adds.push({ panelId: A.id, poly: [{ x: X + s0, y: 0.01 }, { x: X + s1, y: 0.01 }, { x: X + s1, y: -tB }, { x: X + s0, y: -tB }] });
+        // in 3D the tab fills its curved slot, through the base's thickness
+        g.flaps3d.push({ panelId: base.id, poly: sector(j, s0, s1, off, off + mA.thickness), z0: 0, z1: tB, owner: A.id });
         // the slot follows the curve: the tab's band through the base, grown by half the clearance
         // shifted in a hair: the base's flattened circle runs up to 0.02 mm inside the true one, and the web outside the slot must stay whole
         g.holes.push({ panelId: base.id, poly: sector(j, s0 - clB / 2, s1 + clB / 2, off - clB / 2 + CURVE_WEB, off + mA.thickness + clB / 2 + CURVE_WEB) });

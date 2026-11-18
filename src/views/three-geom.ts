@@ -31,6 +31,20 @@ function jointFlatAdds(d: Design, p: Panel): Vec2[][] {
   return out;
 }
 
+/**
+ * Open cut lines a joint makes in a board's face that 3D draws on the board
+ * (milestone 74): a slit lock's slits and a tuck lock's catches. A bend's
+ * slits are drawn on its band instead.
+ */
+export function faceSlits(d: Design, p: Panel): { a: Vec2; b: Vec2 }[] {
+  const out: { a: Vec2; b: Vec2 }[] = [];
+  for (const c of Object.values(d.connections)) {
+    if (c.wing || (c.kind !== 'lock' && c.kind !== 'closure')) continue;
+    for (const l of c.geom?.lines ?? []) if (l.panelId === p.id) out.push({ a: l.a, b: l.b });
+  }
+  return out;
+}
+
 const toShapePts = (pts: Vec2[]) => pts.map((p) => new THREE.Vector2(p.x, p.y));
 
 /**

@@ -316,3 +316,12 @@ Defaults chosen where the brief left room. Each is reversible.
 - **No glue** sets every corner to a slit lock with the settings card's existing *Corners* choice (`setAllJoints`), and back to the material's first other corner kind. It shows in both modes, on card and corrugated.
 - **Plain words are Quick build's only where they differ in meaning**: *Depth* for a footprint's second size and *Height* for a box's walls. *Lid* and *Lid rim* (and *Lid flap* for an arched lid's flap) replace *Panel 6* and *Wall 1* in both modes (`panelLabel`), since those names were wrong, not technical.
 - **The Box action's kind is remembered per browser** (`ViewPrefs.boxKind`), and applies only to a box made with the Box action, never to Workshop's Extrude. A carton chosen where one cannot be made (plywood, a footprint other than a rectangle) makes an open box, and the picture is greyed with the reason.
+
+## Milestone 74: the net and 3D in step (ROADMAP.md, UI_CLEANUP_PLAN.md Part 1)
+- **A joint's additions say how 3D draws them.** Every `ConnGeom.adds` entry is drawn in the board's plane (`flat`), as part of a band (`band`, a rounded corner's strip), or by a folded flap of about its area in `flaps3d`. `tests/netIn3d.test.ts` checks this over every template in every material and every hand-built golden design, so a new joint that forgets its 3D side fails there.
+- **A folded flap can have a plane of its own** (`Flap3d.frame`): a divider's glue flap on a band is turned a quarter about its crease against the band, and moves with the divider. A band has no flat face to put it on.
+- **Tabs and keys of curved walls fill their slots in 3D**: a round box's tabs as curved pieces in the base's slots, a strip's key in its socket in the next wall. Both coloured as the wall they are cut from (`owner`).
+- **Slits are dark lines on the board** (`faceSlits`): a slit lock's and a tuck lock's. A bend's slits stay on its band.
+- **The flat net trims only a flap's own folded copy**: it used to pair a flap with any folded flap of the same owner and vertex count, which a slit lock's two tongues would have crossed.
+- **A band's arc is drawn in steps of about 4°** (at least 24): a round box's band was a 24-sided polygon.
+- **Dividers narrow on the cut plan: not reproduced.** Template dividers and dividers drawn with D (rectangular, rounded and round boxes; Workshop and Quick build; every material) have pieces as long as their boards in the browser and in the model. A test keeps it so; the owner is asked for the design that showed it.

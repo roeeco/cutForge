@@ -335,7 +335,7 @@ export type P2 = { x: number; y: number };
  * cut net, to where it is folded. Older files without them draw it on the
  * receiver.
  */
-export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number };
+export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame };
 
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
@@ -344,7 +344,7 @@ export type ConnGeom = {
   /** Interior cut-outs (slots). */
   holes: { panelId: string; poly: P2[] }[];
   /** Extra material joined to a panel outline (glue flaps; `flat`: in the panel's own plane in 3D too, e.g. a locking tab's barbs). */
-  adds: { panelId: string; poly: P2[]; flat?: boolean }[];
+  adds: { panelId: string; poly: P2[]; flat?: boolean; /** Drawn in 3D as a band (a rounded corner's strip), not as a slab or a flap. */ band?: boolean }[];
   /** Score lines (flap folds). */
   scores: { panelId: string; a: P2; b: P2 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */

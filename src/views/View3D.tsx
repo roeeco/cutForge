@@ -17,7 +17,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
-import { contourLinePoints, contourShapeGeometry, faceZ, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
+import { contourLinePoints, contourShapeGeometry, faceSlits, faceZ, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
 import { BandObject } from './bandMesh';
@@ -967,6 +967,7 @@ function PanelObject(props: {
           <lineBasicMaterial color={STAGE.outline} transparent opacity={props.emphasis === -1 ? 0.35 : 0.62} />
         </lineSegments>
       )}
+      <FaceSlits d={d} p={p} zs={[z0 - 0.12, z1 + 0.12]} />
       {p.details.map((dt) => {
         const isSel = selDetails.includes(dt.id);
         const color = isSel ? STAGE.selected : dt.op === 'cut' ? '#5b4128' : dt.op === 'engrave' ? '#1c1c1c' : dt.op === 'add' ? '#2e8b57' : '#2f6feb';
@@ -1364,6 +1365,24 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
         </group>
       ))}
     </>
+  );
+}
+
+/** A joint's slits in this board (a slit lock's, a tuck lock's), as dark lines on both faces (milestone 74). */
+function FaceSlits({ d, p, zs }: { d: Design; p: Panel; zs: number[] }) {
+  const slits = faceSlits(d, p);
+  const key = slits.map((l) => `${l.a.x.toFixed(2)},${l.a.y.toFixed(2)},${l.b.x.toFixed(2)},${l.b.y.toFixed(2)}`).join(' ');
+  const geom = useMemo(() => {
+    if (!slits.length) return null;
+    const pts = zs.flatMap((z) => slits.flatMap((l) => [new THREE.Vector3(l.a.x, l.a.y, z), new THREE.Vector3(l.b.x, l.b.y, z)]));
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }, [key, zs[0], zs[1]]);
+  useEffect(() => () => geom?.dispose(), [geom]);
+  if (!geom) return null;
+  return (
+    <lineSegments geometry={geom} raycast={() => null} userData={{ faceSlits: slits.length }}>
+      <lineBasicMaterial color="#1c1c1c" />
+    </lineSegments>
   );
 }
 

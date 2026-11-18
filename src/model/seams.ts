@@ -1224,8 +1224,19 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
  * edge lies, a slit (card: one cut line, the kerf is the gap) or a slot
  * (corrugated: as thick as the flap and the clearance).
  */
+/** The affine map taking triangle (a, b, c) onto (a2, b2, c2), or null when the first is degenerate. */
+function affine2(a: P2, b: P2, c: P2, a2: P2, b2: P2, c2: P2): ((q: P2) => P2) | null {
+  const det = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+  if (Math.abs(det) < 1e-12) return null;
+  return (q) => {
+    const u = ((q.x - a.x) * (c.y - a.y) - (c.x - a.x) * (q.y - a.y)) / det;
+    const v = ((b.x - a.x) * (q.y - a.y) - (q.x - a.x) * (b.y - a.y)) / det;
+    return { x: a2.x + (b2.x - a2.x) * u + (c2.x - a2.x) * v, y: a2.y + (b2.y - a2.y) * u + (c2.y - a2.y) * v };
+  };
+}
+
 function slitLock(d: Design, c: Connection, glue: ConnGeom): ConnGeom {
-  const g: ConnGeom = { ...glue, adds: [...glue.adds], holes: [...glue.holes], lines: [...(glue.lines ?? [])] };
+  const g: ConnGeom = { ...glue, adds: [...glue.adds], holes: [...glue.holes], lines: [...(glue.lines ?? [])], flaps3d: [...glue.flaps3d] };
   const flaps = glue.flaps3d;
   glue.adds.forEach((a, i) => {
     const f = flaps[i];
@@ -1243,11 +1254,12 @@ function slitLock(d: Design, c: Connection, glue: ConnGeom): ConnGeom {
     const at = (f0: number, along: number, out: number) => ({ x: A1.x + ux * (f0 * L + along) + ox * out, y: A1.y + uy * (f0 * L + along) + oy * out });
     const FL = Math.hypot(F2.x - F1.x, F2.y - F1.y) || 1;
     const fx = (F2.x - F1.x) / FL, fy = (F2.y - F1.y) / FL;
+    // the flap as cut onto the flap as folded: its tongues fold with it (they were cut but never drawn in 3D)
+    const fold = affine2(n0, A1, n3, f.poly[0], F1, f.poly[3]);
     for (const f0 of L >= 60 ? [0.25, 0.75] : [0.5]) {
-      g.adds.push({
-        panelId: a.panelId,
-        poly: [at(f0, -neck / 2, -0.01), at(f0, neck / 2, -0.01), at(f0, neck / 2 + barb, depth * 0.45), at(f0, neck * 0.35, depth), at(f0, -neck * 0.35, depth), at(f0, -neck / 2 - barb, depth * 0.45)],
-      });
+      const tongue = [at(f0, -neck / 2, -0.01), at(f0, neck / 2, -0.01), at(f0, neck / 2 + barb, depth * 0.45), at(f0, neck * 0.35, depth), at(f0, -neck * 0.35, depth), at(f0, -neck / 2 - barb, depth * 0.45)];
+      g.adds.push({ panelId: a.panelId, poly: tongue });
+      if (fold) g.flaps3d.push({ ...f, poly: tongue.map(fold) });
       // where the folded flap's far edge lies on the other panel
       const cx = F1.x + (F2.x - F1.x) * f0, cy = F1.y + (F2.y - F1.y) * f0;
       const half = (neck + mR.clearance) / 2;

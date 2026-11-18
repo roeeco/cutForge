@@ -1289,6 +1289,17 @@ Limitations
 - The 3D stage's dimension labels still read *W / H* for a footprint.
 - Locks and *Open / Close* come with milestones 75–77.
 
+## Milestone 74 — the net and 3D in step ✅
+
+`ROADMAP.md` (which merges `UI_CLEANUP_PLAN.md`, `LIDS_LINES_PROJECTS_PLAN.md` and `PACKAGING_AND_LEARNING.md`), cleanup plan Part 1. Each fix came after a test that failed without it.
+- **Slit locks**: each tongue folds with its flap in 3D (it was cut but never drawn), and each card slit shows as a dark line on the other wall; corrugated slots were already holes.
+- **Closures**: a tab lid's tongue folds down with its lip.
+- **Curved walls**: a round box's tabs fill their curved slots in the base; a plywood strip's key sits in its socket; a divider's glue flap on a band is folded against the band (it had no 3D side). A band's arc is drawn in about 4° steps, so a round box is round.
+- **The check (1.4)**: `tests/netIn3d.test.ts` runs every template in every material, rounded and round boxes, closed boxes, cartons, slit-lock trays, dividers ending on bands and the hand-built golden designs: whatever a joint adds to the net is drawn in 3D. It found the problems above (19 designs failing before).
+- **Dividers narrow on the cut plan (1.3)**: not reproduced. Driven in the browser (template, the D tool, Quick build, rectangular, rounded and round boxes, card and plywood) the pieces were as long as their boards. A test keeps it so; it needs the design the owner saw.
+
+Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-identical; browser `wings`, `round`, `closures`, `dividers`, `bands`: 14 passed. Looked at in the browser: a card slit-lock tray at mid-fold, rounded and round boxes in card and plywood.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

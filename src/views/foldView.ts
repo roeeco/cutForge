@@ -146,7 +146,7 @@ function hingeMatrix(d: Design, c: Connection, id: string, foldT: number, visit:
  */
 export function flapMatrix(d: Design, f: Flap3d, xf: Map<string, THREE.Matrix4>, foldT: number): THREE.Matrix4 {
   const R = d.panels[f.panelId];
-  const base = R ? frameBasis(R.frame) : new THREE.Matrix4();
+  const base = f.frame ? frameBasis(f.frame) : R ? frameBasis(R.frame) : new THREE.Matrix4();
   const O = f.owner ? d.panels[f.owner] : undefined;
   if (!O || !f.hinge || !f.angle) return (xf.get(f.panelId) ?? new THREE.Matrix4()).clone().multiply(base);
   const h0 = new THREE.Vector3(...toWorld(O.frame, ...f.hinge[0]));
