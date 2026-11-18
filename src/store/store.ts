@@ -176,6 +176,8 @@ export type ViewPrefs = {
   turnStep: number;
   /** Scaling keeps proportions (the scale frame, the size fields and the sketch's frame; milestone 55). */
   keepRatio?: boolean;
+  /** The shape stage's camera frames what is selected (on unless set to false). */
+  follow?: boolean;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
   /** Quick build or Workshop (milestone 37): a viewer preference, never part of the design. */
@@ -223,6 +225,8 @@ export type SculptUi = {
   dragKind: SculptUi['next'] | null;
   /** The heights new shapes start at, by kind (the last one confirmed); empty the first time. */
   heights: Heights;
+  /** Which handles the selected shapes show: move (arrows), turn (rings) or size (the scale frame). */
+  xform: 'move' | 'turn' | 'size';
   /** The group being worked inside (double-click), or null. */
   focus: string | null;
   /** The kernel has loaded. */
@@ -410,7 +414,7 @@ function validSelection(d: Design, s: Selection): Selection {
 
 export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
-  sculpt: { stage: 'shape', next: 'box', nextHole: false, dragKind: null, heights: {}, focus: null, ready: false, failed: false, plane: { kind: 'floor' } },
+  sculpt: { stage: 'shape', xform: 'move', next: 'box', nextHole: false, dragKind: null, heights: {}, focus: null, ready: false, failed: false, plane: { kind: 'floor' } },
   sculptRadius: 5,
   sketch: null,
   openSketch: (shapeId) => {

@@ -7,7 +7,7 @@ import { NumField, Segmented, Stepper } from '../../ui/NumField';
 import { Icon } from '../../ui/icons';
 import { clampSides } from '../build';
 import { onKernel } from '../kernel';
-import { PRIMITIVES, freeSpot, moveShapes, resetTurn, setHole, shapeNumber, updateShape, worldPose, type Primitive } from '../ops';
+import { PRIMITIVES, freeSpot, moveShapes, parentOf, resetTurn, setHole, shapeNumber, updateShape, worldPose, type Primitive } from '../ops';
 import { canStretch } from '../scale';
 import { scaleSelection, selectionFrame } from './ScaleFrame';
 import { placePrimitive } from './SculptView3D';
@@ -41,6 +41,25 @@ function SolidHole({ hole, onChange, testId }: { hole: boolean; onChange: (h: bo
         { value: 'hole', label: <><Icon name="hole" size={14} /> {t('sculpt.hole')}</>, title: t('sculpt.holeHelp'), testId: `${testId}-hole` },
       ]}
       onChange={(v) => onChange(v === 'hole')}
+    />
+  );
+}
+
+/** Move | Turn | Size: which handles the selection shows on the stage. */
+function XformMode() {
+  const t = useT();
+  const mode = useStore((s) => s.sculpt.xform);
+  return (
+    <Segmented
+      label={t('xform.label')}
+      value={mode}
+      options={[
+        { value: 'move', label: t('xform.move'), title: t('sculpt.hint.move'), testId: 'xform-move' },
+        { value: 'turn', label: t('xform.turn'), title: t('sculpt.hint.turn'), testId: 'xform-turn' },
+        { value: 'size', label: t('xform.size'), title: t('sculpt.hint.size'), testId: 'xform-size' },
+      ]}
+      onChange={(v) => st().setSculpt({ xform: v as 'move' | 'turn' | 'size' })}
+      testId="xform-mode"
     />
   );
 }
@@ -191,7 +210,13 @@ function ShapeCard({ id }: { id: string }) {
           <Icon name="trash" />
         </button>
       </div>
+      <XformMode />
       <SolidHole hole={!!s.hole} onChange={(h) => edit((x) => setHole(x, [id], h))} testId="shape" />
+      {s.hole && !parentOf(d.sculpt!, id) && (
+        <p className="note warn" data-testid="hole-alone">
+          {t('sculpt.holeAloneHelp')}
+        </p>
+      )}
       <ScaleFields ids={[id]} torus={s.kind === 'torus'} />
       {(s.kind === 'prism' || s.kind === 'pyramid') && <Stepper label={t('sculpt.sides')} value={clampSides(s.n)} min={3} max={12} onCommit={(v) => edit((x) => updateShape(x, id, { n: v }))} testId="shape-sides" />}
       {(s.kind === 'cone' || s.kind === 'pyramid') && <NumField label={t('sculpt.top')} value={Math.round((s.top ?? 0) * 100)} unit="%" min={0} max={100} decimals={0} onCommit={(v) => edit((x) => updateShape(x, id, { top: Math.max(0, Math.min(1, v / 100)) }))} testId="shape-top" />}
@@ -224,6 +249,7 @@ function MultiCard({ ids }: { ids: string[] }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const holes = ids.every((id) => d.sculpt?.shapes[id]?.hole);
+  const anyHole = ids.some((id) => d.sculpt?.shapes[id]?.hole);
   return (
     <section data-testid="shapes-multi">
       <div className="card-head">
@@ -235,13 +261,18 @@ function MultiCard({ ids }: { ids: string[] }) {
           <Icon name="trash" />
         </button>
       </div>
+      {canGroup(d, ids) && (
+        <div className="combine-box" data-testid="combine-box">
+          <p className="note">{t(anyHole && !holes ? 'sculpt.combineCut' : 'sculpt.combineJoin')}</p>
+          <button className="primary" onClick={groupSelected} title={`${t('sculpt.tool.group')} (Ctrl+G)`} data-testid="multi-group">
+            <Icon name="group" /> {t(anyHole && !holes ? 'sculpt.combineCutBtn' : 'sculpt.combineBtn')}
+          </button>
+          {!anyHole && <p className="note">{t('sculpt.combineTip')}</p>}
+        </div>
+      )}
+      <XformMode />
       <SolidHole hole={holes} onChange={(h) => edit((x) => setHole(x, ids, h))} testId="multi" />
       <ScaleFields ids={ids} />
-      {canGroup(d, ids) && (
-        <button className="primary" onClick={groupSelected} data-testid="multi-group">
-          <Icon name="group" /> {t('sculpt.groupBtn')}
-        </button>
-      )}
     </section>
   );
 }

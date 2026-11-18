@@ -1176,3 +1176,7 @@ Everything below could not be checked from this session; the draft pull request 
 - **Safari and a school Chromebook**: the sketch view and its preview (a second WebGL canvas while the stage's is unmounted).
 - **Hebrew wording**: 96 new strings (`scale.*`, `sculpt.tile.hint`, `sketch.*`, `outcome.choose`, `stage.make`) and the changed `sculpt.tile` and `sketch.hint.draw`; `sketch.bar.w` / `sketch.bar.h` use ר / ג.
 - **Semantics to confirm** (see DECISIONS.md, milestones 56 and 59): on a closed outline a typed length or angle moves only the end being changed, and two fillets on one side are clamped at 45 % of it.
+
+## After milestone 60: hands-on fixes (2026-11-12)
+Checked: typecheck, `npm test` (745 passed), and by hand in the dev server: undo in the middle of a line then drawing on, a typed length while drawing, closing on the first point, selecting a line and typing its length in the pill, Round on a corner, Finish, Move / Turn / Size on a box, Follow and Frame, two shapes selected (Combine), and the solids as ghosts in 2 Waffle.
+Not checked: the e2e specs were not run. The stage's rings now show only in Turn and its scale handles only in Size; the sketch ids `sk-corner`, `sk-real` and the rail's `sk-cons` and `sk-dims` are gone or moved to the sketch's card, and no spec uses them. Hebrew wording of the 42 new strings. Dragging the handles by hand on a real screen.

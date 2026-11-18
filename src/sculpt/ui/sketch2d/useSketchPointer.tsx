@@ -8,7 +8,7 @@ import { fmtNum } from '../../../i18n';
 import type { P2, SketchGraph } from '../../../model/types';
 import type { useViewBox } from '../../../views/canvas2d';
 import { Marquee } from '../../../views/canvas2d';
-import { busy, initTool, step, typedTarget, type Env, type ToolEv, type ToolState } from '../../../sketch/tools';
+import { busy, initTool, step, syncTool, typedTarget, type Env, type ToolEv, type ToolState } from '../../../sketch/tools';
 import { arcOf, bulgeThrough, arcPts, bezPts } from '../../../sketch/flatten';
 import { selPts } from '../../../sketch/model';
 import { setSegKind, setSmooth } from '../../../sketch/ops';
@@ -45,6 +45,13 @@ export function useSketchPointer(view: View): Ptr {
   const ref = useRef(state);
   ref.current = state;
   useEffect(() => setState(initTool(tool)), [tool]);
+  // undo, redo or a delete changed the sketch under the tool: it lets go of what is gone
+  const draftNow = useStore((s) => s.sketch?.draft);
+  useEffect(() => {
+    if (!draftNow) return;
+    const next = syncTool(ref.current, draftNow as SketchGraph);
+    if (next !== ref.current) (ref.current = next), setState(next);
+  }, [draftNow]);
   const sc = useStore((s) => s.design.sculpt);
   const rigid = useStore((s) => !!s.sketch?.rigid);
   const shapeId = useStore((s) => s.sketch?.shapeId ?? null);
@@ -218,19 +225,29 @@ export function SketchOverlay({ ptr, px }: { ptr: Ptr; px: number }) {
         if (s.bez.h) out.push(<path key="hl" d={pathOf([{ x: s.bez.down.p.x - h.x, y: s.bez.down.p.y - h.y }, { x: s.bez.down.p.x + h.x, y: s.bez.down.p.y + h.y }])} className="sk-handle-line" strokeWidth={px} pointerEvents="none" />);
       } else out.push(<path key="rb" d={pathOf([from, target])} className="sk-rubber" strokeWidth={px * 1.5} strokeDasharray={`${px * 5} ${px * 3}`} pointerEvents="none" data-testid="sk-rubber" />);
       const L = Math.hypot(target.x - from.x, target.y - from.y);
-      const A = (Math.atan2(target.y - from.y, target.x - from.x) * 180) / Math.PI;
-      if (!s.typed) label(target, `${fmtNum(L)} ${t('unit.mm')} · ${fmtNum(A)}°`, 'len');
+      // 0° to the right, counter-clockwise, 0–360 (as the typed angle reads)
+      const A = (((Math.atan2(target.y - from.y, target.x - from.x) * 180) / Math.PI) % 360 + 360) % 360;
+      const r1 = (v: number) => Math.round(v * 10) / 10;
+      if (!s.typed && L > 1e-6) label(target, `${fmtNum(r1(L))} ${t('unit.mm')}  ∠ ${fmtNum(r1(A) === 360 ? 0 : r1(A))}°`, 'len');
     }
   }
   if (s.typed && s.cur) {
-    const p = sv(s.cur);
-    const f = (k: 'len' | 'ang') => `${s.typed![k]}${s.typed!.focus === k ? '▍' : ''}`;
+    const p = sv(target ?? s.cur);
+    const ty = s.typed;
+    const caret = (k: 'len' | 'ang') => (ty.focus === k ? '▍' : '');
+    const text = `${ty.len}${caret('len')} ${t('unit.mm')}${ty.ang || ty.focus === 'ang' ? `   ∠ ${ty.ang}${caret('ang')}°` : ''}`;
+    const w = (text.length * 7.4 + 22) * px;
     out.push(
       <g key="typed" pointerEvents="none" data-testid="sk-typed">
-        <rect x={p.x + px * 12} y={p.y + px * 8} width={px * 190} height={px * 22} rx={px * 4} className="sk-pill" strokeWidth={px} />
-        <text x={p.x + px * 18} y={p.y + px * 23} className="sk-pill-text" fontSize={px * 12}>
-          {`${t('sketch.typed.len')} ${f('len')}  <  ${t('sketch.typed.ang')} ${f('ang')}`}
+        <rect x={p.x + px * 12} y={p.y + px * 10} width={w} height={px * 22} rx={px * 11} className="sk-pill typed" strokeWidth={px * 1.5} />
+        <text x={p.x + px * 20} y={p.y + px * 25} className="sk-pill-text" fontSize={px * 12}>
+          {text}
         </text>
+        {!ty.ang && ty.focus === 'len' && (
+          <text x={p.x + px * 14} y={p.y + px * 46} className="sk-snap-label" fontSize={px * 10.5}>
+            {t('sketch.typed.hint')}
+          </text>
+        )}
       </g>,
     );
   }

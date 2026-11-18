@@ -121,7 +121,7 @@ export function SketchShapeFields({ s }: { s: Shape3 }) {
           )}
         </>
       )}
-      <button onClick={() => st().openSketch(s.id)} data-testid="edit-sketch">
+      <button className="full" onClick={() => st().openSketch(s.id)} data-testid="edit-sketch">
         <Icon name="polygon" /> {t('sketch.edit')}
       </button>
     </div>

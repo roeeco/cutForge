@@ -1,8 +1,7 @@
-// The top bar while the sketch view is open (SKETCH_OVERHAUL.md §6.3): Extrude |
-// Revolve, the sketch's own undo and redo, Cancel and Finish sketch.
+// The top bar while the sketch view is open (SKETCH_OVERHAUL.md §6.3): the
+// sketch's own undo and redo. The rest is on the sketch's card (SketchPanel).
 import { useStore, useT } from '../store/store';
 import { Icon } from './icons';
-import { finishBlock } from '../sculpt/session';
 
 /** Cancel the sketch, asking once when it was changed. */
 export function cancelSketchAsked(t: ReturnType<typeof useT>) {
@@ -13,33 +12,22 @@ export function cancelSketchAsked(t: ReturnType<typeof useT>) {
   useStore.getState().cancelSketch();
 }
 
+/** The top bar while sketching: the sketch's own undo and redo. Extrude | Revolve, Cancel and Finish are on the sketch's card. */
 export function SketchTopBar() {
   const t = useT();
   const k = useStore((s) => s.sketch);
-  const shape = useStore((s) => (s.sketch?.shapeId ? s.design.sculpt?.shapes[s.sketch.shapeId] : null));
   if (!k) return null;
   const st = useStore.getState;
-  const block = finishBlock(k.draft, k.mode, shape);
   return (
     <>
-      <div className="seg sk-mode" role="radiogroup" aria-label={t('sketch.mode')} data-testid="sketch-mode">
-        {(['extrude', 'revolve'] as const).map((m) => (
-          <button key={m} role="radio" aria-checked={k.mode === m} className={k.mode === m ? 'on' : ''} onClick={() => st().setSketch({ mode: m })} data-testid={`sketch-mode-${m}`}>
-            {t(m === 'extrude' ? 'sketch.extrude' : 'sketch.revolve')}
-          </button>
-        ))}
-      </div>
+      <span className="sk-top-title" data-testid="sketch-title">
+        <Icon name="polygon" size={16} /> {t(k.shapeId ? 'sketch.titleEdit' : 'sketch.titleNew')}
+      </span>
       <button className="ghost icon-btn" onClick={() => st().sketchUndo()} disabled={!k.past.length && !k.txn} title="Ctrl+Z" aria-label={t('sketch.undo')} data-testid="sketch-undo">
         <Icon name="undo" />
       </button>
       <button className="ghost icon-btn" onClick={() => st().sketchRedo()} disabled={!k.future.length} title="Ctrl+Shift+Z" aria-label={t('sketch.redo')} data-testid="sketch-redo">
         <Icon name="redo" />
-      </button>
-      <button onClick={() => cancelSketchAsked(t)} data-testid="sketch-cancel">
-        {t('sketch.cancel')}
-      </button>
-      <button className="primary" onClick={() => st().finishSketch()} disabled={!!block} title={block === 'crossesAxis' ? t('sketch.crossesAxis') : block ? t('sketch.empty') : undefined} data-testid="sketch-finish">
-        <Icon name="check" /> {t('sketch.finish')}
       </button>
     </>
   );

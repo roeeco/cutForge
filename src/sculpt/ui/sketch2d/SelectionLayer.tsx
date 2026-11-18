@@ -1,7 +1,8 @@
 // The selection frame and measurements in the sketch view (SKETCH_OVERHAUL.md
 // §8.2, §8.4): corner and side handles that scale, knobs beyond the corners that
 // turn, width and height pills, and lengths and angles that can be typed.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { gridSnap, useStore, useT } from '../../../store/store';
 import { fmtNum } from '../../../i18n';
 import type { P2, SketchGraph } from '../../../model/types';
@@ -11,7 +12,7 @@ import { otherEnd, segsAt, selPts, bounds } from '../../../sketch/model';
 import { frameScale, scaleSelection, snapTurn, turnSelection, typedSize } from '../../../sketch/select';
 import { segLength, cornerAngle } from '../../../sketch/dims';
 import { setAngle, setLength } from '../../../sketch/ops';
-import type { View } from './useSketchPointer';
+import { sketchViewInfo, type View } from './useSketchPointer';
 
 const st = () => useStore.getState();
 const sv = (p: P2) => ({ x: p.x, y: -p.y });
@@ -28,8 +29,8 @@ function Pill({ at, text, px, onClick, testId, dim }: { at: P2; text: string; px
   const w = (text.length * 6.6 + 14) * px, h = 18 * px;
   const q = sv(at);
   return (
-    // the mouse down's default would move the focus and close the input it opens
-    <g onPointerDown={(e) => (e.stopPropagation(), e.preventDefault(), onClick?.())} onMouseDown={(e) => e.preventDefault()} style={{ cursor: onClick ? 'text' : 'default' }} data-testid={testId}>
+    // opened on the click, not the press: an input that appears under a pressed pointer gets the rest of the click, which drops its selected text
+    <g className={onClick ? 'sk-pill-g edit' : 'sk-pill-g'} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), onClick?.())} onDoubleClick={(e) => e.stopPropagation()} style={{ cursor: onClick ? 'text' : 'default' }} data-testid={testId}>
       <rect x={q.x - w / 2} y={q.y - h / 2} width={w} height={h} rx={h / 2} className="sk-pill" strokeWidth={px} opacity={dim ? 0.75 : 1} />
       <text x={q.x} y={q.y + 4 * px} textAnchor="middle" className="sk-pill-text" fontSize={11 * px}>
         {text}
@@ -38,26 +39,44 @@ function Pill({ at, text, px, onClick, testId, dim }: { at: P2; text: string; px
   );
 }
 
-/** The input for a pill being typed into, drawn in the sheet at screen size. */
-function PillInput({ e, px, onDone, onTab }: { e: Editing; px: number; onDone: (v: string | null, alt: boolean) => void; onTab?: () => void }) {
+/**
+ * The input for a pill being typed into: an ordinary input over the sheet, at
+ * the pill's place on screen (an input inside the drawing would be scaled with
+ * it, down to text a browser may refuse to draw).
+ */
+function PillInput({ e, onDone, onTab }: { e: Editing; onDone: (v: string | null, alt: boolean) => void; onTab?: () => void }) {
+  const svg = sketchViewInfo.canvas ?? document.querySelector<SVGSVGElement>('svg.sk-canvas');
+  const host = svg?.parentElement;
+  const m = svg?.getScreenCTM();
+  const done = useRef(false);
+  if (!svg || !host || !m) return null;
   const q = sv(e.at);
-  return (
-    <foreignObject x={q.x - 40 * px} y={q.y - 11 * px} width={80 * px} height={22 * px}>
+  const box = host.getBoundingClientRect();
+  const x = m.a * q.x + m.c * q.y + m.e - box.left, y = m.b * q.x + m.d * q.y + m.f - box.top;
+  const finish = (v: string | null, alt: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(v, alt);
+  };
+  return createPortal(
+    <span className="sk-pillbox" style={{ left: x, top: y }} dir="ltr" onPointerDown={(ev) => ev.stopPropagation()}>
       <input
         autoFocus
         defaultValue={e.text}
-        style={{ width: '100%', height: '100%', fontSize: `${12 * px}px`, padding: `0 ${4 * px}px`, border: `${px}px solid #2f6feb`, borderRadius: `${4 * px}px`, boxSizing: 'border-box', minHeight: 0 }}
+        inputMode="decimal"
         onFocus={(ev) => ev.target.select()}
         onKeyDown={(ev) => {
           ev.stopPropagation();
-          if (ev.key === 'Enter') onDone(ev.currentTarget.value, ev.altKey);
-          if (ev.key === 'Escape') onDone(null, false);
+          if (ev.key === 'Enter') finish(ev.currentTarget.value, ev.altKey);
+          if (ev.key === 'Escape') finish(null, false);
           if (ev.key === 'Tab' && onTab) (ev.preventDefault(), onTab());
         }}
-        onBlur={(ev) => onDone(ev.currentTarget.value, false)}
+        onBlur={(ev) => finish(ev.currentTarget.value, false)}
         data-testid={`sk-pill-input-${e.kind}`}
       />
-    </foreignObject>
+      <span className="unit">{e.kind === 'ang' ? '°' : 'mm'}</span>
+    </span>,
+    host,
   );
 }
 
@@ -161,8 +180,11 @@ export function SelectionLayer({ view, px }: { view: View; px: number }) {
     // width and height pills
     const W = b.max.x - b.min.x, H = b.max.y - b.min.y;
     const wAt = { x: mid.x, y: b.min.y - 16 * px }, hAt = { x: b.max.x + 30 * px, y: mid.y };
-    if (W > 1e-6) out.push(<Pill key="w" at={wAt} px={px} text={`W ${fmtNum(W)}`} onClick={() => setEditing({ kind: 'w', at: wAt, text: fmtNum(W) })} testId="sk-pill-w" />);
-    if (H > 1e-6) out.push(<Pill key="h" at={hAt} px={px} text={`H ${fmtNum(H)}`} onClick={() => setEditing({ kind: 'h', at: hAt, text: fmtNum(H) })} testId="sk-pill-h" />);
+    const oneLine = k.sel.segs.length === 1 && !k.sel.pts.length && sk.segs[k.sel.segs[0]]?.k === 'line' && k.dims;
+    if (oneLine) {
+      /* the line's own length pill is enough */
+    } else if (W > 1e-6) out.push(<Pill key="w" at={wAt} px={px} text={`W ${fmtNum(W)}`} onClick={() => setEditing({ kind: 'w', at: wAt, text: fmtNum(W) })} testId="sk-pill-w" />);
+    if (!oneLine && H > 1e-6) out.push(<Pill key="h" at={hAt} px={px} text={`H ${fmtNum(H)}`} onClick={() => setEditing({ kind: 'h', at: hAt, text: fmtNum(H) })} testId="sk-pill-h" />);
     if (turn) {
       out.push(<circle key="ring" cx={turn.c.x} cy={-turn.c.y} r={turn.ring} className="sk-frame" strokeWidth={px} pointerEvents="none" />);
       out.push(
@@ -246,7 +268,7 @@ export function SelectionLayer({ view, px }: { view: View; px: number }) {
         st().sketchEdit((x) => setAngle(x as SketchGraph, a.pt, v, a.turn));
       }
     };
-    out.push(<PillInput key="input" e={editing} px={px} onDone={done} onTab={editing.kind === 'ang' ? () => setEditing({ ...editing, turn: editing.other, other: editing.turn }) : undefined} />);
+    out.push(<PillInput key={`input-${editing.kind}-${'turn' in editing ? editing.turn : ''}`} e={editing} onDone={done} onTab={editing.kind === 'ang' ? () => setEditing({ ...editing, turn: editing.other, other: editing.turn }) : undefined} />);
   }
   return <g className="sk-selection">{out}</g>;
 }

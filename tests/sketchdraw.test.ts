@@ -106,6 +106,23 @@ describe('the line tool', () => {
     expect(sketchState(h.sk).empty).toBe(true);
   });
 
+  it('an undo from outside the tool (Ctrl+Z) leaves a chain that still draws', () => {
+    const h = harness();
+    h.click(0, 0).click(40, 0).click(40, 30);
+    h.env.undo();
+    // the chain is back at (40, 0): the next click goes on from there
+    h.click(80, 0);
+    expect(h.sk.order).toHaveLength(2);
+    expect(Object.values(h.sk.pts).some((p) => p.x === 80 && p.y === 0)).toBe(true);
+    expect(openEnds(h.sk)).toHaveLength(2);
+    // undone all the way: the chain starts again where it began
+    h.env.undo();
+    h.env.undo();
+    h.click(0, 50);
+    expect(h.sk.order).toHaveLength(1);
+    expect(Object.values(h.sk.pts).map((p) => `${p.x},${p.y}`).sort()).toEqual(['0,0', '0,50']);
+  });
+
   it('Esc ends the chain open, a second Esc asks for Select; Backspace removes the last point', () => {
     const h = harness();
     h.click(0, 0).click(40, 0).click(40, 30).click(0, 30);

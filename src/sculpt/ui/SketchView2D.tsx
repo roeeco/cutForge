@@ -6,7 +6,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import { useStore, useT } from '../../store/store';
 import type { P2, SketchGraph } from '../../model/types';
 import { useViewBox, type Box, type VB } from '../../views/canvas2d';
-import { sketchRegion, openEnds, sketchState } from '../../sketch/regions';
+import { sketchRegion, openEnds } from '../../sketch/regions';
 import { allCuts, cutPieces, segPoints, trimmedSegPoints } from '../../sketch/flatten';
 import { bounds, selPts } from '../../sketch/model';
 import { underlay } from '../underlay';
@@ -14,7 +14,7 @@ import { kernelNow } from '../kernel';
 import { SketchRail } from './sketch2d/SketchRail';
 import { SketchOverlay, sketchViewInfo, useSketchPointer } from './sketch2d/useSketchPointer';
 import { SelectionLayer } from './sketch2d/SelectionLayer';
-import { SketchBar } from './sketch2d/SketchBar';
+import { SketchPanel } from './sketch2d/SketchPanel';
 import { Icon } from '../../ui/icons';
 import './sketch2d/keys';
 
@@ -169,20 +169,6 @@ function UnderlayLayer({ px }: { px: number }) {
   );
 }
 
-function StatusLine() {
-  const t = useT();
-  const draft = useStore((s) => s.sketch?.draft);
-  if (!draft) return null;
-  const st = sketchState(draft);
-  const n = st.open.length;
-  const text = n === 1 ? t('sketch.oneOpenEnd') : n > 1 ? t('sketch.openEnds', { n }) : st.empty ? t('sketch.empty') : t('sketch.ready');
-  return (
-    <div className={`sk-status ${n ? 'warn' : ''}`} dir="auto" data-testid="sketch-status">
-      {text}
-    </div>
-  );
-}
-
 export function SketchView2D() {
   const t = useT();
   const k = useStore((s) => s.sketch)!;
@@ -243,7 +229,7 @@ export function SketchView2D() {
         <SelectionLayer view={view} px={px} />
       </svg>
       <SketchRail />
-      <SketchBar />
+      <SketchPanel />
       <Suspense fallback={null}>
         <Preview3D />
       </Suspense>
@@ -260,9 +246,8 @@ export function SketchView2D() {
           </button>
         </div>
       </div>
-      <StatusLine />
-      <div className="view-hint" dir="auto">
-        {ptr.hint ?? t('sketch.hint.view')}
+      <div className="view-hint sk-hint" dir="auto">
+        {t('sketch.hint.view')}
       </div>
     </div>
   );

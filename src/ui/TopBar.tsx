@@ -140,7 +140,7 @@ export function TopBar() {
         <span className="mat-name">{builtIn ? t(builtIn.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: d.material.thickness })}</span>
         <Icon name="chevDown" size={16} />
       </button>
-      {waffle && (
+      {waffle && !sketching && (
         // waffle designs (milestone 49): the stage stepper instead of the mode switch
         <div className="seg stage-seg" role="radiogroup" aria-label={t('stage.label')} data-testid="stage-stepper">
           {(['shape', 'make'] as const).map((k) => (

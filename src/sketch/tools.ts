@@ -72,6 +72,34 @@ export function initTool(tool: SkToolId): ToolState {
   return { tool, cur: null, snap: null, chain: null, typed: null, arc: { a: null, b: null }, bez: { down: null, h: null }, tape: { a: null, b: null }, box: null, drag: null };
 }
 
+/**
+ * The tool's state after the sketch changed under it (undo, redo, a delete):
+ * a chain, an arc or a drag never points at something that is gone. A chain
+ * goes back to its last point that still exists, or to where it started.
+ */
+export function syncTool(s: ToolState, sk: Sketch): ToolState {
+  let out = s;
+  const c = s.chain;
+  if (c) {
+    const pts = c.pts.filter((id) => !!sk.pts[id]);
+    const startGone = !!c.start.id && !sk.pts[c.start.id];
+    if (pts.length !== c.pts.length || startGone) {
+      const start = startGone ? { p: c.start.p } : c.start;
+      // the points are a run from the first: cut it at the first one missing
+      let keep = 0;
+      while (keep < c.pts.length && sk.pts[c.pts[keep]]) keep++;
+      const run = c.pts.slice(0, keep);
+      const chain: Chain = run.length >= 2 ? { ...c, start, pts: run, n: run.length - 1, first: run[0], last: run[run.length - 1] } : { ...c, start: run.length === 1 ? { id: run[0], p: { x: sk.pts[run[0]].x, y: sk.pts[run[0]].y } } : start, pts: [], n: 0, first: null, last: null };
+      out = { ...out, chain, typed: null, snap: null };
+    }
+  }
+  const pin = (p: Pin | null): Pin | null => (p?.id && !sk.pts[p.id] ? { p: p.p } : p);
+  const a = pin(s.arc.a), b = pin(s.arc.b);
+  if (a !== s.arc.a || b !== s.arc.b) out = { ...out, arc: { a, b } };
+  if (s.drag && ((s.drag.pt && !sk.pts[s.drag.pt]) || s.drag.pts?.some((id) => !sk.pts[id]) || (s.drag.handle && !sk.segs[s.drag.handle.seg]))) out = { ...out, drag: null };
+  return out;
+}
+
 const dist = (a: P2, b: P2) => Math.hypot(a.x - b.x, a.y - b.y);
 const pinEnd = (p: Pin): End => p.id ?? p.p;
 const posOf = (sk: Sketch, id: string | null | undefined, fallback: P2): P2 => (id && sk.pts[id] ? { x: sk.pts[id].x, y: sk.pts[id].y } : fallback);
@@ -226,7 +254,8 @@ function erasePoint(sk: Sketch, id: string) {
   delete sk.pts[id];
 }
 
-export function step(s: ToolState, ev: ToolEv, env: Env): ToolState {
+export function step(s0: ToolState, ev: ToolEv, env: Env): ToolState {
+  const s = syncTool(s0, env.sk());
   const mods = 'mods' in ev ? (ev.mods ?? NO_MODS) : NO_MODS;
   const tol = 10 * env.mmPerPx;
   if (ev.t === 'move') {

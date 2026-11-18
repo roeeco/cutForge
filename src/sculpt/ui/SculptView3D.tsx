@@ -53,7 +53,7 @@ function ShapeMesh({ d, id, index, dim, selected, ghost, onDown, onDouble }: { d
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
       <mesh geometry={geo} onPointerDown={onDown} onDoubleClick={onDouble} userData={{ shapeId: id }} renderOrder={hole ? 5 : 0}>
-        {mat ? <primitive object={mat} attach="material" /> : <meshStandardMaterial color={color} roughness={0.75} transparent={dim || ghost} opacity={ghost ? 0.6 : dim ? 0.25 : 1} depthWrite={!dim} emissive={selected ? '#0b4f4a' : '#000000'} emissiveIntensity={selected ? 0.25 : 0} />}
+        {mat ? <primitive object={mat} attach="material" /> : <meshStandardMaterial key={dim || ghost ? 'see-through' : 'solid'} color={color} roughness={0.75} transparent={dim || ghost} opacity={ghost ? 0.6 : dim ? 0.25 : 1} depthWrite={!dim} emissive={selected ? '#0b4f4a' : '#000000'} emissiveIntensity={selected ? 0.25 : 0} />}
       </mesh>
       {(selected || ghost) && (
         <lineSegments raycast={() => null} renderOrder={6}>
@@ -66,7 +66,7 @@ function ShapeMesh({ d, id, index, dim, selected, ghost, onDown, onDouble }: { d
 }
 
 /** The 3D gizmo for the selected shapes: a square and two arrows on the floor, a lift arrow, and three rings. */
-function ShapeGizmo({ d, ids }: { d: Design; ids: string[] }) {
+function ShapeGizmo({ d, ids, mode }: { d: Design; ids: string[]; mode: 'move' | 'turn' }) {
   const { camera, size } = useThree();
   const sc = d.sculpt!;
   const box = unionBox(ids.map((id) => worldBox(sc, id)));
@@ -96,6 +96,7 @@ function ShapeGizmo({ d, ids }: { d: Design; ids: string[] }) {
         ax={[1, 0, 0]}
         ay={[0, 0, -1]}
         n={[0, 1, 0]}
+        modes={mode === 'move' ? ['pad', 'x', 'y'] : ['ring']}
         onMove={(du, dv, ev) => {
           begin();
           let x = gridSnap(du, ev), z = gridSnap(-dv, ev);
@@ -115,7 +116,7 @@ function ShapeGizmo({ d, ids }: { d: Design; ids: string[] }) {
         ax={[0, 0, -1]}
         ay={[0, 1, 0]}
         n={[1, 0, 0]}
-        modes={['y', 'ring']}
+        modes={mode === 'move' ? ['y'] : ['ring']}
         onMove={(_du, dv, ev) => {
           begin();
           let y = gridSnap(dv, ev);
@@ -130,7 +131,7 @@ function ShapeGizmo({ d, ids }: { d: Design; ids: string[] }) {
         onEnd={end}
         testId="shape-lift"
       />
-      <Gizmo
+      {mode === 'turn' && <Gizmo
         at={at}
         ax={[1, 0, 0]}
         ay={[0, 1, 0]}
@@ -142,7 +143,7 @@ function ShapeGizmo({ d, ids }: { d: Design; ids: string[] }) {
         }}
         onEnd={end}
         testId="shape-turn-z"
-      />
+      />}
     </>
   );
 }
@@ -389,8 +390,8 @@ function SculptScene() {
           <meshBasicMaterial color={STAGE.ghost} transparent opacity={0.45} />
         </mesh>
       )}
-      {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && <ShapeGizmo d={d} ids={ids} />}
-      {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && <ScaleFrame d={d} ids={ids} />}
+      {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && ui.xform !== 'size' && <ShapeGizmo d={d} ids={ids} mode={ui.xform} />}
+      {ui.stage === 'shape' && tool === 'select' && !!ids.length && !ghostIds.length && ui.xform === 'size' && <ScaleFrame d={d} ids={ids} />}
       {ui.dragKind && <TileDrag kind={ui.dragKind} />}
       {ghostIds.length === 1 && <ShapeGhostBar d={d} id={ghostIds[0]} />}
       {ui.stage === 'shape' && <SketchLayer />}
@@ -399,24 +400,117 @@ function SculptScene() {
   );
 }
 
-/** Frames the sculpture: on the fit button, and once when the design opens. */
-function FitRig({ signal }: { signal: number }) {
-  const { camera, controls, invalidate } = useThree() as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update(): void } | null; invalidate: () => void };
-  useEffect(() => {
-    const d = useStore.getState().design;
-    const box = d.sculpt ? unionBox(d.sculpt.order.map((id) => worldBox(d.sculpt!, id))) : null;
-    const min = box?.min ?? [-100, 0, -100], max = box?.max ?? [100, 60, 100];
-    const c = new THREE.Vector3((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
-    const r = Math.max(60, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2);
-    const dir = new THREE.Vector3(0.55, 0.62, 1).normalize();
-    camera.position.copy(c).addScaledVector(dir, (r * 1.4) / Math.tan((camera.fov * Math.PI) / 360));
-    camera.lookAt(c);
+type Rig = { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update(): void } | null; invalidate: () => void; size: { width: number; height: number } };
+
+/** The box of some shapes (or of the whole sculpture). */
+function boxOf(d: Design, ids: string[] | null): Box3 | null {
+  const sc = d.sculpt;
+  if (!sc) return null;
+  return unionBox((ids ?? sc.order).map((id) => worldBox(sc, id)));
+}
+
+/** Move the camera so a box fills the view (keeping the direction it looks from); `fill` is the share of the view's smaller side the box takes. */
+function frameBox(rig: Rig, box: Box3 | null, o: { fill: number; dir?: THREE.Vector3; animate?: boolean }) {
+  const { camera, controls, invalidate, size } = rig;
+  const min = box?.min ?? [-100, 0, -100], max = box?.max ?? [100, 60, 100];
+  const c = new THREE.Vector3((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
+  const from = controls?.target ?? new THREE.Vector3();
+  const dir = o.dir ?? camera.position.clone().sub(from).normalize();
+  // the distance at which every corner of the box is inside `fill` of the view
+  const fwd = dir.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+  if (right.lengthSq() < 1e-9) right.set(1, 0, 0);
+  right.normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd);
+  const tanV = Math.tan((camera.fov * Math.PI) / 360) * o.fill, tanH = tanV * (size.width / Math.max(1, size.height));
+  let dist = 40;
+  for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) {
+    const v = new THREE.Vector3(x, y, z).sub(c);
+    const depth = v.dot(fwd);
+    dist = Math.max(dist, Math.abs(v.dot(right)) / tanH - depth, Math.abs(v.dot(up)) / tanV - depth);
+  }
+  const p1 = c.clone().addScaledVector(dir, dist);
+  const p0 = camera.position.clone(), t0 = from.clone();
+  const put = (k: number) => {
+    camera.position.lerpVectors(p0, p1, k);
     if (controls) {
-      controls.target.copy(c);
+      controls.target.lerpVectors(t0, c, k);
       controls.update();
-    }
+    } else camera.lookAt(c);
     invalidate();
-  }, [signal, !!controls]);
+  };
+  if (!o.animate) return put(1);
+  glide(220, put);
+}
+
+/** Run fn(0..1) over T ms, eased. On a timer, so it also finishes while the page is in the background. */
+let gliding = 0;
+function glide(T: number, fn: (k: number) => void) {
+  const me = ++gliding, start = performance.now();
+  const tick = () => {
+    // a newer move takes over
+    if (me !== gliding) return;
+    const k = Math.min(1, (performance.now() - start) / T);
+    fn(1 - (1 - k) * (1 - k));
+    if (k < 1) setTimeout(tick, 16);
+  };
+  tick();
+}
+
+/** How many pixels a box spans on screen (its diagonal, at its middle). */
+function screenSpan(rig: Rig, box: Box3): number {
+  const c = new THREE.Vector3((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
+  return Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]) / mmPerPx(rig.camera, rig.size.height, c);
+}
+
+/**
+ * The camera: frames the sculpture when the design opens, frames the selection
+ * (or everything) on the Frame button, and, while Follow is on, turns to what
+ * was just selected: it becomes the point the view orbits, and the view moves
+ * in when it is too small to work on (or out when it does not fit).
+ */
+function FitRig({ signal }: { signal: number }) {
+  const three = useThree() as unknown as Rig;
+  const rig = useRef(three);
+  rig.current = three;
+  const ready = !!three.controls;
+  const follow = useStore((s) => s.viewPrefs.follow !== false);
+  const stage = useStore((s) => s.sculpt.stage);
+  const selKey = useStore((s) => selectedShapeIds(s.selection).join(','));
+  const first = useRef(true);
+  useEffect(() => {
+    if (!ready) return;
+    const st = useStore.getState();
+    const ids = selectedShapeIds(st.selection);
+    const open = first.current;
+    first.current = false;
+    // on opening: everything, from the front right; later: the selection, from where the camera is
+    if (open) frameBox(rig.current, boxOf(st.design, null), { fill: 0.7, dir: new THREE.Vector3(0.55, 0.62, 1).normalize() });
+    else frameBox(rig.current, boxOf(st.design, ids.length && st.sculpt.stage === 'shape' ? ids : null), { fill: ids.length ? 0.4 : 0.7, animate: true });
+  }, [signal, ready]);
+  useEffect(() => {
+    if (!ready || !follow || !selKey || stage !== 'shape') return;
+    const st = useStore.getState();
+    if (st.txnBase) return;
+    const box = boxOf(st.design, selKey.split(','));
+    if (!box) return;
+    const r = rig.current;
+    const span = screenSpan(r, box);
+    const room = Math.min(r.size.width, r.size.height);
+    // big enough to work on and it fits: only the orbit point moves to it
+    if (span >= 150 && span <= room * 0.9) {
+      const c = new THREE.Vector3((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
+      const dist = r.camera.position.distanceTo(r.controls!.target);
+      const dir = r.camera.position.clone().sub(r.controls!.target).normalize();
+      const p0 = r.camera.position.clone(), t0 = r.controls!.target.clone(), p1 = c.clone().addScaledVector(dir, dist);
+      glide(200, (e) => {
+        r.camera.position.lerpVectors(p0, p1, e);
+        r.controls!.target.lerpVectors(t0, c, e);
+        r.controls!.update();
+        r.invalidate();
+      });
+    } else frameBox(r, box, { fill: 0.4, animate: true });
+  }, [selKey, follow, ready, stage]);
   return null;
 }
 
@@ -444,8 +538,23 @@ export function SculptView3D() {
   const empty = useStore((s) => !s.design.sculpt?.order.length);
   const ghost = useStore((s) => s.pending?.kind === 'sculpt');
   const [fit, setFit] = useState(0);
+  const follow = useStore((s) => s.viewPrefs.follow !== false);
+  const hasSel = useStore((s) => selectedShapeIds(s.selection).length > 0 && s.sculpt.stage === 'shape');
+  const xform = useStore((s) => s.sculpt.xform);
+  const nSel = useStore((s) => selectedShapeIds(s.selection).length);
+  // Home frames the selection, or everything
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key !== 'Home' || (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'))) return;
+      e.preventDefault();
+      setFit((f) => f + 1);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
   const overlay = useRef<HTMLDivElement>(null);
-  const hint = ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'waffle.hint' : empty ? 'sculpt.empty' : 'sculpt.hint.select';
+  const hint = ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'waffle.hint' : empty ? 'sculpt.empty' : nSel > 1 ? 'sculpt.hint.multi' : nSel === 1 ? (`sculpt.hint.${xform}` as const) : 'sculpt.hint.select';
   return (
     <div className="view3d sculpt-view" dir="ltr" data-testid="sculpt-view">
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
@@ -476,10 +585,13 @@ export function SculptView3D() {
       {stage === 'make' && <OutcomeBar />}
       <div className="view-dock" dir="auto">
         <div className="cluster">
-          <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">
-            <Icon name="fit" />
+          <button className={`txt ${follow ? 'on' : ''}`} aria-pressed={follow} onClick={() => useStore.getState().setPrefs({ follow: !follow })} title={t('view.followHelp')} data-testid="follow-view">
+            <Icon name="solo" size={16} /> {t('view.follow')}
           </button>
         </div>
+        <button className="frame-btn" onClick={() => setFit((f) => f + 1)} title={`${t(hasSel ? 'view.frameSel' : 'view.frameAll')} (Home)`} data-testid="fit-view">
+          <Icon name="fit" /> {t('view.frame')}
+        </button>
       </div>
       <div className="view-hint" dir="auto">
         {t(hint as 'sculpt.empty')}
