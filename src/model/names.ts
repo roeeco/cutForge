@@ -87,6 +87,8 @@ export function panelLabel(d: Design, id: string, t: T): string {
 function lidRole(d: Design, id: string, t: T): string | null {
   const trays = Object.values(d.trays ?? {});
   if (trays.some((x) => x.lidOf && x.baseId === id)) return t('part.lid');
+  // a Flat lid (milestone 79)
+  if (d.panels[id]?.lidOf) return t('part.lid');
   const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === id);
   if (!c) return null;
   const tray = c.trayId ? d.trays?.[c.trayId] : undefined;

@@ -4,6 +4,7 @@ import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
+import { setBoxLid, setCapRim } from '../src/easy/lid';
 import type { Design } from '../src/model/types';
 
 const [CARD, , CORR4, PLY] = MATERIALS;
@@ -197,5 +198,16 @@ export function lockTray(): Design {
   const base = addRootPanel(d, 0, 0, 100, 70);
   addTray(d, base, 40, { cornerKind: 'lock' });
   autoConnect(d);
+  return d;
+}
+
+/** A box with a lid of its own (milestone 79): a Flat lid (tabs through its slots), or a cap with a full rim. */
+export function lidKindBox(m: (typeof MATERIALS)[number], style: 'flat' | 'capFull'): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  const tray = addTray(d, base, 50)!;
+  autoConnect(d);
+  setBoxLid(d, tray, 'liftoff', style === 'flat' ? 'flat' : 'cap');
+  if (style === 'capFull') setCapRim(d, tray, 'full');
   return d;
 }

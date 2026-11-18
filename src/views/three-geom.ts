@@ -138,3 +138,30 @@ export function flapGeometry(p: Panel, poly: P2[], z0: number, z1: number): THRE
   else g.translate(0, 0, -z1);
   return g;
 }
+
+/**
+ * A board's outline lines (milestone 79): its rings and holes at both faces,
+ * and the edges across its thickness where the outline turns sharply. Drawn
+ * from the 2D outline rather than found in the triangulated slab, whose
+ * slivers (slots near an edge) made EdgesGeometry draw lines across the face.
+ */
+export function slabOutline(s: PanelShape, threshold = 25): THREE.BufferGeometry {
+  const z0 = s.side === -1 ? -s.t : 0, z1 = z0 + s.t;
+  const pts: number[] = [];
+  const cosT = Math.cos((threshold * Math.PI) / 180);
+  for (const ring of [...s.rings, ...s.holes]) {
+    const n = ring.length;
+    if (n < 2) continue;
+    for (let i = 0; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n], p = ring[(i + n - 1) % n];
+      for (const z of [z0, z1]) pts.push(a.x, a.y, z, b.x, b.y, z);
+      // across the thickness where the outline turns more than the threshold
+      const u = { x: a.x - p.x, y: a.y - p.y }, v = { x: b.x - a.x, y: b.y - a.y };
+      const lu = Math.hypot(u.x, u.y), lv = Math.hypot(v.x, v.y);
+      if (lu > 1e-9 && lv > 1e-9 && (u.x * v.x + u.y * v.y) / (lu * lv) < cosT) pts.push(a.x, a.y, z0, a.x, a.y, z1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  return g;
+}

@@ -1323,6 +1323,12 @@ Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-i
 - Found and fixed on the way: a spec that selects an edge by number crashed the new closing check; the view settings opened under the cards once the cluster grew; the Shapes card's operators dropped a shape still waiting for ✓; Import with a board selected made a board instead of a shape on it (both milestone 75).
 - Tests: `growCloses.test.ts` height marks; browser `grow-cleanup.spec.ts` (first visit: folded settings, More…, the hint, Edges).
 
+## Milestone 79 — the lid generator: Cap and Flat ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §3.2 (milestone 74 there). *Lifts off* has a *Kind* row: **Cap** or **Flat**, the one *Automatic* makes marked, the other greyed with its reason where it cannot be made. A Flat lid is one board beside the box, held on the walls' tops by tabs through slots worked out in its pose on the box; plywood makes one by default (Quick build's *With a lid* too). A cap's rim can be *Shallow*, *Half* or *Full*.
+- Tests: `tests/lidKinds.test.ts` (7): Automatic per material; each reason (card, round box, open side, walls of different heights) and a cap still allowed; a Flat lid in plywood and corrugated: tabs flush with its top, each in its slot with the fit and a web to the edge, its own piece, nothing glued, no check issue, idempotent and saved and opened unchanged; it follows a resize and a height; Flat to Cap to Flat to none leaves nothing behind; a cap's rim. Goldens: `lid-flat-ply`, `lid-flat-corr4`, `lid-cap-full-corr16` (new); every other golden byte-identical. Browser: `lids.spec` gains the Kind and Rim rows and the reason on card.
+- Not yet: `val.lidKind`, the Extrude card's Lid row, Inset and Drop-in (milestone 80), the fit spike on real plywood.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

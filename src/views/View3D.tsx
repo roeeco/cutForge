@@ -17,7 +17,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
-import { contourLinePoints, contourShapeGeometry, faceSlits, faceZ, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
+import { contourLinePoints, contourShapeGeometry, faceSlits, faceZ, slabOutline, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
 import { BandObject } from './bandMesh';
@@ -936,7 +936,7 @@ function PanelObject(props: {
   const shapeSig = useMemo(() => shapeKey(shape), [shape]);
   const geom = useMemo(() => shapeGeometry(shape), [shapeSig]);
   const removed = useMemo(() => !!props.through && removedByCut(d, p.id), [d, p.id, props.through]);
-  const outline = useMemo(() => (props.outlines ? new THREE.EdgesGeometry(geom, 25) : null), [geom, props.outlines]);
+  const outline = useMemo(() => (props.outlines ? slabOutline(shape, 25) : null), [shapeSig, props.outlines]);
   const matrix = useMemo(() => props.m.clone().multiply(frameMatrix(p.frame)), [p.frame, props.m]);
   const [z0, z1] = faceZ(p, t);
   useEffect(() => () => geom.dispose(), [geom]);

@@ -96,3 +96,30 @@ test('a cap lies beside the box and Put on shows it in place; a hinged lid is sh
   await expect(page.getByTestId('lid-pose')).toHaveText('Open');
   expect(errors).toEqual([]);
 });
+
+// milestone 79 (LIDS_LINES_PROJECTS_PLAN.md §3.2): the kind of lid that lifts off, Automatic, why not, a cap's rim
+test('Lifts off on plywood makes a Flat lid; Cap and its rim; on card the Flat lid is greyed with why', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const { tray } = await box(page, 'ply-3');
+  await page.getByTestId('lid-liftoff').click();
+  await expect(page.getByTestId('lid-style-flat')).toHaveAttribute('aria-checked', 'true');
+  let d = await design(page);
+  expect(Object.values(d.panels).some((p: any) => p.lidOf?.tray === tray && p.lidOf.kind === 'flat')).toBe(true);
+  expect(Object.keys(d.connections).filter((k) => k.startsWith('lidtab:'))).toHaveLength(4);
+  await page.getByTestId('lid-style-cap').click();
+  await expect(page.getByTestId('lid-style-cap')).toHaveAttribute('aria-checked', 'true');
+  await page.getByTestId('lid-rim-full').click();
+  d = await design(page);
+  const cap: any = Object.values(d.trays).find((t: any) => t.lidOf === tray);
+  expect(cap.height).toBeCloseTo(60 + 3, 6);
+  await page.screenshot({ path: test.info().outputPath('cap-full.png') });
+  // card: Flat greyed, and why when tapped
+  const c = await box(page, 'card-0.5');
+  await page.getByTestId('lid-liftoff').click();
+  await expect(page.getByTestId('lid-style-flat')).toHaveAttribute('aria-disabled', 'true');
+  await page.getByTestId('lid-style-flat').click({ force: true });
+  await expect(page.getByTestId('lid-section')).toContainText('On card, use the Cap');
+  void c;
+  expect(errors).toEqual([]);
+});

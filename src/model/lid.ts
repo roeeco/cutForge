@@ -4,8 +4,9 @@
 // thickness and the fit clearance, turned over and resting on the box: a hat
 // box lid. It is a tray like any other (`Tray.lidOf` names the box's tray);
 // its base's outline and place follow the box on every solve.
-import type { Design, Panel, RoundShape, SketchPt, Tray, V3 } from './types';
-import { toWorld } from './frame';
+import type { ConnGeom, Design, Panel, RoundShape, SketchPt, Tray, V3 } from './types';
+import { toLocal, toWorld } from './frame';
+import { findEdge as edgeOf } from './edges';
 import { matDir } from './frame';
 import { matOf, tOf } from './materials';
 import { roundPts } from './round';
@@ -57,11 +58,11 @@ function outlineBox(P: Panel): { x0: number; y0: number; x1: number; y1: number 
  * along the box's own axes. The corner of the lid's outline nearest the
  * box's front left, in the box base's coordinates.
  */
-export function lidBesideDefault(d: Design, box: Tray): { x: number; y: number } {
+export function lidBesideDefault(d: Design, box: Tray, gap = lidGap(d, box)): { x: number; y: number } {
   const B = d.panels[box.baseId];
   const b = outlineBox(B);
   const m = matOf(d, box.baseId);
-  return { x: b.x1 + m.thickness + LID_CLEAR, y: b.y0 - lidGap(d, box) };
+  return { x: b.x1 + m.thickness + LID_CLEAR, y: b.y0 - gap };
 }
 
 /** The lid's outline (the box base's grown by the gap) and where it would sit on the box, in the box base's coordinates. */
@@ -156,12 +157,11 @@ function rigidInverse(m: number[]): number[] {
  * moved on in 10 mm steps along the box's u axis until its footprint touches
  * no other board on the floor. Null when the default is free.
  */
-export function freeLidSpot(d: Design, box: Tray, lid: Panel): { x: number; y: number } | null {
+export function freeLidSpot(d: Design, box: Tray, lid: Panel, gap = lidGap(d, box)): { x: number; y: number } | null {
   const B = d.panels[box.baseId];
   if (!B) return null;
-  const at = lidBesideDefault(d, box);
-  const g = lidGap(d, box);
-  const w = B.w + 2 * g, h = B.h + 2 * g;
+  const at = lidBesideDefault(d, box, gap);
+  const w = B.w + 2 * gap, h = B.h + 2 * gap;
   const f = B.frame;
   // the floor footprints of every other root board (world x, z boxes), the box's and lid's own trays left out
   const skip = new Set<string>([box.baseId, lid.id]);
@@ -200,3 +200,125 @@ export function reconcileLids(d: Design) {
 
 /** The lid on a box's tray, if it has one. */
 export const lidOn = (d: Design, trayId: string): Tray | undefined => Object.values(d.trays ?? {}).find((t) => t.lidOf === trayId);
+
+// ---------------------------------------------------------------------------
+// The Flat lid (milestone 79, LIDS_LINES_PROJECTS_PLAN.md §3.2): one board
+// resting on the walls' tops, a lip wider than the box all round, held in
+// place by tabs on the walls' top edges through slots in it. It lies beside
+// its box like a cap (milestone 76); its joint with each wall is derived on
+// every solve (`lidtab:<lid>:<wall>`), worked out in its pose on the box.
+
+/** The clearance round a Flat lid's tabs in its slots (mm): looser than a joint's, so it lifts. */
+export const LID_FIT = 0.3;
+/** How far a Flat lid stands out past the box (mm): the web a slot needs past its fit, and a lip to lift it by. */
+export const flatLip = (d: Design, box: Tray) => Math.max(3, matOf(d, box.baseId).thickness) + LID_FIT / 2;
+
+/** The one-board lids of a box. */
+export const flatLidsOf = (d: Design, trayId: string): Panel[] => d.order.map((id) => d.panels[id]).filter((p) => p?.lidOf?.tray === trayId);
+
+/** Where a Flat lid lies on its box: its underside on the walls' tops, the base's outline grown by the lip. */
+export function flatOnFrame(d: Design, lid: Panel, box: Tray): Panel['frame'] | null {
+  const B = d.panels[box.baseId];
+  if (!B) return null;
+  const b = outlineBox(B), g = flatLip(d, box);
+  const up = matDir(B.frame), f = B.frame;
+  const at = (k: number) => f.o[k] + f.u[k] * (b.x0 - g) + f.v[k] * (b.y0 - g) + up[k] * box.height;
+  return { o: [at(0), at(1), at(2)], u: [...f.u], v: [...f.v], side: f.side };
+}
+
+/** Give a Flat lid its outline (the base's grown by the lip) and its place beside the box. */
+export function placeFlatLid(d: Design, lid: Panel, box: Tray) {
+  const B = d.panels[box.baseId];
+  if (!B || B.sketch.kind !== 'poly') return;
+  const g = flatLip(d, box);
+  const grown = grownPts(B.sketch.pts, g);
+  const x0 = Math.min(...grown.map((q) => q.x)), y0 = Math.min(...grown.map((q) => q.y));
+  const pts = grown.map((q) => ({ ...q, x: q.x - x0, y: q.y - y0 }));
+  lid.sketch = { kind: 'poly', pts, edgeIds: [...B.sketch.edgeIds] };
+  lid.w = Math.max(...pts.map((q) => q.x));
+  lid.h = Math.max(...pts.map((q) => q.y));
+  const p = box.lidAt ?? lidBesideDefault(d, box, g);
+  const f = B.frame;
+  const pt = (k: number) => f.o[k] + f.u[k] * p.x + f.v[k] * p.y;
+  lid.frame = { o: [pt(0), pt(1), pt(2)], u: [...f.u], v: [...f.v], side: f.side };
+}
+
+/** The move (column-major 4 × 4) that puts a box's lid of its own on the box: a cap or a Flat lid. */
+export function boxLidPutOn(d: Design, trayId: string): number[] | null {
+  const cap = lidOn(d, trayId);
+  if (cap) return lidPutOn(d, cap);
+  const box = d.trays[trayId];
+  const L = flatLidsOf(d, trayId)[0];
+  const on = box && L && flatOnFrame(d, L, box);
+  if (!on) return null;
+  return mul(frameMat(on), rigidInverse(frameMat(L.frame)));
+}
+const frameMat = (f: Panel['frame']) => {
+  const n = [f.u[1] * f.v[2] - f.u[2] * f.v[1], f.u[2] * f.v[0] - f.u[0] * f.v[2], f.u[0] * f.v[1] - f.u[1] * f.v[0]];
+  return [f.u[0], f.u[1], f.u[2], 0, f.v[0], f.v[1], f.v[2], 0, n[0], n[1], n[2], 0, f.o[0], f.o[1], f.o[2], 1];
+};
+
+/** The id of a Flat lid's joint with a wall. */
+export const lidTabId = (lid: string, wall: string) => `lidtab:${lid}:${wall}`;
+
+/**
+ * Keep every Flat lid beside its box, and its joints with the walls (`solve`,
+ * once the walls are placed). A lid whose box went stays a plain board.
+ */
+export function reconcileFlatLids(d: Design, ring: (t: Tray) => string[]) {
+  const want = new Set<string>();
+  for (const id of d.order) {
+    const L = d.panels[id];
+    if (!L?.lidOf) continue;
+    const box = d.trays?.[L.lidOf.tray];
+    if (!box || !d.panels[box.baseId]) {
+      delete L.lidOf;
+      continue;
+    }
+    placeFlatLid(d, L, box);
+    for (const w of ring(box)) {
+      const cid = lidTabId(L.id, w);
+      want.add(cid);
+      if (!d.connections[cid]) d.connections[cid] = { id: cid, kind: 'closure', a: { panelId: w, edge: 'e2' }, b: { panelId: L.id, edge: 'face' }, grown: false, angle: 90, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto: true, covers: [L.id] };
+    }
+  }
+  for (const c of Object.values(d.connections)) if (c.id.startsWith('lidtab:') && !want.has(c.id)) delete d.connections[c.id];
+}
+
+/**
+ * A Flat lid's joint with one wall: tabs on the wall's straight top edge (one
+ * under 80 mm, two above; none under 30 mm), as tall as the lid is thick so
+ * they are flush with its top, through slots in the lid where the tabs are when
+ * it rests on the box, the fit all round.
+ */
+export function flatLidGeom(d: Design, c: { a: { panelId: string }; b: { panelId: string } }): ConnGeom | null {
+  const W = d.panels[c.a.panelId], L = d.panels[c.b.panelId];
+  const box = L?.lidOf ? d.trays?.[L.lidOf.tray] : undefined;
+  if (!W || !L || !box) return null;
+  const g: ConnGeom = { edges: [], holes: [], adds: [], scores: [], flaps3d: [] };
+  const top = edgeOf(W, 'e2');
+  if (!top) return g;
+  const len = Math.hypot(top.b.x - top.a.x, top.b.y - top.a.y);
+  if (len < 30) return g;
+  const on = flatOnFrame(d, L, box);
+  if (!on) return g;
+  const tW = tOf(d, W.id), tL = tOf(d, L.id);
+  const tw = Math.min(len / 4, Math.max(8, 3 * tW));
+  const at = len < 80 ? [0.5] : [0.25, 0.75];
+  const notches = at.map((f) => ({ s0: f * len - tw / 2, s1: f * len + tw / 2, depth: -tL }));
+  g.edges.push({ panelId: W.id, edge: 'e2', notches });
+  const ux = (top.b.x - top.a.x) / len, uy = (top.b.y - top.a.y) / len;
+  for (const n of notches) {
+    // the tab's footprint at the lid's underside, in the lid's coordinates when it rests on the box
+    const corner = (s: number, z: number) => toLocal(on, toWorld(W.frame, top.a.x + ux * s, top.a.y + uy * s, z));
+    const q = [corner(n.s0, 0), corner(n.s1, 0), corner(n.s1, tW), corner(n.s0, tW)];
+    // grown by half the fit on every side: along the tab and across the wall
+    const along = { x: q[1].x - q[0].x, y: q[1].y - q[0].y }, across = { x: q[3].x - q[0].x, y: q[3].y - q[0].y };
+    const la = Math.hypot(along.x, along.y) || 1, lc = Math.hypot(across.x, across.y) || 1;
+    const h = LID_FIT / 2;
+    const sa = [-1, 1, 1, -1], sc = [-1, -1, 1, 1];
+    const grow = (p: { x: number; y: number }, i: number) => ({ x: p.x + (along.x / la) * h * sa[i] + (across.x / lc) * h * sc[i], y: p.y + (along.y / la) * h * sa[i] + (across.y / lc) * h * sc[i] });
+    g.holes.push({ panelId: L.id, poly: q.map(grow) });
+  }
+  return g;
+}

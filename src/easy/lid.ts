@@ -9,8 +9,8 @@
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
 import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
-import { addArchedLid, addLid, parentConnection, setClosure, setTrayEnds, solve } from '../model/ops';
-import { lidOn, lidOnFrame } from '../model/lid';
+import { addArchedLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
+import { flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { matOf } from '../model/materials';
@@ -23,7 +23,7 @@ import type { MsgKey } from '../i18n';
 export type BoxLid =
   | { kind: 'none' }
   /** A lid of its own that lifts off: in milestone 73 the cap (a shallow tray over the box). */
-  | { kind: 'liftoff'; style: 'cap'; tray: string; top: string }
+  | { kind: 'liftoff'; style: LidStyle; tray?: string; top: string }
   /** Folded off the back wall's top: a tuck or tab lid on card and corrugated, a living hinge on plywood. */
   | { kind: 'hinged'; lid: string; living: boolean }
   | { kind: 'arched'; lid: string; flap: string }
@@ -34,6 +34,9 @@ export type BoxLid =
 
 /** What can be chosen in the *Lid* section. */
 export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched';
+/** The kinds of lid that lifts off (milestone 79): a shallow tray over the box, or one board resting on its walls. */
+export type LidStyle = 'cap' | 'flat';
+export const LID_STYLES: LidStyle[] = ['cap', 'flat'];
 
 const topEdge = (edge: string | number) => (typeof edge === 'number' ? `e${edge}` : String(edge)).split('#')[0] === 'e2';
 
@@ -58,6 +61,8 @@ export function boxLid(d: Design, trayId: string): BoxLid {
   if (!t || t.lidOf) return { kind: 'none' };
   const cap = lidOn(d, trayId);
   if (cap && d.panels[cap.baseId]) return { kind: 'liftoff', style: 'cap', tray: cap.id, top: cap.baseId };
+  const flat = flatLidsOf(d, trayId)[0];
+  if (flat) return { kind: 'liftoff', style: 'flat', top: flat.id };
   if (t.top === 'tuck' && d.panels[topLidId(t)]) return { kind: 'hinged', lid: topLidId(t), living: matOf(d, topLidId(t)).kind === 'plywood' };
   if (t.top === 'seal') return { kind: 'flaps' };
   const ring = trayRing(d, t).map((r) => r.wall);
@@ -101,6 +106,7 @@ export function boxOfPanel(d: Design, panelId: string): string | null {
 
 /** Where a lid's top is when the box is closed: a lid of its own lies beside its box (milestone 76), so its pose on the box. */
 function topPose(d: Design, trayId: string, lid: BoxLid, P: Panel): Panel['frame'] {
+  if (lid.kind === 'liftoff' && lid.style === 'flat') return flatOnFrame(d, P, d.trays[trayId]) ?? P.frame;
   return (lid.kind === 'liftoff' && lidOnFrame(d, P, d.trays[trayId])) || P.frame;
 }
 
@@ -119,7 +125,7 @@ function removeLid(d: Design, trayId: string, lid: BoxLid): { dt: Detail; at: [n
   }
   else if (lid.kind === 'flaps') setTrayEnds(d, trayId, { top: 'open' });
   else if (lid.kind !== 'none') {
-    if (lid.kind === 'liftoff') delete d.trays[lid.tray];
+    if (lid.kind === 'liftoff' && lid.tray) delete d.trays[lid.tray];
     for (const id of lidParts(d, lid)) removePanelRecord(d, id);
     solve(d);
   }
@@ -132,15 +138,15 @@ function removeLid(d: Design, trayId: string, lid: BoxLid): { dt: Detail; at: [n
  * its top go onto the new lid's top where they were (by their place above the
  * box), and those that do not fit are dropped and counted.
  */
-export function setBoxLid(d: Design, trayId: string, choice: LidChoice): { ok: boolean; dropped: number } {
+export function setBoxLid(d: Design, trayId: string, choice: LidChoice, style?: LidStyle): { ok: boolean; dropped: number } {
   const t = d.trays?.[trayId];
   if (!t || t.lidOf) return { ok: false, dropped: 0 };
   const cur = boxLid(d, trayId);
-  if (cur.kind === choice) return { ok: true, dropped: 0 };
+  if (cur.kind === choice && (choice !== 'liftoff' || !style || (cur.kind === 'liftoff' && cur.style === style))) return { ok: true, dropped: 0 };
   // a carton closes with its tuck top or not at all
   if (t.base === 'open' && choice !== 'hinged' && choice !== 'none') return { ok: false, dropped: 0 };
   const carried = removeLid(d, trayId, cur);
-  if (choice === 'liftoff') addLid(d, trayId);
+  if (choice === 'liftoff') (style ?? autoStyle(d, trayId)) === 'flat' ? addFlatLid(d, trayId) : addLid(d, trayId);
   else if (choice === 'hinged') setTrayEnds(d, trayId, { top: 'tuck' });
   else if (choice === 'arched') addArchedLid(d, trayId);
   const now = boxLid(d, trayId);
@@ -303,4 +309,48 @@ export function heightMarks(d: Design, panelId: string, ghost: Pick<Panel, 'id' 
     if (P && P.id !== ghost.id && !out.some((m) => Math.abs(m.y - P.h) < 0.05)) out.push({ y: P.h, key: 'grow.mark.asTall', vars: { panel: P.id } });
   }
   return out;
+}
+
+/**
+ * Why a lid that lifts off cannot be made in this style (milestone 79,
+ * LIDS_LINES_PROJECTS_PLAN.md §3.2), or null when it can. A cap can always be
+ * made. A Flat lid needs board that holds a tab (not card), straight walls
+ * (not a round box), walls all round, and their tops level.
+ */
+export function lidStyleWhy(d: Design, trayId: string, style: LidStyle): MsgKey | null {
+  const t = d.trays?.[trayId];
+  if (!t || t.lidOf) return 'lid.why.none';
+  if (t.base === 'open') return 'lid.why.carton';
+  if (style === 'cap') return null;
+  const B = d.panels[t.baseId];
+  if (matOf(d, t.baseId).kind === 'card') return 'lid.why.flatCard';
+  if (B?.sketch.kind === 'poly' && B.sketch.round) return 'lid.why.flatRound';
+  const ring = trayRing(d, t);
+  const edges = B?.sketch.kind === 'poly' ? B.sketch.edgeIds.length : 4;
+  if (ring.length < edges || t.openEdges?.length) return 'lid.why.openSide';
+  const hs = ring.map((r) => d.panels[r.wall]);
+  if (hs.some((w) => w?.customHeight || (w?.sketch.kind === 'wall' && (Object.keys(w.sketch.corners ?? {}).length || w.sketch.inserts?.length)))) return 'lid.why.notLevel';
+  if (Math.max(...hs.map((w) => w?.h ?? 0)) - Math.min(...hs.map((w) => w?.h ?? 0)) > 0.05) return 'lid.why.notLevel';
+  return null;
+}
+
+/** The style *Automatic* makes (milestone 79): a Flat lid on plywood where one can be made (one board, no glue), else a cap. */
+export function autoStyle(d: Design, trayId: string): LidStyle {
+  const t = d.trays?.[trayId];
+  return t && matOf(d, t.baseId).kind === 'plywood' && !lidStyleWhy(d, trayId, 'flat') ? 'flat' : 'cap';
+}
+
+/** A cap's rim (milestone 79): *Shallow* (12 mm), *Half* or *Full* the box's height. */
+export type CapRim = 'shallow' | 'half' | 'full';
+export function capRimOf(d: Design, trayId: string): CapRim | null {
+  const cap = lidOn(d, trayId), box = d.trays?.[trayId];
+  if (!cap || !box) return null;
+  const rim = cap.height - matOf(d, cap.baseId).thickness;
+  return Math.abs(rim - box.height) < 0.5 ? 'full' : Math.abs(rim - box.height / 2) < 0.5 ? 'half' : 'shallow';
+}
+export function setCapRim(d: Design, trayId: string, rim: CapRim) {
+  const cap = lidOn(d, trayId), box = d.trays?.[trayId];
+  if (!cap || !box) return;
+  const t = matOf(d, cap.baseId).thickness;
+  setTrayHeight(d, cap.id, (rim === 'full' ? box.height : rim === 'half' ? box.height / 2 : 12) + t);
 }

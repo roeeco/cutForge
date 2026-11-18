@@ -78,6 +78,10 @@ const PICS = {
   open: `${BOX} M11 13 L15 10 L36 10`,
   /** A box with a lid lifted off above it. */
   liftoff: `${BOX} M6 8 L12 3 L40 3 L34 8 Z M6 8 L6 10 L34 10 L34 8 M34 10 L40 5 L40 3 M20 13 L20 11`,
+  /** A cap: a shallow tray over the box, its rim down its sides (milestone 79). */
+  cap: `${BOX} M6 15 L6 9 L34 9 L34 15 M34 9 L40 4 L40 10 M6 9 L12 4 L40 4`,
+  /** A Flat lid: one board on the walls, its tabs showing through (milestone 79). */
+  flatLid: `${BOX} M6 12 L32 12 L39 7 L13 7 Z M17 10 L19 10 M27 10 L29 10`,
   /** A box with its lid hinged open at the back. */
   hinged: `${BOX} M14 9 L38 9 L35 1 L11 1 Z`,
   /** A box with an arched lid. */

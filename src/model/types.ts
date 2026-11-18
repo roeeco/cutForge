@@ -144,6 +144,8 @@ export type Panel = {
   foldOvers?: FoldOver[];
   /** Milestone 67: plain flaps on free edges (card and corrugated): a scored lip, `len` mm, tapered at its ends. */
   edgeFlaps?: { id: string; edge: string; len: number }[];
+  /** A one-board lid of a box (milestone 79): its box's tray and its kind. A *Flat* lid rests on the walls' tops, held by their tabs through its slots. */
+  lidOf?: { tray: string; kind: 'flat' };
   /**
    * Derived (re-made by `solve`): how far a wall reaches past the start/end of
    * its parent edge, to close an inside corner of a tray.

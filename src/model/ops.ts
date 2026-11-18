@@ -2,7 +2,7 @@
 import { planWings, reconcileWings } from './wings';
 import { autoFlap } from './seams';
 import { closureCovers, closureOf, reachFor, reconcileClosures } from './closures';
-import { fitTopLids, planOpenTrays, reconcileTopLids } from './cartons';
+import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { pieceRoot, placementPiece } from './keys';
@@ -10,7 +10,7 @@ import { pieceRoot, placementPiece } from './keys';
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
-import { freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
+import { flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -236,6 +236,8 @@ function solveOnce(d: Design) {
   // the corners' bands once the walls stand: their kinds (plywood strips keyed shut and for the sheet)
   planWings(d);
   // lids that seal their box get their closure (milestone 67)
+  // Flat lids (milestone 79): beside their box, their tabs and slots with its walls
+  reconcileFlatLids(d, (t) => trayRing(d, t).map((r) => r.wall));
   reconcileClosures(d);
   for (const c of Object.values(d.connections)) {
     // construction panels are never joined: their connections carry no joint
@@ -401,6 +403,26 @@ export function addLid(d: Design, trayId: string, rim = LID_RIM): string | null 
   if (free) d.trays[tid].lidAt = free;
   solve(d);
   return tid;
+}
+
+/**
+ * A Flat lid on a box (milestone 79): one board beside the box, the base's
+ * outline grown by the lip, held by tabs on the walls' tops through its slots.
+ * Returns the lid's id, or null when the box has a lid of its own already.
+ */
+export function addFlatLid(d: Design, trayId: string): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || !d.panels[box.baseId] || d.order.some((id) => d.panels[id]?.lidOf?.tray === trayId)) return null;
+  const B = d.panels[box.baseId];
+  const id = addRootPanel(d, 0, 0, B.w, B.h);
+  const L = d.panels[id];
+  if (B.material) L.material = B.material;
+  L.lidOf = { tray: trayId, kind: 'flat' };
+  placeFlatLid(d, L, box);
+  const free = freeLidSpot(d, box, L, flatLip(d, box));
+  if (free) box.lidAt = free;
+  solve(d);
+  return id;
 }
 
 /** An arched lid's flat strip across the top (mm) and its front flap below the arch (mm). */
@@ -1161,11 +1183,13 @@ export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
   if (!p || parentConnection(d, panelId)) return;
   // a lid of its own (milestone 76) stays where the student puts it, kept as its place beside its box
   const lidT = Object.values(d.trays ?? {}).find((t) => t.lidOf && t.baseId === panelId);
-  const box = lidT?.lidOf ? d.trays[lidT.lidOf] : undefined;
+  // a cap keeps its place on its own tray; a Flat lid (milestone 79) on its box's
+  const holder = lidT ?? (p.lidOf ? d.trays?.[p.lidOf.tray] : undefined);
+  const box = lidT?.lidOf ? d.trays[lidT.lidOf] : p.lidOf ? d.trays?.[p.lidOf.tray] : undefined;
   const B = box && d.panels[box.baseId];
-  if (lidT && box && B) {
-    const at = lidT.lidAt ?? lidBesideDefault(d, box);
-    lidT.lidAt = { x: at.x + dx * B.frame.u[0] + dz * B.frame.u[2], y: at.y + dx * B.frame.v[0] + dz * B.frame.v[2] };
+  if (holder && box && B) {
+    const at = holder.lidAt ?? lidBesideDefault(d, box, lidT ? undefined : flatLip(d, box));
+    holder.lidAt = { x: at.x + dx * B.frame.u[0] + dz * B.frame.u[2], y: at.y + dx * B.frame.v[0] + dz * B.frame.v[2] };
     solve(d);
     return;
   }

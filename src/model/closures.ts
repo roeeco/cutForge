@@ -7,6 +7,7 @@
 // on the walls). It replaces the joints the editor would otherwise make
 // between the lid and those walls. Pulled short, the lid stops sealing and
 // the joint goes; its settings stay, and come back with it.
+import { flatLidGeom } from './lid';
 import type { Closure, ClosureStyle, ConnGeom, Connection, Design, MaterialKind, P2, Panel } from './types';
 import { findEdge, segLength } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
@@ -179,6 +180,8 @@ function roundedTab(x0: number, x1: number, y0: number, y1: number, r: number): 
 export function closureGeom(d: Design, c: Connection): ConnGeom | null {
   // a tray's flapped end (milestone 68)
   if (c.id.startsWith('end:')) return endGeom(d, c);
+  // a Flat lid's tabs and slots (milestone 79)
+  if (c.id.startsWith('lidtab:')) return flatLidGeom(d, c);
   const s = sealOf(d, c.a.panelId);
   if (!s) return null;
   const L = d.panels[s.lid], F = d.panels[s.front];

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import type { Design } from '../model/types';
 import { boxLid, lidParts } from '../easy/lid';
-import { lidPutOn } from '../model/lid';
+import { boxLidPutOn } from '../model/lid';
 import { parentConnection } from '../model/ops';
 import { bandChildMove, bandOf } from '../model/bands';
 import { matDir, toWorld } from '../model/frame';
@@ -64,7 +64,7 @@ export function applyLidPoses(d: Design, r: { xf: Map<string, THREE.Matrix4>; be
       // beside the box in the design: on it when put on, and while it goes together
       // (a picked lid stays beside the box, where it can be drawn on)
       if (!(v.shut[t.id] || v.assembling) || (picked && !v.assembling)) continue;
-      const T = lidPutOn(d, d.trays[lid.tray]);
+      const T = boxLidPutOn(d, t.id);
       if (T) move(ids, new THREE.Matrix4().fromArray(T));
       continue;
     }

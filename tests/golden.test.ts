@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -75,6 +75,10 @@ CASES.push({ name: 'carton-corr-seal', make: () => cartonDesign(MATERIALS[1], 's
 CASES.push({ name: 'round-box-card-circle', make: () => roundBoxDesign(MATERIALS[0], 'circle', 90, 90) });
 CASES.push({ name: 'round-box-ply-circle', make: () => roundBoxDesign(MATERIALS[3], 'circle', 110, 110) });
 CASES.push({ name: 'round-box-corr-oval', make: () => roundBoxDesign(MATERIALS[1], 'oval', 150, 100) });
+// milestone 79: lids of their own
+CASES.push({ name: 'lid-flat-ply', make: () => lidKindBox(MATERIALS[3], 'flat') });
+CASES.push({ name: 'lid-flat-corr4', make: () => lidKindBox(MATERIALS[2], 'flat') });
+CASES.push({ name: 'lid-cap-full-corr16', make: () => lidKindBox(MATERIALS[1], 'capFull') });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

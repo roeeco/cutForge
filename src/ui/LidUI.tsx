@@ -7,7 +7,8 @@ import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { setTrayEnds } from '../model/ops';
 import { matOf } from '../model/materials';
-import { boxLid, boxOfPanel, lidParts, lidWhy, setBoxLid, type BoxLid, type LidChoice } from '../easy/lid';
+import { autoStyle, boxLid, boxOfPanel, capRimOf, lidParts, lidStyleWhy, lidWhy, LID_STYLES, setBoxLid, setCapRim, type BoxLid, type CapRim, type LidChoice, type LidStyle } from '../easy/lid';
+import { Segmented } from './NumField';
 import { shown, useFeature } from '../easy/features';
 import { PictureChoice, type PictureOption } from './Pictures';
 import type { MsgKey } from '../i18n';
@@ -15,7 +16,7 @@ import type { Tray } from '../model/types';
 
 /** The help line under the *Lid* row: what the box's lid is. */
 function lidHelp(lid: BoxLid, plywood: boolean, carton: boolean): MsgKey {
-  if (lid.kind === 'liftoff') return 'lid.help.cap';
+  if (lid.kind === 'liftoff') return lid.style === 'flat' ? 'lid.help.flat' : 'lid.help.cap';
   if (lid.kind === 'hinged') return lid.living || plywood ? 'lid.help.living' : carton ? 'lid.help.carton' : 'lid.help.hinged';
   if (lid.kind === 'arched') return 'tray.archHelp';
   if (lid.kind === 'fixed') return 'lid.help.fixed';
@@ -35,6 +36,8 @@ export function LidSection({ panelId }: { panelId: string }) {
   const choices: LidChoice[] = adv ? ['none', 'liftoff', 'hinged', 'arched'] : ['none', 'liftoff', 'hinged'];
   const whys = useMemo(() => (trayId ? Object.fromEntries(choices.map((c) => [c, lidWhy(d, trayId, c)])) : {}), [d, trayId, choices.length]) as Partial<Record<LidChoice, MsgKey | null>>;
   const shut = useStore((s) => (trayId ? !!s.lidShut[trayId] : false));
+  const styleWhy = useMemo(() => (trayId ? Object.fromEntries(LID_STYLES.map((st) => [st, lidStyleWhy(d, trayId, st)])) : {}), [d, trayId]) as Partial<Record<LidStyle, MsgKey | null>>;
+  const auto = trayId ? autoStyle(d, trayId) : 'cap';
   if (!f || !tray) return null;
   const lid = boxLid(d, tray.id);
   const parts = lidParts(d, lid);
@@ -67,6 +70,24 @@ export function LidSection({ panelId }: { panelId: string }) {
       <p className="note" data-testid="lid-help">
         {t(lidHelp(lid, plywood, carton))}
       </p>
+      {lid.kind === 'liftoff' && (
+        // milestone 79: the kind of lid that lifts off, the one Automatic chooses first; one that cannot be made is greyed with why
+        <PictureChoice
+          label={t('lid.style')}
+          value={lid.style}
+          options={LID_STYLES.map((st) => ({ value: st, label: t(`lid.style.${st}`) + (st === auto ? ' ' + t('lid.style.auto') : ''), pic: st === 'cap' ? 'cap' : 'flatLid', testId: `lid-style-${st}`, why: styleWhy[st] ? t(styleWhy[st]!) : undefined }))}
+          onChange={(st) => apply((x) => void setBoxLid(x, tray.id, 'liftoff', st))}
+          testId="lid-style"
+        />
+      )}
+      {lid.kind === 'liftoff' && lid.style === 'cap' && adv && (
+        <Segmented
+          label={t('lid.rim')}
+          value={capRimOf(d, tray.id) ?? 'shallow'}
+          options={(['shallow', 'half', 'full'] as const).map((r) => ({ value: r, label: t(`lid.rim.${r}`), testId: `lid-rim-${r}` }))}
+          onChange={(r) => apply((x) => setCapRim(x, tray.id, r as CapRim))}
+        />
+      )}
       {(lid.kind === 'liftoff' || lid.kind === 'hinged' || lid.kind === 'arched') && (
         // milestone 76: a lid of its own lies beside the box, a folded one is shown open; this shows it in place (view only)
         <div className="field lid-pose">
