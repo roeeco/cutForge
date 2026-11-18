@@ -1,16 +1,16 @@
-# Guided mode: Quick build rebuilt around a thing to make (milestones 87–93)
+# Guided mode: a first level built around a thing to make (milestones 87–93)
 
-Status: plan. Written 2026-11-18 against `claude/waffle-mode`; **re-checked and rewritten on 2026-11-19 against `origin/main` at `1c4cb96` (milestone 73)**. Nothing here is built.
+Status: plan. Written 2026-11-18 against `claude/waffle-mode`; **re-checked and rewritten on 2026-11-19 against `origin/main` at `1c4cb96` (milestone 73)**. The same day the owner decided that **Quick build stays, as the middle level**. Nothing here is built.
 
-**Guided** is a new interface for what Quick build does: a student picks a thing, changes it by touching it, decorates it and sends it. It uses the engine Quick build already has (recipes, lids, dividers, guardrails, fixes, missions, objects). Workshop is not changed, apart from two shared fixes in milestone 87.
+**Guided** is a new first level, below Quick build: a student picks a thing, changes it by touching it, decorates it and sends it. It uses the engine Quick build already has (recipes, lids, dividers, guardrails, fixes, missions, objects). There are then three levels: **Guided · Quick build · Workshop**. Quick build and Workshop are not changed, apart from the fixes in milestone 87 and the two missions named in §4.
 
 ## 0. Base, and the other plans
 
 - **Base:** `origin/main` at `1c4cb96`. Start the work on a new branch from `origin/main` and bring this file over. The branch this file was first committed on (`claude/guided-mode`) sits on the waffle work, which `main` does not have.
 - **Numbers:** `main` has built 61–73 and planned 74–86, so this plan is 87–93.
-- **`LIDS_LINES_PROJECTS_PLAN.md`** (74–86, not started) keeps adding to Quick build: lid kinds and locks (74–77), lines (78–80), *Your designs* and projects (81–83), dimensions and *Print a plan* (84–85). Its §10.1 says *everything is a ghost that ✓ makes* and *the rail does not grow*. This plan reverses the first for Guided only. Once milestone 88's shell exists, each of those milestones adds its Guided control where it adds its Quick build row. Nothing here waits for them.
+- **`LIDS_LINES_PROJECTS_PLAN.md`** (74–86, not started) keeps adding to Quick build: lid kinds and locks (74–77), lines (78–80), *Your designs* and projects (81–83), dimensions and *Print a plan* (84–85). Its §10.1 says *everything is a ghost that ✓ makes* and *the rail does not grow*. Both still hold for Quick build; Guided does without the ghost and has no rail. Those milestones go on as planned. Once milestone 88's shell exists, one of them also adds a Guided control where its feature belongs there: lid kinds and locks in the *Lid* row, *Your designs* in the gallery, *Print a plan* in Send. Lines never do. Nothing here waits for them.
 - **`UI_CLEANUP_PLAN.md`** (untracked in the owner's folder, no numbers): its Part 3, a lid that sits beside the box, helps Guided, because the inside stays clear. Guided works without it.
-- **`PACKAGING_AND_LEARNING.md`** (on `origin/claude/busy-pascal-9rlxzv`, not merged) proposes levels, *Guided · Open · Workshop*, where *Guided* is today's Quick build. Its *start from the product* and *briefs* overlap this plan's gallery and missions. §4 says how this plan stays open to levels.
+- **`PACKAGING_AND_LEARNING.md`** (on `origin/claude/busy-pascal-9rlxzv`, not merged) proposes a ladder of levels, *Guided · Open · Workshop*. This plan builds that ladder's three rungs, with Quick build as the middle one; the proposal's unlockable groups of features are not part of it. Its *start from the product* and *briefs* overlap this plan's gallery and missions.
 - **Waffle** is not on `main`. When it is merged, its designs keep their own interface in every mode, and its card goes under the gallery.
 
 ## 1. Why
@@ -66,7 +66,7 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 - **One finish.** *Send to my teacher* (or *Download the file* without a class). No file format, no kerf.
 - **Every button has a word.** The interface never says joint, kerf, clearance, snapping, tray, panel, edge, extrude or footprint.
 - **Mouse or one finger is enough.** No Shift, Ctrl, Alt, letter keys or right-drag are needed for anything.
-- **All tools are one step away, when the teacher allows it.**
+- **More tools are one step away, when the teacher allows it:** Quick build, then Workshop.
 
 ## 3. The interface
 
@@ -76,7 +76,7 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 
 - **Material.** With a class that has a material profile: one line, *Your class cuts in Plywood 3 mm*, and nothing to choose. Otherwise a small row of four chips above the cards, plywood chosen, the last choice remembered.
 - **Which cards.** The missions the class offers, then the plain things: *Box*, *Box with a lid*, *Round box*, *Carton*. Each plain thing is `boxRecipe` with a footprint, a kind and a starting size. *Carton* is greyed on plywood with today's reason.
-- **Under the cards**, smaller: *Open a saved file*, and *Start with all tools* when Workshop is allowed.
+- **Under the cards**, smaller: *Open a saved file*, and *Start with more tools* when the class allows it (Quick build's start screen).
 - **Coming back.** *Start something new* in the menu shows the gallery with *Keep working on …* as the first card. When milestone 81 is built, *Your designs* takes that place.
 
 ### 3.2 The frame
@@ -102,7 +102,7 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 - **Side sheet**: what is selected, in at most four rows. With nothing selected, the thing itself.
 - **Mission card**, bottom corner: the goals and stars, as today.
 - **View buttons**: *Look around* (the opening view), *From above*, zoom in and out. Dragging empty space turns the view. Nothing pans; the thing stays centred.
-- **Menu**: *Start something new*, *Open a saved file*, *Save a copy*, the language, *All tools (Workshop)*, *Teacher view*.
+- **Menu**: *Start something new*, *Open a saved file*, *Save a copy*, the language, *More tools (Quick build)*, *All tools (Workshop)*, *Teacher view*.
 - It fits from 1024 px wide with no sideways scroll; the stepper is never folded into a menu. In Hebrew the sheet and the mission card swap sides; the stage stays `dir="ltr"`.
 
 ### 3.3 Build
@@ -112,7 +112,7 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 - **Splitting.** Tap a space: its inside size shows, with a **+**. The + offers two pictures, *side to side* and *front to back* (only those that leave both halves 20 mm or more). The divider goes through the middle of that space and ends at the walls or dividers around it, as milestone 70's dividers do.
 - **Lid.** *Lid* on the add bar opens today's three pictures, *None · Lifts off · Hinged*. One that cannot be made is greyed and says why, as now. A carton also has its *Bottom* pictures.
 - **What goes inside.** *What goes inside* opens the seven objects as pictures. A tap puts one in the selected space, or the best free one. A count, *fits* in green or *needs 14 mm more* in amber, and **Make it fit**, which grows the box by what is missing and gives all of it to that space.
-- **Other things.** A thing made from a template (the card stand) shows its own sizes as sliders with pictures. A design made with Workshop tools shows a note, *Made with all the tools: you can decorate and send it*, and no arrows.
+- **Other things.** A thing made from a template (the card stand) shows its own sizes as sliders with pictures. A design that is more than one box (a second box, a wall added by hand, a Workshop part) shows a note, *Made with more tools: you can decorate and send it*, a button back to those tools, and no arrows.
 - **More about this box**, folded shut at the bottom of the sheet: how the corners hold (today's two joint lists, with pictures) and *No glue* on card and corrugated.
 
 ### 3.4 Decorate
@@ -127,7 +127,7 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 ### 3.5 Send
 
 - **The sheet**: the pieces as the laser will cut them, with their names. A picture only; nothing is dragged.
-- **The check**: *Ready to cut ✓*, or each problem in plain words with **Fix**. What cannot be fixed says *Ask your teacher* (and *Open in all tools* when allowed).
+- **The check**: *Ready to cut ✓*, or each problem in plain words with **Fix**. What cannot be fixed says *Ask your teacher* (and *Open with more tools* when allowed).
 - **Use less board**, when the pieces take more than one sheet: today's button and its one question.
 - **The mission's goals and stars**, when there is one.
 - **Watch it go together**: the assembly animation. For card and corrugated, *See it flat*.
@@ -149,23 +149,24 @@ Looked at on 2026-11-19: `origin/main` run from a side checkout, in a browser wi
 | Kerf, clearance, snapping, sheet settings | not shown |
 | Lifts off, Hinged, No glue, Use less board, Cut out, Engrave, Ready to cut, Mission | kept, with their pictures |
 
-### 3.7 What Guided leaves to Workshop
+### 3.7 What Guided leaves to the other two
 
-Building from an empty floor, a second box, walls and standing boards drawn by hand, outlines (gables), polygons drawn by hand, angles, through-cuts, fold-overs, a second material, arrays, importing an SVG, moving pieces on the sheet, lines (when built), kerf and file format.
+- **To Quick build:** building from an empty floor, a second box, a wall or a standing board drawn by hand, a divider at any angle, outlines (gables), arrays, moving pieces on the sheet, SVG or DXF.
+- **To Workshop:** polygons drawn by hand, angles, through-cuts, fold-overs, a second material, importing an SVG, lines (when built), kerf.
 
 ## 4. Decisions
 
 | Topic | Decision |
 |---|---|
-| Name | **Guided**. A third mode value, `'guided'`, beside `'quick'` and `'workshop'` until milestone 93. The Hebrew name is chosen with the teacher. |
+| Three levels | **Guided · Quick build · Workshop** (decided 2026-11-19). Quick build keeps its name, its rail and its cards, and milestones 74–86 go on adding to it. |
+| Name | **Guided**. A third mode value, `'guided'`, beside `'quick'` and `'workshop'`. The Hebrew name is chosen with the teacher. |
 | What a mode is | Unchanged: a viewer preference, never part of the design. A file opens the same in every mode. |
-| Quick build's rail | **Retired in milestone 93**, when Guided can do its job: a saved `'quick'` then reads as `'guided'`. Until then both exist. See *My calls*. |
-| Default | **A new browser starts in Guided**, from milestone 93. This reverses the follow-up *Workshop by default*. A browser with saved preferences keeps its mode. |
+| Default | **A new browser and a new class start in Guided**, from milestone 93. This reverses the follow-up *Workshop by default*. A browser with saved preferences, and an existing class, keep their mode. |
 | Engine | **No new design fields, no schema bump.** Guided calls existing ops and recipes. Golden exports stay byte-identical. |
 | Shell | Guided has its own shell in `src/guided/`. There is still one stage (`View3D`) and one sheet view (`Plan2D`); the feature table decides what they show. |
 | Feature table | Guided gets its own states beside Quick build's in `src/easy/features.ts`. Rule 3 of the lids plan holds for Guided too: every section of a Guided sheet names a feature, and `quickTable.test.ts` checks it. |
 | Ghost and ✓ | **Not used in Guided.** Every action applies at once as one undo step. This reverses milestone 30, and §10.1 of the lids plan, for this mode only. |
-| Scope | **Guided changes a thing; it does not build from nothing.** It has no Box, Wall or Standing board action. |
+| Scope | **Guided changes a thing; it does not build from nothing.** It has no Box, Wall or Standing board action: those are Quick build's. |
 | Boxes | Every Guided box is a tray box made by `boxRecipe`, so today's lids, cartons and round boxes all work. |
 | Dividers | Milestone 70's. Guided makes them by splitting a space and moves them with `setDividerOffset`. |
 | Lid | `boxLid` and `setBoxLid`, with today's pictures. Lid kinds and locks from milestones 74–77 join that row when they are built. |
@@ -173,15 +174,16 @@ Building from an empty floor, a second box, walls and standing boards drawn by h
 | Joints | Chosen by the app. One folded row keeps them changeable. |
 | Material | The class's, applied at the start. Without a class, a chip on the gallery. |
 | Finish | The Send step. Students in a class never see a file format or kerf. |
-| Workshop | The class decides (`modeLocked`, shown to the teacher as *Students can open all tools*). Without a class it is in the menu. |
+| Moving up | The class decides: `mode` is the level students start in, and `modeLocked` (shown to the teacher as *Students stay in this level*) keeps them there. Without a class both other levels are in the menu. No schema change. |
+| Between levels | A design opens the same in all three. In Guided, a design that is one box (or a template's thing) gets Build's arrows. Anything more is read-only in Build, with a button back to the level that made it, and can still be decorated and sent. |
 | Teaching | Short looping pictures of each gesture, shown the first time. The tour stays off and stays Workshop's. |
 | Input | The primary pointer does everything. Keys are extras: Undo, Redo, Delete, Esc, arrows. |
-| Levels | Not decided here. If `PACKAGING_AND_LEARNING.md`'s levels are built, Guided is the bottom one and this plan's feature states are its states. |
 
 **My calls (say if you want them different):**
 
-- **Quick build's rail goes at the end.** You said Quick build turns into Guided, so milestone 93 removes its rail and action cards. The other choice is to keep it as a middle level (*Open* in `PACKAGING_AND_LEARNING.md`), which would also keep what milestone 73 built and what 74–86 plan to add to it. Only milestone 93 differs between the two.
-- **The two organiser missions are rebuilt as recipes.** Pencil box and Game organiser start from the organiser template, which has its own older lid and its own divider counts. As version 2 they start from `boxRecipe` and `addDividerLine`, so one lid and one kind of divider serve every Guided box. Saved version-1 designs still open and still count their goals.
+- **The middle level keeps the name Quick build.** `PACKAGING_AND_LEARNING.md` calls that rung *Open*.
+- **A class has no "highest level" setting.** A teacher chooses where students start and whether they stay there, as today. Opening Quick build but not Workshop to a class would need a new column; it is left to the levels proposal.
+- **The two organiser missions are rebuilt as recipes.** Pencil box and Game organiser start from the organiser template, which has its own older lid and its own divider counts. As version 2 they start from `boxRecipe` and `addDividerLine`, so one lid and one kind of divider serve every Guided box. This also changes what those two missions start as in Quick build: a box with the *Lid* section, in place of the template's form. Saved version-1 designs still open and still count their goals.
 - **Joints stay one tap away**, under *More about this box*. A follow-up put them on Quick build's first card on purpose; this moves them off the first screen without removing them.
 - **Send waits for the check.** Today a student can *Download anyway*.
 - **Decorating is face-on**, not on the 3D box. It avoids drawing on a wall seen at a slant.
@@ -250,7 +252,7 @@ Files: new `src/guided/things.ts`, `src/guided/GuidedStart.tsx`; `src/easy/mode.
 - **The gallery** of §3.1 replaces `StartScreen` in Guided. Workshop and Quick build keep `StartScreen`. Thumbnails come from `renderThumbnail`, cached by thing and material as today.
 - **The class's material at the start.** `joinClassFromLink` keeps the class's material profile (in the saved preferences, beside `missions`); the gallery starts every thing in it and hides the chips. `SubmitDialog`'s check stays as it is.
 - **The class's list.** The existing `missions` list also accepts the plain things' ids. Check that the Worker's validation of that list accepts them.
-- **Teacher's words** (`TeacherApp.tsx`): *Students start in: Guided / Quick build / All tools*, *Students can open all tools* (the opposite of `modeLocked`), *Things offered*.
+- **Teacher's words** (`TeacherApp.tsx`): *Students start in: Guided / Quick build / Workshop*, *Students stay in this level* (`modeLocked`), *Things offered*.
 - Tests (`tests/guidedthings.test.ts`): every card's starting design has no blocking issue in every material it lists; a class list of one mission gives one card; a class profile is the material of the design that starts; `carton` is not offered on plywood; each version-2 mission starts with the goals met that version 1 started with.
 
 Dev look: the gallery in English and Hebrew; one tap starts the Pencil box; *Start something new* asks, then shows *Keep working on …* first.
@@ -259,7 +261,7 @@ Dev look: the gallery in English and Hebrew; one tap starts the Pencil box; *Sta
 
 Files: new `src/guided/box.ts`, `fit.ts`, `GuidedLayer.tsx`, `steps/Build.tsx`, `Demo.tsx`; `src/templates/types.ts`, `stand.ts`; `src/ui/LidUI.tsx` and `Pictures.tsx` (reused); `src/easy/objects.ts`, `lid.ts` and `missions.ts` (read only).
 
-- **The box model** (`box.ts`, pure). `kindOf(d)`: `'box'` (a floor board with one tray), `'template'` (the stand, the organiser, a version-1 mission) or `'free'`. For a box:
+- **The box model** (`box.ts`, pure). `kindOf(d)`: `'box'` (one floor board with one tray, its dividers and its lid, and nothing else), `'template'` (the stand, the organiser, a version-1 mission) or `'more'` (anything else: it gets the note of §3.3). For a box:
 
   | Function | What it does |
   |---|---|
@@ -311,13 +313,16 @@ Files: new `src/guided/steps/Send.tsx`, `src/net/submit.ts`; `src/ui/SubmitDialo
 - Tests:
   - `tests/guidedsend.test.ts`: `submit.ts` against a mocked `api`: a class with a profile, a closed class, no network (the download is offered), a second send replaces the first.
   - `tests/e2e/guided.spec.ts`, in English and Hebrew, at 1366 × 768 and 1024 × 768: the gallery, Pencil box, *Make it fit*, a name, Send: *Ready to cut ✓* and three stars, the download is an SVG; then *Box with a lid*, its lid changed to *Hinged*. No step uses a key or a right-click.
-  - `tests/e2e/classroom.spec.ts` gains a Guided class: a class link with a material profile starts in that material with no chips and no *All tools*; *Send to my teacher*; the teacher sees *Pencil box · 5 of 5 goals*.
+  - `tests/e2e/classroom.spec.ts` gains a Guided class: a locked class's link with a material profile starts in that material, with no chips and no way to the other levels; *Send to my teacher*; the teacher sees *Pencil box · 5 of 5 goals*.
 
 ### Milestone 93: Guided becomes the way in
 
 - **The default.** A new browser, and a new class, starts in Guided.
-- **Quick build's rail**, by the first call in §4: delete `src/easy/QuickRail.tsx` and `ReadyBadge.tsx` and what only they use (the Box, Wall and sticker tools' stage branches, `QUICK_KEYS`), and read a saved or stored `'quick'` as `'guided'`. Keep everything Workshop uses (`LidUI`, the divider and standing-board tools, `InsideUI.tsx`, the Extrude ✓): let `tsc` and `grep` decide, not this list. Remove the strings nothing uses any more from both languages; delete `quick.spec.ts`, `quick-revised.spec.ts` and `quick-shots.spec.ts`. *If the other choice is taken, none of this is done: the mode switch shows three modes, and `PACKAGING_AND_LEARNING.md`'s levels can name them.*
-- README: a *Guided* section. `EASY_MODE.md` and §10 of `LIDS_LINES_PROJECTS_PLAN.md` each get one line at the top saying what this plan changed. DECISIONS: a *Guided* section with the reversals (Guided by default, no ghost and ✓ in Guided, Guided does not build from nothing).
+- **The switch.** Quick build's and Workshop's top bar switch shows three levels, *Guided · Quick build · Workshop*; Guided's menu has the other two. A locked class hides both. Where the bar is narrow the switch is in the ⋯ menu, as today.
+- **Between levels.** Switching never changes the design. Coming down to Guided with a design that is more than one box shows §3.3's note; its button goes back to Quick build, or to Workshop when a part needs it (`workshopOnly`).
+- Nothing of Quick build is removed: its rail, its cards, its start screen and its specs stay.
+- Tests: `tests/easymode.test.ts`: a new browser starts in Guided, a browser with saved preferences keeps its mode, a locked class cannot switch; a box with a wall added in Quick build is `'more'` in Guided and is unchanged by the trip there and back. `guided.spec.ts` gains: from Guided to Quick build and back on one design.
+- README: a *Guided* section, and the three levels. `EASY_MODE.md` and §10 of `LIDS_LINES_PROJECTS_PLAN.md` each get one line at the top pointing here. DECISIONS: a *Guided* section (three levels, Guided by default, no ghost and ✓ in Guided, Guided does not build from nothing).
 - Final check: `npm run typecheck`, `npm test`, `npm run build` (note the size of the Guided chunk and of the entry), `guided.spec.ts` and `classroom.spec.ts`. By hand in the dev server, in both languages: every thing from the gallery to *Ready to cut ✓*.
 
 ## 7. Order and size
@@ -327,9 +332,9 @@ Files: new `src/guided/steps/Send.tsx`, `src/net/submit.ts`; `src/ui/SubmitDialo
 - 87 stands alone and is worth shipping by itself: it fixes today's Quick build and Workshop.
 - 88 must come before the rest: the shell is where every later piece lives.
 - 91 and 92 do not depend on each other and could swap.
-- None of them waits for 74–86, and none blocks them. A lids, lines or library milestone built after 88 adds its Guided control in the same commit as its Quick build row.
+- None of them waits for 74–86, and none blocks them. A lids or library milestone built after 88 adds its Guided control (§0) in the same commit as its Quick build row.
 
-Rough sizes, as guesses: 87 is two or three days. 88 and 89 are three or four days each. 90 is the largest, about two weeks: the box model, *Make it fit* and the stage handles. 91 and 92 are about a week each. 93 is two or three days.
+Rough sizes, as guesses: 87 is two or three days. 88 and 89 are three or four days each. 90 is the largest, about two weeks: the box model, *Make it fit* and the stage handles. 91 and 92 are about a week each. 93 is a day or two.
 
 ## 8. Not in this plan
 
@@ -338,14 +343,14 @@ Rough sizes, as guesses: 87 is two or three days. 88 and 89 are three or four da
 - *Your designs*, projects and sizes (milestones 81–83 own them); lid kinds, locks and *Open / Close* (74–77); lines (78–80); *Print a plan* (85).
 - Decorating a curved wall.
 - The Worker counting a mission's goals itself (it still trusts the student's numbers).
+- Unlockable groups of features, and a highest level per class (`PACKAGING_AND_LEARNING.md`).
 - Repairing the tour.
 - Workshop's own wording and layout (`UI_CLEANUP_PLAN.md` has that).
 
 ## 9. Still needs the owner
 
-- **Quick build's rail: retire it, or keep it as a middle level.** The first call in §4. It decides milestone 93 and what milestones 74–86 build their student-facing controls for.
 - **Real students.** Three to five who have not seen it, 20 minutes each, on a school Chromebook: can each get from the link to *Sent* without help?
 - **A trackpad and a touch screen.** Every drag in §3.3 and §3.4 by hand; only the mouse can be driven from a session.
 - **Hebrew.** The mode's name, and a native speaker's review of every `g.*` string.
-- **The other calls in §4.** Especially joints off the first screen, Send waiting for the check, and Guided not building from nothing.
+- **The calls in §4.** Especially joints off the first screen, Send waiting for the check, and the two missions rebuilt as recipes.
 - **`easymode/`.** The concept images are untracked. `easymode/DECISIONS.md` is a PNG with the same size as *One plywood organizer, two modes.png*; it looks like a copy under the wrong name.
