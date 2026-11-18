@@ -22,7 +22,7 @@ import { fmtNum, type MsgKey } from '../i18n';
 import type { Design, MaterialProfile } from '../model/types';
 import { matIdOf, matOf, mixedMaterials } from '../model/materials';
 import { materialName } from './materialName';
-import { panelLabel } from '../model/names';
+import { issueVars, panelLabel } from '../model/names';
 
 const remember = (k: string, v?: string) => {
   try {
@@ -122,7 +122,7 @@ export function SubmitDialog({ onClose }: { onClose: () => void }) {
                 <strong>{t('sub.issues')}</strong>
                 <ul>
                   {issues.slice(0, 5).map((i, k) => (
-                    <li key={k}>{t(i.key, i.vars)}</li>
+                    <li key={k}>{t(i.key, issueVars(d, i, t))}</li>
                   ))}
                 </ul>
               </div>

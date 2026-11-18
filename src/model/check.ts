@@ -31,7 +31,9 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'lock', 'butt'] as const;
+const PATTERNS = ['auto', 'smooth', 'score', 'perf', 'kiss', 'slits', 'wave', 'diamond'] as const;
+const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;
 const OPS = ['add', 'cut', 'engrave', 'score'] as const;
 const TAB_LOCKS = ['flush', 'through', 'snap', 'bolt'] as const;
@@ -65,6 +67,10 @@ function material(m: unknown, where: string) {
   num(p.sheetW, `${where}.sheetW`, { min: 1, max: COORD_LIMIT });
   num(p.sheetH, `${where}.sheetH`, { min: 1, max: COORD_LIMIT });
   oneOf(p.grain, ['x', 'y', 'none'] as const, `${where}.grain`);
+  if (p.bend !== undefined) {
+    if (!isObj(p.bend)) fail(`${where}.bend`, 'not bend limits');
+    for (const k of ['smoothR', 'patternR', 'pitch', 'k'] as const) num(p.bend[k], `${where}.bend.${k}`, { min: 0, max: COORD_LIMIT });
+  }
 }
 
 function detail(dt: unknown, where: string) {
@@ -115,13 +121,24 @@ function sketch(s: unknown, where: string) {
     if (pts.length < 3) fail(`${where}.pts`, 'fewer than 3 points');
     pts.forEach((q, i) => {
       point(q, `${where}.pts[${i}]`);
-      if (q.curve !== undefined && q.curve !== 'auto') fail(`${where}.pts[${i}].curve`, 'unknown curve');
+      if (q.curve !== undefined && q.curve !== 'auto' && q.curve !== 'round') fail(`${where}.pts[${i}].curve`, 'unknown curve');
+      if (q.r !== undefined) num(q.r, `${where}.pts[${i}].r`, { min: 0 });
+      if (q.curve === 'round' && !(typeof q.r === 'number' && q.r > 0)) fail(`${where}.pts[${i}].r`, 'a rounded corner needs a radius');
     });
     const ids = arr(k.edgeIds, `${where}.edgeIds`);
     if (ids.length !== pts.length) fail(`${where}.edgeIds`, 'one id per point needed');
     ids.forEach((e, i) => str(e, `${where}.edgeIds[${i}]`));
     if (new Set(ids).size !== ids.length) fail(`${where}.edgeIds`, 'repeated edge ids');
+    if (k.round !== undefined) {
+      if (!isObj(k.round)) fail(`${where}.round`, 'not a round shape');
+      oneOf(k.round.shape, ['circle', 'oval', 'stadium'] as const, `${where}.round.shape`);
+      if (k.round.rEnd !== undefined) num(k.round.rEnd, `${where}.round.rEnd`, { min: 0 });
+      // its seam flat (milestone 65)
+      if (k.round.seam !== undefined && !(isObj(k.round.seam) && Number.isFinite(k.round.seam.at) && Number.isFinite(k.round.seam.w) && k.round.seam.w > 0)) delete k.round.seam;
+    }
   } else if (k.kind === 'wall') {
+    // a matched wall's leader (milestone 46): a link to a board that is not there is dropped (solve keeps the shape)
+    if (k.match !== undefined && typeof k.match !== 'string') delete k.match;
     if (k.corners !== undefined) {
       if (!isObj(k.corners)) fail(`${where}.corners`, 'not an object');
       for (const c of Object.keys(k.corners)) {
@@ -159,6 +176,10 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   v3(x.frame.v, `${where}.frame.v`, true);
   if (x.frame.side !== 1 && x.frame.side !== -1) fail(`${where}.frame.side`, 'not 1 or -1');
   arr(x.details, `${where}.details`).forEach((dt, i) => detail(dt, `${where}.details[${i}]`));
+  if (x.edgeFlaps !== undefined) {
+    if (!Array.isArray(x.edgeFlaps)) delete x.edgeFlaps;
+    else x.edgeFlaps = x.edgeFlaps.filter((f: any) => isObj(f) && typeof f.id === 'string' && typeof f.edge === 'string' && Number.isFinite(f.len) && f.len > 0 && f.len < 1000);
+  }
   if (x.foldOvers !== undefined) {
     arr(x.foldOvers, `${where}.foldOvers`).forEach((f, i) => {
       const w = `${where}.foldOvers[${i}]`;
@@ -187,6 +208,16 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
     num(pl.rot, `${w}.rot`, { min: -1e6, max: 1e6 });
     oneOf(pl.pose, ['flat', 'standing'] as const, `${w}.pose`);
     if (pl.side !== undefined && pl.side !== 1 && pl.side !== -1) fail(`${w}.side`, 'not 1 or -1');
+  }
+  if (x.divider !== undefined) {
+    const dv = x.divider;
+    const w = `${where}.divider`;
+    if (!isObj(dv) || !isObj(x.place) || x.place.pose !== 'standing') fail(w, 'not a divider');
+    point(dv.at, `${w}.at`);
+    num(dv.rot, `${w}.rot`, { min: -1e6, max: 1e6 });
+    if (!Array.isArray(dv.reach) || dv.reach.length !== 2) fail(`${w}.reach`, 'not two numbers');
+    num(dv.reach[0], `${w}.reach[0]`, { max: 0 });
+    num(dv.reach[1], `${w}.reach[1]`, { min: 0 });
   }
 }
 
@@ -248,6 +279,20 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
+  if (x.cut !== undefined && x.cut !== 'cut' && x.cut !== 'keep') delete x.cut;
+  if (x.autoCut !== undefined && x.autoCut !== true) delete x.autoCut;
+  if (x.split !== undefined && x.split !== true) delete x.split; // derived
+  if (x.bandEnd !== undefined && typeof x.bandEnd !== 'string') delete x.bandEnd; // derived
+  // a fold's bend (milestone 63) and a tray's rounded corner (milestone 64)
+  if (x.radius !== undefined) num(x.radius, `${where}.radius`, { min: 0, max: 10000 });
+  if (x.bend !== undefined) {
+    if (!isObj(x.bend)) delete x.bend;
+    else {
+      if (x.bend.pattern !== undefined && !(PATTERNS as readonly string[]).includes(x.bend.pattern)) delete x.bend.pattern;
+      if (x.bend.density !== undefined && ![1, 0.75, 0.5].includes(x.bend.density)) delete x.bend.density;
+    }
+  }
+  if (x.wing !== undefined && x.wing !== true) delete x.wing;
   // the last valid joint geometry: derived, and only kept for a broken joint; a damaged one is dropped
   if (x.geom !== undefined && !geomOk(x.geom)) delete x.geom;
   return true;
@@ -268,6 +313,13 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   // derived (re-made by solve)
   if (x.fixes !== undefined && !isObj(x.fixes)) delete x.fixes;
   if (x.fixPlan !== undefined && !isObj(x.fixPlan)) delete x.fixPlan;
+  if (x.closeAt !== undefined && typeof x.closeAt !== 'string') delete x.closeAt;
+  // cartons (milestone 68)
+  if (x.base !== undefined && x.base !== 'open') delete x.base;
+  if (x.top !== undefined && !['tuck', 'seal'].includes(x.top)) delete x.top;
+  if (x.bottom !== undefined && !['seal', 'snap', 'tuck'].includes(x.bottom)) delete x.bottom;
+  if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
+  if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;
     else for (const k of Object.keys(x.pin)) if (!['hinge', 'own', 'other'].includes(x.pin[k])) delete x.pin[k];
@@ -327,15 +379,31 @@ export function checkDesign(raw: unknown): asserts raw is Design {
       Number.isFinite(q.y) &&
       Math.abs(q.x) <= COORD_LIMIT &&
       Math.abs(q.y) <= COORD_LIMIT &&
-      (q.rot === 0 || q.rot === 90) &&
+      (q.rot === 0 || q.rot === 90 || q.rot === 180 || q.rot === 270) &&
       typeof q.manual === 'boolean' &&
       (q.mat === undefined || typeof q.mat === 'string');
     if (!ok) delete d.placements[k];
+    else if (q.nested !== undefined && !(isObj(q.nested) && Number.isFinite(q.nested.w) && Number.isFinite(q.nested.h))) delete q.nested;
   }
   if (typeof d.sheetSpacing !== 'number' || !Number.isFinite(d.sheetSpacing) || d.sheetSpacing < 0 || d.sheetSpacing > 1000) d.sheetSpacing = 3;
   if (typeof d.sheetMargin !== 'number' || !Number.isFinite(d.sheetMargin) || d.sheetMargin < 0 || d.sheetMargin > 1000) d.sheetMargin = 5;
   if (d.allowRotate !== undefined && typeof d.allowRotate !== 'boolean') d.allowRotate = false;
+  if (d.split !== undefined && d.split !== 'must' && d.split !== 'save' && d.split !== 'never') delete d.split;
   if (d.noAutoSeams !== undefined) d.noAutoSeams = Array.isArray(d.noAutoSeams) ? d.noAutoSeams.filter((x: unknown) => typeof x === 'string') : [];
+  // lids' closures (milestone 67): settings only; a bad one is dropped
+  if (d.closures !== undefined) {
+    if (!isObj(d.closures)) delete d.closures;
+    else
+      for (const k of Object.keys(d.closures)) {
+        const c = d.closures[k];
+        if (!isObj(c) || !['tuck', 'tuckLock', 'tab', 'rest', 'glued'].includes(c.style)) delete d.closures[k];
+        else {
+          if (c.lip !== undefined && c.lip !== null && !(Number.isFinite(c.lip) && c.lip > 0 && c.lip < 1000)) delete c.lip;
+          if (c.thumb !== undefined && typeof c.thumb !== 'boolean') delete c.thumb;
+          if (c.dust !== undefined && typeof c.dust !== 'boolean') delete c.dust;
+        }
+      }
+  }
   if (d.contents !== undefined) {
     d.contents = Array.isArray(d.contents)
       ? d.contents.filter(

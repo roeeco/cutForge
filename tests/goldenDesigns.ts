@@ -1,8 +1,9 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setPanelSize } from '../src/model/ops';
+import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
+import { sealOf } from '../src/model/closures';
 import type { Design } from '../src/model/types';
 
 const [CARD, , CORR4, PLY] = MATERIALS;
@@ -83,7 +84,7 @@ export function corrDividers(): Design {
 // ---------------------------------------------------------------------------
 // Schema v6 designs (polygons, trays, through-cuts, fold-over, wall outlines),
 // saved as project files before schema v7 (milestone 17).
-import { addFoldOver, addPolygonPanel, addTray, addWallInsert, regularPolygon, setTrayKinds, updateFoldOver } from '../src/model/ops';
+import { addFoldOver, addPolygonPanel, addRoundPanel, addRoundedRect, addTray, addWallInsert, regularPolygon, setTrayKinds, updateFoldOver } from '../src/model/ops';
 const [, CORR16] = MATERIALS;
 
 /** Plywood hexagon tray with a through-cut chamfer on one wall and a hole in the base. */
@@ -122,6 +123,79 @@ export function v6CardGable(): Design {
   autoConnect(d);
   addWallInsert(d, walls[0], 'e2', 0.5, 30);
   growPanel(d, walls[0], 'e2', { height: 40, angle: 90, dir: 'up', kind: 'fold' });
+  autoConnect(d);
+  return d;
+}
+
+/** A box (tray) with a lid folded off its back wall's top edge with a radius (milestone 63): a band of `radius`, or the material's own (plywood: a living hinge). */
+export function bandLidBox(m: (typeof MATERIALS)[number], radius?: number, pattern?: 'perf' | 'wave' | 'diamond'): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  addTray(d, base, 60);
+  autoConnect(d);
+  const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === E(2))!.b.panelId;
+  const g = growPanel(d, back, E(2), { height: 80, angle: 90, dir: 'up', kind: 'fold' })!;
+  if (radius !== undefined) setConnection(d, g.connectionId, { radius });
+  if (pattern) setConnection(d, g.connectionId, { bend: { pattern } });
+  solve(d);
+  return d;
+}
+
+/** A tray on a rounded rectangle (milestone 64): its corners curved walls, glued (card) or one strip keyed shut (plywood). */
+export function roundedTray(m: (typeof MATERIALS)[number], r: number): Design {
+  const d = createDesign(m);
+  const base = addRoundedRect(d, 0, 0, 140, 90, r)!;
+  addTray(d, base, 45);
+  autoConnect(d);
+  return d;
+}
+
+/** A round box (milestone 65): a base with a seam flat, one wall on it, its band all round. */
+export function roundBoxDesign(m: (typeof MATERIALS)[number], shape: 'circle' | 'oval', w: number, h: number): Design {
+  const d = createDesign(m);
+  const base = addRoundPanel(d, 0, 0, w, h, { shape })!;
+  addTray(d, base, 45);
+  autoConnect(d);
+  return d;
+}
+
+/** A tray with a lid folded off its back wall to the front wall's inside face (milestone 67): its closure in the given style. */
+export function closedBox(m: (typeof MATERIALS)[number], style?: 'tuck' | 'tuckLock' | 'tab' | 'glued', thumb = false): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 120, 80);
+  addTray(d, base, 50);
+  autoConnect(d);
+  const back = Object.values(d.connections).find((c) => c.grown && c.a.panelId === base && c.a.edge === E(2))!.b.panelId;
+  const g = growPanel(d, back, E(2), { height: 60, angle: 90, dir: 'up', kind: 'fold' })!;
+  solve(d);
+  const L = d.panels[g.panelId];
+  for (const h of [70, 74, 76, 77, 78, 79, 80]) {
+    L.h = h;
+    const s = sealOf(d, g.panelId);
+    if (s) {
+      setPanelSize(d, g.panelId, undefined, s.yIn);
+      break;
+    }
+  }
+  autoConnect(d);
+  if (style || thumb) setClosure(d, g.panelId, { ...(style ? { style } : {}), thumb });
+  return d;
+}
+
+/** A carton (milestone 68): an open base, its walls one strip glued at one corner, its ends closed. */
+export function cartonDesign(m: (typeof MATERIALS)[number], top: 'tuck' | 'seal', bottom: 'snap' | 'tuck' | 'seal'): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 80, 55);
+  addTray(d, base, 100, { base: 'open', top, bottom });
+  autoConnect(d);
+  return d;
+}
+
+/** A card tray with slit-lock corners (milestone 68). */
+export function lockTray(): Design {
+  const d = createDesign(MATERIALS[0]);
+  const base = addRootPanel(d, 0, 0, 100, 70);
+  addTray(d, base, 40, { cornerKind: 'lock' });
   autoConnect(d);
   return d;
 }

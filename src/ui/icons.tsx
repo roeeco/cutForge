@@ -20,6 +20,20 @@ const P: Record<string, ReactElement> = {
       <path d="M17.5 5.5v11l-2 2" />
     </>
   ),
+  // the Round tool: a round board (a disk seen from above at an angle)
+  roundBase: (
+    <>
+      <ellipse cx="12" cy="10.5" rx="8.5" ry="5" />
+      <path d="M3.5 10.5v3c0 2.8 3.8 5 8.5 5s8.5-2.2 8.5-5v-3" />
+    </>
+  ),
+  // the Rounded tool: a board with rounded corners
+  roundedBase: (
+    <>
+      <rect x="3.5" y="5" width="17" height="10.5" rx="4" />
+      <path d="M3.8 13.2v1.3c0 2.2 1.8 4 4 4h8.4c2.2 0 4-1.8 4-4v-1.3" />
+    </>
+  ),
   rect: <rect x="4" y="6" width="16" height="12" rx="1" />,
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
@@ -125,6 +139,9 @@ const P: Record<string, ReactElement> = {
   lean: <path d="M4 19h16M6 19 16 6M14.5 19V9" />,
   slide: <path d="M4 16h16M8 16V6M12 10l4 0M14 8l2 2-2 2" />,
   butt: <path d="M4 12h7M13 12h7M12 6v12" />,
+  key: <path d="M4 12h6l2-3h3v6h-3l-2-3M15 12h5" />,
+  lock: <path d="M5 14h14M9 14l1-4h4l1 4M12 10V6" />,
+  closure: <path d="M4 8h16M20 8v5M6 8v10h12V8" />,
   // Quick build's five actions (milestone 37)
   box: (
     <>

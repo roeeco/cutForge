@@ -30,7 +30,7 @@ export function MultiSelection({ ids }: { ids: string[] }) {
         <h3>{t('multi.title', { n: ids.length })}</h3>
       </div>
       {box && (
-        <>
+        <div className="subsection">
           <h4 className="section-title">{t('multi.size')}</h4>
           <NumField
             label={t('insp.width')}
@@ -48,27 +48,39 @@ export function MultiSelection({ ids }: { ids: string[] }) {
             onCommit={(v) => apply((x) => scaleDetails(x, ids, { x: box.minX, y: box.minY }, 1, v / (box.maxY - box.minY)))}
             testId="group-h"
           />
-        </>
+        </div>
       )}
-      <h4>{t('multi.align')}</h4>
-      {!surface && <p className="warn-text" data-testid="align-unavailable">{t('multi.differentPlanes')}</p>}
-      <div className="btn-grid icons">
-        {ALIGN.map((m) => (
-          <button key={m} disabled={!surface} onClick={() => apply((x) => void alignDetails(x, ids, m))} data-testid={`align-${m}`} aria-label={t(`align.${m}`)} title={t(`align.${m}`)}>
-            <Icon name={`align-${m}`} />
-          </button>
-        ))}
+      <div className="subsection">
+        <h4>{t('multi.align')}</h4>
+        {!surface && <p className="warn-text" data-testid="align-unavailable">{t('multi.differentPlanes')}</p>}
+        {surface && (
+          <div className="btn-grid icons">
+            {ALIGN.map((m) => (
+              <button key={m} onClick={() => apply((x) => void alignDetails(x, ids, m))} data-testid={`align-${m}`} aria-label={t(`align.${m}`)} title={t(`align.${m}`)}>
+                <Icon name={`align-${m}`} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <h4>{t('multi.distribute')}</h4>
-      {surface && ids.length < 3 && <p className="note">{t('multi.needThree')}</p>}
-      <div className="btn-grid">
-        {DIST.map((m) => (
-          <button key={m} disabled={!surface || ids.length < 3} onClick={() => apply((x) => void distributeDetails(x, ids, m))} data-testid={`dist-${m}`}>
-            {t(`dist.${m}`)}
-          </button>
-        ))}
-      </div>
-      <div className="btn-grid">
+      {/* shapes on different surfaces: the reason above is enough, no grids of greyed buttons */}
+      {surface && (
+        <div className="subsection">
+          <h4>{t('multi.distribute')}</h4>
+          {ids.length < 3 ? (
+            <p className="note">{t('multi.needThree')}</p>
+          ) : (
+            <div className="btn-grid">
+              {DIST.map((m) => (
+                <button key={m} onClick={() => apply((x) => void distributeDetails(x, ids, m))} data-testid={`dist-${m}`}>
+                  {t(`dist.${m}`)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="card-actions split">
         <button
           onClick={() => {
             let copies: string[] = [];

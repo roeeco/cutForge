@@ -151,7 +151,8 @@ test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each o
   expect(s.past).toBe(4);
   expect(s.order).toHaveLength(8);
   const d1 = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
-  const divs = (Object.values(d1.connections) as any[]).filter((c) => c.grown && c.a.panelId === base && c.offset > 6);
+  // milestone 44: dividers stand on the base, drawn as lines
+  const divs = (Object.values(d1.panels) as any[]).filter((p) => p.divider && p.place?.host === base);
   expect(divs).toHaveLength(2);
 
   // Hole on the front wall (seen from the front), then Text and a Sticker
@@ -188,7 +189,7 @@ test('the five actions: Box, Lid, two Dividers, Hole, Text and a Sticker, each o
 
 test.describe('Workshop', () => {
   test.use({ storageState: { cookies: [], origins: ['http://localhost:5199'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })) } });
-  test('the Board tool on a box’s base, perpendicular: a line from wall to wall becomes a divider (milestones 38, 42)', async ({ page }) => {
+  test('on a box’s base: the Board tool’s standing line is a standing board; the Divider tool’s line is a divider (milestone 44)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
@@ -204,11 +205,21 @@ test.describe('Workshop', () => {
     });
     await S(page, () => (window as any).__cutforge.setCamera([0, 420, 1], [0, 0, 0]));
     await page.waitForTimeout(300);
-    // perpendicular on: a line from wall to wall is a divider, made on release (milestone 42)
+    // perpendicular on: a line from wall to wall is a standing board, made on release (milestone 44: never a divider)
     await drawBoard(page, await onFace(page, base, 70, 6), await onFace(page, base, 70, 84), { standing: true });
-    const d = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
-    const divs = (Object.values(d.connections) as any[]).filter((c) => c.grown && c.a.panelId === base && c.offset > 6);
-    expect(divs).toHaveLength(1);
+    let d = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
+    const on = (dd: any) => (Object.values(dd.panels) as any[]).filter((p) => p.place?.host === base);
+    expect(on(d).map((p) => !!p.divider)).toEqual([false]);
+    expect((await st(page)).tool).toBe('select');
+    // the Divider tool: a short line across, then ✓, makes a divider from wall to wall
+    await page.getByTestId('tool-divider').click();
+    await drag(page, await onFace(page, base, 30, 30), await onFace(page, base, 30, 60));
+    await expect(page.getByTestId('divider-makes')).toHaveAttribute('data-kind', 'divider');
+    await page.getByTestId('ghost-ok').click();
+    d = await S<any>(page, () => (window as any).__cutforge.store.getState().design);
+    const div = on(d).find((p) => p.divider);
+    expect(div).toBeTruthy();
+    expect(div.w).toBeCloseTo(90, 3);
     expect((await st(page)).tool).toBe('select');
   });
 });
@@ -290,7 +301,8 @@ test(`mission (${lang}): Pencil box — size the compartments until the pencils 
   await expect(page.getByTestId('content-tag')).toHaveAttribute('data-ok', 'false');
   await S(page, () => (window as any).__cutforge.setCamera([0, 330, 60], [0, 0, 0]));
   await page.waitForTimeout(300);
-  const offset = (id: string) => S<number>(page, (k: string) => (Object.values((window as any).__cutforge.store.getState().design.connections) as any[]).find((c) => c.grown && c.b.panelId === k).offset, id);
+  // where a divider's slab starts across the box (milestone 44: from the line it is drawn as)
+  const offset = (id: string) => S<number>(page, (k: string) => { const d = (window as any).__cutforge.store.getState().design; return d.panels[k].divider.at.y - d.material.thickness / 2; }, id);
   // a divider's compartment sizes are on the stage: type the size wanted
   async function compartment(id: string, label: number, size: number) {
     await S(page, (k: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: k }), id);

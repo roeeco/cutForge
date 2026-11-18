@@ -1,6 +1,6 @@
 // Milestone 23: design-wide joint kinds.
 import { describe, expect, it } from 'vitest';
-import { addDivider, addRootPanel, addTray, autoConnect, createDesign, growPanel, setAllJoints, setConnection, setDefaultFlap, setMaterial, solve } from '../src/model/ops';
+import { addDivider, addRootPanel, addTray, autoConnect, createDesign, growPanel, setAllJoints, setConnection, setDefaultFlap, setMaterial, solve, baseJointOf } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { groupKinds, groupShown, jointGroup, dividerKind, inactiveChoice } from '../src/model/jointDefaults';
 import { changeMaterial, generate, templateById } from '../src/templates/registry';
@@ -40,17 +40,18 @@ describe('joint groups and the kinds they offer', () => {
 
   it('an empty card design offers what a new joint could take', () => {
     const d = createDesign(CARD);
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'tabslot', 'butt', 'slide']);
-    expect(groupKinds(d, 'corner')).toEqual(['glue', 'tabslot', 'slide', 'butt']);
+    // a slit lock (milestone 68) just after each glue flap
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock', 'tabslot', 'butt', 'slide']);
+    expect(groupKinds(d, 'corner')).toEqual(['glue', 'lock', 'tabslot', 'slide', 'butt']);
   });
 
   it('a card wall at 60° adds nothing a 90° wall lacks; the list is kinds allowed for at least one joint', () => {
     const d = createDesign(CARD);
     const b = addRootPanel(d, 0, 0, 60, 40);
     growPanel(d, b, 0, { height: 30, angle: 60, dir: 'up', kind: 'fold' });
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue']);
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock']);
     growPanel(d, b, 2, { height: 30, angle: 90, dir: 'up', kind: 'fold' });
-    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'tabslot', 'butt']);
+    expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock', 'tabslot', 'butt']);
   });
 });
 
@@ -122,11 +123,11 @@ describe('new joints take the design defaults', () => {
     setAllJoints(d, 'base', 'butt');
     expect(dividerKind(d)).toBe('butt');
     const div = addDivider(d, base, 0, 40, 35)!;
-    expect(conns(d).find((c) => c.grown && c.b.panelId === div)!.kind).toBe('butt');
+    expect(baseJointOf(d, div)!.kind).toBe('butt');
     // fingers cannot stand on a face: dividers keep tabs and slots
     setAllJoints(d, 'base', 'finger');
     expect(dividerKind(d)).toBe('tabslot');
-    expect(conns(d).find((c) => c.grown && c.b.panelId === div)!.kind).toBe('butt');
+    expect(baseJointOf(d, div)!.kind).toBe('butt');
   });
 
   it("a tray's own corner joint wins; a new tray starts from the design's", () => {

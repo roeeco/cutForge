@@ -54,11 +54,12 @@ it('afterwards, adding a tray anywhere in the design throws (solve → fixFlatNe
   expect(() => edit(d, () => void ops.addTray(d, other, 40))).not.toThrow();
 });
 
-it('divider turned off 90° (card: becomes a fold), then the base vertex starting its edge deleted', () => {
+it('a panel grown in from the edge turned off 90° (card: becomes a fold), then the base vertex starting its edge deleted', () => {
   const d = ops.createDesign(CARD);
   const b = ops.addRootPanel(d, 0, 0, 224, 230);
   let dv = '';
-  edit(d, () => (dv = ops.addDivider(d, b, 'e3', 29, 40)!));
+  // (dividers no longer lean, milestone 44: a panel grown 29 mm in from the edge is the case this guards)
+  edit(d, () => (dv = ops.growPanel(d, b, 'e3', { height: 40, angle: 90, dir: 'up', kind: 'tabslot', offset: 29 })!.panelId));
   const c = ops.parentConnection(d, dv)!;
   edit(d, () => ops.setConnection(d, c.id, { angle: 45 }));
   expect(d.connections[c.id].kind).toBe('fold');

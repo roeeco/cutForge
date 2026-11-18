@@ -7,7 +7,7 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
-import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt } from '../model/ops';
+import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt, withSeam } from '../model/ops';
 import { trayWallOn } from '../model/flatnet';
 import { panelLabel } from '../model/names';
 import { fmtNum } from '../i18n';
@@ -20,6 +20,7 @@ import { boltCount, seamKinds, tabLocks } from '../model/seams';
 import { edgeLabel } from '../model/names';
 import type { ConnectionKind, TabLock } from '../model/types';
 import { Gate } from '../easy/Gate';
+import { TrayCorners, TrayEnds, TrayLids } from './CornersUI';
 import { shown, useFeature } from '../easy/features';
 
 /** Can this panel be extruded: a root panel with no tray and no wall standing at its edges? */
@@ -45,12 +46,14 @@ export function ExtrudeSection({ panelId }: { panelId: string }) {
       </div>
     );
   const p = d.panels[panelId];
-  const n = panelEdges(p).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length;
+  const n = panelEdges(withSeam(d, p)).filter((e) => segLength(e) >= MIN_EDGE && !isCurveKey(e.key)).length;
+  // round bases (and rounded corners) get walls that bend round their curves
+  const curved = panelEdges(p).some((e) => isCurveKey(e.key));
   const kinds = newTrayKinds(d, panelId);
   return (
     <div className="subsection extrude-card" data-testid="extrude-card">
       <h4>{t('tray.extrude')}</h4>
-      <p className="note">{t('tray.extrudeHelp', { n })}</p>
+      <p className="note">{curved ? t('tray.extrudeHelpRound') : t('tray.extrudeHelp', { n })}</p>
       <NumField label={t('tray.height')} value={ex.height} unit={mm} min={5 + tOf(d, panelId)} max={1000} onCommit={(v) => set({ extrude: { ...ex, height: v } })} testId="extrude-height" />
       <FlatNote baseId={panelId} height={ex.height} />
       <Gate f="tray.joints">
@@ -121,6 +124,9 @@ export function TraySection({ panelId }: { panelId: string }) {
       )}
       </Gate>
       {tray.wallKind === 'fold' && <p className="note">{t('tray.creaseLoop')}</p>}
+      <TrayCorners tray={tray} />
+      <TrayEnds tray={tray} />
+      <TrayLids tray={tray} />
       {short.length > 0 && <p className="note" data-testid="tray-short">{t('tray.short', { n: short.length })}</p>}
       {open.length > 0 && (
         <div className="tray-open" data-testid="tray-open">

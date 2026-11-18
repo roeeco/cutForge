@@ -13,7 +13,8 @@ describe('repro: divider plan height on a low box', () => {
     const a = { x: 20, y: 15 }, b = { x: 70, y: 40 };
     const plan = planDividerLine(d, baseId, a, b, 40)!;
     const made = dividerLine(d, baseId, a, b, 40)!;
-    expect(plan.kind).toBe('standing');
-    expect(plan.kind === 'standing' ? plan.height : -1).toBe(d.panels[made.id].h); // actual: plan 0, made 5
+    // milestone 44: the line makes a divider; what the ghost shows is what ✓ makes
+    expect(plan.kind).toBe('divider');
+    expect(plan.kind === 'divider' ? plan.height : -1).toBe(d.panels[made.id].h);
   });
 });

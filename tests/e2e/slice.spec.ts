@@ -105,6 +105,8 @@ test('vertical slice', async ({ page }) => {
   // autosave, reload, reopen
   await expect(page.getByTestId('save-state')).toHaveText('נשמר בדפדפן');
   await page.reload();
+  // the editor shows once the saved design is read back (before that the dialog is absent too)
+  await expect(page.getByTestId('view3d')).toBeVisible();
   await expect(page.getByTestId('material-dialog')).toHaveCount(0);
   d = await state(page);
   expect(d.order).toEqual([base, wall]);

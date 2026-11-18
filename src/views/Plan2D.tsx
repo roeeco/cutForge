@@ -2,8 +2,9 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, useStore, useT } from '../store/store';
-import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
+import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT } from '../store/store';
+import { YieldBar } from '../ui/SplitUI';
+import { pack, pieceCopies, placementXform, quantityOf, sheetGroups, type PieceCopy } from '../model/pack';
 import { netOverlaps, panelPiece, pieceRoot } from '../model/pieces';
 import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
@@ -81,7 +82,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       .map((c) => {
         const pl = placements[c.key];
         const k = slotOf(pl);
-        return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h), ox: k.ox, H: k.H };
+        return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h, c.w), ox: k.ox, H: k.H };
       });
     return { placed, slots, placements, mixed: groups.length > 1 };
   }, [d, solo]);
@@ -622,7 +623,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                   const panel = d.panels[n.panelId];
                   if (!panel || solo) return null;
                   const c = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h / 2 });
-                  const q = d.pieces[pieceRoot(pl.copy.pieceKey)]?.quantity ?? 1;
+                  const q = quantityOf(d, pieceRoot(pl.copy.pieceKey));
                   return (
                     <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none">
                       {panelLabel(d, n.panelId, t)}
@@ -711,7 +712,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         )}
       </svg>
       {pendingAt && <PendingBarHtml x={pendingAt.x} y={pendingAt.y} />}
-      <div className="plan-dock" dir="auto">
+      <div className="plan-dock" dir={uiDir()}>
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">
             {t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
@@ -731,7 +732,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             <button
               onClick={() => {
                 const st = useStore.getState();
-                if (Object.values(st.design.placements).some((p) => p.manual) && !confirm(t('pack.confirm'))) return;
+                if (Object.values(st.design.placements).some((p) => p.manual && !p.nested) && !confirm(t('pack.confirm'))) return;
                 st.apply((dd) => void (dd.placements = {}));
               }}
               data-testid="repack"
@@ -741,8 +742,9 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           )}
         </div>
         {solo && <span className="solo-title">{t('solo.title', { panel: panelLabel(d, solo.id, t) })}</span>}
+        {!solo && <YieldBar />}
       </div>
-      <div className="view-hint" dir="auto">
+      <div className="view-hint" dir={uiDir()}>
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
       </div>
     </div>

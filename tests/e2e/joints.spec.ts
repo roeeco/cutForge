@@ -82,8 +82,8 @@ test('plywood organiser: closing finger seams, dividers, half-laps', async ({ pa
   // move the first divider: half-lap follows, nothing breaks
   const div = d.order[5];
   await select(page, div);
-  await page.getByTestId('joints-advanced').click();
-  await setNum(page, 'conn-offset', '30');
+  // milestone 44: on the divider's card, the clear size behind it (30 mm in from the edge, past a 3 mm wall)
+  await setNum(page, 'div-behind', '27');
   const d2 = await design(page);
   expect(Object.values<any>(d2.connections).some((c) => c.broken)).toBe(false);
   expect(await issues(page)).toBe('');

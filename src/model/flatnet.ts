@@ -48,7 +48,7 @@ function trayOfWall(d: Design, wallId: string): Tray | undefined {
 
 /** A tray whose net may be changed: walls fold from the base, card or corrugated, not kept whole. */
 function fixable(d: Design, t: Tray): boolean {
-  return !!d.panels[t.baseId] && t.flat !== 'off' && matOf(d, t.baseId).kind !== 'plywood';
+  return !!d.panels[t.baseId] && t.flat !== 'off' && t.base !== 'open' && matOf(d, t.baseId).kind !== 'plywood';
 }
 
 /** The kind a wall cut as its own piece joins its base with. */
@@ -71,7 +71,8 @@ export function fixKind(d: Design, c: Connection): boolean {
   if (c.grown) {
     const base = d.panels[c.a.panelId];
     const key = base ? (findEdge(base, c.a.edge)?.key ?? c.a.edge) : c.a.edge;
-    if (t.fixPlan?.hinge?.[key]) return (c.kind = 'glue'), true;
+    // a wall folded off its neighbour: glued to the base, or (an open tray, milestone 68) not joined to it at all
+    if (t.fixPlan?.hinge?.[key]) return (c.kind = t.base === 'open' ? 'butt' : 'glue'), true;
     if (t.fixes?.[key] === 'own') return (c.kind = ownKind(d, t.baseId, c.b.panelId)), true;
     return false;
   }
@@ -250,6 +251,8 @@ export function fixFlatNets(d: Design, again: (d: Design) => void) {
   if (!trays.length) return;
   let had = false;
   for (const t of trays) {
+    // an open tray's plan is its strip (milestone 68), made before the joints: kept
+    if (t.base === 'open') continue;
     if (t.fixes || t.fixPlan) had = true;
     delete t.fixes;
     delete t.fixPlan;
@@ -431,7 +434,8 @@ export function flatInfo(d: Design, baseId: string, height: number, make: (probe
   const lo0 = 5 + matOf(d, baseId).thickness;
   let pr = probes.get(sig);
   if (!pr) {
-    const probe: Design = JSON.parse(JSON.stringify({ ...d, panels: { [baseId]: { ...base, details: [] } }, order: [baseId], connections: {}, trays: {}, pieces: { [baseId]: { quantity: 1 } }, placements: {} }));
+    // lying flat is the question, not the sheet: the probe's nets are never cut to fit it (milestone 69)
+    const probe: Design = JSON.parse(JSON.stringify({ ...d, panels: { [baseId]: { ...base, details: [] } }, order: [baseId], connections: {}, trays: {}, pieces: { [baseId]: { quantity: 1 } }, placements: {}, split: 'never' }));
     const cap = Math.max(200, 4 * Math.max(base.w, base.h));
     const tid = make(probe, baseId, cap, { ...spec });
     if (!tid) return null;

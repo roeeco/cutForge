@@ -28,24 +28,36 @@ export function MultiPanel({ ids }: { ids: string[] }) {
         <h3>{t('multiPanel.title', { n: live.length })}</h3>
       </div>
       <p className="note" dir="auto">{live.map((id) => panelLabel(d, id, t)).join(', ')}</p>
-      <h4>{t('multi.align')}</h4>
-      {why && <p className="warn-text" data-testid="panel-align-unavailable">{t(why)}</p>}
-      <div className="btn-grid icons">
-        {ALIGN.map((m) => (
-          <button key={m} disabled={!ok} onClick={() => apply((x) => void alignPanels(x, live, m))} data-testid={`panel-align-${m}`} aria-label={t(`align.${m}`)} title={ok ? t(`align.${m}`) : (why ? t(why) : '')}>
-            <Icon name={`align-${m}`} />
-          </button>
-        ))}
+      <div className="subsection">
+        <h4>{t('multi.align')}</h4>
+        {why && <p className="warn-text" data-testid="panel-align-unavailable">{t(why)}</p>}
+        {ok && (
+          <div className="btn-grid icons">
+            {ALIGN.map((m) => (
+              <button key={m} onClick={() => apply((x) => void alignPanels(x, live, m))} data-testid={`panel-align-${m}`} aria-label={t(`align.${m}`)} title={t(`align.${m}`)}>
+                <Icon name={`align-${m}`} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <h4>{t('multi.distribute')}</h4>
-      {ok && live.length < 3 && <p className="note">{t('multiPanel.needThree')}</p>}
-      <div className="btn-grid">
-        {DIST.map((m) => (
-          <button key={m} disabled={!ok || live.length < 3} onClick={() => apply((x) => void distributePanels(x, live, m))} data-testid={`panel-dist-${m}`}>
-            {t(`dist.${m}`)}
-          </button>
-        ))}
-      </div>
+      {/* boards that share no surface: the reason above is enough, no grids of greyed buttons */}
+      {ok && (
+        <div className="subsection">
+          <h4>{t('multi.distribute')}</h4>
+          {live.length < 3 ? (
+            <p className="note">{t('multiPanel.needThree')}</p>
+          ) : (
+            <div className="btn-grid">
+              {DIST.map((m) => (
+                <button key={m} onClick={() => apply((x) => void distributePanels(x, live, m))} data-testid={`panel-dist-${m}`}>
+                  {t(`dist.${m}`)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {divs && (
         <div className="subsection">
           <button onClick={() => apply((x) => void distributeDividers(x, live))} data-testid="dividers-distribute">
@@ -55,9 +67,11 @@ export function MultiPanel({ ids }: { ids: string[] }) {
         </div>
       )}
       <BoardMaterial ids={live} />
-      <button className="link" onClick={() => useStore.getState().select(panelSel([live[live.length - 1]]))}>
-        {t('multiPanel.justOne')}
-      </button>
+      <div className="card-actions">
+        <button className="link" onClick={() => useStore.getState().select(panelSel([live[live.length - 1]]))}>
+          {t('multiPanel.justOne')}
+        </button>
+      </div>
     </section>
   );
 }

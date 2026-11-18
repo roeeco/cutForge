@@ -7,6 +7,7 @@ import type { ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch 
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
+import { settle } from '../model/derived';
 import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
@@ -169,8 +170,12 @@ type State = {
   /** Quick build's guardrails (milestone 39): what the last edit was kept from, for the tooltip. */
   guardNote: (GuardNote & { at: number }) | null;
   /** Quick build's Box (milestone 38): the footprint, a regular footprint's sides, and the last height used. */
-  boxFoot: 'rect' | 'regular';
+  boxFoot: 'rect' | 'regular' | 'rounded' | 'round';
   boxSides: number;
+  /** Quick build's Rounded box: its corner radius (milestone 64). */
+  boxCorner: number;
+  /** Quick build's Box bottom (milestone 68): a base, or a carton's snap-lock or tuck bottom (with a tuck top). */
+  boxBottom: 'flat' | 'snap' | 'tuck';
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
@@ -199,8 +204,12 @@ type State = {
   /** Connection whose joint card is open (seam pill or inspector). */
   openJoint: string | null;
   /** Polygon tool: click vertices, or drag a regular n-gon. */
-  polyMode: 'click' | 'ngon';
+  polyMode: 'click' | 'ngon' | 'round' | 'rounded';
   ngonSides: number;
+  /** The polygon tool's Round mode: which round shape a drag makes (milestone 62). */
+  roundShape: 'circle' | 'oval' | 'stadium';
+  /** The polygon tool's Rounded mode: the corner radius (mm). */
+  roundCorner: number;
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
   /** A base vertex index, or on a wall a free corner ('tl' | 'tr') or an inserted point's id. */
@@ -260,10 +269,16 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxBottom' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
+  /**
+   * The rail's Polygon, Round and Rounded buttons: one drawing tool underneath
+   * (a board on the floor, a shape on a face), each its own button. Polygon
+   * keeps its last mode (click corners or regular).
+   */
+  choosePolyTool: (kind: 'polygon' | 'round' | 'rounded') => void;
   /** The first-use tour (milestone 43), or null. */
   tour: TourState | null;
   /** Start the tour: Workshop, a new blank plywood 3 mm design (as Start with Blank), the welcome screen closed, a known camera. */
@@ -316,6 +331,8 @@ export const useStore = create<State>()((set, get) => ({
   guardNote: null,
   boxFoot: 'rect',
   boxSides: 6,
+  boxCorner: 15,
+  boxBottom: 'flat',
   boxHeight: 45,
   sticker: 'star',
   assemble: null,
@@ -336,6 +353,8 @@ export const useStore = create<State>()((set, get) => ({
   openJoint: null,
   polyMode: 'click',
   ngonSides: 6,
+  roundShape: 'circle',
+  roundCorner: 15,
   editOutline: null,
   selVertex: null,
   extrude: null,
@@ -417,10 +436,10 @@ export const useStore = create<State>()((set, get) => ({
       const sn = ctx ? snapBox(ctx, box, tol) : null;
       if (sn) q = { x: x + sn.dx, y: y + sn.dy };
     }
-    const next = produce(g.base, (dd) => {
-      pasteInto(dd, panelId, q.x, q.y, clip, g.ids);
-      solve(dd as Design);
-      autoConnect(dd as Design);
+    const pasted = produce(g.base, (dd) => void pasteInto(dd, panelId, q.x, q.y, clip, g.ids));
+    const next = settle(pasted, (dd) => {
+      solve(dd);
+      autoConnect(dd);
     });
     set({ design: next, pending: { ...g, panelId } });
   },
@@ -450,9 +469,7 @@ export const useStore = create<State>()((set, get) => ({
     const edited = produce(cur, (d) => void fn(d));
     if (edited === cur) return;
     // shapes can change outlines, and outlines move walls and joints
-    const next = produce(edited, (d) => {
-      guarded(d as Design, cur);
-    });
+    const next = settle(edited, (d) => guarded(d, cur));
     if (next === cur) return;
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
@@ -460,10 +477,7 @@ export const useStore = create<State>()((set, get) => ({
     const base = get().txnBase ?? get().design;
     set({
       txnBase: base,
-      design: produce(base, (d) => {
-        fn(d);
-        guarded(d as Design, base);
-      }),
+      design: settle(produce(base, (d) => void fn(d)), (d) => guarded(d, base)),
     });
   },
   commit: () => {
@@ -539,6 +553,12 @@ export const useStore = create<State>()((set, get) => ({
     set({ viewPrefs: next });
   },
   setBoardPose: (pose) => set({ panelPose: pose }),
+  choosePolyTool: (kind) => {
+    const cur = get().polyMode;
+    const mode = kind === 'polygon' ? (cur === 'ngon' ? 'ngon' : 'click') : kind;
+    if (get().tool !== 'polygon') get().setTool('polygon');
+    if (cur !== mode) set({ polyMode: mode });
+  },
 }));
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
@@ -574,4 +594,13 @@ export function growKind(d: Design, g: GrowOptions, parentId?: string): Connecti
 export function useT() {
   const lang = useStore((s) => s.lang);
   return (key: MsgKey, vars?: Record<string, string | number>) => translate(lang, key, vars);
+}
+
+/**
+ * The interface's direction. The 3D stage is laid out left to right (its
+ * canvas and on-model labels), so cards and bars on it set this themselves.
+ * Components that call it re-render with the language through `useT`.
+ */
+export function uiDir(): 'rtl' | 'ltr' {
+  return useStore.getState().lang === 'he' ? 'rtl' : 'ltr';
 }

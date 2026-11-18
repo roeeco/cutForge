@@ -3,7 +3,9 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, setPanelSize, solve } from '../model/ops';
+import { findDetail, setConnection, setPanelSize, setPointRound, solve } from '../model/ops';
+import { bandOf, foldRadius } from '../model/bands';
+import { cornerOf } from '../model/wings';
 import { matOf } from '../model/materials';
 import { fitShape } from './guard';
 import { validate } from '../model/validate';
@@ -43,6 +45,9 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
     // what stands on the board keeps its place relative to it: dividers' offsets, boards placed on it
     for (const c of Object.values(d.connections)) if (c.grown && c.a.panelId === rootId && !c.trayId && c.offset > 0) c.offset *= f;
     for (const q of Object.values(d.panels)) if (q.place?.host === rootId) (q.place.x *= f), (q.place.y *= f);
+    // a divider keeps its place and reach in proportion (milestone 44)
+    for (const q of Object.values(d.panels))
+      if (q.divider && q.place?.host === rootId) q.divider = { ...q.divider, at: { x: q.divider.at.x * f, y: q.divider.at.y * f }, reach: [q.divider.reach[0] * f, q.divider.reach[1] * f] };
     setPanelSize(d, rootId, p.w * f, p.h * f);
     solve(d);
   }
@@ -53,7 +58,7 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
 export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap']);
+const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -80,6 +85,11 @@ export function fixIssue(d: Design, i: Issue): boolean {
       d.allowRotate = true;
       d.placements = {};
       return !sheetIssueFor(d, i);
+    case 'val.bendTight':
+    case 'val.bendStyle':
+    case 'val.bendRoom':
+    case 'val.fluteBend':
+      return fixBend(d, i);
     case 'val.offSheet':
     case 'val.piecesOverlap':
       // let the packer place every piece again; done only when the sheet check is clear of it (BUGFIX_PLAN B15)
@@ -87,4 +97,48 @@ export function fixIssue(d: Design, i: Issue): boolean {
       return !sheetIssueFor(d, i);
   }
   return false;
+}
+
+/**
+ * A fold's bend (milestone 63): too tight, it gets the radius it needs; a
+ * chosen pattern that does not reach goes back to Automatic; a radius too
+ * large for its boards comes down to the largest that fits.
+ */
+function fixBend(d: Design, i: Issue): boolean {
+  const [pid, cid] = i.pair ?? [];
+  // round a tray's rounded corner (milestone 64): its radius is the base's corner's
+  const w = Object.values(d.connections).find((x) => x.wing && x.a.panelId === pid && x.b.panelId === cid);
+  if (w && i.key === 'val.bendTight') {
+    const k = cornerOf(d, w);
+    if (!k) return false;
+    // the base's corner radius the check worked out
+    setPointRound(d, k.base, k.i, Number(i.vars.r));
+    return !validate(d).some((x) => x.key.startsWith('val.bend') && x.pair?.[0] === pid && x.pair?.[1] === cid);
+  }
+  // across the flutes: perforations bend either way (milestone 66)
+  if (i.key === 'val.fluteBend') {
+    const c = w ?? Object.values(d.connections).find((x) => x.grown && x.a.panelId === pid && x.b.panelId === cid);
+    if (!c) return false;
+    setConnection(d, c.id, { bend: { pattern: 'perf' } });
+    return !validate(d).some((x) => x.key === 'val.fluteBend' && x.pair?.[0] === pid && x.pair?.[1] === cid);
+  }
+  if (w && i.key === 'val.bendStyle') {
+    setConnection(d, w.id, { bend: { pattern: 'auto' } });
+    return true;
+  }
+  const c = Object.values(d.connections).find((x) => x.grown && x.a.panelId === pid && x.b.panelId === cid);
+  if (!c) return false;
+  if (i.key === 'val.bendStyle') setConnection(d, c.id, { bend: { pattern: 'auto' } });
+  else if (i.key === 'val.bendTight') setConnection(d, c.id, { radius: Number(i.vars.r) });
+  else {
+    let lo = 0, hi = foldRadius(d, c);
+    for (let k = 0; k < 30; k++) {
+      const mid = (lo + hi) / 2;
+      setConnection(d, c.id, { radius: mid });
+      if (bandOf(d, d.connections[c.id])?.fits) lo = mid;
+      else hi = mid;
+    }
+    setConnection(d, c.id, { radius: Math.floor(lo * 10) / 10 });
+  }
+  return !validate(d).some((x) => x.key.startsWith('val.bend') && x.pair?.[1] === cid);
 }

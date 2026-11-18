@@ -5,16 +5,20 @@ import type { ReactNode } from 'react';
 import { useStore, useT, type Tool } from '../store/store';
 import type { MsgKey } from '../i18n';
 import { Icon } from '../ui/icons';
-import { Segmented, Stepper } from '../ui/NumField';
+import { NumField, Segmented, Stepper } from '../ui/NumField';
+import { roundedMin } from './recipes';
+import { fmtNum } from '../i18n';
 import { STICKERS } from './stickers';
 
-export type QuickAction = 'box' | 'wall' | 'divider' | 'hole' | 'text';
+export type QuickAction = 'box' | 'wall' | 'divider' | 'standing' | 'hole' | 'text';
 
-/** The five actions: the tool each one runs and what it draws with. */
+/** The actions: the tool each one runs and what it draws with. */
 export const QUICK_ACTIONS: { id: QuickAction; key: MsgKey; icon: string; tools: Tool[] }[] = [
   { id: 'box', key: 'quick.box', icon: 'box', tools: ['box'] },
   { id: 'wall', key: 'quick.wall', icon: 'wall', tools: ['wall'] },
   { id: 'divider', key: 'quick.divider', icon: 'divider', tools: ['divider'] },
+  // a board standing on any face, as Workshop's Standing board (milestone 44: the Divider makes dividers only)
+  { id: 'standing', key: 'tool.panelStanding', icon: 'panelStanding', tools: ['panel'] },
   { id: 'hole', key: 'quick.hole', icon: 'hole', tools: ['circle', 'rect', 'roundrect'] },
   { id: 'text', key: 'quick.textStickers', icon: 'text', tools: ['text', 'sticker'] },
 ];
@@ -28,9 +32,13 @@ export function startAction(a: QuickAction) {
   const def = QUICK_ACTIONS.find((x) => x.id === a)!;
   // the last kind of hole (or text or sticker) chosen stays
   const tool = def.tools.includes(st.tool) ? st.tool : def.tools.includes(st.quickLast[a] as Tool) ? (st.quickLast[a] as Tool) : def.tools[0];
+  if (a === 'standing') st.setBoardPose('standing');
   st.setTool(tool);
   st.setShapeOp(a === 'hole' ? 'cut' : 'engrave');
 }
+
+/** The key shown for an action ('D D': Standing board is Divider's key pressed again). */
+const keyOf = (a: QuickAction) => (a === 'standing' ? 'D D' : Object.keys(QUICK_KEYS).find((k) => QUICK_KEYS[k] === a)!.toUpperCase());
 
 export function QuickRail() {
   const t = useT();
@@ -54,7 +62,7 @@ export function QuickRail() {
               <Icon name={a.icon} />
               <span className="tip" aria-hidden>
                 {t(a.key)}
-                <kbd>{Object.keys(QUICK_KEYS).find((k) => QUICK_KEYS[k] === a.id)!.toUpperCase()}</kbd>
+                <kbd>{keyOf(a.id)}</kbd>
               </span>
             </button>
           );
@@ -76,6 +84,10 @@ function ActionCard() {
   const tool = useStore((s) => s.tool);
   const boxFoot = useStore((s) => s.boxFoot);
   const sides = useStore((s) => s.boxSides);
+  const boxCorner = useStore((s) => s.boxCorner);
+  const material = useStore((s) => s.design.material);
+  const boxHeight = useStore((s) => s.boxHeight);
+  const boxBottom = useStore((s) => s.boxBottom);
   const sticker = useStore((s) => s.sticker);
   const set = useStore((s) => s.set);
   const a = QUICK_ACTIONS.find((x) => x.tools.includes(tool));
@@ -90,15 +102,42 @@ function ActionCard() {
           options={[
             { value: 'rect', label: t('quick.boxRect'), testId: 'box-rect' },
             { value: 'regular', label: t('quick.boxRegular'), testId: 'box-regular' },
+            { value: 'rounded', label: t('quick.boxRounded'), testId: 'box-rounded' },
+            { value: 'round', label: t('quick.boxRound'), testId: 'box-round' },
           ]}
           onChange={(v) => set({ boxFoot: v })}
         />
         {boxFoot === 'regular' && <Stepper label={t('quick.boxSides')} value={sides} min={3} max={12} slider={false} onCommit={(v) => set({ boxSides: Math.round(v) })} testId="box-sides" />}
+        {boxFoot === 'rect' && material.kind !== 'plywood' && (
+          <Segmented
+            label={t('quick.boxBottom')}
+            value={boxBottom}
+            options={[
+              { value: 'flat', label: t('quick.boxBottom.flat'), testId: 'box-bottom-flat' },
+              { value: 'snap', label: t('quick.boxBottom.snap'), testId: 'box-bottom-snap' },
+              { value: 'tuck', label: t('quick.boxBottom.tuck'), testId: 'box-bottom-tuck' },
+            ]}
+            onChange={(v) => set({ boxBottom: v })}
+          />
+        )}
+        {boxFoot === 'rect' && material.kind !== 'plywood' && boxBottom !== 'flat' && <p className="note" data-testid="box-carton-help">{t('quick.boxCartonHelp')}</p>}
+        {boxFoot === 'round' && <p className="note" data-testid="box-round-help">{t('quick.boxRoundHelp', { r: fmtNum(roundedMin(material, boxHeight), 1) })}</p>}
+        {boxFoot === 'rounded' && (
+          <>
+            <NumField label={t('quick.boxCorner')} value={boxCorner} unit={t('unit.mm')} min={1} max={200} onCommit={(v) => set({ boxCorner: v })} testId="box-corner" />
+            {boxCorner < roundedMin(material, boxHeight) && (
+              <p className="note" data-testid="box-reach">
+                {t('quick.boxReach', { r: fmtNum(roundedMin(material, boxHeight), 1) })}
+              </p>
+            )}
+          </>
+        )}
         <p className="note">{t('quick.boxHelp')}</p>
       </>
     );
   else if (a.id === 'wall') body = <p className="note">{t('quick.wallHelp')}</p>;
   else if (a.id === 'divider') body = <p className="note">{t('quick.dividerHelp')}</p>;
+  else if (a.id === 'standing') body = <p className="note">{t('quick.standingHelp')}</p>;
   else if (a.id === 'hole')
     body = (
       <>

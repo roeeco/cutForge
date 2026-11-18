@@ -18,7 +18,8 @@ function box(id: string) {
   addTray(d, base, 50);
   const div = addDivider(d, base, 'e3', 70, 40)!;
   solve(d);
-  const ends = Object.values(d.connections).filter((c) => !c.grown && c.kind === 'tabslot' && (c.a.panelId === div || c.b.panelId === div));
+  // its two ends (milestone 44: its joint with the base is an edge on the base's face too, not one of its ends)
+  const ends = Object.values(d.connections).filter((c) => !c.grown && c.kind === 'tabslot' && (c.a.panelId === div || c.b.panelId === div) && c.a.panelId !== base && c.b.panelId !== base);
   return { d, base, div, ends };
 }
 const blocking = (d: Design) => validate(d).filter((i) => !['val.split', 'val.bevel'].includes(i.key)).map((i) => i.key);

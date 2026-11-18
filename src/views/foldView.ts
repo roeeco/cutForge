@@ -7,18 +7,38 @@ import { edgeWorld, frameNormal, matDir, toWorld } from '../model/frame';
 import { cornerFit, inwardWorld } from '../model/seams';
 import { findEdge } from '../model/edges';
 import { tOf } from '../model/materials';
+import { bandChildMove, bandOf, type Band } from '../model/bands';
+import { wingBands } from '../model/wings';
 
 export type Bend = { id: string; panelId: string; pivot: THREE.Vector3; axis: THREE.Vector3; length: number; radius: number; crease: THREE.Vector3; mountain: boolean };
 
-export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.Matrix4>; bends: Bend[] } {
+/** A band (a fold with a radius, milestone 63) as the fold view shows it: fold fraction k, under its parent's displayed pose. */
+/** `pre`: the moves of the bands before it in a corner's chain (milestone 65), applied after its parent's pose. */
+export type BandShown = { band: Band; k: number; pre?: THREE.Matrix4 };
+
+export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.Matrix4>; bends: Bend[]; bands: BandShown[] } {
   // the 3D pose has no allowance gap (that is only in the flat net), so the hinge sits at the corner
   const g = 0;
   const xf = new Map<string, THREE.Matrix4>();
   const bends: Bend[] = [];
+  const bands: BandShown[] = [];
   const grown = Object.values(d.connections).filter((c) => c.grown);
   const parentOf = new Map(grown.map((c) => [c.b.panelId, c]));
   // tray corners made folds (milestone 35): the wall folds off its neighbour's side edge
   const hinged = new Map(Object.values(d.connections).filter((c) => !c.grown && c.kind === 'fold' && c.hingeOf).map((c) => [c.hingeOf!, c]));
+  // a strip round a tray's rounded corners (milestone 64): the next wall rides on the band's end
+  const winged = new Map(Object.values(d.connections).filter((c) => c.wing && c.kind === 'fold').map((c) => [c.b.panelId, c]));
+  // a corner's bands one after another (milestone 65): each rides on the moves of those before it; the move of them all
+  const chain = (c: Connection): THREE.Matrix4 => {
+    const acc = new THREE.Matrix4();
+    for (const b of wingBands(d, c)) {
+      bands.push({ band: b, k: foldT, pre: acc.clone() });
+      acc.multiply(new THREE.Matrix4().fromArray(bandChildMove(b, foldT)));
+    }
+    return acc;
+  };
+  // every corner's bands are shown, whatever joins their end
+  for (const c of Object.values(d.connections)) if (c.wing && c.kind !== 'fold') chain(c);
   const visit = (id: string): THREE.Matrix4 => {
     const have = xf.get(id);
     if (have) return have;
@@ -27,6 +47,14 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     if (hm) {
       xf.set(id, hm);
       return hm;
+    }
+    const w = winged.get(id);
+    if (w && wingBands(d, w).length) {
+      // guard against a strip that runs all round: the walls before it are visited first
+      xf.set(id, new THREE.Matrix4());
+      const wm = visit(w.a.panelId).clone().multiply(chain(w));
+      xf.set(id, wm);
+      return wm;
     }
     const c = parentOf.get(id);
     const p = d.panels[id];
@@ -37,7 +65,12 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     if (c && p && d.panels[c.a.panelId]) {
       const parentM = visit(c.a.panelId);
       m = parentM.clone();
-      if (c.kind === 'fold') {
+      const band = c.kind === 'fold' ? bandOf(d, c) : null;
+      if (band) {
+        // the band unrolls: the child rides on its end (no crease bead)
+        m.multiply(new THREE.Matrix4().fromArray(bandChildMove(band, foldT)));
+        bands.push({ band, k: foldT });
+      } else if (c.kind === 'fold') {
         const t = tOf(d, id);
         // hinge: a line along the child's bottom edge, half a (thickness +
         // allowance) below it and half a (thickness − allowance) into the
@@ -73,7 +106,7 @@ export function foldDisplay(d: Design, foldT: number): { xf: Map<string, THREE.M
     return m;
   };
   for (const id of d.order) visit(id);
-  return { xf, bends };
+  return { xf, bends, bands };
 }
 
 /**

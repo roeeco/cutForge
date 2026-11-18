@@ -4,6 +4,7 @@ import { App } from './App';
 import './styles.css';
 import { useStore } from './store/store';
 import * as ops from './model/ops';
+import { validate } from './model/validate';
 import { loadBundledFonts, onFontsChange } from './text/fonts';
 
 // Fonts load in the background; when they arrive, panels with text are
@@ -18,7 +19,9 @@ void loadBundledFonts();
 
 // Test hook for automated interaction tests (dev server or ?test in the URL).
 // `ops` gives scripted tests the model operations (dev only, so production stays lean).
-if (import.meta.env.DEV || location.search.includes('test')) (window as unknown as { __cutforge: unknown }).__cutforge = { store: useStore, ops: import.meta.env.DEV ? ops : undefined };
+// `issues` gives the export check's message keys for the design as it is.
+if (import.meta.env.DEV || location.search.includes('test'))
+  (window as unknown as { __cutforge: unknown }).__cutforge = { store: useStore, ops: import.meta.env.DEV ? ops : undefined, issues: () => validate(useStore.getState().design).map((i) => i.key) };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

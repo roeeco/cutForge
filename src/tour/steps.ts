@@ -11,7 +11,7 @@ import { MATERIALS, tOf } from '../model/materials';
 import { toWorld } from '../model/frame';
 import { findEdge } from '../model/edges';
 import { trayWalls } from '../model/trays';
-import { groupKinds, groupShown, jointsOf, standsOnFace } from '../model/jointDefaults';
+import { groupKinds, groupShown, jointsOf } from '../model/jointDefaults';
 import { quickWallHeight, wallRecipe } from '../easy/recipes';
 import { requestCamera, TOUR_CAMERA } from './stage';
 
@@ -130,9 +130,8 @@ function grownFromTop(d: Design, walls: string[]): boolean {
 export function hasDivider(d: Design): boolean {
   const b = tourBase(d), w = tourWalls(d);
   if (!b || !w) return false;
-  return Object.values(d.connections).some((c) => {
-    if (!c.grown || c.a.panelId !== b || !standsOnFace(d, c)) return false;
-    const id = c.b.panelId;
+  return d.order.some((id) => {
+    if (d.panels[id]?.place?.host !== b || !d.panels[id].divider) return false;
     const ends = Object.values(d.connections).filter((x) => !x.grown && ((x.a.panelId === id && w.all.includes(x.b.panelId)) || (x.b.panelId === id && w.all.includes(x.a.panelId))));
     return new Set(ends.map((x) => (x.a.panelId === id ? x.b.panelId : x.a.panelId))).size >= 2;
   });
@@ -275,7 +274,8 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'divider',
-    anchor: (s) => (s.tool === 'panel' && s.panelPose === 'standing' ? { stage: boxFloor } : dom('tool-panel-standing')),
+    // the Divider tool (milestone 44)
+    anchor: (s) => (s.tool === 'divider' ? (s.panelGhost && !s.panelGhost.drawing ? dom('ghost-ok') : { stage: boxFloor }) : dom('tool-divider')),
     title: 'tour.divider.title',
     body: 'tour.divider.body',
     // the lid is left off the stage, and the camera looks in from higher up, so the box's floor can be reached
@@ -287,7 +287,8 @@ export const TOUR_STEPS: TourStep[] = [
     done: (s) => hasDivider(s.design),
     notQuite: (s, entry) => {
       const b = tourBase(s.design);
-      const made = s.design.order.some((id) => !entry.panels[id] && s.design.panels[id]?.place?.host === b);
+      // a standing board instead of a divider
+      const made = s.design.order.some((id) => !entry.panels[id] && s.design.panels[id]?.place?.host === b && !s.design.panels[id].divider);
       return made ? 'tour.divider.notQuite' : null;
     },
     skip: (d) => {

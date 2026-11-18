@@ -1,8 +1,9 @@
 // Missions and what goes inside (milestone 40).
+import { dividerRow } from '../src/model/dividers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { FONTS, registerFont } from '../src/text/fonts';
-import { addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel } from '../src/model/ops';
+import { addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { MISSIONS, missionById, missionState, placeContents, startMission } from '../src/easy/missions';
 import { regenerate } from '../src/templates/registry';
@@ -34,10 +35,9 @@ function engrave(d: Design, panel: string, value: string) {
 const SOLVE: Record<string, (d: Design) => Design> = {
   'pencil-box': (d) => {
     // widen the pencils' compartment: the second divider moves out
-    const c = parentConnection(d, 't:divY2')!;
-    c.offset += 12;
-    const c1 = parentConnection(d, 't:divY1')!;
-    c1.offset -= 4;
+    // milestone 44: a divider moves along its normal
+    setDividerOffset(d, 't:divY2', dividerRow(d, 't:divY2')!.pos + 12);
+    setDividerOffset(d, 't:divY1', dividerRow(d, 't:divY1')!.pos - 4);
     solve(d);
     const cells = compartments(d, 't:base');
     const big = [...cells].sort((a, b) => b.y1 - b.y0 - (a.y1 - a.y0))[0];

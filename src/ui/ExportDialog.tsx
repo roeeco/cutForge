@@ -4,6 +4,8 @@ import { prepareExport, type KerfMode } from '../export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../export/svg';
 import { sheetsToDxf } from '../export/dxf';
 import { validate } from '../model/validate';
+import { pieceCopies } from '../model/pack';
+import { issueVars } from '../model/names';
 import { canFix, fixIssue } from '../easy/fix';
 import { shown, useFeature } from '../easy/features';
 import { downloadText, safeName } from './download';
@@ -22,10 +24,11 @@ export function ExportDialog() {
   const [format, setFormat] = useState<'svg' | 'dxf'>('svg');
   const [split, setSplit] = useState(false);
   const [mode, setMode] = useState<KerfMode>('nominal');
-  const prepared = useMemo(() => prepareExport(d, mode), [d, mode]);
+  const prepared = useMemo(() => prepareExport(d, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') }), [d, mode, t]);
   const issues = useMemo(() => validate(d), [d]);
   const check = shown(useFeature('exportCheck'));
-  const pieces = Object.values(d.pieces).reduce((a, p) => a + p.quantity, 0);
+  // what is cut, counted as the cut plan counts it (it summed every board's copies: a five-board net was "5 pieces")
+  const pieces = useMemo(() => pieceCopies(d).length, [d]);
   const blocked = prepared.errors.length > 0;
   // one file per material (milestone 36), each with its own kerf; one material keeps the old names
   const files = exportFiles(d.name, prepared, mode);
@@ -112,7 +115,7 @@ export function ExportDialog() {
                       close();
                     }}
                   >
-                    {t(i.key, i.vars)}
+                    {t(i.key, issueVars(d, i, t))}
                   </button>
                   {canFix(i) && (
                     // the same one-click fixes as Quick build's badge (milestone 39)
