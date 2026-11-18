@@ -77,4 +77,6 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | **Artwork guide** (face templates, preview textures) | packaging-and-learning 54 | Belongs with `IMAGES_ON_BOARDS.md`. |
 | **Closures as `Panel.flaps`, tube nets as a second unfolding** | packaging-and-learning 46–47 | Built as milestones 67–68 on another model. Dropped, not deferred. |
 | A sleeve, sliding lids, ledges, corrugated hasps, fold along a drawn line, tear strip in one action, a game-parts generator, starter designs from the teacher, library sync | lids plan §15 | As that plan says. |
+| **The Inset lid** | lids plan §3.2 | Needs tray walls standing in from their base's edge by more than the tab-and-slot offset, with finger joints (the plan's risk 2). Cap, Flat and Drop-in cover the need meanwhile (milestones 79–80). |
+| **Boxes built from boards** (no tray) closing with a grown lid | cleanup Part 5.3 | Needs one answer to "what is a box" shared with the lid generator. |
 | `PRESETS_PLAN.md`, `IMAGES_ON_BOARDS.md`, the waffle branch | older branches | Not part of this round. The lids plan §16 says how each meets this work. |

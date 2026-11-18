@@ -16,7 +16,7 @@ import type { Tray } from '../model/types';
 
 /** The help line under the *Lid* row: what the box's lid is. */
 function lidHelp(lid: BoxLid, plywood: boolean, carton: boolean): MsgKey {
-  if (lid.kind === 'liftoff') return lid.style === 'flat' ? 'lid.help.flat' : 'lid.help.cap';
+  if (lid.kind === 'liftoff') return lid.style === 'flat' ? 'lid.help.flat' : lid.style === 'dropin' ? 'lid.help.dropin' : 'lid.help.cap';
   if (lid.kind === 'hinged') return lid.living || plywood ? 'lid.help.living' : carton ? 'lid.help.carton' : 'lid.help.hinged';
   if (lid.kind === 'arched') return 'tray.archHelp';
   if (lid.kind === 'fixed') return 'lid.help.fixed';
@@ -75,7 +75,7 @@ export function LidSection({ panelId }: { panelId: string }) {
         <PictureChoice
           label={t('lid.style')}
           value={lid.style}
-          options={LID_STYLES.map((st) => ({ value: st, label: t(`lid.style.${st}`) + (st === auto ? ' ' + t('lid.style.auto') : ''), pic: st === 'cap' ? 'cap' : 'flatLid', testId: `lid-style-${st}`, why: styleWhy[st] ? t(styleWhy[st]!) : undefined }))}
+          options={LID_STYLES.map((st) => ({ value: st, label: t(`lid.style.${st}`) + (st === auto ? ' ' + t('lid.style.auto') : ''), pic: st === 'cap' ? 'cap' : st === 'flat' ? 'flatLid' : 'dropinLid', testId: `lid-style-${st}`, why: styleWhy[st] ? t(styleWhy[st]!) : undefined }))}
           onChange={(st) => apply((x) => void setBoxLid(x, tray.id, 'liftoff', st))}
           testId="lid-style"
         />

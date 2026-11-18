@@ -82,6 +82,8 @@ const PICS = {
   cap: `${BOX} M6 15 L6 9 L34 9 L34 15 M34 9 L40 4 L40 10 M6 9 L12 4 L40 4`,
   /** A Flat lid: one board on the walls, its tabs showing through (milestone 79). */
   flatLid: `${BOX} M6 12 L32 12 L39 7 L13 7 Z M17 10 L19 10 M27 10 L29 10`,
+  /** A Drop-in lid: a board down inside the walls, a finger hole in it (milestone 80). */
+  dropinLid: `${BOX} M12 17 L30 17 L35 13 L17 13 Z M23 15 m-1.5 0 a1.5 1 0 1 0 3 0 a1.5 1 0 1 0 -3 0`,
   /** A box with its lid hinged open at the back. */
   hinged: `${BOX} M14 9 L38 9 L35 1 L11 1 Z`,
   /** A box with an arched lid. */

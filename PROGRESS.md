@@ -1329,6 +1329,11 @@ Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-i
 - Tests: `tests/lidKinds.test.ts` (7): Automatic per material; each reason (card, round box, open side, walls of different heights) and a cap still allowed; a Flat lid in plywood and corrugated: tabs flush with its top, each in its slot with the fit and a web to the edge, its own piece, nothing glued, no check issue, idempotent and saved and opened unchanged; it follows a resize and a height; Flat to Cap to Flat to none leaves nothing behind; a cap's rim. Goldens: `lid-flat-ply`, `lid-flat-corr4`, `lid-cap-full-corr16` (new); every other golden byte-identical. Browser: `lids.spec` gains the Kind and Rim rows and the reason on card.
 - Not yet: `val.lidKind`, the Extrude card's Lid row, Inset and Drop-in (milestone 80), the fit spike on real plywood.
 
+## Milestone 80 — the Drop-in lid ✅ (Inset deferred)
+
+`LIDS_LINES_PROJECTS_PLAN.md` §3.2 (milestone 75 there, less the pose: milestone 76). *Lifts off* gains **Drop-in**: one board inside the walls on the dividers, a finger hole clear of them, offered where the dividers are lower than the walls by its thickness. Inset is deferred (`DECISIONS.md`).
+- Tests: `lidKinds.test.ts` (+4): in plywood, corrugated and card, a box with two crossing dividers: the lid is the inside less the fit, rests on the dividers, its finger hole clears both, its own piece, no check issue, idempotent and saved unchanged; a box without dividers is refused with the reason. Golden `lid-dropin-ply` (new); every other golden byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

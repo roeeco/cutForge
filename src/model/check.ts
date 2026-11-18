@@ -176,7 +176,7 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   v3(x.frame.v, `${where}.frame.v`, true);
   if (x.frame.side !== 1 && x.frame.side !== -1) fail(`${where}.frame.side`, 'not 1 or -1');
   arr(x.details, `${where}.details`).forEach((dt, i) => detail(dt, `${where}.details[${i}]`));
-  if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && x.lidOf.kind === 'flat')) delete x.lidOf;
+  if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin'))) delete x.lidOf;
   if (x.edgeFlaps !== undefined) {
     if (!Array.isArray(x.edgeFlaps)) delete x.edgeFlaps;
     else x.edgeFlaps = x.edgeFlaps.filter((f: any) => isObj(f) && typeof f.id === 'string' && typeof f.edge === 'string' && Number.isFinite(f.len) && f.len > 0 && f.len < 1000);

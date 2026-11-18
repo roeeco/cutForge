@@ -9,8 +9,8 @@
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
 import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
-import { addArchedLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
-import { flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
+import { addArchedLid, addDropinLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
+import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { matOf } from '../model/materials';
@@ -35,8 +35,8 @@ export type BoxLid =
 /** What can be chosen in the *Lid* section. */
 export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched';
 /** The kinds of lid that lifts off (milestone 79): a shallow tray over the box, or one board resting on its walls. */
-export type LidStyle = 'cap' | 'flat';
-export const LID_STYLES: LidStyle[] = ['cap', 'flat'];
+export type LidStyle = 'cap' | 'flat' | 'dropin';
+export const LID_STYLES: LidStyle[] = ['cap', 'flat', 'dropin'];
 
 const topEdge = (edge: string | number) => (typeof edge === 'number' ? `e${edge}` : String(edge)).split('#')[0] === 'e2';
 
@@ -62,7 +62,7 @@ export function boxLid(d: Design, trayId: string): BoxLid {
   const cap = lidOn(d, trayId);
   if (cap && d.panels[cap.baseId]) return { kind: 'liftoff', style: 'cap', tray: cap.id, top: cap.baseId };
   const flat = flatLidsOf(d, trayId)[0];
-  if (flat) return { kind: 'liftoff', style: 'flat', top: flat.id };
+  if (flat) return { kind: 'liftoff', style: flat.lidOf!.kind, top: flat.id };
   if (t.top === 'tuck' && d.panels[topLidId(t)]) return { kind: 'hinged', lid: topLidId(t), living: matOf(d, topLidId(t)).kind === 'plywood' };
   if (t.top === 'seal') return { kind: 'flaps' };
   const ring = trayRing(d, t).map((r) => r.wall);
@@ -107,6 +107,7 @@ export function boxOfPanel(d: Design, panelId: string): string | null {
 /** Where a lid's top is when the box is closed: a lid of its own lies beside its box (milestone 76), so its pose on the box. */
 function topPose(d: Design, trayId: string, lid: BoxLid, P: Panel): Panel['frame'] {
   if (lid.kind === 'liftoff' && lid.style === 'flat') return flatOnFrame(d, P, d.trays[trayId]) ?? P.frame;
+  if (lid.kind === 'liftoff' && lid.style === 'dropin') return dropinOnFrame(d, P, d.trays[trayId]) ?? P.frame;
   return (lid.kind === 'liftoff' && lidOnFrame(d, P, d.trays[trayId])) || P.frame;
 }
 
@@ -146,7 +147,12 @@ export function setBoxLid(d: Design, trayId: string, choice: LidChoice, style?: 
   // a carton closes with its tuck top or not at all
   if (t.base === 'open' && choice !== 'hinged' && choice !== 'none') return { ok: false, dropped: 0 };
   const carried = removeLid(d, trayId, cur);
-  if (choice === 'liftoff') (style ?? autoStyle(d, trayId)) === 'flat' ? addFlatLid(d, trayId) : addLid(d, trayId);
+  if (choice === 'liftoff') {
+    const st = style ?? autoStyle(d, trayId);
+    if (st === 'flat') addFlatLid(d, trayId);
+    else if (st === 'dropin') addDropinLid(d, trayId);
+    else addLid(d, trayId);
+  }
   else if (choice === 'hinged') setTrayEnds(d, trayId, { top: 'tuck' });
   else if (choice === 'arched') addArchedLid(d, trayId);
   const now = boxLid(d, trayId);
@@ -323,6 +329,13 @@ export function lidStyleWhy(d: Design, trayId: string, style: LidStyle): MsgKey 
   if (t.base === 'open') return 'lid.why.carton';
   if (style === 'cap') return null;
   const B = d.panels[t.baseId];
+  if (style === 'dropin') {
+    // it rests on the dividers, its thickness below the walls' tops
+    const divs = boxDividers(d, t);
+    const tL = matOf(d, t.baseId).thickness;
+    if (!divs.length || Math.max(...divs.map((p) => p.h)) > t.height - tL + 1e-6) return 'lid.why.dropinDividers';
+    return null;
+  }
   if (matOf(d, t.baseId).kind === 'card') return 'lid.why.flatCard';
   if (B?.sketch.kind === 'poly' && B.sketch.round) return 'lid.why.flatRound';
   const ring = trayRing(d, t);

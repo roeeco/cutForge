@@ -4,7 +4,7 @@
 // thickness and the fit clearance, turned over and resting on the box: a hat
 // box lid. It is a tray like any other (`Tray.lidOf` names the box's tray);
 // its base's outline and place follow the box on every solve.
-import type { ConnGeom, Design, Panel, RoundShape, SketchPt, Tray, V3 } from './types';
+import type { ConnGeom, Design, P2, Panel, RoundShape, SketchPt, Tray, V3 } from './types';
 import { toLocal, toWorld } from './frame';
 import { findEdge as edgeOf } from './edges';
 import { matDir } from './frame';
@@ -249,7 +249,7 @@ export function boxLidPutOn(d: Design, trayId: string): number[] | null {
   if (cap) return lidPutOn(d, cap);
   const box = d.trays[trayId];
   const L = flatLidsOf(d, trayId)[0];
-  const on = box && L && flatOnFrame(d, L, box);
+  const on = box && L && (L.lidOf?.kind === 'dropin' ? dropinOnFrame(d, L, box) : flatOnFrame(d, L, box));
   if (!on) return null;
   return mul(frameMat(on), rigidInverse(frameMat(L.frame)));
 }
@@ -273,6 +273,11 @@ export function reconcileFlatLids(d: Design, ring: (t: Tray) => string[]) {
     const box = d.trays?.[L.lidOf.tray];
     if (!box || !d.panels[box.baseId]) {
       delete L.lidOf;
+      continue;
+    }
+    if (L.lidOf.kind === 'dropin') {
+      // a Drop-in lid: no joint, it rests on the dividers
+      placeDropinLid(d, L, box);
       continue;
     }
     placeFlatLid(d, L, box);
@@ -321,4 +326,95 @@ export function flatLidGeom(d: Design, c: { a: { panelId: string }; b: { panelId
     g.holes.push({ panelId: L.id, poly: q.map(grow) });
   }
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// The Drop-in lid (milestone 80, LIDS_LINES_PROJECTS_PLAN.md §3.2): one board
+// inside the walls, the box's inside less the fit, resting on the dividers'
+// tops, with a finger hole kept clear of them. The walls stand above it and
+// the contents are held down. It lies beside its box like the others.
+
+/** A Drop-in lid's finger hole (mm across). */
+export const FINGER_HOLE = 20;
+
+/** The dividers standing on a box's base. */
+export const boxDividers = (d: Design, box: Tray): Panel[] => d.order.map((id) => d.panels[id]).filter((p) => p?.divider && p.place?.host === box.baseId);
+
+/** The box's inside, less the fit: the Drop-in lid's outline in the base's coordinates (its points, and the lowest corner). */
+function dropinOutline(d: Design, box: Tray): { pts: SketchPt[]; edgeIds: string[]; x0: number; y0: number; round?: RoundShape } | null {
+  const B = d.panels[box.baseId];
+  if (!B || B.sketch.kind !== 'poly') return null;
+  const g = matOf(d, box.baseId).thickness + LID_FIT;
+  const r = B.sketch.round;
+  if (r) {
+    if (B.w - 2 * g < 10 || B.h - 2 * g < 10) return null;
+    const round = { ...r, ...(r.rEnd !== undefined ? { rEnd: Math.max(1, r.rEnd - g) } : {}) };
+    const rp = roundPts(B.w - 2 * g, B.h - 2 * g, round);
+    return { pts: rp.pts, edgeIds: rp.edgeIds, x0: g, y0: g, round };
+  }
+  const shrunk = grownPts(B.sketch.pts, -g).map((q) => (q.curve === 'round' && q.r !== undefined ? { ...q, r: Math.max(0.5, q.r) } : q));
+  const x0 = Math.min(...shrunk.map((q) => q.x)), y0 = Math.min(...shrunk.map((q) => q.y));
+  return { pts: shrunk.map((q) => ({ ...q, x: q.x - x0, y: q.y - y0 })), edgeIds: [...B.sketch.edgeIds], x0, y0 };
+}
+
+/** The height a Drop-in lid rests at over the base's frame: on the tallest divider. */
+export function dropinRest(d: Design, box: Tray): number {
+  const B = d.panels[box.baseId];
+  const tops = boxDividers(d, box).map((p) => p.h);
+  return (B ? tOf(d, B.id) : 0) + (tops.length ? Math.max(...tops) : box.height / 2);
+}
+
+/** Where a Drop-in lid rests in its box. */
+export function dropinOnFrame(d: Design, lid: Panel, box: Tray): Panel['frame'] | null {
+  const B = d.panels[box.baseId];
+  const o = dropinOutline(d, box);
+  if (!B || !o) return null;
+  const up = matDir(B.frame), f = B.frame, z = dropinRest(d, box);
+  const at = (k: number) => f.o[k] + f.u[k] * o.x0 + f.v[k] * o.y0 + up[k] * z;
+  return { o: [at(0), at(1), at(2)], u: [...f.u], v: [...f.v], side: f.side };
+}
+
+/** Give a Drop-in lid its outline and its place beside the box, and keep its finger hole clear of the dividers. */
+export function placeDropinLid(d: Design, lid: Panel, box: Tray) {
+  const B = d.panels[box.baseId];
+  const o = dropinOutline(d, box);
+  if (!B || !o) return;
+  lid.sketch = { kind: 'poly', pts: o.pts, edgeIds: o.edgeIds, ...(o.round ? { round: o.round } : {}) };
+  lid.w = Math.max(...o.pts.map((q) => q.x));
+  lid.h = Math.max(...o.pts.map((q) => q.y));
+  const p = box.lidAt ?? lidBesideDefault(d, box, -o.x0);
+  const f = B.frame;
+  const pt = (k: number) => f.o[k] + f.u[k] * p.x + f.v[k] * p.y;
+  lid.frame = { o: [pt(0), pt(1), pt(2)], u: [...f.u], v: [...f.v], side: f.side };
+  // the finger hole: at the middle, or the nearest spot clear of every divider under it
+  const hole = lid.details.find((x) => x.id === fingerId(lid.id));
+  if (hole) {
+    const at = fingerSpot(d, box, lid, o.x0, o.y0);
+    hole.cx = at.x;
+    hole.cy = at.y;
+  }
+}
+export const fingerId = (lidId: string) => `${lidId}:finger`;
+
+/** A spot for the finger hole: the lid's middle, else the nearest (in 5 mm steps) whose hole clears every divider by its thickness. */
+function fingerSpot(d: Design, box: Tray, lid: Panel, x0: number, y0: number): P2 {
+  const divs = boxDividers(d, box).map((p) => {
+    const a = (p.place!.rot * Math.PI) / 180;
+    const A = { x: p.place!.x - x0, y: p.place!.y - y0 };
+    return { A, B: { x: A.x + Math.cos(a) * p.w, y: A.y + Math.sin(a) * p.w }, t: tOf(d, p.id) };
+  });
+  const clear = (q: P2) =>
+    divs.every((s) => {
+      const vx = s.B.x - s.A.x, vy = s.B.y - s.A.y, L2 = vx * vx + vy * vy || 1;
+      const k = Math.max(0, Math.min(1, ((q.x - s.A.x) * vx + (q.y - s.A.y) * vy) / L2));
+      return Math.hypot(q.x - s.A.x - vx * k, q.y - s.A.y - vy * k) > FINGER_HOLE / 2 + s.t + 2;
+    }) &&
+    q.x > FINGER_HOLE / 2 + 3 && q.y > FINGER_HOLE / 2 + 3 && q.x < lid.w - FINGER_HOLE / 2 - 3 && q.y < lid.h - FINGER_HOLE / 2 - 3;
+  const c = { x: lid.w / 2, y: lid.h / 2 };
+  for (let r = 0; r <= 200; r += 5)
+    for (const [dx, dy] of r === 0 ? [[0, 0]] : [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, r], [r, -r], [-r, -r]]) {
+      const q = { x: c.x + dx, y: c.y + dy };
+      if (clear(q)) return q;
+    }
+  return c;
 }

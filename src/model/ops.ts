@@ -10,7 +10,7 @@ import { pieceRoot, placementPiece } from './keys';
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
-import { flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
+import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -422,6 +422,30 @@ export function addFlatLid(d: Design, trayId: string): string | null {
   const free = freeLidSpot(d, box, L, flatLip(d, box));
   if (free) box.lidAt = free;
   solve(d);
+  return id;
+}
+
+/**
+ * A Drop-in lid in a box (milestone 80): one board inside the walls resting on
+ * the dividers, with a finger hole clear of them; it lies beside the box.
+ * Returns its id, or null when the box has a lid of its own already.
+ */
+export function addDropinLid(d: Design, trayId: string): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || !d.panels[box.baseId] || d.order.some((id) => d.panels[id]?.lidOf?.tray === trayId)) return null;
+  const B = d.panels[box.baseId];
+  const id = addRootPanel(d, 0, 0, B.w, B.h);
+  const L = d.panels[id];
+  if (B.material) L.material = B.material;
+  L.lidOf = { tray: trayId, kind: 'dropin' };
+  L.details.push({ id: fingerId(id), shape: 'circle', op: 'cut', cx: B.w / 2, cy: B.h / 2, w: FINGER_HOLE, h: FINGER_HOLE, rot: 0 } as Detail);
+  solve(d);
+  if (!d.panels[id]) return null;
+  const free = freeLidSpot(d, box, d.panels[id], 0);
+  if (free) {
+    box.lidAt = free;
+    solve(d);
+  }
   return id;
 }
 

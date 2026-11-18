@@ -1,9 +1,9 @@
 // Milestone 79 (LIDS_LINES_PROJECTS_PLAN.md §3.2): the lid generator: Cap and Flat, why one cannot be made, Automatic.
 import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
-import { addRootPanel, addRoundPanel, addTray, autoConnect, createDesign, deletePanel, setCustomHeight, setPanelSize, setTrayHeight, solve } from '../src/model/ops';
+import { addDividerLine, addRootPanel, addRoundPanel, addTray, autoConnect, createDesign, deletePanel, setCustomHeight, setPanelSize, setTrayHeight, solve } from '../src/model/ops';
 import { autoStyle, boxLid, capRimOf, lidStyleWhy, setBoxLid, setCapRim } from '../src/easy/lid';
-import { flatLidsOf, flatLip, flatOnFrame } from '../src/model/lid';
+import { boxDividers, dropinOnFrame, flatLidsOf, flatLip, flatOnFrame } from '../src/model/lid';
 import { pointInPolygon } from '../src/geom/vec';
 import { toLocal, toWorld } from '../src/model/frame';
 import { findEdge } from '../src/model/edges';
@@ -135,5 +135,48 @@ describe('a cap’s rim', () => {
     setCapRim(d, tray, 'full');
     expect(validate(d).map((i) => i.key)).toEqual([]);
     solve(d);
+  });
+});
+
+describe('the Drop-in lid (milestone 80)', () => {
+  const organiser = (m: (typeof MATERIALS)[number]) => {
+    const { d, b, tray } = box(m, 160, 110, 45);
+    // two dividers across, 35 mm tall: one through the middle, where the finger hole would go
+    addDividerLine(d, b, { x: 10, y: 55 }, { x: 150, y: 55 }, 35);
+    addDividerLine(d, b, { x: 80, y: 10 }, { x: 80, y: 100 }, 35);
+    autoConnect(d);
+    return { d, tray, base: b };
+  };
+  it.each([PLY, CORR16, CARD])('$id: inside the walls by the fit, on the dividers, its finger hole clear of them', (m) => {
+    const { d, tray } = organiser(m);
+    expect(lidStyleWhy(d, tray, 'dropin')).toBeNull();
+    setBoxLid(d, tray, 'liftoff', 'dropin');
+    const lid = boxLid(d, tray);
+    expect(lid.kind === 'liftoff' && lid.style).toBe('dropin');
+    const L = flatLidsOf(d, tray)[0];
+    const B = d.panels[d.trays[tray].baseId];
+    const g = m.thickness + 0.3;
+    expect(L.w).toBeCloseTo(B.w - 2 * g, 6);
+    expect(L.h).toBeCloseTo(B.h - 2 * g, 6);
+    const on = dropinOnFrame(d, L, d.trays[tray])!;
+    const divs = boxDividers(d, d.trays[tray]);
+    expect(divs.length).toBeGreaterThan(0);
+    expect(on.o[1]).toBeCloseTo(B.frame.o[1] + m.thickness + Math.max(...divs.map((p) => p.h)), 6);
+    const hole = L.details.find((x) => x.shape === 'circle')!;
+    // the hole's middle, in the base's coordinates, is clear of every divider's line by its radius and the divider
+    const c = toLocal(B.frame, toWorld(on, hole.cx, hole.cy));
+    for (const p of divs) {
+      const a = (p.place!.rot * Math.PI) / 180, A = { x: p.place!.x, y: p.place!.y }, v = { x: Math.cos(a) * p.w, y: Math.sin(a) * p.w };
+      const k = Math.max(0, Math.min(1, ((c.x - A.x) * v.x + (c.y - A.y) * v.y) / (v.x * v.x + v.y * v.y)));
+      expect(Math.hypot(c.x - A.x - v.x * k, c.y - A.y - v.y * k)).toBeGreaterThan(10 + m.thickness);
+    }
+    expect(buildPieces(d).find((p) => p.panels.some((n) => n.panelId === L.id))!.panels).toHaveLength(1);
+    expect(validate(d).map((i) => i.key)).toEqual([]);
+    expect(idempotence(d)).toBeNull();
+    expect(roundTrip(d)).toBeNull();
+  });
+  it('needs dividers lower than the walls by its thickness', () => {
+    const { d, tray } = box(PLY);
+    expect(lidStyleWhy(d, tray, 'dropin')).toBe('lid.why.dropinDividers');
   });
 });

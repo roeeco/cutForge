@@ -1,6 +1,6 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addDetail, addDivider, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
@@ -209,5 +209,18 @@ export function lidKindBox(m: (typeof MATERIALS)[number], style: 'flat' | 'capFu
   autoConnect(d);
   setBoxLid(d, tray, 'liftoff', style === 'flat' ? 'flat' : 'cap');
   if (style === 'capFull') setCapRim(d, tray, 'full');
+  return d;
+}
+
+/** A box with two dividers and a Drop-in lid resting on them (milestone 80). */
+export function dropinBox(m: (typeof MATERIALS)[number]): Design {
+  const d = createDesign(m);
+  const base = addRootPanel(d, 0, 0, 160, 110);
+  const tray = addTray(d, base, 45)!;
+  autoConnect(d);
+  addDividerLine(d, base, { x: 10, y: 55 }, { x: 150, y: 55 }, 35);
+  addDividerLine(d, base, { x: 80, y: 10 }, { x: 80, y: 100 }, 35);
+  autoConnect(d);
+  setBoxLid(d, tray, 'liftoff', 'dropin');
   return d;
 }
