@@ -17,14 +17,28 @@ export const WORKSHOP_STATE = {
   origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop' }) }] })),
 };
 
+/** Open the Shapes tool (milestone 75) if its menu is not showing. */
+export async function openShapes(page: Page) {
+  if (!(await page.getByTestId('shape-feet').isVisible().catch(() => false))) await page.getByTestId('tool-shapes').click();
+  await expect(page.getByTestId('shape-feet')).toBeVisible();
+}
+
+/** The Shapes tool with a footprint and the operator Board (what the Board, Round, Rounded and Polygon buttons were). */
+export async function boardTool(page: Page, foot: 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular', opts: { standing?: boolean } = {}) {
+  await openShapes(page);
+  await page.getByTestId(`foot-${foot}`).click();
+  if ((await page.getByTestId('op-board').getAttribute('aria-checked')) !== 'true') await page.getByTestId('op-board').click();
+  if (foot === 'rect') await page.getByTestId(opts.standing ? 'pose-standing' : 'pose-flat').click();
+}
+
 /**
- * The Board tool in one drag (milestone 42): choose Board or Standing board
- * on the rail, then drag from one screen point to the other; release makes the board.
+ * The Board tool in one drag (milestone 42; milestone 75: the Shapes tool's
+ * rectangle as a board, flat or standing), then drag from one screen point to
+ * the other; release makes the board.
  */
 export async function drawBoard(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, opts: { standing?: boolean; steps?: number } = {}) {
-  const tool = page.getByTestId(opts.standing ? 'tool-panel-standing' : 'tool-panel');
-  if ((await tool.getAttribute('aria-pressed')) !== 'true') await tool.click();
-  await expect(tool).toHaveAttribute('aria-pressed', 'true');
+  await boardTool(page, 'rect', opts);
+  await expect(page.getByTestId(opts.standing ? 'pose-standing' : 'pose-flat')).toHaveAttribute('aria-checked', 'true');
   const n = opts.steps ?? 8;
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
@@ -32,15 +46,17 @@ export async function drawBoard(page: Page, from: { x: number; y: number }, to: 
   await page.mouse.up();
 }
 
-/** Workshop's rectangle, rounded rectangle and circle sit under one Shapes button (the card shows them). */
+/** A shape that works on a board: the Shapes tool's footprint with an operator other than Board (cut, unless one was chosen). */
 export async function shapeTool(page: Page, shape: 'rect' | 'roundrect' | 'circle') {
-  if (!(await page.getByTestId(`tool-${shape}`).isVisible())) await page.getByTestId('tool-shapes').click();
-  await page.getByTestId(`tool-${shape}`).click();
+  await openShapes(page);
+  await page.getByTestId(`foot-${shape === 'roundrect' ? 'rounded' : shape}`).click();
+  const board = page.getByTestId('op-board');
+  if ((await board.count()) && (await board.getAttribute('aria-checked')) === 'true') await page.getByTestId('op-cut').click();
 }
 
-/** The operation for new shapes: on the shape card, which shows while a shape tool is in use (Shapes opens it). */
+/** The operation for new shapes: on the shape card, which shows while the Shapes tool is in use. */
 export async function opPick(page: Page, op: 'add' | 'cut' | 'engrave' | 'score') {
-  if (!(await page.getByTestId(`op-${op}`).isVisible())) await page.getByTestId('tool-shapes').click();
+  if (!(await page.getByTestId(`op-${op}`).isVisible())) await openShapes(page);
   await page.getByTestId(`op-${op}`).click();
 }
 

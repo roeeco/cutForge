@@ -15,7 +15,7 @@ test('card hexagon: extrude, one net, shared height, open a side and wall it aga
 
   // a regular hexagon base with the polygon tool
   await page.keyboard.press('g');
-  await page.getByTestId('poly-mode-ngon').click();
+  await page.getByTestId('foot-regular').click();
   const c = await floorPt(page, 0, 0), r = await floorPt(page, 60, 0);
   await page.mouse.move(c.x, c.y);
   await page.mouse.down();

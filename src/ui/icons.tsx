@@ -38,6 +38,8 @@ const P: Record<string, ReactElement> = {
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
   polygon: <path d="M12 3.5 20 9.3 17 19h-10L4 9.3Z" />,
+  // a regular hexagon (the Shapes tool's Regular footprint)
+  ngon: <path d="M12 3.5 19.4 7.75v8.5L12 20.5 4.6 16.25v-8.5Z" />,
   through: <path d="M4 8h16M4 16h16M9 4l-2 16M17 4l-2 16" />,
   text: <path d="M5 6.5V5h14v1.5M12 5v14M9 19h6" />,
   import: <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4.5 14.5V19h15v-4.5" />,

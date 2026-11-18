@@ -456,7 +456,9 @@ function clipToBand(d: Design, g: ConnGeom, pid: string, edge: string, trim: num
     }
     return h;
   };
-  const anyCut = [...g.adds, ...g.holes, ...(g.cuts ?? []), ...g.flaps3d].some((x) => x.poly.some((q) => rule(x.panelId)(q) < -1e-6)) || g.scores.some((x) => rule(x.panelId)(x.a) < -1e-6 || rule(x.panelId)(x.b) < -1e-6);
+  // a flap lying in another board's plane is clipped by that board's rule (none for a plane of its own)
+  const flapOn = (x: { panelId: string; frame?: unknown; planeOf?: string }) => x.planeOf ?? (x.frame ? '' : x.panelId);
+  const anyCut = [...g.adds, ...g.holes, ...(g.cuts ?? [])].some((x) => x.poly.some((q) => rule(x.panelId)(q) < -1e-6)) || g.flaps3d.some((x) => x.poly.some((q) => rule(flapOn(x))(q) < -1e-6)) || g.scores.some((x) => rule(x.panelId)(x.a) < -1e-6 || rule(x.panelId)(x.b) < -1e-6);
   if (!anyCut || !touches) return g;
   const polys = <T extends { panelId: string; poly: P2[] }>(xs: T[]) => xs.map((x) => ({ ...x, poly: clipPoly(x.poly, rule(x.panelId)) })).filter((x) => x.poly.length >= 3);
   const segs = <T extends { panelId: string; a: P2; b: P2 }>(xs: T[]) =>
@@ -464,7 +466,7 @@ function clipToBand(d: Design, g: ConnGeom, pid: string, edge: string, trim: num
       const r = clipSeg(x, rule(x.panelId));
       return r ? [{ ...x, ...r }] : [];
     });
-  const flaps = polys(g.flaps3d);
+  const flaps = g.flaps3d.map((x) => ({ ...x, poly: clipPoly(x.poly, rule(flapOn(x))) })).filter((x) => x.poly.length >= 3);
   return { ...g, adds: polys(g.adds), holes: polys(g.holes), scores: segs(g.scores), ...(g.cuts ? { cuts: polys(g.cuts) } : {}), ...(g.lines ? { lines: segs(g.lines) } : {}), flaps3d: flaps };
 }
 

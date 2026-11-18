@@ -2,12 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
 import { addArchedLid, addLid, addRootPanel, addTray, autoConnect, createDesign, setPanelSize } from '../src/model/ops';
-import { lidGap, lidOn } from '../src/model/lid';
+import { lidGap, lidOn, lidOnFrame, lidPutOn } from '../src/model/lid';
+import * as THREE from 'three';
 import { archLids } from '../src/model/closures';
 import { allBands, bandCrossings } from '../src/model/bands';
 import { buildPieces } from '../src/model/pieces';
 import { validate } from '../src/model/validate';
-import { toWorld } from '../src/model/frame';
+import { matDir, toWorld } from '../src/model/frame';
 import type { Design } from '../src/model/types';
 import { roundBoxDesign, roundedTray } from './goldenDesigns';
 import { idempotence, roundTrip } from './harness';
@@ -38,10 +39,19 @@ describe('telescoping lids', () => {
       expect(g).toBeCloseTo(m.thickness + m.clearance, 9);
       expect(lid.w).toBeCloseTo(120 + 2 * g, 9);
       expect(lid.h).toBeCloseTo(80 + 2 * g, 9);
-      // above the box's walls
+      // beside the box, right side up on the floor, clear of it (milestone 76)
       const B = d.panels[base];
-      const yLid = toWorld(lid.frame, 0, 0, 0)[1], yTop = toWorld(B.frame, 0, 0, 0)[1] + 60;
-      expect(yLid).toBeGreaterThan(yTop);
+      const corners = [[0, 0], [lid.w, 0], [lid.w, lid.h], [0, lid.h]].map(([x, y]) => toWorld(lid.frame, x, y, 0));
+      for (const c of corners) expect(c[1]).toBeCloseTo(toWorld(B.frame, 0, 0, 0)[1], 6);
+      expect(matDir(lid.frame)[1]).toBeCloseTo(1, 9);
+      const xs = corners.map((c) => c[0]);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(toWorld(B.frame, 120, 0, 0)[0] + m.thickness + 20 - 1e-6);
+      // Put on: above the box's walls, turned over
+      const T = new THREE.Matrix4().fromArray(lidPutOn(d, d.trays[lt])!);
+      const yTop = toWorld(B.frame, 0, 0, 0)[1] + 60;
+      for (const c of corners) expect(new THREE.Vector3(...c).applyMatrix4(T).y).toBeGreaterThan(yTop);
+      const on = lidOnFrame(d, lid, d.trays[tray])!;
+      new THREE.Vector3(...toWorld(lid.frame, 10, 20, 0)).applyMatrix4(T).toArray().forEach((v, i) => expect(v).toBeCloseTo(toWorld(on, 10, 20, 0)[i], 6));
       // the box grows: the lid follows
       setPanelSize(d, base, 140, undefined);
       expect(d.panels[d.trays[lt].baseId].w).toBeCloseTo(140 + 2 * g, 9);

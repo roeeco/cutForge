@@ -1,5 +1,6 @@
 // milestone 62 (PACKAGING_PLAN.md §6.2): round bases and rounded corners in the Workshop.
 import { test, expect, type Page } from '@playwright/test';
+import { boardTool } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
@@ -28,8 +29,8 @@ test('a circle dragged with the Round tool; its card makes it an oval, sets its 
   page.on('pageerror', (e) => errors.push(e.message));
   await start(page);
   // Round has its own rail button (a shape of its own, not a polygon mode)
-  await page.getByTestId('tool-round').click();
-  await expect(page.getByTestId('tool-round')).toHaveAttribute('aria-pressed', 'true');
+  await boardTool(page, 'circle');
+  await expect(page.getByTestId('foot-circle')).toHaveAttribute('aria-checked', 'true');
   await page.getByTestId('round-circle').click();
   await drag(page, await floorPt(page, -40, 40), await floorPt(page, 40, -40));
   await page.getByTestId('ghost-ok').click();
@@ -61,8 +62,8 @@ test('a circle dragged with the Round tool; its card makes it an oval, sets its 
 
 test('the Rounded tool, a corner rounded in Edit outline, and the material’s bend limits in the drawer', async ({ page }) => {
   await start(page);
-  await page.getByTestId('tool-rounded').click();
-  await expect(page.getByTestId('tool-rounded')).toHaveAttribute('aria-pressed', 'true');
+  await boardTool(page, 'rounded');
+  await expect(page.getByTestId('foot-rounded')).toHaveAttribute('aria-checked', 'true');
   await setNum(page, 'round-corner', '12');
   await drag(page, await floorPt(page, -60, 40), await floorPt(page, 60, -40));
   await page.getByTestId('ghost-ok').click();

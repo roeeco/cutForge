@@ -261,7 +261,8 @@ export function closureGeom(d: Design, c: Connection): ConnGeom | null {
         const p = [w[0] + mS[0] * (q.y - y0), w[1] + mS[1] * (q.y - y0), w[2] + mS[2] * (q.y - y0)] as typeof w;
         return toLocal(L.frame, p);
       };
-      g.flaps3d.push({ panelId: L.id, poly: ring.map(under), z0: tL, z1: tL + tS });
+      // in the lid's plane but riding on its side wall (milestone 76: an opened lid leaves it where it is)
+      g.flaps3d.push({ panelId: S.id, owner: S.id, planeOf: L.id, frame: { o: [...L.frame.o], u: [...L.frame.u], v: [...L.frame.v], side: L.frame.side }, poly: ring.map(under), z0: tL, z1: tL + tS });
     }
   }
   // a thumb notch in the front wall's top, at its middle

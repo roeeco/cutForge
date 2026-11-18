@@ -2,6 +2,7 @@
 // keeps in step with every edit, the stage's floating labels stay clear of
 // the cards, and the contextual card's controls keep their room.
 import { test, expect, type Page } from '@playwright/test';
+import { boardTool } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
@@ -39,26 +40,24 @@ test('changing a joint redraws the panel and its highlight in 3D, as on the cut 
   expect((await edges(page))[base].edges).not.toBe(start[base].edges);
 });
 
-test('Round and Rounded are rail buttons of their own; the Polygon card draws polygons only', async ({ page }) => {
+test('Round and Rounded are footprints of the Shapes tool; G goes back to polygon corners', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
-  await page.getByTestId('tool-round').click();
-  await expect(page.getByTestId('tool-round')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('tool-polygon')).toHaveAttribute('aria-pressed', 'false');
+  await boardTool(page, 'circle');
+  await expect(page.getByTestId('foot-circle')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('foot-polygon')).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByTestId('round-circle')).toBeVisible();
   await expect(page.locator('.view-hint')).toContainText('Drag a box');
-  await page.getByTestId('tool-rounded').click();
-  await expect(page.getByTestId('tool-rounded')).toHaveAttribute('aria-pressed', 'true');
+  await boardTool(page, 'rounded');
+  await expect(page.getByTestId('foot-rounded')).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByTestId('round-corner')).toBeVisible();
-  // the Polygon button (or G) goes back to clicking corners; its card has no Round or Rounded any more
+  // G goes back to clicking corners
   await page.keyboard.press('g');
-  await expect(page.getByTestId('tool-polygon')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('poly-mode-click')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByTestId('poly-mode-round')).toHaveCount(0);
-  await expect(page.getByTestId('poly-mode-rounded')).toHaveCount(0);
-  // a rounded board drawn with its own button
-  await page.getByTestId('tool-rounded').click();
+  await expect(page.getByTestId('foot-polygon')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('poly-card')).toHaveAttribute('data-mode', 'click');
+  // a rounded board drawn with the footprint
+  await boardTool(page, 'rounded');
   const a = await page.evaluate(() => (window as any).__cutforge.projectWorld(-50, 0, 30));
   const b = await page.evaluate(() => (window as any).__cutforge.projectWorld(50, 0, -30));
   await page.mouse.move(a.x, a.y);
@@ -148,9 +147,9 @@ test('the narrow tool cards keep their pickers inside them, in both languages', 
   await page.getByTestId('start-go').click();
   for (const lang of ['en', 'he']) {
     await page.evaluate((l) => (window as any).__cutforge.store.getState().setLang(l), lang);
-    for (const tool of ['tool-polygon', 'tool-round', 'tool-rounded', 'tool-shapes']) {
-      await page.getByTestId(tool).click();
-      expect(await cramped(page, '.poly-card, .shape-card'), `${lang} ${tool}`).toEqual([]);
+    for (const foot of ['polygon', 'circle', 'rounded', 'rect'] as const) {
+      await boardTool(page, foot);
+      expect(await cramped(page, '.poly-card, .shape-card'), `${lang} ${foot}`).toEqual([]);
     }
     await page.evaluate(() => (window as any).__cutforge.store.getState().setPrefs({ mode: 'quick' }));
     await page.getByTestId('quick-box').click();
@@ -214,7 +213,7 @@ for (const shape of ['circle', 'oval'] as const)
     await page.goto('/');
     await page.getByTestId('mat-card-0.5').click();
     await page.getByTestId('start-go').click();
-    await page.getByTestId('tool-round').click();
+    await boardTool(page, 'circle');
     await page.getByTestId(`round-${shape}`).click();
     const pt = (x: number, z: number) => page.evaluate((a) => (window as any).__cutforge.projectWorld(a[0], 0, a[1]), [x, z]);
     const a = await pt(-50, 40), b = await pt(50, -40);

@@ -320,6 +320,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.bottom !== undefined && !['seal', 'snap', 'tuck'].includes(x.bottom)) delete x.bottom;
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
+  if (x.lidAt !== undefined && !(isObj(x.lidAt) && Number.isFinite(x.lidAt.x) && Number.isFinite(x.lidAt.y) && Math.abs(x.lidAt.x) <= COORD_LIMIT && Math.abs(x.lidAt.y) <= COORD_LIMIT)) delete x.lidAt;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;
     else for (const k of Object.keys(x.pin)) if (!['hinge', 'own', 'other'].includes(x.pin[k])) delete x.pin[k];

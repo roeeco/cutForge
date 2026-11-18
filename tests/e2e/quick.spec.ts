@@ -20,7 +20,7 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
   await expect(page.getByTestId('tour-nudge')).toHaveCount(0);
   await expect(page.getByTestId('quick-guide')).toBeVisible();
   for (const a of ['box', 'wall', 'divider', 'hole', 'text']) await expect(page.getByTestId(`quick-${a}`)).toBeVisible();
-  await expect(page.getByTestId('tool-panel')).toHaveCount(0);
+  await expect(page.getByTestId('tool-shapes')).toHaveCount(0);
   await expect(page.getByTestId('op-cut')).toHaveCount(0);
 
   // the settings card: no joints or snapping, material read-only
@@ -76,7 +76,7 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
   await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.lean);
   await page.getByTestId('quick-open-workshop').click();
   await expect(page.getByTestId('mode-workshop')).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByTestId('tool-panel')).toBeVisible();
+  await expect(page.getByTestId('tool-divider')).toBeVisible();
   await expect(page.getByTestId('tool-shapes')).toBeVisible();
   await expect(page.getByTestId('panel-hinge-field')).toBeVisible();
   await expect(page.getByTestId('quick-rail')).toHaveCount(0);
@@ -369,7 +369,7 @@ test.describe('a new browser', () => {
     await page.getByTestId('mat-ply-3').click();
     await page.getByTestId('start-go').click();
     await expect(page.getByTestId('mode-workshop')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByTestId('tool-panel')).toBeVisible();
+    await expect(page.getByTestId('tool-divider')).toBeVisible();
     await page.getByTestId('mode-quick').click();
     await expect(page.getByTestId('quick-rail')).toBeVisible();
   });

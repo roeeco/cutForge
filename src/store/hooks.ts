@@ -6,7 +6,7 @@ import { loadLocal, saveLocal } from './persist';
 import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
-import { detailSel, selectedDetailIds } from './store';
+import { detailSel, selectedDetailIds, type Tool } from './store';
 import { validate } from '../model/validate';
 import { isBad, rememberGood } from './goodDesign';
 
@@ -122,15 +122,19 @@ export function useKeyboard() {
         else if (a === 'divider' && s.view === '3d' && s.tool === 'divider') startAction('standing');
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
       } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
-        const tool = TOOL_KEYS[e.key.toLowerCase()];
-        // P chooses Board; P again switches between Board and Standing board
-        if (tool === 'panel' && s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
-        else if ((tool !== 'panel' && tool !== 'polygon') || s.view === '3d') {
-          if (tool === 'panel') s.setBoardPose('flat');
-          // G is the Polygon button's key: from Round or Rounded it goes back to polygon corners
-          if (tool === 'polygon') s.choosePolyTool('polygon');
-          else s.setTool(tool);
-        }
+        const k = TOOL_KEYS[e.key.toLowerCase()];
+        // the Shapes tool (milestone 75): P is a rectangle that makes a board, P again flat ↔ standing;
+        // R, U, C and G choose the footprint and keep the operator
+        if (k === 'panel') {
+          if (s.view !== '3d') return;
+          if (s.tool === 'panel') s.setBoardPose(s.panelPose === 'standing' ? 'flat' : 'standing');
+          else {
+            s.setBoardPose('flat');
+            s.chooseShape('rect', true);
+          }
+        } else if (k === 'rect' || k === 'rounded' || k === 'circle' || k === 'polygon') s.chooseShape(k);
+        else if (k === 'divider') s.view === '3d' && s.setTool('divider');
+        else s.setTool(k as Tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

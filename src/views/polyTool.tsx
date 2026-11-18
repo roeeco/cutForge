@@ -14,7 +14,7 @@ import { useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
-import { addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
+import { addPlacedOutline, addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
 import { sketchRing, straightRing, wallCorners, type EdgeSeg } from '../model/edges';
 import { defaultEnd, roundPts } from '../model/round';
 import { detailSel, gridSnap, noSmartSnap, uiDir, useStore, useT } from '../store/store';
@@ -131,14 +131,17 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
   const finishRound = (b: { x0: number; y0: number; w: number; h: number }) => {
     const d = dr.current;
     if (!d) return;
-    if (d.panelId !== null) return finish(roundOutline(b));
+    // Round and Rounded make boards (milestone 75: their shapes on a board are the Shapes tool's circle and rounded rectangle)
     closedAt.t = performance.now();
     setDraft(null);
     setControls(true);
     const st = useStore.getState();
     let id: string | null = null;
     st.cancelPending();
-    st.apply((x) => void (id = mode === 'round' ? addRoundPanel(x, b.x0, -b.y0, b.w, b.h, { shape: roundShape }) : addRoundedRect(x, b.x0, -b.y0, b.w, b.h, roundCorner)));
+    const host = d.panelId !== null ? st.design.panels[d.panelId] : undefined;
+    if (host)
+      st.apply((x) => void (id = addPlacedOutline(x, host.id, host.frame.side, mode === 'round' ? { kind: 'round', x: b.x0, y: b.y0, w: b.w, h: b.h, round: { shape: roundShape } } : { kind: 'rounded', x: b.x0, y: b.y0, w: b.w, h: b.h, r: roundCorner })));
+    else st.apply((x) => void (id = mode === 'round' ? addRoundPanel(x, b.x0, -b.y0, b.w, b.h, { shape: roundShape }) : addRoundedRect(x, b.x0, -b.y0, b.w, b.h, roundCorner)));
     if (id) {
       st.select({ kind: 'panel', id });
       st.beginPending({ kind: 'panel', ids: [id], panelId: id });
@@ -155,7 +158,16 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     const st = useStore.getState();
     let id: string | null = null;
     st.cancelPending();
-    if (d.panelId === null) {
+    // the Shapes tool's operator (milestone 75): *Board* makes a board, on the floor or lying on a board; the others work on a board
+    if (d.panelId !== null && st.shapeBoard) {
+      const host = st.design.panels[d.panelId];
+      if (host) st.apply((x) => void (id = addPlacedOutline(x, host.id, host.frame.side, { kind: 'poly', pts })));
+      if (id) {
+        st.select({ kind: 'panel', id });
+        st.beginPending({ kind: 'panel', ids: [id], panelId: id });
+      }
+    } else if (d.panelId === null) {
+      if (!st.shapeBoard) return st.set({ shapeNote: 'onBoard' });
       st.apply((x) => void (id = addPolygonPanel(x, 0, 0, pts)));
       if (id) {
         // a ghost until ✓ (milestone 30)
@@ -178,6 +190,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       if (e.button !== 0 || dr.current) return;
       e.stopPropagation();
       const st = useStore.getState();
+      // a polygon that works on a board (milestone 75) is not started on the floor
+      if (!panel && !st.shapeBoard && (st.polyMode === 'click' || st.polyMode === 'ngon')) return st.set({ shapeNote: 'onBoard' });
       const frame = panel ? panel.frame : FLOOR;
       const z = panel ? faceZ(panel, tOf(st.design, panel.id))[1] : 0;
       const n = new THREE.Vector3(...frameNormal(frame));
@@ -627,17 +641,8 @@ export function PolygonToolCard() {
   const set = useStore.getState().set;
   return (
     <div className="card poly-card" dir={uiDir()} data-testid="poly-card" data-mode={mode}>
-      {/* Round and Rounded have rail buttons of their own; the Polygon card offers its two ways of drawing */}
-      <p className="kicker">{mode === 'round' || mode === 'rounded' ? t(`poly.mode.${mode}`) : t('tool.polygon')}</p>
-      {(mode === 'click' || mode === 'ngon') && (
-        <div className="seg" role="radiogroup" aria-label={t('poly.mode')}>
-          {(['click', 'ngon'] as const).map((x) => (
-            <button key={x} role="radio" aria-checked={mode === x} className={mode === x ? 'on' : ''} onClick={() => set({ polyMode: x })} data-testid={`poly-mode-${x}`}>
-              {t(`poly.mode.${x}`)}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* the Shapes tool's menu chooses polygon corners or a regular polygon (milestone 75); the card keeps their settings */}
+      <p className="kicker">{mode === 'round' || mode === 'rounded' ? t(`poly.mode.${mode}`) : t(mode === 'ngon' ? 'tool.regular' : 'tool.polygon')}</p>
       {mode === 'ngon' && (
         <div className="field stepper-row">
           <span className="label">{t('poly.sides')}</span>

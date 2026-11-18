@@ -9,7 +9,7 @@
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
 import type { Design, Detail, Panel } from '../model/types';
 import { addArchedLid, addLid, parentConnection, setTrayEnds, solve } from '../model/ops';
-import { lidOn } from '../model/lid';
+import { lidOn, lidOnFrame } from '../model/lid';
 import { archLids, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { matOf } from '../model/materials';
@@ -98,12 +98,18 @@ export function boxOfPanel(d: Design, panelId: string): string | null {
 }
 
 
+/** Where a lid's top is when the box is closed: a lid of its own lies beside its box (milestone 76), so its pose on the box. */
+function topPose(d: Design, trayId: string, lid: BoxLid, P: Panel): Panel['frame'] {
+  return (lid.kind === 'liftoff' && lidOnFrame(d, P, d.trays[trayId])) || P.frame;
+}
+
 /** Take a box's lid off; the shapes on its top are returned in world space with their own settings. */
 function removeLid(d: Design, trayId: string, lid: BoxLid): { dt: Detail; at: [number, number, number] }[] {
   const t = d.trays[trayId];
   const top = lidTop(lid);
   const P = top ? d.panels[top] : undefined;
-  const carried = P ? P.details.map((dt) => ({ dt, at: toWorld(P.frame, dt.cx, dt.cy) as [number, number, number] })) : [];
+  const F = P && topPose(d, trayId, lid, P);
+  const carried = P && F ? P.details.map((dt) => ({ dt, at: toWorld(F, dt.cx, dt.cy) as [number, number, number] })) : [];
   if (P) P.details = [];
   // a tuck top is kept by its tray: what was grown off it goes first, then the tray lets it go
   if (lid.kind === 'hinged' && t.top === 'tuck') {
@@ -145,7 +151,7 @@ export function setBoxLid(d: Design, trayId: string, choice: LidChoice): { ok: b
       dropped++;
       continue;
     }
-    const q = toLocal(P.frame, at);
+    const q = toLocal(topPose(d, trayId, now, P), at);
     const hw = dt.w / 2, hh = dt.h / 2;
     if (q.x - hw < 0 || q.y - hh < 0 || q.x + hw > P.w || q.y + hh > P.h) {
       dropped++;

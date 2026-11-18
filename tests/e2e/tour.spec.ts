@@ -79,8 +79,8 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   // 1 the Board tool
   await atStep(page, 'tool');
   await expect(page.getByTestId('tour-count')).toContainText('1 of 12');
-  await ringOn(page, page.getByTestId('tool-panel'));
-  await page.getByTestId('tool-panel').click();
+  await ringOn(page, page.getByTestId('tool-shapes'));
+  await page.getByTestId('tool-shapes').click();
   // 2 a base on the floor: the animated hand shows until the drag starts
   await atStep(page, 'base');
   await expect(page.getByTestId('tour-hand')).toBeVisible();
@@ -88,7 +88,7 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   await drag(page, await world(page, -60, 0, 40), await world(page, 60, 0, -40));
   // 3 the Standing board button (explain only)
   await atStep(page, 'perpendicular');
-  await ringOn(page, page.getByTestId('tool-panel-standing'));
+  await ringOn(page, page.getByTestId('pose-standing'));
   await page.getByTestId('tour-next').click();
   // 4 walls: select the base, Extrude walls, ✓
   await atStep(page, 'walls');
@@ -145,8 +145,8 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   await page.getByTestId('drawer-mat-ply-3').click();
   // 10 a divider: the Standing board tool, a line across the box's floor from wall to wall
   await atStep(page, 'divider');
-  await ringOn(page, page.getByTestId('tool-panel-standing'));
-  await page.getByTestId('tool-panel-standing').click();
+  await ringOn(page, page.getByTestId('tool-divider'));
+  await page.getByTestId('tool-divider').click();
   await page.waitForTimeout(300);
   await drag(page, await onFace(page, b.base, 6, 40), await onFace(page, b.base, 114, 40));
   // 11 a window on the front wall: Shapes → Circle, Cut out, drag, ✓
@@ -154,8 +154,10 @@ test('the tour in English, every step done by hand: a box with a lid, a divider 
   await page.waitForTimeout(300);
   await ringOn(page, page.getByTestId('tool-shapes'));
   await page.getByTestId('tool-shapes').click();
-  await ringOn(page, page.getByTestId('tool-circle'));
-  await page.getByTestId('tool-circle').click();
+  await ringOn(page, page.getByTestId('foot-circle'));
+  await page.getByTestId('foot-circle').click();
+  await ringOn(page, page.getByTestId('op-cut'));
+  await page.getByTestId('op-cut').click();
   await expect(page.getByTestId('op-cut')).toHaveAttribute('aria-checked', 'true');
   const fw = (await design(page)).panels[b.front];
   await drag(page, await onFace(page, b.front, fw.w / 2 - 10, fw.h / 2 - 8, -1), await onFace(page, b.front, fw.w / 2 + 6, fw.h / 2 + 8, -1));
@@ -188,7 +190,7 @@ test('the tour in Hebrew: the card sits on the stage side of the rail in RTL; Sk
   await page.getByTestId('tour-go').click();
   await atStep(page, 'tool');
   // the rail is at the right in Hebrew: the card is to its left, not over it
-  const rail = (await page.getByTestId('tool-panel').boundingBox())!;
+  const rail = (await page.getByTestId('tool-shapes').boundingBox())!;
   const c = (await card(page).boundingBox())!;
   expect(c.x + c.width).toBeLessThanOrEqual(rail.x);
   await expect(page.getByTestId('tour-count')).toContainText('1 מתוך 12');

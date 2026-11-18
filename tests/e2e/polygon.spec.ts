@@ -73,7 +73,7 @@ test('polygon base by clicks, n-gon, vertex editing and growing from a sloped ed
 
   // regular n-gon: 8 sides, drag from the centre
   await page.keyboard.press('g');
-  await page.getByTestId('poly-mode-ngon').click();
+  await page.getByTestId('foot-regular').click();
   await page.getByTestId('ngon-plus').click();
   await page.getByTestId('ngon-plus').click();
   await expect(page.getByTestId('ngon-sides')).toHaveText('8');
@@ -89,9 +89,10 @@ test('polygon base by clicks, n-gon, vertex editing and growing from a sloped ed
   const oct = d.panels[d.order[2]];
   expect(oct.sketch.pts).toHaveLength(8);
 
-  // a polygon shape on a panel: three clicks and Enter
+  // a polygon shape on a panel: three clicks and Enter (an operator other than Board, milestone 75)
   await page.keyboard.press('g');
-  await page.getByTestId('poly-mode-click').click();
+  await page.getByTestId('foot-polygon').click();
+  await page.getByTestId('op-cut').click();
   for (const [x, y] of [[40, 30], [80, 30], [60, 60]]) {
     const p = await panelPt(page, base, x, y);
     await page.mouse.click(p.x, p.y);

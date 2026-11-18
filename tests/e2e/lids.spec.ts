@@ -69,3 +69,30 @@ test('matched walls: the left wall follows the right wall’s top', async ({ pag
   await expect(page.getByTestId('match-section')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+// milestone 76 (UI_CLEANUP_PLAN.md Part 3): a lid beside the box, Put on / Take off; a folded lid shown open, Close / Open
+test('a cap lies beside the box and Put on shows it in place; a hinged lid is shown open until Close', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const { tray, base } = await box(page, 'ply-3');
+  await page.getByTestId('lid-liftoff').click();
+  let d = await design(page);
+  const lt: any = Object.values(d.trays).find((t: any) => t.lidOf === tray);
+  // beside: on the floor, to the right of the box
+  expect(d.panels[lt.baseId].frame.o[1]).toBeCloseTo(d.panels[base].frame.o[1], 6);
+  expect(d.panels[lt.baseId].frame.o[0]).toBeGreaterThan(d.panels[base].frame.o[0] + 120);
+  await expect(page.getByTestId('lid-pose')).toHaveText('Put on');
+  await page.getByTestId('lid-pose').click();
+  await expect(page.getByTestId('lid-pose')).toHaveText('Take off');
+  // the design did not change
+  expect(JSON.stringify((await design(page)).panels)).toBe(JSON.stringify(d.panels));
+  await page.screenshot({ path: test.info().outputPath('cap-on.png') });
+  await page.getByTestId('lid-pose').click();
+  // hinged: shown open, Close shows it shut
+  await page.getByTestId('lid-hinged').click();
+  await expect(page.getByTestId('lid-section')).toHaveAttribute('data-lid', 'hinged');
+  await expect(page.getByTestId('lid-pose')).toHaveText('Close');
+  await page.getByTestId('lid-pose').click();
+  await expect(page.getByTestId('lid-pose')).toHaveText('Open');
+  expect(errors).toEqual([]);
+});

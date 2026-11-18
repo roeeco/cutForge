@@ -24,7 +24,7 @@ for (const lang of ['en', 'he']) {
     test.skip(!process.env.SHOTS);
     await setup(page, lang, 'ply-3');
     await page.keyboard.press('g');
-    await page.getByTestId('poly-mode-ngon').click();
+    await page.getByTestId('foot-regular').click();
     await page.screenshot({ path: `${OUT}/${lang}-01-polygon-card.png` });
     await page.keyboard.press('Escape');
     const base = await hexTray(page);

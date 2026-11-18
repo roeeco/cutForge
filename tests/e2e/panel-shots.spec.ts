@@ -1,6 +1,7 @@
 // Review screenshots for milestones 28–36 (skipped unless SHOTS=1):
 //   SHOTS=1 npx playwright test -c pw-app.config.ts panel-shots
 import { test, type Page } from '@playwright/test';
+import { boardTool } from './util';
 const OUT = 'docs/panel-shots';
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 async function setup(page: Page, lang: string, mat: string) {
@@ -34,7 +35,7 @@ for (const lang of ['en', 'he']) {
     await S(page, () => (window as any).__cutforge.setCamera([0, 230, 200], [0, 15, -10]));
     await page.waitForTimeout(400);
     // milestones 29, 42: a flat board on a wall's inner face, as a ghost while it is drawn (release makes it)
-    await page.getByTestId('tool-panel').click();
+    await boardTool(page, 'rect');
     await page.waitForTimeout(300); // the rail button's colour fades in
     await shot(page, lang, '42-rail-board-on');
     const back = walls[2];
@@ -48,7 +49,7 @@ for (const lang of ['en', 'he']) {
     // a standing partition from wall to wall (seen from above, so the line is drawn on the base): with Standing board, it is a divider
     await S(page, () => (window as any).__cutforge.setCamera([0, 320, 110], [0, 0, 0]));
     await page.waitForTimeout(300);
-    await page.getByTestId('tool-panel-standing').click();
+    await boardTool(page, 'rect', { standing: true });
     await page.waitForTimeout(300); // the rail button's colour fades in
     await shot(page, lang, '42-rail-standing-on');
     const c = await proj(page, base, 3.8, 30), e = await proj(page, base, 116.2, 30);

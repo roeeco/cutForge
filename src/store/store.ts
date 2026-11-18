@@ -43,6 +43,11 @@ export function detailSel(ids: string[]): Selection {
   return ids.length ? { kind: 'detail', id: ids[ids.length - 1], ids } : null;
 }
 
+/** The Shapes tool's footprints (milestone 75). */
+export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular';
+/** Tools the Shapes tool drives: a footprint drawn as a board or as a shape on one. */
+export const SHAPE_DRAW_TOOLS = new Set<string>(['panel', 'rect', 'roundrect', 'circle', 'polygon']);
+
 export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool;
 /** Tools that work on the 3D stage only. */
 const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
@@ -169,6 +174,15 @@ type State = {
   selection: Selection;
   tool: Tool;
   shapeOp: DetailOp;
+  /** The Shapes tool (milestone 75): the footprint drawn, and whether it makes a board (the operator *Board*) or works on one (`shapeOp`). */
+  shapeFoot: ShapeFoot;
+  shapeBoard: boolean;
+  /** Why the last shape was not made (an operator other than *Board* drawn on the floor), for the shape card. */
+  shapeNote: 'onBoard' | null;
+  /** Lids shown shut (milestone 76), by their box's tray: a lid of its own put on its box, a folded lid closed. View only, not saved. */
+  lidShut: Record<string, boolean>;
+  /** Put a box's lid on (or close it), or take it off (open it). */
+  setLidShut: (trayId: string, shut: boolean) => void;
   /** Quick build: the tool each action last used (a hole's shape, text or a sticker). */
   quickLast: Partial<Record<string, Tool>>;
   /** Quick build's guardrails (milestone 39): what the last edit was kept from, for the tooltip. */
@@ -262,6 +276,8 @@ type State = {
   select: (s: Selection) => void;
   setTool: (t: Tool) => void;
   setShapeOp: (o: DetailOp) => void;
+  /** Choose the Shapes tool's footprint and operator (either left as it is when omitted) and the drawing tool they make. */
+  chooseShape: (foot?: ShapeFoot, board?: boolean) => void;
   setView: (v: View) => void;
   openSolo: (panelId: string) => void;
   closeSolo: () => void;
@@ -271,7 +287,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -329,6 +345,11 @@ export const useStore = create<State>()((set, get) => ({
   selection: null,
   tool: 'select',
   shapeOp: 'cut',
+  shapeFoot: 'rect',
+  shapeBoard: true,
+  shapeNote: null,
+  lidShut: {},
+  setLidShut: (trayId, shut) => set({ lidShut: { ...get().lidShut, [trayId]: shut } }),
   quickLast: {},
   guardNote: null,
   boxFoot: 'rect',
@@ -518,6 +539,23 @@ export const useStore = create<State>()((set, get) => ({
     set({ tool: t, editOutline: null, selVertex: null, panelGhost: null, ...(act ? { quickLast: { ...get().quickLast, [act]: t } } : {}) });
   },
   setShapeOp: (o) => set({ shapeOp: o }),
+  chooseShape: (foot, board) => {
+    const s = get();
+    const f = foot ?? s.shapeFoot;
+    // boards are made on the 3D stage; on the cut plan a shape works on a piece, and polygons are drawn in 3D only
+    const in3d = s.view === '3d';
+    if (!in3d && (f === 'polygon' || f === 'regular')) return;
+    const b = in3d && (board ?? s.shapeBoard);
+    set({ shapeFoot: f, shapeNote: null, ...(in3d ? { shapeBoard: b } : {}) });
+    const poly = (m: State['polyMode']) => {
+      if (get().tool !== 'polygon') get().setTool('polygon');
+      if (get().polyMode !== m) set({ polyMode: m });
+    };
+    if (f === 'polygon') return poly('click');
+    if (f === 'regular') return poly('ngon');
+    if (b) return f === 'rect' ? get().setTool('panel') : poly(f === 'rounded' ? 'rounded' : 'round');
+    get().setTool(f === 'rect' ? 'rect' : f === 'rounded' ? 'roundrect' : 'circle');
+  },
   setView: (v) => set({ view: v, tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
   openSolo: (panelId) => {
     const cur = get().view;

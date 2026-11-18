@@ -10,7 +10,7 @@ import { pieceRoot, placementPiece } from './keys';
 import './outline';
 import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
-import { LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
+import { freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeLid, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -396,6 +396,9 @@ export function addLid(d: Design, trayId: string, rim = LID_RIM): string | null 
   const tid = addTray(d, id, rim + tOf(d, id));
   if (!tid) return null;
   d.trays[tid].lidOf = trayId;
+  // beside the box (milestone 76): moved along until its spot is free
+  const free = freeLidSpot(d, box, lid);
+  if (free) d.trays[tid].lidAt = free;
   solve(d);
   return tid;
 }
@@ -1156,6 +1159,16 @@ export function setPanelYaw(d: Design, panelId: string, deg: number) {
 export function movePanel(d: Design, panelId: string, dx: number, dz: number) {
   const p = d.panels[panelId];
   if (!p || parentConnection(d, panelId)) return;
+  // a lid of its own (milestone 76) stays where the student puts it, kept as its place beside its box
+  const lidT = Object.values(d.trays ?? {}).find((t) => t.lidOf && t.baseId === panelId);
+  const box = lidT?.lidOf ? d.trays[lidT.lidOf] : undefined;
+  const B = box && d.panels[box.baseId];
+  if (lidT && box && B) {
+    const at = lidT.lidAt ?? lidBesideDefault(d, box);
+    lidT.lidAt = { x: at.x + dx * B.frame.u[0] + dz * B.frame.u[2], y: at.y + dx * B.frame.v[0] + dz * B.frame.v[2] };
+    solve(d);
+    return;
+  }
   if (p.place) {
     // a world move on the floor, carried into the host's plane
     const H = p.place.host === null ? FLOOR_FRAME : d.panels[p.place.host]?.frame;
@@ -1238,6 +1251,57 @@ export function addPlacedPanel(d: Design, place: PanelPlace, w: number, h: numbe
   d.pieces[id] = { quantity: 1 };
   solve(d);
   if (!opts.construction) connectSeams(d, id);
+  return id;
+}
+
+/**
+ * A board of any footprint lying on another board's face (milestone 75, the
+ * Shapes tool's *Board* drawn on a board): a polygon (host-local points), a
+ * round outline or a rounded rectangle in a box from (x, y). Null when it
+ * cannot be made.
+ */
+export function addPlacedOutline(
+  d: Design,
+  host: string,
+  face: 1 | -1,
+  shape: { kind: 'poly'; pts: P2[] } | { kind: 'round'; x: number; y: number; w: number; h: number; round: RoundShape } | { kind: 'rounded'; x: number; y: number; w: number; h: number; r: number },
+): string | null {
+  if (!d.panels[host]) return null;
+  let x: number, y: number, w: number, h: number;
+  let sketch: Panel['sketch'];
+  if (shape.kind === 'poly') {
+    let q = shape.pts.map((p) => ({ x: p.x, y: p.y }));
+    if (q.length < 3 || !isSimplePolygon(q)) return null;
+    if (polygonArea(q) < 0) q = q.reverse();
+    x = Math.min(...q.map((p) => p.x));
+    y = Math.min(...q.map((p) => p.y));
+    q = q.map((p) => ({ x: p.x - x, y: p.y - y }));
+    w = Math.max(...q.map((p) => p.x));
+    h = Math.max(...q.map((p) => p.y));
+    sketch = { kind: 'poly', pts: q, edgeIds: q.map((_, i) => `e${i}`) };
+  } else {
+    ({ x, y, w, h } = shape);
+    if (w < MIN_PANEL || h < MIN_PANEL) return null;
+    if (shape.kind === 'round') {
+      const rs: RoundShape = shape.round.shape === 'oval' ? { shape: 'oval', rEnd: shape.round.rEnd ?? defaultEnd(w, h) } : { shape: shape.round.shape };
+      const r = roundPts(w, h, rs);
+      sketch = { kind: 'poly', pts: r.pts, edgeIds: r.edgeIds, round: rs };
+    } else {
+      const v = Math.max(MIN_END, Math.round(shape.r * 100) / 100);
+      sketch = { kind: 'poly', pts: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }].map((q) => ({ ...q, curve: 'round' as const, r: v })), edgeIds: ['e0', 'e1', 'e2', 'e3'] };
+    }
+  }
+  if (w < MIN_PANEL || h < MIN_PANEL) return null;
+  const place: PanelPlace = { host, face, x, y, rot: 0, pose: 'flat' };
+  const frame = placeFrame(d, place);
+  if (!frame) return null;
+  const id = newId('p');
+  d.panels[id] = { id, name: `${d.order.length + 1}`, w, h, sketch, frame, details: [], place };
+  normalizeSketch(d.panels[id]);
+  d.order.push(id);
+  d.pieces[id] = { quantity: 1 };
+  solve(d);
+  connectSeams(d, id);
   return id;
 }
 

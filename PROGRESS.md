@@ -1300,6 +1300,17 @@ Limitations
 
 Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-identical; browser `wings`, `round`, `closures`, `dividers`, `bands`: 14 passed. Looked at in the browser: a card slit-lock tray at mid-fold, rounded and round boxes in card and plywood.
 
+## Milestone 75 — one Shapes tool ✅
+
+`ROADMAP.md`; `UI_CLEANUP_PLAN.md` Part 2. The Workshop rail is *Select · Shapes · Divider · Text · Import* (ten buttons before). Shapes opens its footprints (Rectangle, Rounded, Circle, Polygon, Regular) under its button; its card's operators lead with **Board**, then cut, engrave, score and add; Standing is offered under Board for the rectangle. Board drawn on a board makes a board lying on it for every footprint (`addPlacedOutline`); another operator drawn on the floor makes nothing and the card says so. P, P P, R, U, C, G keep working. Import SVG with Board makes a board from the outline. Quick build's rail is unchanged.
+- Tests: `tests/shapesTool.test.ts` (16): every footprint × operator draws with the tool it stands for and is read back; a fresh session starts on Board; the cut plan has no Board or polygon; a polygon, round and rounded board placed on a face, flush; a crossing polygon refused. The browser specs that clicked the old buttons (`boards`, `round`, `maintenance`, `polygon`, `trays`, `quick`, `refine`, `shots`, `panel-shots`, `tour`) go through the new controls.
+
+## Milestone 76 — lids beside the box ✅
+
+`ROADMAP.md`; `UI_CLEANUP_PLAN.md` Part 3 with `LIDS_LINES_PROJECTS_PLAN.md` §3.5 brought forward. A lid of its own lies beside its box, rim up, front right, 20 mm clear, moved along to a free spot, kept where the student drags it (`Tray.lidAt`). A folded lid is shown opened back. The *Lid* section has **Put on / Take off** (a cap) and **Close / Open** (a folded lid): view only, not saved. A lid shown away from its place cannot be drawn on until shut; selecting it shows it where it is. Dust flaps stay on their side walls when the lid opens.
+- Tests: `tests/lidPose.test.ts` (5): beside, put on (lands on the on-box pose), picked stays beside, on while going together; moving a cap changes no piece and Put on still lands it; a new lid skips a board in its way; a folded lid in card and plywood is open by default, shut when closed, picked, folding or going together, and the design is never changed. `tests/lids.test.ts` follows the new pose. Browser: `lids.spec` gains the Put on and Close controls.
+- Golden exports byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

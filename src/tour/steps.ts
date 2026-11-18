@@ -159,13 +159,14 @@ export const TOUR_STEPS: TourStep[] = [
   { id: 'welcome', anchor: { centre: true }, title: 'tour.welcome.title', body: 'tour.welcome.body' },
   {
     id: 'tool',
-    anchor: dom('tool-panel'),
+    // the Shapes tool's rectangle as a board (milestone 75)
+    anchor: (s) => (s.tool === 'panel' || s.tool === 'rect' || s.tool === 'roundrect' || s.tool === 'circle' || s.tool === 'polygon' ? (s.tool === 'panel' ? dom('pose-flat') : dom('foot-rect')) : dom('tool-shapes')),
     title: 'tour.tool.title',
     body: 'tour.tool.body',
     done: (s) => s.tool === 'panel' && s.panelPose === 'flat',
     skipUi: (s) => {
       s.setBoardPose('flat');
-      s.setTool('panel');
+      s.chooseShape('rect', true);
     },
   },
   {
@@ -178,7 +179,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'perpendicular',
-    anchor: dom('tool-panel-standing'),
+    anchor: (s) => (s.tool === 'panel' ? dom('pose-standing') : dom('tool-shapes')),
     title: 'tour.perpendicular.title',
     body: 'tour.perpendicular.body',
     next: true,
@@ -300,8 +301,10 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'cutter',
     anchor: (s) => {
       if (s.pending) return dom('ghost-ok');
-      if (!['rect', 'roundrect', 'circle'].includes(s.tool)) return dom('tool-shapes');
-      if (s.tool !== 'circle') return dom('tool-circle');
+      // the Shapes tool's circle, cutting out (milestone 75)
+      if (!['panel', 'rect', 'roundrect', 'circle', 'polygon'].includes(s.tool)) return dom('tool-shapes');
+      if (s.shapeFoot !== 'circle') return dom('foot-circle');
+      if (s.tool !== 'circle') return dom('op-cut');
       return { stage: frontCentre };
     },
     title: 'tour.cutter.title',

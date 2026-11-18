@@ -26,6 +26,7 @@ import { connKindKey } from '../ui/connLabel';
 import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
+import { applyLidPoses } from './lidPose';
 import { AngleArc, DimLabel, DimLine, Gizmo, MeshEdges, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
@@ -175,11 +176,15 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const three = useThree();
   // Show how it goes together (milestone 40): the folds close, then the pieces come in one at a time
   const assemble = useStore((s) => s.assemble);
+  const lidShut = useStore((s) => s.lidShut);
+  const selKey = selectedPanelIds(useStore((s) => s.selection)).join(' ');
   const display = useMemo(() => {
     const r = foldDisplay(design, assemble !== null ? assembleFold(assemble) : foldT);
+    // lids beside their box or opened back (milestone 76): shown so, not changed
+    const away = applyLidPoses(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT, assembling: assemble !== null });
     if (assemble !== null) for (const [id, m] of assembleLift(design, assemble)) r.xf.set(id, m.multiply(r.xf.get(id) ?? new THREE.Matrix4()));
-    return r;
-  }, [design, foldT, assemble]);
+    return { ...r, away };
+  }, [design, foldT, assemble, lidShut, selKey]);
   const folded = foldT < 0.999 || assemble !== null;
   /** Snap tolerance in mm at a world point: a fixed number of screen pixels at any zoom. */
   const tolAt = (p: V3) => SNAP_PX * mmPerPx(three.camera, three.gl.domElement.clientHeight || 600, new THREE.Vector3(...p));
@@ -479,6 +484,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
 
   const onGroundDown = (e: ThreeEvent<PointerEvent>) => {
     if (tool === 'polygon') return polyRef.current?.start(e, null);
+    // a shape that works on a board, pressed on the floor: say so on the shape card (milestone 75)
+    if ((tool === 'rect' || tool === 'circle' || tool === 'roundrect') && e.button === 0) return useStore.getState().set({ shapeNote: 'onBoard' });
     if (tool === 'box') {
       // Quick build's Box (milestone 38): drag the footprint on the floor
       if (e.button !== 0) return;
@@ -716,7 +723,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             } : undefined}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
-            inert={!!editOutline}
+            inert={!!editOutline || display.away.has(id)}
             cutHit={!!cutHits?.has(id)}
             through={throughMap.get(id)}
           />
@@ -1349,7 +1356,7 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
         const p = d.panels[f.panelId];
         // coloured as the panel it is cut from, moving with it in the fold view
         const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
-        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
       });
     }
     return out;

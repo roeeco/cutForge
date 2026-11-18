@@ -34,6 +34,7 @@ export function LidSection({ panelId }: { panelId: string }) {
   const tray = trayId ? d.trays[trayId] : undefined;
   const choices: LidChoice[] = adv ? ['none', 'liftoff', 'hinged', 'arched'] : ['none', 'liftoff', 'hinged'];
   const whys = useMemo(() => (trayId ? Object.fromEntries(choices.map((c) => [c, lidWhy(d, trayId, c)])) : {}), [d, trayId, choices.length]) as Partial<Record<LidChoice, MsgKey | null>>;
+  const shut = useStore((s) => (trayId ? !!s.lidShut[trayId] : false));
   if (!f || !tray) return null;
   const lid = boxLid(d, tray.id);
   const parts = lidParts(d, lid);
@@ -66,6 +67,15 @@ export function LidSection({ panelId }: { panelId: string }) {
       <p className="note" data-testid="lid-help">
         {t(lidHelp(lid, plywood, carton))}
       </p>
+      {(lid.kind === 'liftoff' || lid.kind === 'hinged' || lid.kind === 'arched') && (
+        // milestone 76: a lid of its own lies beside the box, a folded one is shown open; this shows it in place (view only)
+        <div className="field lid-pose">
+          <span className="note">{t(lid.kind === 'liftoff' ? (shut ? 'lid.on' : 'lid.beside') : shut ? 'lid.closed' : 'lid.shownOpen')}</span>
+          <button className="pill" aria-pressed={shut} onClick={() => useStore.getState().setLidShut(tray.id, !shut)} data-testid="lid-pose">
+            {t(lid.kind === 'liftoff' ? (shut ? 'lid.takeOff' : 'lid.putOn') : shut ? 'lid.open' : 'lid.close')}
+          </button>
+        </div>
+      )}
       {dropped > 0 && (
         <p className="note warn-text" data-testid="lid-dropped">
           {t(dropped === 1 ? 'lid.dropped1' : 'lid.dropped', { n: dropped })}

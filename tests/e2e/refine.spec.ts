@@ -511,6 +511,8 @@ test('milestone 20: a through-cut is resized and turned from the back wall it re
     s.select(null);
     s.setShapeOp('cut');
     s.set({ shapeThrough: true });
+    // a polygon that cuts, not a board (milestone 75: G keeps the Shapes tool's operator)
+    (window as any).__cutforge.store.setState({ shapeBoard: false });
   });
   await page.keyboard.press('g');
   for (const [px, py] of [[15, 10], [35, 10], [25, 40]] as const) {

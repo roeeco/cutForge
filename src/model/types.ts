@@ -335,7 +335,7 @@ export type P2 = { x: number; y: number };
  * cut net, to where it is folded. Older files without them draw it on the
  * receiver.
  */
-export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame };
+export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame; /** The board whose plane and coordinates `frame` is, when it is one (a dust flap under its lid, milestone 76). */ planeOf?: string };
 
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
@@ -488,6 +488,8 @@ export type Tray = {
   curveKind?: 'teeth' | 'tabslot' | 'none';
   /** Milestone 71: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
   lidOf?: string;
+  /** A lid of its own moved by the student (milestone 76): where it lies beside its box, the corner of its outline nearest the box's front left, in the box base's coordinates. Absent: at the box's front right, 20 mm clear. */
+  lidAt?: { x: number; y: number };
 };
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
