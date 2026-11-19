@@ -16,7 +16,8 @@ import { sheetsToSvg } from '../src/export/svg';
 import { sheetsToDxf } from '../src/export/dxf';
 import { defaults, generate, templateById } from '../src/templates/registry';
 import { parseProject } from '../src/model/serialize';
-import { registerFont, FONTS } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import type { Design, MaterialProfile } from '../src/model/types';
 
 const DIR = 'tests/golden';

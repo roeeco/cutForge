@@ -509,3 +509,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A double-click finds the shape geometrically** (inside its outline or within six pixels of it, the smallest one): a cut-out's stroke is too thin to be the click's target.
 - **The edit card sits on the side away from the shape's card** (left in English, right in Hebrew), placed by the page's direction: the 2D view itself is laid out left to right.
 - **Boards: rounded corners, not cut ones**: a board stores a radius per corner; *Cut* is offered for shapes only.
+
+## Code splitting (20 November)
+- **Libraries bundled, not from a public CDN**: browsers keep a separate cache per site, so a CDN's copy is not shared with other sites; bundling keeps only the parts used; a school network that blocks a CDN, an outage, the offline mode and the students' privacy all argue for one origin; Cloudflare already serves the files from its edge.
+- **Rolldown's `advancedChunks`** (Vite 8), not `manualChunks`, which merged three.js's core into the 3D renderer's file.
+- **The 3D view is not deferred**: the welcome screen draws its pictures with three.js and the editor opens on the 3D view.

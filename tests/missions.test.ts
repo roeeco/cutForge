@@ -2,7 +2,8 @@
 import { dividerRow } from '../src/model/dividers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { boxLid, setBoxLid } from '../src/easy/lid';

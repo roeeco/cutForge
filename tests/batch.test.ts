@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { batchExport } from '../src/export/batch';
 import { addRootPanel, createDesign, growPanel } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';

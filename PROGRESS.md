@@ -1596,6 +1596,18 @@ Limitations
 - A board's curved edges are shown with the editor's own curve while editing; their exact shape is the board's curve rule.
 - Mirror and align for a shape's several outlines are not on the card yet (the engine has them).
 
+## Code splitting (20 November, before Guided) ✅
+
+The app was one JavaScript file (2.42 MB, 713 KB compressed). Now:
+- **The libraries in files of their own** (`vite.config.ts`, Rolldown's `advancedChunks`): three.js (815 KB), the React 3D renderer (416 KB), React. They change far less often than the app, so a browser keeps them across releases and downloads only the app's own code again.
+- **Loaded when first used** (`React.lazy` in `App.tsx`): the cut plan and face-on view with the 2D editing (36 KB), the download dialog with the export and print code (11 KB, plus its helpers), the teacher's view (12 KB), the sentence's development page.
+- **The font parser (opentype.js, 237 KB) loads with the fonts** (`loadBundledFonts` imports it), not with the app; tests register fonts through `src/text/registerFont.ts`.
+- What the welcome screen loads before it can show: about 2.13 MB (630 KB compressed), down from 2.42 MB (713 KB); the font parser follows in parallel.
+
+Verified
+- Production build served with `vite preview`: the welcome screen loads the app, React, three.js and the 3D renderer; the cut plan's file arrives when *Cut plan* is opened, the download dialog's when it is opened; the teacher view loads; a Hebrew and English text shape is outlined (the fonts parse); no page error apart from the teacher view's call to the class server, which was not running.
+- Unit suite and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
@@ -1606,4 +1618,4 @@ Limitations
 - Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
-- The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.
+- The production build is split (20 November): libraries in their own files, the cut plan, download dialog, teacher view and font parser loaded when first used.
