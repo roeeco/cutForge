@@ -29,6 +29,8 @@ export const FEATURES = {
   /** The grow card's angle dial and Up/Down flip, side walls, part of the edge, adapt switch and ghost outline editing; Quick build grows at 90° on the whole edge, adapting. */
   /** A printed plan of the pieces at a stated scale (milestone 90); Quick build shows it. */
   'export.spec': 'show',
+  /** How a box's sizes are stated (milestone 93): *Outside · Inside · Crease to crease* on its card; Quick build hides the switch (its sizes follow the design's choice). */
+  'size.as': 'hide',
   /** Sizes of a design (milestone 88); Quick build hides them. */
   sizes: 'hide',
   /** Names and sizes on the GUIDE layer of the file (milestone 89); Quick build leaves it off. */
@@ -125,6 +127,7 @@ export const SECTIONS: Record<string, Feature | null> = {
   'extrude-button': null,
   'extrude-card': null,
   'tray-card': null,
+  'size-as': 'size.as',
   'tray-corners': 'tray.corners',
   'tray-ends': 'tray.ends',
   'carton-bottom': 'lid',

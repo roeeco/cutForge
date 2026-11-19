@@ -1420,6 +1420,22 @@ Verified
 - Unit suite 927 pass, 7 skipped; typecheck clean; goldens byte-identical.
 - Browser (dev server, Quick build, plywood): a Box dragged and not confirmed, reloaded: no board; the empty stage has no hint.
 
+## Milestone 93 — size intent ✅
+
+`DIELINE_DNA_PLAN.md` D5a (`ROADMAP.md` §5). `src/model/boxSize.ts`, `src/ui/BoxSizeUI.tsx`; `Design.sizeAs` (optional; absent = outside; no schema change).
+- **`boxSize(d, tray, as)` / `setBoxSize(d, tray, size, as)` / `outsideFor`**: a box's width, depth and height *outside* (the base's outline and the tray's height, as stored), *inside* (less the walls on each side, and less what lies under and over the inside: a cut base, an open base's bottom flaps, a closed top) or *crease to crease* (half of that, since a fold lies where the mid-planes meet). Each wall's own thickness counts. The base grows from its own origin, so dividers keep their distance from the left and front.
+- **The box's card**: *Sizes are: Outside · Inside · Crease to crease* above the base's sizes (crease to crease only on card and corrugated); *Width inside*, *Depth inside* and *Height inside* (or *(creases)*) show and take the sizes so stated. Quick build hides the switch (`size.as`); the fields follow the design's intent in both modes.
+- **A change of board keeps the stated size**: `setMaterial` and `editMaterial` run inside `keepingStatedSizes`, so a box stated by its inside keeps it on a thicker board (its outside grows).
+- **Milestone 88's sizes** read their numbers in the design's intent (`applySize` through `outsideFor`).
+
+Verified
+- `tests/sizeIntent.test.ts` (23): in each of the four materials, the inside equals the measured clear space between the walls (`clearSpans`) and the inside height is the outside less the base; each intent round-trips; card 0.5 → corrugated 4 with *Inside* keeps the inside to 1e-6 while the outside grows by 7 mm; with *Outside* only the thickness changes; *crease to crease* is kept; a carton loses a thickness under (its bottom flaps) and over (its tuck top); a divider keeps its distance from the left side when the box widens; a size row read inside; a bad intent in a file is dropped.
+- `tests/quickTable.test.ts`: `size.as` hidden in Quick build. Unit suite and typecheck green; goldens byte-identical.
+- Browser (dev server, card, Workshop): a 120 × 80 box's card shows *Inside: 119*; typing 100 makes the base 101 outside.
+
+Limitations
+- The stage's W / H labels still show outside sizes. A base that is not a rectangle takes its walls' thickness on both sides. Templates keep their own *Sizes are* parameter (the organiser's); the sentence builder writes `Design.sizeAs` (milestone 95).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

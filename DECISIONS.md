@@ -440,3 +440,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Which dividers keep their place**: only rows the student changed. A row still at the template's spacing follows the template (so 2 → 3 dividers stays even), because keeping an untouched row's places would make the template look broken. "Changed" means a template divider more than 0.01 mm from where the template would put it with the old sizes, or any divider the student added in that row.
 - **A share of the row** (the divider's centre between the row's two faces), not a distance from one side: a width change spreads the student's layout instead of crowding one end.
 - **The too-big fix works on a copy** and is taken whole or not at all; for a template, every size in millimetres (`unit: 'mm'`) scales by one factor, never under its minimum, rounded to 0.1 mm. Templates' size limits already respect the four classroom sheets, so this matters for custom materials with small sheets.
+
+## Milestone 93: size intent (DIELINE_DNA_PLAN.md D5a)
+- **In `boxSize.ts`, not `sizes.ts`**: milestone 88 owns `sizes.ts` (size rows).
+- **What lies under and over the inside**: a cut base (its thickness); an open base (a tube) its bottom flaps when it has a bottom, else nothing (a sleeve); a closed top (`top`) its thickness. A lid of its own does not count: inside is measured to the rim.
+- **Crease to crease is half a wall less on each side**, because since the fold overhaul a crease lies where the two mid-planes meet; on plywood (no creases) the choice is not offered.
+- **The intent is applied around a change of board** (`keepingStatedSizes`): the stated sizes are read before and set after. `ops.ts` imports `boxSize.ts`, which imports `setPanelSize` / `setTrayHeight` from `ops.ts`; the cycle is only between functions called at run time.
+- **Dividers keep their distance from the left and front** when a box is resized through `setBoxSize` (the base grows from its origin), the rule Guided's Build and the sentence's spaces rely on.

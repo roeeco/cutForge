@@ -38,6 +38,7 @@ import { Gate } from '../easy/Gate';
 import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
+import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
 
 const OP_ICONS = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' } as const;
 
@@ -183,6 +184,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
     if (p) {
       const pc = parentConnection(d, id);
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
+      const boxTray = boxOfBase(d, id);
       const growable = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, id, e.key, MIN_PANEL));
       body = (
         <section data-testid="inspector-panel" key={id}>
@@ -208,14 +210,31 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
+          {boxTray && <SizeAsSwitch trayId={boxTray} />}
           {p.divider ? (
             // a divider's length comes from its ends (milestone 44)
             <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} disabled onCommit={() => undefined} testId="panel-w" />
           ) : (
-            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+            (() => {
+              // a box's base shows its sizes as the design states them (milestone 93)
+              const f = boxTray ? statedField(d, boxTray, 'w') : null;
+              return f ? (
+                <NumField label={t(f.label ?? 'insp.width')} value={f.value} unit={mm} min={5} onCommit={(v) => apply((x) => f.commit(x, v))} testId="panel-w" />
+              ) : (
+                <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+              );
+            })()
           )}
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
-          <NumField label={t(quickWords && !parent && !p.divider && p.place?.pose !== 'standing' ? 'insp.depth' : 'insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          {(() => {
+            const f = boxTray ? statedField(d, boxTray, 'd') : null;
+            const lbl = quickWords && !parent && !p.divider && p.place?.pose !== 'standing' ? 'insp.depth' : 'insp.height';
+            return f ? (
+              <NumField label={t(f.label ?? lbl)} value={f.value} unit={mm} min={5} onCommit={(v) => apply((x) => f.commit(x, v))} testId="panel-h" />
+            ) : (
+              <NumField label={t(lbl)} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+            );
+          })()}
           <RoundSection panelId={id} />
           {p.divider && <DividerSection panelId={id} />}
           {!parent && !p.divider && (

@@ -1169,6 +1169,17 @@ export const en = {
   'part.lidRimSide': "{side} lid rim",
   'part.lidRimN': "Lid rim {n}",
   'part.lidFlap': "Lid flap",
+  'size.as': "Sizes are",
+  'size.as.outside': "Outside",
+  'size.as.inside': "Inside",
+  'size.as.crease': "Crease to crease",
+  'size.as.help': "Inside: the space inside the walls. Crease to crease: between the folds. A change of board keeps the size given this way.",
+  'size.w.inside': "Width inside",
+  'size.d.inside': "Depth inside",
+  'size.h.inside': "Height inside",
+  'size.w.crease': "Width (creases)",
+  'size.d.crease': "Depth (creases)",
+  'size.h.crease': "Height (creases)",
   'insp.depth': "Depth",
 } as const;
 

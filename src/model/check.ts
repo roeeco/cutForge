@@ -349,6 +349,8 @@ export function checkDesign(raw: unknown): asserts raw is Design {
   const d = raw as Record<string, any>;
   if (typeof d.id !== 'string') d.id = 'loaded';
   if (typeof d.name !== 'string') d.name = '';
+  // size intent (milestone 93): absent is outside; anything else is dropped
+  if (d.sizeAs !== undefined && d.sizeAs !== 'inside' && d.sizeAs !== 'crease') delete d.sizeAs;
   // sizes (milestone 88): rows of numbers; a bad one is dropped
   if (d.sizes !== undefined) {
     const n = (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < COORD_LIMIT);

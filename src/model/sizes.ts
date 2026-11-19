@@ -10,6 +10,7 @@ import type { BoxSize, Design } from './types';
 import type { MsgKey } from '../i18n';
 import { setPanelSize, setTrayHeight, solve } from './ops';
 import { regenerate } from '../templates/registry';
+import { outsideFor } from './boxSize';
 
 /** The one box a design's sizes resize (a lid of its own is part of its box), or null. */
 export function sizedBox(d: Design): string | null {
@@ -37,7 +38,9 @@ export function applySize(master: Design, s: BoxSize): Design {
   const tray = d.trays[tid];
   const B = d.panels[tray.baseId];
   const w0 = B.w, h0 = B.h;
-  const w1 = s.w ?? w0, h1 = s.d ?? h0;
+  // a size's numbers are read in the design's size intent (milestone 93)
+  const o = outsideFor(d, tid, { w: s.w, d: s.d, h: s.h });
+  const w1 = o.w ?? w0, h1 = o.d ?? h0;
   // every board's size before, to keep each shape's place from its nearer edge (or the middle)
   const before = new Map(d.order.map((id) => [id, { w: d.panels[id].w, h: d.panels[id].h }]));
   // dividers keep their share of the base
@@ -46,7 +49,7 @@ export function applySize(master: Design, s: BoxSize): Design {
     if (p?.divider && p.place?.host === B.id) p.divider.at = { x: p.divider.at.x * (w1 / w0), y: p.divider.at.y * (h1 / h0) };
   }
   setPanelSize(d, B.id, w1, h1);
-  if (s.h !== undefined) setTrayHeight(d, tid, s.h);
+  if (o.h !== undefined) setTrayHeight(d, tid, o.h);
   for (const id of d.order) {
     const p = d.panels[id], b = before.get(id);
     if (!p || !b || (Math.abs(p.w - b.w) < 1e-9 && Math.abs(p.h - b.h) < 1e-9)) continue;

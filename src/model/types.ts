@@ -420,6 +420,8 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
+  /** How a box's sizes are stated (milestone 93): outside (absent), inside, or crease to crease. Stored geometry stays outside sizes; a change of board keeps the size so stated. */
+  sizeAs?: 'inside' | 'crease';
   /** Sizes of the design (milestone 88): each the master with these numbers applied, worked out on demand, never stored. */
   sizes?: BoxSize[];
   /** The Quick build mission this design was started from (milestone 40), so a submission shows which. */

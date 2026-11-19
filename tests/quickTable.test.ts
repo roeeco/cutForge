@@ -106,6 +106,7 @@ describe('the feature table (rule 3)', () => {
       'rail.ops',
       'rail.tools',
       'saveBoard.steps',
+      'size.as',
       'sizes',
       'tray.ends',
       'tray.keepWhole',
