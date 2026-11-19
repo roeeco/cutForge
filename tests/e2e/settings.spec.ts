@@ -1,14 +1,16 @@
 // The settings card on a short stage (milestone 27) and design-wide joints the
 // material does not allow (milestone 26).
 import { test, expect, type Page } from '@playwright/test';
+import { startTemplate } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
 
 async function start(page: Page, mat: string, template?: string) {
   await page.goto('/');
+  // milestone 98: the organiser is no longer on the welcome screen; its card still works
+  if (template) return startTemplate(page, template, mat);
   await page.getByTestId(`mat-${mat}`).click();
-  if (template) await page.getByTestId(`tpl-${template}`).click();
   await page.getByTestId('start-go').click();
 }
 

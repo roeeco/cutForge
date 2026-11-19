@@ -16,6 +16,8 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
 
   // a cutout on the front wall (normal tools: Rectangle tool in the wall's solo view)
   await S(page, () => (window as any).__cutforge.store.getState().openSolo('t:wall0'));
+  // the cut plan is loaded when first opened
+  await expect(page.locator('[data-testid=solo] svg').first()).toBeVisible();
   await shapeTool(page, 'circle');
   const pt = (x: number, y: number) =>
     S(page, ([x, y]: number[]) => {

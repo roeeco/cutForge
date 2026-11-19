@@ -49,6 +49,15 @@ export function App() {
   const otherTab = useStore((s) => s.otherTab);
   useAutosave(() => setLoaded(true));
   useKeyboard();
+  // the parts loaded when first used are fetched once the editor is up, so they are there offline too
+  useEffect(() => {
+    if (!loaded) return;
+    const h = setTimeout(() => {
+      void import('./views/Plan2D');
+      void import('./ui/ExportDialog');
+    }, 0);
+    return () => clearTimeout(h);
+  }, [loaded]);
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
