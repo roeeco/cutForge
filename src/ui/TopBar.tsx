@@ -1,10 +1,11 @@
-import { storeDesign } from '../store/persist';
+import { projectDesigns, projectNamed, projectOf, storeDesign } from '../store/persist';
+import { migrateDesign } from '../model/serialize';
 import { useEffect, useRef, useState } from 'react';
 import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
 import { duplicateDesign, createDesign } from '../model/ops';
-import { parseProject, serializeProject, ProjectError } from '../model/serialize';
+import { parseProjectFile, serializeProject, serializeProjectGroup, ProjectError } from '../model/serialize';
 import { downloadText, safeName } from './download';
 import { Icon, Logo } from './icons';
 import { setMode } from '../easy/mode';
@@ -51,8 +52,13 @@ export function TopBar() {
   }, [menu]);
   const open = async (f: File) => {
     try {
-      const design = parseProject(await f.text());
-      useStore.getState().replaceDesign(design);
+      // one design, or a project of several (milestone 87): every design goes in the library, the first opens
+      const file = parseProjectFile(await f.text());
+      if (file.designs.length > 1 || file.name) {
+        const pj = await projectNamed(file.name || f.name.replace(/\.cutforge\.json$|\.json$/, ''));
+        for (const x of file.designs) await storeDesign(x, pj.id).catch(() => undefined);
+      }
+      useStore.getState().replaceDesign(file.designs[0]);
     } catch (e) {
       // a friendly reason for any failure, never a raw error message
       const code = e instanceof ProjectError ? e.code : 'damaged';
@@ -127,6 +133,20 @@ export function TopBar() {
             </button>
             <button role="menuitem" onClick={item(() => downloadText(`${safeName(d.name)}.cutforge.json`, serializeProject(d), 'application/json'))} data-testid="save-project">
               <Icon name="save" /> {t('top.saveProject')}
+            </button>
+            <button
+              role="menuitem"
+              onClick={item(async () => {
+                // the design's whole project in one file (milestone 87); a design in no project is saved alone
+                const pj = await projectOf(d.id).catch(() => null);
+                if (!pj) return downloadText(`${safeName(d.name)}.cutforge.json`, serializeProject(d), 'application/json');
+                const raws = await projectDesigns(pj.id);
+                const designs = raws.map((r) => migrateDesign(r)).map((x) => (x.id === d.id ? d : x));
+                downloadText(`${safeName(pj.name)}.cutforge.json`, serializeProjectGroup(pj.name, designs), 'application/json');
+              })}
+              data-testid="save-whole-project"
+            >
+              <Icon name="save" /> {t('proj.saveWhole')}
             </button>
             <hr />
             <button role="menuitem" className="muted" onClick={item(() => (location.hash = '#/teacher'))} data-testid="open-teacher">

@@ -1,4 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { projectDesigns, projectOf } from '../store/persist';
+import { migrateDesign } from '../model/serialize';
+import { projectBatches } from '../export/project';
+import type { Design } from '../model/types';
 import { issueSelection, useStore, useT } from '../store/store';
 import { prepareExport, type KerfMode } from '../export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../export/svg';
@@ -41,7 +45,33 @@ export function ExportDialog() {
   const blocked = prepared.errors.length > 0;
   // one file per material (milestone 36), each with its own kerf; one material keeps the old names
   const files = exportFiles(d.name, prepared, mode);
+  // milestone 87: the open design's project, when it has other designs: cut it all, one batch per material
+  const [project, setProjectState] = useState<{ name: string; designs: Design[] } | null>(null);
+  const [scope, setScope] = useState<'design' | 'project'>('design');
+  useEffect(() => {
+    let live = true;
+    projectOf(d.id)
+      .then(async (pj) => {
+        if (!pj || !live) return;
+        const designs = (await projectDesigns(pj.id)).map((r) => migrateDesign(r)).map((x) => (x.id === d.id ? d : x));
+        if (live && designs.length > 1) setProjectState({ name: pj.name, designs });
+      })
+      .catch(() => undefined);
+    return () => void (live = false);
+  }, [d.id]);
+  const goProject = () => {
+    if (!project) return;
+    for (const b of projectBatches(project.designs, mode)) {
+      if ('error' in b.result) continue;
+      const base = `${safeName(project.name)}-${b.material.id}-${mode}-kerf${fmtNum(b.material.kerf, 2)}mm`;
+      const sheets = b.result.sheets;
+      if (format === 'dxf') downloadText(`${base}.dxf`, sheetsToDxf(sheets), 'application/dxf');
+      else downloadText(`${base}.svg`, sheets.length === 1 ? sheetToSvg(sheets[0]) : sheetsToSvg(sheets), 'image/svg+xml');
+    }
+    close();
+  };
   const go = () => {
+    if (scope === 'project' && project) return goProject();
     for (const f of files) {
       const sheets = f.sheets;
       const base = f.base;
@@ -93,6 +123,17 @@ export function ExportDialog() {
             <input type="radio" name="kerf" checked={mode === 'compensated'} onChange={() => setMode('compensated')} data-testid="kerf-compensated" /> {t('export.compensated')}
           </label>
         </fieldset>
+        )}
+        {project && (
+          <fieldset data-testid="export-scope">
+            <legend>{t('proj.scope')}</legend>
+            <label>
+              <input type="radio" name="scope" checked={scope === 'design'} onChange={() => setScope('design')} data-testid="export-scope-design" /> {t('proj.thisDesign')}
+            </label>
+            <label>
+              <input type="radio" name="scope" checked={scope === 'project'} onChange={() => setScope('project')} data-testid="export-scope-project" /> {t('proj.whole', { name: project.name, n: project.designs.length })}
+            </label>
+          </fieldset>
         )}
         {annF && (
           <label className="check" data-testid="export-annotate-row">

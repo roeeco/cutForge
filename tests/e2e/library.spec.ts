@@ -73,3 +73,28 @@ test('a design changed in another tab is not overwritten: Reload or Keep mine', 
   await expect(page.getByTestId('other-tab')).toHaveCount(0);
   await expect.poll(() => S<string>(page, () => (window as any).__cutforge.store.getState().design.name)).toBe('Changed there');
 });
+
+test('two designs moved into a project: grouped in the library; the download offers the whole project', async ({ page }) => {
+  page.on('dialog', (d) => d.accept('Game kit'));
+  await page.goto('/');
+  await page.getByTestId('mat-card-0.5').click();
+  await page.getByTestId('start-go').click();
+  await make(page, 'Board');
+  await page.getByTestId('project-menu').click();
+  await page.getByTestId('new-design').click();
+  await page.getByTestId('mat-card-0.5').click();
+  await page.getByTestId('start-go').click();
+  await make(page, 'Tokens');
+  await page.getByTestId('project-menu').click();
+  await page.getByTestId('menu-designs').click();
+  await page.getByTestId('lib-move-0').click();
+  await page.locator('.lib-card', { hasText: 'Board' }).locator('[data-testid^="lib-move-"]').click();
+  await expect(page.getByTestId('lib-project-Game kit').locator('.lib-card')).toHaveCount(2);
+  await page.getByTestId('lib-back').click();
+  await page.getByTestId('export-open').or(page.getByRole('button', { name: /Download for laser/ })).first().click();
+  await expect(page.getByTestId('export-scope')).toBeVisible();
+  await page.getByTestId('export-scope-project').check();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-go').click();
+  expect((await download).suggestedFilename()).toContain('Game-kit');
+});

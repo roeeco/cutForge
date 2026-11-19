@@ -917,3 +917,5 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .plan-legend i.dashed { height: 0; border-top: 2px dashed; background: none !important; }
 .plan-ann { fill: #0f6b3c; font-weight: 600; }
 .plan-ann.ann-glue { fill: #8a5a00; font-style: italic; }
+.lib-project { margin-bottom: 10px; }
+.lib-project-name { display: flex; align-items: center; gap: 6px; font-weight: 700; margin: 6px 0; }

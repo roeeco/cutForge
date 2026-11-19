@@ -12,7 +12,10 @@ const OLD_KEY = 'current-design', OPEN_KEY = 'open-design', MOVED_KEY = 'library
 export const KEEP_DELETED = 30 * 24 * 3600 * 1000;
 
 /** What the start screen shows of a design, without loading it. */
-export type DesignMeta = { id: string; name: string; updatedAt: number; material: string; boards: number; thumb?: string; deletedAt?: number };
+export type DesignMeta = { id: string; name: string; updatedAt: number; material: string; boards: number; thumb?: string; deletedAt?: number; /** The project it belongs to (milestone 87). */ projectId?: string };
+/** A project: a named group of designs (milestone 87). */
+export type ProjectMeta = { id: string; name: string };
+const PROJECTS_KEY = 'projects';
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -80,7 +83,7 @@ export async function saveLocal(d: Design, thumb?: string): Promise<void> {
   await tx([KV, DESIGNS, META], 'readwrite', async (t) => {
     const old = await get<DesignMeta>(t, META, d.id);
     t.objectStore(DESIGNS).put(plain, d.id);
-    t.objectStore(META).put(metaOf(d, thumb ?? old?.thumb), d.id);
+    t.objectStore(META).put({ ...metaOf(d, thumb ?? old?.thumb), ...(old?.projectId ? { projectId: old.projectId } : {}) }, d.id);
     t.objectStore(KV).put(d.id, OPEN_KEY);
   });
   libraryChannel()?.postMessage({ saved: d.id, by: TAB });
@@ -126,12 +129,12 @@ export async function loadDesign(id: string): Promise<unknown | null> {
   return tx([DESIGNS], 'readonly', async (t) => (await get<unknown>(t, DESIGNS, id)) ?? null);
 }
 
-/** Put a design in the library as it is (a duplicate, an opened file). */
-export async function storeDesign(d: Design): Promise<void> {
+/** Put a design in the library as it is (a duplicate, an opened file), in a project or none. */
+export async function storeDesign(d: Design, projectId?: string): Promise<void> {
   const plain = JSON.parse(JSON.stringify(d)) as Design;
   await tx([DESIGNS, META], 'readwrite', (t) => {
     t.objectStore(DESIGNS).put(plain, d.id);
-    t.objectStore(META).put(metaOf(d), d.id);
+    t.objectStore(META).put({ ...metaOf(d), ...(projectId ? { projectId } : {}) }, d.id);
   });
 }
 
@@ -155,4 +158,56 @@ export async function renameDesign(id: string, name: string): Promise<void> {
     if (d) t.objectStore(DESIGNS).put({ ...d, name }, id);
     if (m) t.objectStore(META).put({ ...m, name }, id);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Projects (milestone 87, LIDS_LINES_PROJECTS_PLAN.md §7.2): a named group of
+// designs (the box, its tokens, its cards). The names are kept in `kv`; each
+// design's card says which project it is in.
+
+export async function listProjects(): Promise<ProjectMeta[]> {
+  return tx([KV], 'readonly', async (t) => Object.values((await get<Record<string, ProjectMeta>>(t, KV, PROJECTS_KEY)) ?? {}).sort((a, b) => a.name.localeCompare(b.name)));
+}
+
+/** The project of this name, made if there is none. */
+export async function projectNamed(name: string): Promise<ProjectMeta> {
+  return tx([KV], 'readwrite', async (t) => {
+    const all = (await get<Record<string, ProjectMeta>>(t, KV, PROJECTS_KEY)) ?? {};
+    const have = Object.values(all).find((p) => p.name === name);
+    if (have) return have;
+    const p = { id: 'j_' + Math.random().toString(36).slice(2, 10), name };
+    t.objectStore(KV).put({ ...all, [p.id]: p }, PROJECTS_KEY);
+    return p;
+  });
+}
+
+/** Put a design in a project, or take it out (null). */
+export async function setProject(designId: string, projectId: string | null): Promise<void> {
+  await tx([META], 'readwrite', async (t) => {
+    const m = await get<DesignMeta>(t, META, designId);
+    if (!m) return;
+    const next = { ...m };
+    if (projectId) next.projectId = projectId;
+    else delete next.projectId;
+    t.objectStore(META).put(next, designId);
+  });
+}
+
+/** The designs of a project (not the deleted ones), as saved. */
+export async function projectDesigns(projectId: string): Promise<unknown[]> {
+  const { live } = await listDesigns();
+  const ids = live.filter((m) => m.projectId === projectId).map((m) => m.id);
+  const out: unknown[] = [];
+  for (const id of ids) {
+    const d = await loadDesign(id);
+    if (d) out.push(d);
+  }
+  return out;
+}
+
+/** The project a design is in (its card says), if any. */
+export async function projectOf(designId: string): Promise<ProjectMeta | null> {
+  const [{ live }, projects] = await Promise.all([listDesigns(), listProjects()]);
+  const pid = live.find((m) => m.id === designId)?.projectId;
+  return (pid && projects.find((p) => p.id === pid)) || null;
 }

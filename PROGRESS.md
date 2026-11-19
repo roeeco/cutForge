@@ -1372,6 +1372,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `tests/annotate.test.ts` (2): a folded card tray has a name per board, its blank size, *glue* on every glue flap, all on the piece; annotations reach the file only when asked and only on GUIDE. `quickTable.test.ts`: `export.annotations` is chosen by the app in Quick build. Every golden byte-identical.
 - Not yet: dimension chains, the grain arrow, the title block (spec sheet, milestone 90).
 
+## Milestone 87 — projects ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §7.2 (milestone 82 there). Designs move into named projects in the library; a project saves to one file and opens again; the download can cut the whole project, one batch per material.
+- Tests: `library.test.ts` (+3): a project of three designs round-trips through one file and a single-design file still opens (and still parses for the Worker); a two-material project makes two batches; designs join a project by name, keep it through autosave, and leave it. Browser `library.spec.ts` (+1): two designs moved into a project, grouped in the library, and *The whole project* downloads.
+- Not yet: *Compare*.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

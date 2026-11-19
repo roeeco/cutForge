@@ -3,7 +3,7 @@
 // to list it). Open, Duplicate, Rename, Delete; Recently deleted for 30 days.
 import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
-import { listDesigns, loadDesign, renameDesign, setDeleted, storeDesign, type DesignMeta } from '../store/persist';
+import { listDesigns, listProjects, loadDesign, projectNamed, renameDesign, setDeleted, setProject, storeDesign, type DesignMeta, type ProjectMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { duplicateDesign } from '../model/ops';
 import { MATERIALS } from '../model/materials';
@@ -24,9 +24,13 @@ export function Library() {
   const [showDeleted, setShowDeleted] = useState(false);
   // the design open in the editor (it cannot be deleted while it is open)
   const openId = useStore((s) => (s.design.order.length ? s.design.id : null));
+  const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const reload = () =>
-    listDesigns()
-      .then(setList)
+    Promise.all([listDesigns(), listProjects()])
+      .then(([l, p]) => {
+        setList(l);
+        setProjects(p);
+      })
       .catch(() => setList({ live: [], deleted: [] }));
   useEffect(() => void reload(), []);
   if (!list || (!list.live.length && !list.deleted.length)) return null;
@@ -57,6 +61,21 @@ export function Library() {
             data-testid={`lib-duplicate-${i}`}
           >
             <Icon name="copy" size={16} />
+          </button>
+          <button
+            className="ghost icon-btn"
+            title={t('proj.move')}
+            aria-label={t('proj.move')}
+            onClick={async () => {
+              // milestone 87: a project by name (made if new); an empty name takes it out of its project
+              const name = prompt(t('proj.movePrompt'), projects.find((p) => p.id === m.projectId)?.name ?? '');
+              if (name === null) return;
+              await setProject(m.id, name.trim() ? (await projectNamed(name.trim())).id : null);
+              await reload();
+            }}
+            data-testid={`lib-move-${i}`}
+          >
+            <Icon name="open" size={16} />
           </button>
           <button
             className="ghost icon-btn"
@@ -93,7 +112,18 @@ export function Library() {
   return (
     <section className="library" data-testid="library">
       <p className="step-label">{t('lib.title')}</p>
-      <div className="lib-grid">{list.live.map(card)}</div>
+      {/* milestone 87: grouped by project, then the designs in none */}
+      {projects
+        .filter((p) => list.live.some((m) => m.projectId === p.id))
+        .map((p) => (
+          <div key={p.id} className="lib-project" data-testid={`lib-project-${p.name}`}>
+            <p className="lib-project-name">
+              <Icon name="open" size={14} /> {p.name}
+            </p>
+            <div className="lib-grid">{list.live.map((m, i) => (m.projectId === p.id ? card(m, i) : null))}</div>
+          </div>
+        ))}
+      <div className="lib-grid">{list.live.map((m, i) => (!m.projectId || !projects.some((p) => p.id === m.projectId) ? card(m, i) : null))}</div>
       <p className="note">{t('lib.whereKept')}</p>
       {list.deleted.length > 0 && (
         <>

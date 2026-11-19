@@ -79,7 +79,7 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | 84 | ✅ built | Editing a line's points and arcs on the stage; lines across folds on the cut plan. |
 | 85 | ✅ per joint | The design-wide choice; creases on the back. |
 | 86 | ✅ built | Card thumbnails; `navigator.storage.persist()`. |
-| 87 | not started | Projects: named groups, the project file, *Cut the whole project*, *Compare*. |
+| 87 | ✅ built | *Compare*. |
 | 88 | not started | Sizes. |
 | 89 | ✅ blank sizes, glue, legend, guide-layer option | Dimension chains, the grain arrow, the title block. |
 | 90 | not started | The spec sheet. |

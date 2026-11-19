@@ -9,6 +9,8 @@ import { rectSketch, straightRing } from './edges';
 export const PROJECT_FORMAT = 'cutforge-project';
 
 export type ProjectFile = { format: typeof PROJECT_FORMAT; schemaVersion: number; savedAt: string; design: Design };
+/** A project of several designs in one file (milestone 87): the same format, `project` in place of `design`. */
+export type ProjectGroupFile = { format: typeof PROJECT_FORMAT; schemaVersion: number; savedAt: string; project: { name: string; designs: Design[] } };
 
 export class ProjectError extends Error {
   constructor(public code: 'notProject' | 'newerVersion' | 'damaged', detail?: string) {
@@ -184,4 +186,26 @@ export function parseProject(text: string): Design {
   }
   if (j?.format !== PROJECT_FORMAT) throw new ProjectError('notProject');
   return migrateDesign(j.design);
+}
+
+/** A project of several designs as one file (milestone 87, LIDS_LINES_PROJECTS_PLAN.md §7.2). */
+export function serializeProjectGroup(name: string, designs: Design[]): string {
+  const f: ProjectGroupFile = { format: PROJECT_FORMAT, schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString(), project: { name, designs } };
+  return JSON.stringify(f, null, 1);
+}
+
+/** Either kind of project file: one design, or a project of several (its name and designs). */
+export function parseProjectFile(text: string): { name?: string; designs: Design[] } {
+  let j: any;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    throw new ProjectError('notProject');
+  }
+  if (j?.format !== PROJECT_FORMAT) throw new ProjectError('notProject');
+  if (j.project && Array.isArray(j.project.designs)) {
+    if (!j.project.designs.length || j.project.designs.length > 200) throw new ProjectError('notProject');
+    return { name: typeof j.project.name === 'string' ? j.project.name.slice(0, 200) : '', designs: j.project.designs.map(migrateDesign) };
+  }
+  return { designs: [migrateDesign(j.design)] };
 }
