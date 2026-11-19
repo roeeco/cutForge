@@ -156,6 +156,8 @@ The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and
 
 **Status (20 November):** 92–104 built (see `PROGRESS.md`); stopped before Guided's G2 (105) for the owner's review.
 
+**Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
+
 ### 5.2 Where the plans meet, and how each meeting is settled
 
 | # | Topic | Plans | Settled |
