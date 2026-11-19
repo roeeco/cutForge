@@ -1366,6 +1366,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 `LIDS_LINES_PROJECTS_PLAN.md` §7.1 and §8 (milestone 81 there). Designs are kept in the browser, listed on the start screen as *Your designs* (open, duplicate, rename, delete and restore), reached from the project menu; *New design* keeps the open one; two tabs on one design never overwrite each other silently.
 - Tests: `tests/library.test.ts` (3, `fake-indexeddb`): a design saved before the library opens first and is listed; ten designs list newest first from their cards and the last open one opens; duplicate, rename, delete and restore. Browser `library.spec.ts` (2): New keeps the open design, the library lists, opens, duplicates, renames, deletes and restores, a reload opens the open design; a change in a second tab shows the notice and *Reload* takes it.
 
+## Milestone 89 — dimensions on the dieline ✅ (blank sizes, glue, legend)
+
+`LIDS_LINES_PROJECTS_PLAN.md` §9 (milestone 84 there), in part. The cut plan has a legend and a *Dimensions* button (blank sizes, *glue* on glue flaps); the download dialog can add names and sizes on the guide layer.
+- Tests: `tests/annotate.test.ts` (2): a folded card tray has a name per board, its blank size, *glue* on every glue flap, all on the piece; annotations reach the file only when asked and only on GUIDE. `quickTable.test.ts`: `export.annotations` is chosen by the app in Quick build. Every golden byte-identical.
+- Not yet: dimension chains, the grain arrow, the title block (spec sheet, milestone 90).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

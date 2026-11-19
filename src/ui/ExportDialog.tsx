@@ -5,7 +5,8 @@ import { sheetToSvg, sheetsToSvg } from '../export/svg';
 import { sheetsToDxf } from '../export/dxf';
 import { validate } from '../model/validate';
 import { pieceCopies } from '../model/pack';
-import { issueVars } from '../model/names';
+import { issueVars, panelLabel } from '../model/names';
+import { annotationContours, annotations } from '../export/annotate';
 import { canFix, fixIssue } from '../easy/fix';
 import { shown, useFeature } from '../easy/features';
 import { downloadText, safeName } from './download';
@@ -24,7 +25,13 @@ export function ExportDialog() {
   const [format, setFormat] = useState<'svg' | 'dxf'>('svg');
   const [split, setSplit] = useState(false);
   const [mode, setMode] = useState<KerfMode>('nominal');
-  const prepared = useMemo(() => prepareExport(d, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') }), [d, mode, t]);
+  // milestone 89: names, blank sizes and glue areas on the GUIDE layer, when asked (off: the file is as before)
+  const [annotate, setAnnotate] = useState(false);
+  const annF = shown(useFeature('export.annotations'));
+  const prepared = useMemo(
+    () => prepareExport(d, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') }, annotate && annF ? (c) => annotationContours(annotations(d, c, (id) => panelLabel(d, id, t), t('unit.mm')).map((a) => (a.kind === 'glue' ? { ...a, text: t('ann.glue') } : a))) : undefined),
+    [d, mode, t, annotate, annF],
+  );
   const issues = useMemo(() => validate(d), [d]);
   const check = shown(useFeature('exportCheck'));
   // Quick build: nominal, the kerf set on the laser (LIDS_LINES_PROJECTS_PLAN.md §10.6)
@@ -86,6 +93,11 @@ export function ExportDialog() {
             <input type="radio" name="kerf" checked={mode === 'compensated'} onChange={() => setMode('compensated')} data-testid="kerf-compensated" /> {t('export.compensated')}
           </label>
         </fieldset>
+        )}
+        {annF && (
+          <label className="check" data-testid="export-annotate-row">
+            <input type="checkbox" checked={annotate} onChange={(e) => setAnnotate(e.target.checked)} data-testid="export-annotate" /> {t('export.annotate')}
+          </label>
         )}
         <div className="kerf-box" data-testid="kerf-box">
           <strong>{!kerfChoice ? t('export.kerfQuick', { k: fmtNum(d.material.kerf, 2) }) : mode === 'nominal' ? t('export.kerf', { k: fmtNum(d.material.kerf, 2) }) : t('export.kerfComp', { h: fmtNum(d.material.kerf / 2, 3) })}</strong>

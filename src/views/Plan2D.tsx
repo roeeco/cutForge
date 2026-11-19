@@ -21,6 +21,7 @@ import { validate } from '../model/validate';
 import { placeText } from './View3D';
 import { MATERIAL_COLORS, boardTintCss } from './palette';
 import { panelLabel } from '../model/names';
+import { annotations } from '../export/annotate';
 import { materialName } from '../ui/materialName';
 import { snapAngle } from './widgets';
 import { PendingBarHtml } from './panelTool';
@@ -57,6 +58,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const textDir = useStore((s) => (s.lang === 'he' ? 'rtl' : 'ltr'));
   const svgRef = useRef<SVGSVGElement>(null);
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
+  const dims = useStore((s) => !!s.viewPrefs.planDims);
+  const dashedUsed = useMemo(() => d.order.some((id) => d.panels[id]?.lines?.some((l) => l.type === 'perf' || l.type === 'cutcrease')) || Object.values(d.connections).some((c) => c.crease), [d]);
   const modeKey = solo ? `solo:${solo.id}` : 'sheets';
 
   const layout = useMemo(() => {
@@ -632,6 +635,18 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                     </text>
                   );
                 })}
+              {/* milestone 89: its blank size and where the glue goes (the names are shown above already) */}
+              {dims &&
+                annotations(d, pl.copy, (id) => panelLabel(d, id, t), t('unit.mm'))
+                  .filter((a) => a.kind !== 'name')
+                  .map((a, k) => {
+                    const r = applyX(pl.xf, a.at);
+                    return (
+                      <text key={`ann${k}`} x={r.x + pl.ox} y={pl.H - r.y} className={`plan-ann ann-${a.kind}`} fontSize={Math.max(a.size, px * 10)} textAnchor={a.kind === 'size' ? 'start' : 'middle'} pointerEvents="none" data-testid={pl.copy.copy === 0 ? `ann-${a.kind}` : undefined} direction="ltr">
+                        {a.kind === 'glue' ? t('ann.glue') : a.text}
+                      </text>
+                    );
+                  })}
             </g>
           );
         })}
@@ -742,7 +757,26 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           )}
         </div>
         {solo && <span className="solo-title">{t('solo.title', { panel: panelLabel(d, solo.id, t) })}</span>}
+        {!solo && (
+          // milestone 89: blank sizes and glue areas on the pieces
+          <button className={dims ? 'on' : ''} aria-pressed={dims} onClick={() => useStore.getState().setPrefs({ planDims: !dims })} data-testid="plan-dims">
+            {t('ann.dims')}
+          </button>
+        )}
         {!solo && <YieldBar />}
+      </div>
+      {/* milestone 89: what each colour and dash means, always */}
+      <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
+        {(['cut', 'score', 'engrave', 'guide'] as const).map((op) => (
+          <span key={op}>
+            <i style={{ background: LAYERS[op].hex }} /> {t(`ann.legend.${op}`)}
+          </span>
+        ))}
+        {dashedUsed && (
+          <span>
+            <i className="dashed" style={{ borderColor: LAYERS.cut.hex }} /> {t('ann.legend.dashed')}
+          </span>
+        )}
       </div>
       <div className="view-hint" dir={uiDir()}>
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}

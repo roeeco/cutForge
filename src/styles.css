@@ -909,3 +909,11 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .lib-deleted li { display: flex; gap: 10px; align-items: center; }
 .other-tab { position: fixed; top: 70px; inset-inline-start: 50%; transform: translateX(-50%); z-index: 50; display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-float); }
 .start .lib-back { display: inline-flex; align-items: center; width: auto; margin: 0 0 14px; padding: 6px 12px; }
+
+/* milestone 89: the cut plan's legend and annotations */
+.plan-legend { position: absolute; bottom: 64px; inset-inline-start: 96px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); font-size: 12px; color: var(--ink-muted); box-shadow: var(--shadow-soft); pointer-events: none; }
+.plan-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.plan-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.plan-legend i.dashed { height: 0; border-top: 2px dashed; background: none !important; }
+.plan-ann { fill: #0f6b3c; font-weight: 600; }
+.plan-ann.ann-glue { fill: #8a5a00; font-style: italic; }

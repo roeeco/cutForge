@@ -402,3 +402,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Two tabs**: every save is announced on a `BroadcastChannel`; a tab with the same design open shows *This design was changed in another tab: Reload · Keep mine*, and does not autosave over it until one is chosen.
 - **Undo history** stays per session and per design opened, as before (a design opened from the library starts with no history).
 - **Not yet**: thumbnails on the cards (the material's picture stands in; rendering one on every save cost too much on a slow machine), `navigator.storage.persist()`, sheet and piece counts on the cards.
+
+## Milestone 89: dimensions on the dieline (LIDS_LINES_PROJECTS_PLAN.md §9)
+- **One function, two renderers**: `annotations(d, piece)` gives a piece's board names, its blank size (overall width × height) and the word *glue* on each glue flap, in the piece's coordinates. The cut plan draws them as text behind a *Dimensions* button (remembered per browser, `ViewPrefs.planDims`); the export outlines them onto the GUIDE layer when *Add names and sizes (guide layer)* is ticked (off by default, and Quick build keeps it off), so files exported without it are byte-identical.
+- **A legend is always on the cut plan**: cut, score, engrave, guide, and the dashed lines when a design uses perforations or cut-creases.
+- **Not yet**: dimension chains crease to crease (and their fallback to per-board sizes), the grain or flute arrow, fold direction marks, the title block. They belong with the spec sheet (milestone 90), which is not built.

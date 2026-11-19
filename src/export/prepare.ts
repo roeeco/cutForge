@@ -4,7 +4,7 @@
 import type { Design, MaterialProfile } from '../model/types';
 import type { Contour, TaggedContour } from '../geom/types';
 import { flattenContour, pointInPolygon, xformContour } from '../geom/vec';
-import { pack, pieceCopies, placementXform, sheetGroups } from '../model/pack';
+import { pack, pieceCopies, placementXform, sheetGroups, type PieceCopy } from '../model/pack';
 import { offsetContour } from './offset';
 import { refitArcs } from '../geom/arcfit';
 import { pieceLabel } from './label';
@@ -76,7 +76,7 @@ function kissPanels(d: Design): Set<string> {
   return out;
 }
 
-export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels: ExportLabels = LABELS): Prepared {
+export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels: ExportLabels = LABELS, annotate?: (c: PieceCopy) => TaggedContour[]): Prepared {
   const copies = pieceCopies(d);
   const kissed = kissPanels(d);
   const placements = pack(d, copies);
@@ -108,7 +108,7 @@ export function prepareExport(d: Design, kerfMode: KerfMode = 'nominal', labels:
     // a piece with kiss-scored bends is cut inside up: mirrored in its box, with a note on the guide layer (milestone 66)
     const kiss = c.panels.some((n) => kissed.has(n.panelId));
     const flip = (tc: TaggedContour): TaggedContour => (kiss ? { ...tc, contour: xformContour({ tx: c.w, ty: 0, rot: 0, mirror: true }, tc.contour) } : tc);
-    const extra = kiss ? pieceLabel(labels.kissUp, c.w, c.h, labels.kissUpShort) : [];
+    const extra = [...(kiss ? pieceLabel(labels.kissUp, c.w, c.h, labels.kissUpShort) : []), ...(annotate ? annotate(c) : [])];
     for (const tc of [...contours.map(flip), ...extra]) g.list[pl.sheet].contours.push({ ...tc, contour: xformContour(xf, tc.contour), ref: { ...tc.ref, pieceKey: c.key } });
   }
   return {

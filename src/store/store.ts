@@ -142,6 +142,8 @@ export type ViewPrefs = {
   boxKind?: BoxKind;
   /** The grow card's *More…* (angle, joint, part of the edge, adapt, outline) is open (milestone 78). */
   growMore?: boolean;
+  /** The cut plan shows blank sizes and glue areas (milestone 89). */
+  planDims?: boolean;
   /** A board's *Edges* list is open (milestone 78; closed by default). */
   edgesOpen?: boolean;
   /** The settings card is open while there are boards and nothing is selected (milestone 78; it folds to its header by default). */
