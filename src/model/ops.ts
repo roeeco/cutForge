@@ -1449,7 +1449,7 @@ export function addPolygonPanel(d: Design, x: number, z: number, pts: P2[]): str
 }
 
 /** Next unused sketch edge id of a polygon. */
-function nextEdgeId(ids: string[]): string {
+export function nextEdgeId(ids: string[]): string {
   let n = 0;
   for (const k of ids) {
     const m = /^e(\d+)$/.exec(k);

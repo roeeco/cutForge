@@ -517,3 +517,21 @@ export type Tray = {
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
 export const SCHEMA_VERSION = 11;
+
+/**
+ * The 2D sketch model (milestone 102, ported from `claude/guided-mode`'s
+ * SKETCH_OVERHAUL.md §5.1, used by the 2D outline editing): a graph of points
+ * and segments. `SkPt.smooth`: its two curve handles stay in line. `r` / `ch`:
+ * a rounded or chamfered corner (mm), only where exactly two straight lines meet.
+ */
+export type SkPt = { x: number; y: number; smooth?: true; r?: number; ch?: number; lock?: true };
+/** A sketch segment between two points; `cons`: a construction line (never part of what is cut). */
+export type SkSeg = { a: string; b: string; cons?: true } & (
+  | { k: 'line' }
+  /** A circular arc; bulge = tan(sweep / 4), positive = counter-clockwise from a to b (the DXF convention). */
+  | { k: 'arc'; bulge: number }
+  /** A cubic Bezier; handles are offsets from their own end point. */
+  | { k: 'bez'; ha: P2; hb: P2 }
+);
+/** A 2D sketch: a graph of points and segments (a point may carry any number). `order` lists segment ids in drawing order. */
+export type SketchGraph = { pts: Record<string, SkPt>; segs: Record<string, SkSeg>; order: string[] };

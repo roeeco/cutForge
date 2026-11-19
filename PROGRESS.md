@@ -1537,6 +1537,19 @@ Verified
 Limitations
 - On a touch screen there is no hover: a tap selects the board, which then shows its points (not tried on a device).
 
+## Milestone 102 — the sketch engine and the 2D canvas ✅
+
+`DIELINE_DNA_PLAN.md` D0b-1. Nothing a student sees changes.
+- **`src/sketch/*.ts` ported unchanged from `claude/guided-mode`** (its milestones 56–59): the sketch model as a graph of points and segments (lines, arcs by bulge, cubic Beziers, construction lines, locked points), flattening, regions (holes and islands), the edit operations (split, remove, weld, fillet and chamfer corners, scale and turn a selection, mirror, align, typed lengths and angles, duplicate, stamps), snapping, hit testing, selection and the tools as pure reducers. The types `SkPt`, `SkSeg`, `SketchGraph` are in `src/model/types.ts` (not part of any design yet).
+- **`src/views/canvas2d.tsx`**: the view box (zoom about the pointer, pan, fit, kept per view), selection handles with optional side handles, the turn ring and the marquee, as one module; `Plan2D` uses it (the cut plan and the solo view behave as before).
+- **Adapters** (`src/sketch/cutforge.ts`): a root board's outline as one closed chain whose segment ids are its edge ids, and back (`graphBoard`: refused unless still one closed simple loop; every edge keeps its id where it still exists, a split edge's first piece keeps it, `insertVertex`'s rule); a shape (rectangle, rounded rectangle, circle, polygon, path with holes) as a graph in its own frame, and back as a polygon or path in its unit box, its centre and turn kept.
+- `evalNumber(text, base)` reads a percent of the value it replaces (from milestone 97).
+
+Verified
+- The ported tests: `sketchmodel`, `sketchregions`, `sketchops` (less the cases that load waffle sculptures through the 3D kernel), `sketchdraw`, `sketchedit`: 58 pass on `main`.
+- `tests/sketchAdapters.test.ts` (15): every root board of nine golden designs round-trips with the same points, curves, edge ids and exported cut; a split edge keeps its id on its first piece and the second gets a new one; a graph that is no longer one closed loop is refused with the design untouched; polygons (turned or not) and a path with a hole round-trip to the same outline in the same place; a rectangle, a rounded rectangle and a circle have the right areas.
+- Browser specs over the cut plan and the solo view (`editing`, `shapes`, `text-pack`, `split`, `templates`, `boards`): 23 passed. Unit suite and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

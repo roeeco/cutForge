@@ -488,3 +488,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Boards stay pickable in the mode** (they are inert while one outline is edited outside it), so a click on another board moves the editing.
 - **A generated Flat or Drop-in lid's outline is no longer editable** from its card: it is made again from its box (it was offered before and reset by the next change).
 - **The last board hovered keeps its faint points**: a corner sits on the board's edge, so reaching for it leaves the board.
+
+## Milestone 102: the sketch engine and the 2D canvas (DIELINE_DNA_PLAN.md D0b-1)
+- **Ported as is** with its tests, its decisions in `claude/guided-mode`'s `DECISIONS.md` (milestones 56–59) holding here too; only its tests that need the waffle's 3D kernel stay there.
+- **`canvas2d.tsx` is the branch's file**: `main`'s cut plan had the same view-box code and handles; the branch's are a superset (side handles off by default, a test-id prefix), so the cut plan is unchanged.
+- **A board's curved edge is a Bezier in its graph only as a marker**: its shape stays the board's own curve rule (`curveRing`); writing back keeps *curve* on its first point.

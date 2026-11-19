@@ -2,6 +2,7 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT } from '../store/store';
 import { YieldBar } from '../ui/SplitUI';
 import { pack, pieceCopies, placementXform, quantityOf, sheetGroups, type PieceCopy } from '../model/pack';
@@ -33,8 +34,6 @@ const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number; H: number };
 /** One sheet drawn in the cut plan: its material, its number within that material, where it sits and its size. */
 type Slot = { mat: string; profile: MaterialProfile; i: number; n: number; ox: number; W: number; H: number };
-type VB = { x: number; y: number; w: number; h: number };
-type Box = { minX: number; maxX: number; minY: number; maxY: number };
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; vb: VB }
@@ -46,8 +45,6 @@ type Drag =
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
   | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean };
 
-// view boxes survive switching views (solo → back restores the framing)
-const savedVB = new Map<string, VB>();
 
 export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const t = useT();
@@ -117,37 +114,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     const x0 = left + (availW - totalW * k) / 2, y0 = topPx + (availH - H * k) / 2;
     return { x: -x0 / k, y: -y0 / k, w: cw / k, h: ch / k };
   };
-  const [vb, setVBState] = useState<VB>(() => savedVB.get(modeKey) ?? fitVB());
-  const setVB = (v: VB | ((o: VB) => VB)) =>
-    setVBState((o) => {
-      const n = typeof v === 'function' ? v(o) : v;
-      savedVB.set(modeKey, n);
-      return n;
-    });
-  useEffect(() => setVBState(savedVB.get(modeKey) ?? fitVB()), [modeKey]);
-  // the first fit ran before the drawing had a size: fit again once it has one
-  useEffect(() => {
-    if (!savedVB.has(modeKey)) setVBState(fitVB());
-  }, []);
+  // the view box, its zoom and pan, kept per mode across remounts (src/views/canvas2d.tsx, milestone 102)
+  const { vb, setVB, svgPoint, mmPerPx, onWheel, zoom } = useViewBox(svgRef, modeKey, fitVB);
   const [label, setLabel] = useState<{ text: string; x: number; y: number } | null>(null);
   const [guides, setGuides] = useState<{ guides: Guide[]; targets: Vec2[]; placed: Placed; panelId: string } | null>(null);
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const drag = useRef<Drag | null>(null);
 
-  const svgPoint = (ev: { clientX: number; clientY: number }): Vec2 => {
-    const svg = svgRef.current!;
-    const pt = svg.createSVGPoint();
-    pt.x = ev.clientX;
-    pt.y = ev.clientY;
-    const r = pt.matrixTransform(svg.getScreenCTM()!.inverse());
-    return { x: r.x, y: r.y };
-  };
-  /** mm per screen pixel (fixed-pixel snap threshold at every zoom). */
-  const mmPerPx = () => {
-    const svg = svgRef.current;
-    if (!svg || !svg.clientWidth) return vb.w / 900;
-    return Math.max(vb.w / svg.clientWidth, vb.h / svg.clientHeight);
-  };
   const toPiece = (pl: Placed, p: Vec2): Vec2 => {
     const q = invertPoint(pl.xf, { x: p.x - pl.ox, y: pl.H - p.y });
     return { x: q.x + pl.copy.origin.x, y: q.y + pl.copy.origin.y };
@@ -359,16 +332,6 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     return out;
   };
 
-  const onWheel = (ev: React.WheelEvent) => {
-    const p = svgPoint(ev);
-    const k = Math.exp(ev.deltaY * 0.0015);
-    setVB((v) => {
-      const w = Math.min(20000, Math.max(5, v.w * k));
-      const s = w / v.w;
-      return { x: p.x - (p.x - v.x) * s, y: p.y - (p.y - v.y) * s, w, h: v.h * s };
-    });
-  };
-  const zoom = (k: number) => setVB((v) => ({ x: v.x + (v.w * (1 - k)) / 2, y: v.y + (v.h * (1 - k)) / 2, w: v.w * k, h: v.h * k }));
 
   const shapeTool = tool === 'rect' || tool === 'circle' || tool === 'roundrect';
   const ids = selectedDetailIds(sel);
@@ -709,17 +672,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             })}
           </g>
         )}
-        {marquee && (
-          <rect
-            x={Math.min(marquee.a.x, marquee.b.x)}
-            y={Math.min(marquee.a.y, marquee.b.y)}
-            width={Math.abs(marquee.b.x - marquee.a.x)}
-            height={Math.abs(marquee.b.y - marquee.a.y)}
-            className="marquee"
-            strokeWidth={px}
-            data-testid="marquee"
-          />
-        )}
+        {marquee && <Marquee a={marquee.a} b={marquee.b} px={px} />}
         {label && (
           <text x={label.x + px * 12} y={label.y - px * 12} className="dim-text" fontSize={px * 13}>
             {label.text} {t('unit.mm')}
@@ -785,50 +738,3 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   );
 }
 
-function Handles(props: { box: Box; rot?: number; toSvg: (p: Vec2) => Vec2; size: number; group?: boolean; onDown: (fixed: Vec2, corner: Vec2) => (ev: React.PointerEvent) => void }) {
-  const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = props.box;
-  // a turned shape: its corners turn about its centre
-  const a = ((props.rot ?? 0) * Math.PI) / 180, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const T = (p: Vec2): Vec2 => (a ? { x: cx + (p.x - cx) * Math.cos(a) - (p.y - cy) * Math.sin(a), y: cy + (p.x - cx) * Math.sin(a) + (p.y - cy) * Math.cos(a) } : p);
-  const corners: [Vec2, Vec2][] = (
-    [
-      [{ x: x0, y: y0 }, { x: x1, y: y1 }],
-      [{ x: x1, y: y0 }, { x: x0, y: y1 }],
-      [{ x: x1, y: y1 }, { x: x0, y: y0 }],
-      [{ x: x0, y: y1 }, { x: x1, y: y0 }],
-    ] as [Vec2, Vec2][]
-  ).map(([p, q]) => [T(p), T(q)]);
-  const pts = corners.map(([p]) => props.toSvg(p));
-  return (
-    <g className="handles">
-      {props.group && <polygon points={pts.map((p) => `${p.x},${p.y}`).join(' ')} className="group-box" strokeWidth={props.size / 9} />}
-      {corners.map(([p, fixed], i) => {
-        const s = pts[i];
-        return (
-          <rect
-            key={i}
-            x={s.x - props.size / 2}
-            y={s.y - props.size / 2}
-            width={props.size}
-            height={props.size}
-            className="handle"
-            onPointerDown={props.onDown(fixed, p)}
-            data-testid={`${props.group ? 'ghandle' : 'handle'}-${i}`}
-          />
-        );
-      })}
-    </g>
-  );
-}
-
-/** Rotation ring around the selected shapes (cut plan and face-on view): drag it to turn them (15° steps, Shift 1°, Alt free). */
-function RotRing(props: { centre: Vec2; r: number; px: number; onDown: (ev: React.PointerEvent) => void }) {
-  const { centre: c, r, px } = props;
-  return (
-    <g className="rot-ring-g">
-      <circle cx={c.x} cy={c.y} r={r} className="rot-ring" strokeWidth={px * 2} />
-      <circle cx={c.x} cy={c.y} r={r} className="rot-ring-hit" strokeWidth={px * 14} onPointerDown={props.onDown} data-testid="rot-ring" />
-      <circle cx={c.x} cy={c.y - r} r={px * 6} className="rot-knob" onPointerDown={props.onDown} data-testid="rot-knob" />
-    </g>
-  );
-}
