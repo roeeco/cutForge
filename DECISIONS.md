@@ -498,3 +498,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Alt keeps both meanings** in the 2D frame: scale about the middle (the branch's frame) and no smart snapping (CutForge's Alt everywhere).
 - **The direction moved furthest leads** when proportions are kept (the branch's rule), so a corner drag never shrinks the side being pulled.
 - **Pills drawn in the sheet** (`foreignObject`), at screen size, beside the frame's bottom and right; a click opens the input (not the press: the branch's lesson).
+
+## Milestone 100: verification of the sentence (SENTENCE_BUILDER_PLAN.md S7)
+- **A lower limit that follows an earlier word**: the stand's base depth comes after its slots, so a change of slots moves the base up to what they need, and the base cannot be typed shallower than that.
+- **Every structure refuses what would not cut clean** (`accepts`), the stand included: a structure's own number ranges cannot say everything (a sheet, a grain, a fold that does not fit), so the whole sentence is built and checked.

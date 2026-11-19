@@ -1565,6 +1565,18 @@ Verified
 Limitations
 - The 3D gizmo's handles are unchanged (its card's sizes follow *Keep proportions*).
 
+## Milestone 100 — verification of the sentence (94–99) ✅
+
+`SENTENCE_BUILDER_PLAN.md` S7.
+- **The random walks at length**: 40 walks of 12 steps through every structure in every material that lists it (the box and the tray in all four, the carton in card and corrugated 1.6, the sleeve in card and both corrugated, the card stand in all four): over 8,000 steps, each built and checked. The box, tray, carton and sleeve passed. The card stand (walked from this milestone) did not at first: its slots could be more than a shallow base holds after a change of the base, and its sizes could pass a sheet. Fixed: the base's depth now starts at what its slots need (a limit that follows the slots), and the stand refuses a change the engine would not cut clean (`accepts`), as the other structures do. Re-walked: no failure.
+- Unit suite and typecheck green; goldens byte-identical; `sentence.spec`, `sentence-card.spec`, `start-sentence.spec`, `templates.spec` pass. `classroom.spec` needs the Worker and was not run (the start of its designs goes through the test hook since milestone 98).
+- In the dev server, in both languages, every structure the sentence lists in card and plywood started from the sentence and was ready to cut (no blocking issue), with no page error.
+- `README.md` describes the sentence and the size intent.
+
+Needs the owner
+- The Hebrew sentences (`sen.*`) read by a native speaker (the owner said they will check them); the word *קרטון* for *a carton* in particular.
+- Whether the welcome screen's default sentence should be the plan's example (a box with a lid that lifts off, 3 × 2 spaces) rather than a plain box.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

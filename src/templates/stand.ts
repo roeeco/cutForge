@@ -69,7 +69,9 @@ export const stand: TemplateDef = {
     const t = m.thickness;
     let n = 1;
     while (n < 8 && standLayout(t, Number(p.cardThickness), Number(p.angle), n + 1).reach <= Number(p.baseDepth) - t) n++;
-    return { slots: { max: n, why: 'sen.why.standDepth' } };
+    // and the base at least as deep as its slots need (the base comes after the slots in the sentence, so it follows them)
+    const need = standLayout(t, Number(p.cardThickness), Number(p.angle), Math.max(1, Math.round(Number(p.slots)))).reach + t;
+    return { slots: { max: n, why: 'sen.why.standDepth' }, baseDepth: { min: Math.ceil(need * 10) / 10 } };
   },
   check(d, p) {
     const { reach } = standLayout(d.material.thickness, Number(p.cardThickness), Number(p.angle), Math.round(Number(p.slots)));
