@@ -4,7 +4,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 **Read first.**
 - **Base: `origin/main` at `3709043` (milestone 91).** Milestones 74–91 (`ROADMAP.md`) landed between the first draft and this one: lines and crease styles, the grow card that closes a box, the lid generator, the library, projects, sizes, the dieline legend and the spec sheet. §0 lists what that changes in this plan; the milestone sections are corrected in place and marked **(rebased)** where they changed. Do not build on `claude/waffle-mode` or `claude/guided-mode`. Line numbers drift: grep for the name before editing.
-- **Numbers.** `main` ends at 91. These get real numbers from 92 in the order of §5 (D0 = 92, D0b-1 = 93, D0c = 94, D0b-2 = 95, D3a = 96 …); D4, D6 and D7 get theirs when the owner says go. Keep the D names in commit messages too (`Milestone 96 (Dieline D3a): the edge-feature registry`).
+- **Numbers.** `main` ends at 91. **`ROADMAP.md` §5 holds the real numbers** (92–111), ordering these milestones with `GUIDED_MODE.md`'s G1–G7; this file names them D0–D10. D4, D6 and D7 get numbers when the owner says go. Commit messages carry both (`Milestone 104 (Dieline D3a): the edge-feature registry`).
 - **How deeply each part was checked.** First draft: `Plan2D.tsx`, `geometry.ts`, `pieces.ts`, `foldView.ts`, `export/*`, `store.ts`, `Inspector.tsx`, `EdgeBar.tsx`, `features.ts`, `fix.ts`, the golden harness. Rebase: the diff `1c4cb96..3709043` (96 files), `PROGRESS.md` and `DECISIONS.md` for 73–91, and the names this plan calls re-grepped on `3709043` (`View`, `ONLY_3D`, `Inspector.tsx` edge card, `TopBar` tabs, `App.tsx` view switch, `Plan2D` layout and props, `pieceCopies`, `adapt.ts`, `pieces.ts`, `extrasByPanel`, `flapOn`, `three-geom.ts` flat adds, `reachFor`, `MATERIALS`, `sizes.ts`, `annotate.ts`, `spec.ts`, `offset.ts`, `download.ts`, `split.ts`, `nest.ts`, `goldenDesigns.ts`, `EdgeBar`'s grow and flap blocks, `easy/lid.ts`).
 
 ## 0. What changed on `main` since the first draft (rebase notes)
@@ -99,7 +99,7 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 
 ## 4. Rules for whoever builds this
 
-1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 92 (Dieline D0): outline mode`. Do not deploy. Never touch `SITE_PASSWORD`.
+1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 93 (Dieline D0): outline mode`. Do not deploy. Never touch `SITE_PASSWORD`.
 2. After each milestone: `npm run typecheck`, `npm test`, `tests/netIn3d.test.ts` and `tests/quickTable.test.ts` green, and a short look in the dev server (`npm run dev`, port 5199). Run the milestone's own browser spec only; not the full e2e suite or the `SHOTS` specs.
 3. **Golden exports stay byte-identical** unless the milestone lists a new or changed case. Regenerate only with `UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts`. New cases are functions in `tests/goldenDesigns.ts`.
 4. Every stored field added is optional, accepted in `src/model/check.ts`, and absent means today's behaviour. Bump `SCHEMA_VERSION` only if a stored value changes meaning (none here should).
@@ -111,24 +111,25 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 
 ## 5. Milestones
 
-**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b-1, D0b-2, D3, D1, D8**.
+**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b-1, D0b-2, D3, D1, D8**. Guided's G1–G7 sit between D5a and D3 (`ROADMAP.md` §5).
 
-| # | Number | Milestone | Size | Needs | Value / risk |
+| # | Number (`ROADMAP.md` §5) | Milestone | Size | Needs | Value / risk |
 | --- | --- | --- | --- | --- | --- |
-| D0 | 92 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
-| D0b-1 | 93 | **The sketch engine and the 2D canvas**, ported from `claude/guided-mode` (§0b) | M | — | No change a student sees; goldens byte-identical |
-| D0c | 94 | **The transform frame** in 2D (side handles, keep proportions, percent) | S | D0b-1 | From the branch's scale frame |
-| D0b-2 | 95 | **Edit outlines in the 2D view**: double-click into a board, then into a shape | M–L | D0b-1 (and D0 for the mode) | No point editing exists in 2D today, for shapes, boards or lines |
-| D3 | 96 (a), 97 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
-| D1 | 98 | The Net view: see and pick | M | D0b-1 (`useViewBox`) | The flat workspace; risk: a second canvas on Chromebooks |
-| D2 | 99 | Building in the flat | M | D1 (and D0b-2 for outline handles in the flat) | |
-| D8 | 100 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
-| D5 | 101 | Size intent and board grades | M | — | Must work with milestone 88's sizes |
-| D9 | 102 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
+| D0 | 93 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
+| D0b-1 | 94 | **The sketch engine and the 2D canvas**, ported from `claude/guided-mode` (§0b) | M | — | No change a student sees; goldens byte-identical |
+| D0c | 95 | **The transform frame** in 2D (side handles, keep proportions, percent) | S | D0b-1 | From the branch's scale frame |
+| D0b-2 | 96 | **Edit outlines in the 2D view**: double-click into a board, then into a shape | M–L | D0b-1 (and D0 for the mode) | No point editing exists in 2D today, for shapes, boards or lines |
+| D5a | 97 | **Size intent** (*Outside · Inside · Crease to crease*) | S–M | — | Guided's G4 needs it; must work with milestone 88's sizes |
+| D3 | 104 (a), 105 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
+| D1 | 106 | The Net view: see and pick | M | D0b-1 (`useViewBox`) | The flat workspace; risk: a second canvas on Chromebooks |
+| D2 | 107 | Building in the flat | M | D1 (and D0b-2 for outline handles in the flat) | |
+| D8 | 108 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
+| D5b | 109 | Board grades | S | — | Data and a drawer list |
+| D9 | 110 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
 | D4 | — | Closures anywhere | M | D3; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
-| D6 | — | The style catalogue, and starting from the product | M | D4, D5; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
+| D6 | — | The style catalogue, and starting from the product | M | D4, D5a, Guided's G3 registry; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
 | D7 | — | Fold along a line | L | D2; the spike | Highest risk |
-| D10 | 103 | Final verification | S | all built | |
+| D10 | 111 | Final verification (with Guided's) | S | all built | |
 
 ---
 
@@ -159,7 +160,7 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 **Shell**
 - The toggle sits in the view cluster beside `toggle-joints`, with the same style (`stage-toggle`). Test id `toggle-outline`, icon `polygon`, label key `view.outlineMode` (*Outlines* / *קווי מתאר*). A keyboard key only if one is free (check `src/store/hooks.ts` and `polyTool` first; `O` is ortho).
 - The card's `edit-outline` button stays for one board at a time. While the mode is on, it reads *Editing (outline mode)* and is disabled, and `PointCurve` shows for the edited board as today.
-- Features: `'outline.mode'`, `'hide'` in Quick build (Quick build has no *Edit outline* today; check `SECTIONS` and keep it consistent).
+- Features (every one in this plan is also `'hide'` in Guided, which takes Quick build's state unless it lists its own): `'outline.mode'`, `'hide'` in Quick build (Quick build has no *Edit outline* today; check `SECTIONS` and keep it consistent).
 - The tour and missions: no change. Check that `startTour` turns the mode off as it turns joints off (`store.ts`, about line 413).
 
 **In 2D:** the mode carries to the solo view and *Nets* through D0b-2 (a single click enters what is clicked).
@@ -196,6 +197,7 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 
 **Goal.** A shape (or several) selected in the 2D view scales the way the branch's frame does (§0b). `main` has four corner handles, a turn ring, and no proportions control.
 
+- Feature `'transform.sides'` (`'show'` in Quick build and Workshop, `'hide'` in Guided, whose Decorate keeps corners and the turn knob only).
 - `Plan2D` uses `Handles` with `side` for shapes: corners scale two directions, sides one. Shift or **Keep proportions** (`viewPrefs.keepRatio`, saved per browser, a switch on the shape's card beside its W / H fields) scales alike; Alt about the middle. Every move previews from the drag's start (`preview` from the transaction base, never accumulating) and commits once; Esc cancels.
 - **W and H pills** on the frame, typed as a size, a sum or a percent (`evalNumber` with `base`); the card's W / H fields take the same.
 - **One kind of handle at a time** (the branch's lesson): the frame shows scale handles, and the turn ring appears only beyond the corners (as `RotRing` does now) or on a *Turn* choice if both crowd a small shape. Below about 24 px on screen, only the move hit area and the pills show.
@@ -422,7 +424,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **Tests**
 - `tests/edgefeatures.test.ts`: the registry returns for `v6CorrFoldover()` exactly what `allFoldOvers` gave; goldens unchanged (all of them, including the lid and lines goldens of 79–83).
-- **Split (rebased):** step 1 is its own commit and milestone number (96); steps 2–5 are 97.
+- **Split (rebased):** step 1 is its own commit and milestone number (104); steps 2–5 are 105.
 - `tests/flapshapes.test.ts`: each shape's outline area, far-edge width and score ends for a 60 mm edge on card; a tuck flap's inset is t + 0.5; a hang tab has a hole and no score; a plain flap equals `flapOn`; `hinged` at foldT 0 lies in the board's plane (its points equal the net's added outline) and at 1 is turned by its angle about the score.
 - New goldens: `flap-card-tuck-dust` (a hand-built lid with a tuck flap and two dust flaps), `flap-card-hang`.
 
@@ -449,9 +451,11 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 ---
 
-### D5. Size intent and board grades
+### D5. Size intent (D5a) and board grades (D5b)
 
-**Size intent**
+**(rebased)** Split in two: **D5a** is *Size intent* below, and comes early because Guided's G4 sizes every box by its inside through `boxSize` / `setBoxSize`; **D5b** is *Board grades*, independent, later. Guided also needs `setBoxSize` to leave each divider at its distance from the side that does not move (G4 checks it); put that rule in `setBoxSize`, not in Guided's wrapper, so Workshop's card gets it too.
+
+**Size intent (D5a)**
 - `Design.sizeAs?: 'outside' | 'inside' | 'crease'` (absent: outside).
 - New **`src/model/boxSize.ts`** **(rebased: `sizes.ts` is milestone 88's)**:
   ```ts
@@ -470,7 +474,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 - Features: `'size.as': 'hide'`. The spec sheet's title block (`specPage` in `src/export/spec.ts`, milestone 90) prints the intent with the sizes.
 - **(rebased) Milestone 88's sizes.** A size row (`BoxSize.w / d / h`) is read in the design's intent: `applySize` sets the box through `setBoxSize(…, d.sizeAs)` instead of `setPanelSize` / `setTrayHeight`, so *S · M · L* typed as inside sizes stay inside sizes. The *Sizes* section's column headers say the intent (*Inside width* …). Changing `sizeAs` does not rewrite the rows: it changes what they mean, so the switch asks (*Keep the numbers* / *Keep the boxes*) when the design has rows. Add cases to `tests/sizes.test.ts` (88) for this, and keep its existing four unchanged.
 
-**Board grades**
+**Board grades (D5b)**
 - New `src/model/boards.ts`: `BOARD_GRADES: MaterialProfile[]`, each with a `kind` so every rule keyed on kind still applies. Start with: folding boxboard 0.3, 0.4, 0.6 mm; greyboard 1, 1.5, 2 mm; corrugated E flute 1.6, B flute 3, C flute 4, double wall 7 mm; plywood 4 and 6 mm. Kerf, clearance and fold allowance: scale from the nearest built-in profile of the same kind by thickness; `bend` left absent so `bendDefaults` applies.
 - `MaterialDrawer.tsx`: *More boards…* opens the list grouped by kind; choosing one calls the same path as a built-in material. Each row carries the note the drawer already has about trying values on scrap.
 - Names under `mat.grade.*` in both languages.
@@ -487,6 +491,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **(rebased) Wait for the owner.** `ROADMAP.md` §4 leaves *a library of packaging styles, start from the product* for later: Quick build's *Kind* (*Open box · With a lid · Carton*) covers the first styles. If it goes ahead, the recipes call what Quick build calls (`setBoxLid`, the carton path of `src/easy/recipes.ts`) so both modes make the same box. Do not add a second way to make a carton.
 
+- **(rebased) One registry with Guided.** Guided's G3 makes `src/guided/things.ts` (`{ id, title, blurb, materials, start(material) }`) for its gallery. If D6 goes ahead, move that registry to `src/easy/things.ts` and make a style a thing with a size and an optional trade code, rather than a second list; Workshop's *Packaging styles* row and Guided's gallery then read one list.
 - New `src/model/styles.ts`:
   ```ts
   export type CartonStyle = {
@@ -511,7 +516,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
   | Mailer | a tray with a cut base; fold-overs with lock tabs on the two side walls (`addFoldOver`); a lid off the back wall closing with a tab lock; a *dust* flap (D3) on each side edge of the lid |
   The first four are already golden designs: move their builders out of the test file into `styles.ts` and have `goldenDesigns.ts` call them, so the goldens prove nothing changed.
 - Start screen (`src/ui/StartScreen.tsx`, below *Your designs* from milestone 86): a row *Packaging styles* of picture cards; choosing one asks for width, depth, height (in the design's size intent, default *Inside* for styles) and the board, then builds. Workshop only unless the owner says otherwise.
-- **Starting from the product.** `Design.contents` already holds what goes inside a box (milestone 40). New `fitToContents(d, trayId, room)` in `boxSize.ts`: the contents' box plus `room` all round becomes the inside size. A button on the box's card when it has contents: *Fit the box to what's inside* (`fit-to-contents`), with a room field (default 2 mm).
+- **Starting from the product.** `Design.contents` already holds what goes inside a box (milestone 40). **(rebased)** Guided's G4 builds `fitContent(d, contentId)` (grow one space by what is missing); `fitToContents` is its whole-box cousin and goes beside it, both calling `setBoxSize`. New `fitToContents(d, trayId, room)` in `boxSize.ts`: the contents' box plus `room` all round becomes the inside size. A button on the box's card when it has contents: *Fit the box to what's inside* (`fit-to-contents`), with a room field (default 2 mm).
 - Trade codes: put the candidate codes in the table with `checked: false`. Do not show one until the owner has confirmed it against the current ECMA or FEFCO code book.
 
 **Tests** (`tests/styles.test.ts`): every style, in every material it lists, at three sizes: solves, one piece where the table says so, export check clean, lies flat (`netOverlaps` empty). `fitToContents` leaves the stated room on every side. Goldens: byte-identical for the four moved builders; new `style-corr-mailer`.
@@ -693,7 +698,7 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | `LIDS_LINES_PROJECTS_PLAN.md` / `ROADMAP.md` (74–91, built) | D7 builds on lines (83–84); D8 on crease styles (85), `annotate` (89) and the spec sheet (90); D5 must work with sizes (88). Their §15 / §4 *Fold along a drawn line* is D7. `ROADMAP.md` §4 defers D4's item 1 and D6. |
 | `PACKAGING_AND_LEARNING.md` (on `main`) | Its 48 (styles) and 49 (start from the product) are D6; its 54's artwork guide is D8. Its learning milestones (50–53) are untouched. |
 | `UI_CLEANUP_PLAN.md` | Changes the rail and the grow card. Build it first if both are going ahead: D2 then calls whatever the grow card has become. |
-| `GUIDED_MODE.md` | Quick build only. This plan is Workshop only (decisions 1 and 10, open question 1). |
+| `GUIDED_MODE.md` (G1–G7, brought over from `claude/guided-mode`) | Ordered with this plan in `ROADMAP.md` §5. Shared: D5a's inside sizes (G4), the solo view (G5 beside D0b / D0c), *Make it fit* (G4 beside D6), the things registry (G3, extended by D6). Every control here is `'hide'` in Guided. |
 | `claude/waffle-mode` (49–60) | Independent. Its 2D sketch workspace is for sculptures; the Net view is `Plan2D`. Do not merge the two editors. |
 
 ## References in the code (`origin/main` at `3709043`)

@@ -1,4 +1,4 @@
-# CutForge: one roadmap for the plans of 17–18 November (milestones 74–91)
+# CutForge: one roadmap (milestones 74–91 from the plans of 17–18 November; 92–111 from those of 19 November, §5)
 
 Written 2026-11-18, after milestone 73. Three plans were committed within two days, each written from a different `main`:
 
@@ -89,7 +89,7 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 
 | Item | From | Why it waits |
 | --- | --- | --- |
-| **Levels** (*Guided · Open · Workshop*) in place of the two modes | packaging-and-learning 45 | The owner asked for a *less busy* interface; a third mode and a *Tools* popover add controls. The feature table already groups by feature, so levels can be added later without undoing anything (lids plan §10.8). Undecided in both plans. |
+| **Levels** (*Guided · Open · Workshop*) in place of the two modes | packaging-and-learning 45 | **Taken up on 19 November** as *Guided · Quick build · Workshop* (`GUIDED_MODE.md`, §5 below). The proposal's unlockable groups of features stay here. |
 | **Briefs instead of checklists**, hint ladders, predict-then-check | packaging-and-learning 50 | A teaching decision (stars, what counts as a goal) the owner has not taken. The *Escape box* mission (82) is written so that it can become a brief. |
 | **Guardrails that teach** (*Prevent · Warn · Off*), why cards, glossary | packaging-and-learning 51 | Changes Quick build's founding decision *Prevent, don't report* (`EASY_MODE.md`); needs the owner. |
 | **Design journal, reflection, teacher feedback** | packaging-and-learning 52 | Needs Worker and database changes and a privacy review; nothing in the owner's notes asks for it. *Variants* is covered by projects (87). |
@@ -105,3 +105,59 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | **The Inset lid** | lids plan §3.2 | Needs tray walls standing in from their base's edge by more than the tab-and-slot offset, with finger joints (the plan's risk 2). Cap, Flat and Drop-in cover the need meanwhile (milestones 79–80). |
 | **Boxes built from boards** (no tray) closing with a grown lid | cleanup Part 5.3 | Needs one answer to "what is a box" shared with the lid generator. |
 | `PRESETS_PLAN.md`, `IMAGES_ON_BOARDS.md`, the waffle branch | older branches | Not part of this round. The lids plan §16 says how each meets this work. |
+
+## 5. Milestones 92–111: the plans of 19 November
+
+Two plans were written on 19 November, each first from `main` at `1c4cb96` (milestone 73), and both rebased onto `3709043` (milestone 91):
+
+| Plan | Came from | Milestones |
+| --- | --- | --- |
+| `GUIDED_MODE.md` | `claude/guided-mode` (only the plan and the mock-ups in `docs/guided-mockups/` were brought over; the branch's waffle and sculpt code stays on PR #6) | G1–G7: a first level, *Guided*, below Quick build |
+| `DIELINE_DNA_PLAN.md` | this branch; takes the sketch engine, the 2D canvas and the scale frame from `claude/guided-mode` (its §0b) | D0–D10: editing in 2D, the flat workspace, flaps, sizes, artwork, production |
+
+The two plans name their milestones by letter; **this table is the only place that numbers them.** The rules of §1 still settle conflicts, with one more: **4b. A level never sees another level's controls by accident**: every new feature row says its state in Guided, Quick build and Workshop.
+
+### 5.1 Order
+
+| # | Milestone | Plan | Why here |
+| --- | --- | --- | --- |
+| **92** | **What Quick build left half-done**: an unconfirmed draft is never saved; template sizes keep the dividers where they were put; the too-big fix ends clean; no Board-tool hint in Quick build | Guided G1 | Rule 1.2, bugs first. The first two were re-checked on `3709043`: `useAutosave` still saves the design while a ghost is pending, and `regenerate` still has no divider step. It also makes milestone 88's sizes of a template keep their dividers. |
+| **93** | **Outline mode** | Dieline D0 | The owner's request; small |
+| **94** | **The sketch engine and the 2D canvas** (ported) | Dieline D0b-1 | No visible change; 96, 101 (Decorate's face-on view) and 106 build on its `canvas2d` |
+| **95** | **The transform frame in 2D** | Dieline D0c | Small; `transform.sides` hidden in Guided |
+| **96** | **Edit outlines in the 2D view** | Dieline D0b-2 | The owner's request; `edit2d` hidden in Guided |
+| **97** | **Size intent** (*Outside · Inside · Crease to crease*) | Dieline D5a | Guided's Build sizes by the inside through it |
+| **98** | **The mode and the shell** | Guided G2 | |
+| **99** | **Things and the gallery** | Guided G3 | |
+| **100** | **Build** | Guided G4 | Uses 97 |
+| **101** | **Decorate** | Guided G5 | In the solo view as refactored by 94 |
+| **102** | **Send** | Guided G6 | Uses *Print a plan* (90) and *Use less board* (73) |
+| **103** | **Guided becomes the way in** | Guided G7 | A new browser and a new class start in Guided |
+| **104** | **The edge-feature registry** | Dieline D3a | No output change |
+| **105** | **Shaped flaps** (tuck, dust, glue, hang) | Dieline D3b | |
+| **106** | **The Net view** (*Sheets · Nets* in the cut plan) | Dieline D1 | |
+| **107** | **Building in the flat** | Dieline D2 | |
+| **108** | **The artwork template** (PDF and SVG) | Dieline D8 | |
+| **109** | **Board grades** | Dieline D5b | |
+| **110** | **Production**: nicks, fill the sheet, cost | Dieline D9 | |
+| **111** | **Verification of 92–110** | both (D10, and Guided's final check in G7) | |
+| — | Closures anywhere; the style catalogue; fold along a line | Dieline D4, D6, D7 | Wait for the owner (`DIELINE_DNA_PLAN.md` §7, questions 8 and 9) and D7's spike |
+
+If the owner wants Guided sooner, 98–103 can move up to follow 92 and 97 directly; nothing in 93–96 is needed by them except 94's canvas refactor for 101 (Decorate), which can rebase either way.
+
+### 5.2 Where the two plans meet, and how each meeting is settled
+
+| # | Topic | Guided says | Dieline says | Settled |
+| --- | --- | --- | --- | --- |
+| 1 | Numbers | 87–93 | 92–103 | Both were taken or overlapping; §5.1 numbers both. |
+| 2 | Inside sizes | `insideSize` / `setInsideSize` in `src/guided/box.ts` | `boxSize` / `setBoxSize` with `Design.sizeAs` in `src/model/boxSize.ts` (D5a) | **One meaning of inside**: D5a's functions; Guided's are thin wrappers. *Divider keeps its distance from the side that did not move* goes in `setBoxSize`, so Workshop gets it too. D5 is split so D5a comes before Guided. |
+| 3 | The face-on view | Decorate in the solo view: corner handles and a turn knob, no double-click, no modifier keys | D0b-1 refactors that view (`canvas2d`); D0c adds side handles and *Keep proportions*; D0b-2 adds double-click editing | Both, gated: `transform.sides` and `edit2d` are `'hide'` in Guided. Guided's Decorate gets the refactor for free. |
+| 4 | *Make it fit* | `fitContent(d, contentId)`: grow one space by what is missing | D6 `fitToContents(d, trayId, room)`: the whole box round its contents | Both, side by side, both through `setBoxSize`; Guided's is built first (100). |
+| 5 | A list of things to start from | G3's `things.ts` for the gallery | D6's `STYLES` on the start screen | **One registry.** Built by Guided (99); D6, if the owner says go, extends it with sizes and trade codes rather than adding a second list. |
+| 6 | Feature table | A second table of states for Guided; a feature it does not list takes Quick build's | Every new control `'hide'` in Quick build | Every dieline control is then `'hide'` in Guided too; rule 4b asks each new row to say so. `quickTable.test.ts` checks both modes from 98. |
+| 7 | Ghost and ✓ | Not used in Guided | D2's grow in the flat uses the ghost | *Nets* (`plan.nets`) is hidden in Guided, so no conflict. |
+| 8 | Lid kinds | "join the Lid row when built" | — | Built (79–82). Guided always uses *Automatic*; no hasps. |
+| 9 | Coming back to a design | *Keep working on …*, then *Your designs* "when 81 is built" | — | Built as 86: the gallery leads with the newest designs. |
+| 10 | Start screen | Gallery replaces `StartScreen` in Guided | D6's *Packaging styles* row on `StartScreen` (Workshop) | Separate screens, one registry (row 5). |
+| 11 | Levels in §4 | Takes up *Levels* | — | §4's row now says so. |
+| 12 | The branch's code | Guided does not need the waffle | D0b-1 ports `src/sketch/*` and `canvas2d.tsx` | **No git merge of `claude/guided-mode`.** It forked at milestone 43 (`c47c273`), 48 milestones behind; a merge conflicts in 14 files and would mark the waffle commits merged under PR #6. Files are brought over by path, with the branch named in the commit. |
