@@ -1361,6 +1361,11 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `lines.test.ts`: a card tray's fold as a perforation and a cut-crease puts dashes on CUT and no score, and back to a score; saved and opened unchanged. `quickTable.test.ts`: `crease` is chosen by the app in Quick build. Every golden byte-identical.
 - Not yet: the design-wide choice, creases on the back.
 
+## Milestone 86 — the library ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §7.1 and §8 (milestone 81 there). Designs are kept in the browser, listed on the start screen as *Your designs* (open, duplicate, rename, delete and restore), reached from the project menu; *New design* keeps the open one; two tabs on one design never overwrite each other silently.
+- Tests: `tests/library.test.ts` (3, `fake-indexeddb`): a design saved before the library opens first and is listed; ten designs list newest first from their cards and the last open one opens; duplicate, rename, delete and restore. Browser `library.spec.ts` (2): New keeps the open design, the library lists, opens, duplicates, renames, deletes and restores, a reload opens the open design; a change in a second tab shows the notice and *Reload* takes it.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -1,8 +1,9 @@
+import { storeDesign } from '../store/persist';
 import { useEffect, useRef, useState } from 'react';
 import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
-import { createDesign } from '../model/ops';
+import { duplicateDesign, createDesign } from '../model/ops';
 import { parseProject, serializeProject, ProjectError } from '../model/serialize';
 import { downloadText, safeName } from './download';
 import { Icon, Logo } from './icons';
@@ -94,11 +95,26 @@ export function TopBar() {
             <button
               role="menuitem"
               onClick={item(() => {
-                if (!d.order.length || confirm(t('dlg.newConfirm'))) useStore.getState().replaceDesign(createDesign(d.material), true);
+                // the open design stays in the library (milestone 86): nothing to confirm
+                useStore.getState().replaceDesign(createDesign(d.material), true);
               })}
               data-testid="new-design"
             >
               <Icon name="file" /> {t('top.new')}
+            </button>
+            <button role="menuitem" onClick={item(() => useStore.setState({ needsMaterial: true }))} data-testid="menu-designs">
+              <Icon name="open" /> {t('lib.menu')}
+            </button>
+            <button
+              role="menuitem"
+              onClick={item(async () => {
+                const c = duplicateDesign(d, t('lib.copySuffix'));
+                await storeDesign(c).catch(() => undefined);
+                useStore.getState().replaceDesign(c, false);
+              })}
+              data-testid="menu-duplicate"
+            >
+              <Icon name="copy" /> {t('lib.duplicate')}
             </button>
             {/* the first-use tour (milestone 43): the same confirm as New design guards the current work */}
             {TOUR_OFFERED && !(s.viewPrefs.modeLocked && mode === 'quick') && (

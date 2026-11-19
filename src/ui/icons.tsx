@@ -102,6 +102,7 @@ const P: Record<string, ReactElement> = {
     </>
   ),
   trash: <path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" />,
+  pencil: <path d="M4 20l1-4L16 5l3 3L8 19Zm10-13 3 3" />,
   copy: (
     <>
       <rect x="8" y="8" width="11" height="11" rx="1.5" />

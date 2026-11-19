@@ -192,6 +192,8 @@ type State = {
   shapeNote: 'onBoard' | null;
   /** Lids shown shut (milestone 76), by their box's tray: a lid of its own put on its box, a folded lid closed. View only, not saved. */
   lidShut: Record<string, boolean>;
+  /** Another tab saved the design open here (milestone 86): autosave waits until Reload or Keep mine. */
+  otherTab?: boolean;
   /** Put a box's lid on (or close it), or take it off (open it). */
   setLidShut: (trayId: string, shut: boolean) => void;
   /** Quick build: the tool each action last used (a hole's shape, text or a sticker). */

@@ -41,6 +41,14 @@ export function newId(prefix: string): string {
   return `${prefix}_${rnd}${counter.toString(36)}`;
 }
 
+/** A copy of a design to keep beside it (milestone 86): a new id, its name marked as a copy. */
+export function duplicateDesign(d: Design, suffix: string): Design {
+  const c = structuredClone(d) as Design;
+  c.id = newId('d');
+  c.name = `${d.name || ''} ${suffix}`.trim();
+  return c;
+}
+
 export function createDesign(material: MaterialProfile = DEFAULT_MATERIAL): Design {
   return {
     schemaVersion: SCHEMA_VERSION,

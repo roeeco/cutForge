@@ -893,3 +893,19 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .sub-toggle .count { font-weight: 600; opacity: 0.7; }
 /* the view settings open just above the view buttons, over the cube's slot (milestone 78) */
 .view-dock > .popover { bottom: 56px; }
+
+/* milestone 86: the library on the start screen, and the other-tab notice */
+.library { margin: 4px 0 18px; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.lib-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+.lib-open { all: unset; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 10px; }
+.lib-open:hover { background: var(--surface-sunk); }
+.lib-open .art { width: 44px; height: 44px; flex: none; display: grid; place-items: center; }
+.lib-open .cap { display: flex; flex-direction: column; min-width: 0; }
+.lib-open .cap strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-open .cap small { color: var(--ink-muted); }
+.lib-actions { display: flex; gap: 2px; justify-content: flex-end; padding: 2px 6px 6px; }
+.lib-deleted { margin: 6px 0 0; padding-inline-start: 18px; }
+.lib-deleted li { display: flex; gap: 10px; align-items: center; }
+.other-tab { position: fixed; top: 70px; inset-inline-start: 50%; transform: translateX(-50%); z-index: 50; display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-float); }
+.start .lib-back { display: inline-flex; align-items: center; width: auto; margin: 0 0 14px; padding: 6px 12px; }

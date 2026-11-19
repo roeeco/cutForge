@@ -5,7 +5,8 @@ import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
 import { TEMPLATES, defaults, generate, templateById } from '../templates/registry';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
-import { setMaterial } from '../model/ops';
+import { createDesign, setMaterial } from '../model/ops';
+import { Library } from './Library';
 import type { MaterialProfile } from '../model/types';
 import { Icon, Logo } from './icons';
 import { MaterialArt } from './MaterialArt';
@@ -75,6 +76,8 @@ export function StartScreen() {
   const setLang = useStore((s) => s.setLang);
   const [matId, setMatId] = useState(DEFAULT_MATERIAL.id);
   const [tpl, setTpl] = useState('');
+  // opened from the project menu over a design: a way back to it
+  const back = useStore((s) => s.design.order.length > 0);
   // the first-use tour (milestone 43): a card until it was taken or ended, then a link; not when the class locks Quick build
   const [toured] = useState(tourDone);
   const tourOk = useStore((s) => TOUR_OFFERED && !(s.viewPrefs.modeLocked && s.viewPrefs.mode === 'quick'));
@@ -92,7 +95,10 @@ export function StartScreen() {
     const tp = effTpl && templateById(effTpl);
     if (ms) s.replaceDesign(startMission(ms, mat), false);
     else if (tp) s.replaceDesign(generate(tp, mat, defaults(tp)), false);
-    else {
+    else if (s.design.order.length) {
+      // from the library with a design open: a new one beside it (the open one is saved)
+      s.replaceDesign(createDesign(mat), false);
+    } else {
       s.apply((d) => setMaterial(d, mat));
       useStore.setState({ past: [], future: [], needsMaterial: false });
     }
@@ -110,6 +116,13 @@ export function StartScreen() {
         </button>
       </div>
       <h1 id="start-title">{t('start.title')}</h1>
+      {/* milestone 86: the designs kept in this browser, above starting a new one */}
+      <Library />
+      {back && (
+        <button className="lib-back" onClick={() => useStore.setState({ needsMaterial: false })} data-testid="lib-back">
+          {t('lib.back')}
+        </button>
+      )}
       <p className="lead">{t('mat.chooseHelp')}</p>
 
       {tourOk && !toured && (

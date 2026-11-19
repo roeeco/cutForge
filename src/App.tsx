@@ -1,3 +1,5 @@
+import { openFromLibrary } from './ui/Library';
+import { saveLocal } from './store/persist';
 import { useEffect, useState } from 'react';
 import { useStore, useT } from './store/store';
 import { useAutosave, useKeyboard } from './store/hooks';
@@ -38,6 +40,7 @@ export function App() {
     return () => window.removeEventListener('hashchange', h);
   }, []);
   const teacher = route.startsWith('#/teacher');
+  const otherTab = useStore((s) => s.otherTab);
   useAutosave(() => setLoaded(true));
   useKeyboard();
   useEffect(() => {
@@ -65,6 +68,34 @@ export function App() {
         )}
       </div>
       {needsMaterial && <StartScreen />}
+      {otherTab && (
+        // milestone 86: two tabs on one design
+        <div className="other-tab" role="alert" data-testid="other-tab">
+          <span>{t('lib.otherTab')}</span>
+          <button
+            className="primary"
+            onClick={async () => {
+              const id = useStore.getState().design.id;
+              useStore.setState({ otherTab: false });
+              await openFromLibrary(id);
+            }}
+            data-testid="other-tab-reload"
+          >
+            {t('lib.reload')}
+          </button>
+          <button
+            onClick={() => {
+              useStore.setState({ otherTab: false });
+              // save mine now: it becomes the saved version
+              useStore.getState().set({ saveState: 'saving' });
+              void saveLocal(useStore.getState().design).then(() => useStore.getState().set({ saveState: 'saved' }));
+            }}
+            data-testid="other-tab-keep"
+          >
+            {t('lib.keepMine')}
+          </button>
+        </div>
+      )}
       {drawerOpen && <MaterialDrawer />}
       {exportOpen && <ExportDialog />}
       {/* the first-use tour over everything, while it runs (milestone 43) */}

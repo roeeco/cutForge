@@ -2,7 +2,7 @@ import { TOOL_KEYS } from '../ui/Toolbar';
 import { QUICK_KEYS, startAction } from '../easy/QuickRail';
 import { useEffect } from 'react';
 import { useStore } from './store';
-import { loadLocal, saveLocal } from './persist';
+import { libraryChannel, loadLocal, saveLocal, TAB } from './persist';
 import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
@@ -29,6 +29,13 @@ export function useAutosave(onLoaded: () => void) {
       }
       if (cancelled) return;
       onLoaded();
+      // another tab saved the design open here (milestone 86): say so, never overwrite it silently
+      const ch = libraryChannel();
+      if (ch)
+        ch.onmessage = (ev: MessageEvent) => {
+          const m = ev.data as { saved?: string; by?: string };
+          if (m?.saved && m.by !== TAB && m.saved === useStore.getState().design.id) useStore.setState({ otherTab: true });
+        };
       unsub = useStore.subscribe((s, prev) => {
         // a drag commits by ending its transaction without a new design object: save then too
         const committed = !!prev.txnBase && !s.txnBase && s.design !== prev.txnBase;
@@ -38,6 +45,7 @@ export function useAutosave(onLoaded: () => void) {
         timer = setTimeout(async () => {
           timer = undefined;
           const d = useStore.getState().design;
+          if (useStore.getState().otherTab) return;
           // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {
             if (isBad(d)) throw new Error('not drawable');
