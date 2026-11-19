@@ -493,3 +493,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Ported as is** with its tests, its decisions in `claude/guided-mode`'s `DECISIONS.md` (milestones 56–59) holding here too; only its tests that need the waffle's 3D kernel stay there.
 - **`canvas2d.tsx` is the branch's file**: `main`'s cut plan had the same view-box code and handles; the branch's are a superset (side handles off by default, a test-id prefix), so the cut plan is unchanged.
 - **A board's curved edge is a Bezier in its graph only as a marker**: its shape stays the board's own curve rule (`curveRing`); writing back keeps *curve* on its first point.
+
+## Milestone 103: the transform frame in 2D (DIELINE_DNA_PLAN.md D0c)
+- **Alt keeps both meanings** in the 2D frame: scale about the middle (the branch's frame) and no smart snapping (CutForge's Alt everywhere).
+- **The direction moved furthest leads** when proportions are kept (the branch's rule), so a corner drag never shrinks the side being pulled.
+- **Pills drawn in the sheet** (`foreignObject`), at screen size, beside the frame's bottom and right; a click opens the input (not the press: the branch's lesson).

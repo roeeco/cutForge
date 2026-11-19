@@ -130,6 +130,8 @@ export type ViewPrefs = {
   joints: boolean;
   /** Outline mode (milestone 101): every editable board's outline can be edited on the stage straight away. Excludes `joints`. */
   outlineMode?: boolean;
+  /** Keep proportions when a shape is scaled (milestone 103): the 2D frame, the card's sizes and the 3D gizmo share it. */
+  keepRatio?: boolean;
   /** Smart snapping (to other shapes, edges, panels, rest angles). Alt turns it off for one drag. */
   snap: boolean;
   /** Grid snapping: positions round to the grid step where no smart target is near. Alt turns it off for one drag. */

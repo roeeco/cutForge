@@ -1550,6 +1550,21 @@ Verified
 - `tests/sketchAdapters.test.ts` (15): every root board of nine golden designs round-trips with the same points, curves, edge ids and exported cut; a split edge keeps its id on its first piece and the second gets a new one; a graph that is no longer one closed loop is refused with the design untouched; polygons (turned or not) and a path with a hole round-trip to the same outline in the same place; a rectangle, a rounded rectangle and a circle have the right areas.
 - Browser specs over the cut plan and the solo view (`editing`, `shapes`, `text-pack`, `split`, `templates`, `boards`): 23 passed. Unit suite and typecheck green; goldens byte-identical.
 
+## Milestone 103 — the transform frame in 2D ✅
+
+`DIELINE_DNA_PLAN.md` D0c (after `claude/guided-mode`'s scale frame). `src/views/frameScale.ts`, `src/views/Plan2D.tsx`, `src/ui/Inspector.tsx`.
+- **A selected shape on the cut plan or in the solo view** has side handles besides its corners: corners change both directions, sides one; **Shift or *Keep proportions*** scales both alike by the direction moved furthest; **Alt** scales about the middle (and, as before, drops smart snapping). A turned shape scales along its own axes; a circle keeps its proportions. Every move previews from the box at the drag's start and commits once (Esc cancels). Several shapes' box keeps proportions the same way.
+- **W and H pills** beside the frame take a size, a sum (`60+20`) or a percent (`150%`); with *Keep proportions* the other size follows. The card's width and height do the same, and *Keep proportions* is a tick on the shape's card (`viewPrefs.keepRatio`, per browser).
+- **A shape too small on screen** for handles (under 24 px each way) shows only its pills and moves.
+- Quick build keeps its corners and turn knob only (`transform.sides`).
+
+Verified
+- `tests/transformFrame.test.ts` (7): a corner keeps the far corner; with proportions kept both scale by the direction moved furthest; a side changes one direction, centred across, or both with proportions kept; Alt about the middle; a turned shape along its own axes; a circle alike; a typed size with and without proportions.
+- Browser `tests/e2e/transform-2d.spec.ts`: in the solo view a cut-out's right side dragged 20 mm changes only its width; *W* typed `150%` makes it 120 mm; with *Keep proportions* on, *H* typed `60+20` makes the height 80 and doubles the width. `editing`, `shapes`, `text-pack`, `through` pass. Unit suite and typecheck green.
+
+Limitations
+- The 3D gizmo's handles are unchanged (its card's sizes follow *Keep proportions*).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

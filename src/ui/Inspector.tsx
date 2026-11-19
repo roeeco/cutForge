@@ -100,6 +100,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
   const outlineMode = useStore((s) => !!s.viewPrefs.outlineMode);
+  const keepRatio = useStore((s) => !!s.viewPrefs.keepRatio);
   const edgesOpen = useStore((s) => s.viewPrefs.edgesOpen);
   const opsAll = shown(useFeature('op.scoreAdd'));
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
@@ -163,8 +164,15 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <NumField label={t('insp.diameter')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-diameter" />
           ) : (
             <>
-              <NumField label={t('insp.width')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-w" />
-              <NumField label={t('insp.height')} value={dt.h} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { h: v }))} testId="detail-h" />
+              {/* with Keep proportions the other size follows (milestone 103; shared with the 2D frame and the 3D gizmo) */}
+              <NumField label={t('insp.width')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, keepRatio ? { w: v, h: dt.h * (v / dt.w) } : { w: v }))} testId="detail-w" />
+              <NumField label={t('insp.height')} value={dt.h} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, keepRatio ? { h: v, w: dt.w * (v / dt.h) } : { h: v }))} testId="detail-h" />
+              <Gate f="transform.sides">
+                <label className="check" title={t('frame.pillHelp')}>
+                  <input type="checkbox" checked={keepRatio} onChange={(e) => useStore.getState().setPrefs({ keepRatio: e.target.checked })} data-testid="keep-ratio" />
+                  {t('frame.keepRatio')}
+                </label>
+              </Gate>
             </>
           )}
           {dt.shape === 'roundrect' && <NumField label={t('insp.radius')} value={dt.r ?? 0} unit={mm} min={0} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { r: v }))} />}

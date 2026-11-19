@@ -1299,6 +1299,8 @@ export const en = {
   'view.outlineModeHelp': "Edit any board's outline straight away: drag a corner, + on an edge adds one, Delete removes the selected one.",
   'outline.modeHint': "Drag a corner to move it, + on an edge adds one. Delete removes the selected corner; Esc clears it.",
   'outline.inMode': "Editing (outline mode)",
+  'frame.pillHelp': "Type a size, a sum (60+12) or a percent (150%)",
+  'frame.keepRatio': "Keep proportions",
   'insp.depth': "Depth",
 } as const;
 

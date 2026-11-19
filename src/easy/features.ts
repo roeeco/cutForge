@@ -38,6 +38,8 @@ export const FEATURES = {
   /** How a fold's crease is cut: a score, a perforation, a cut-crease (milestone 85). */
   crease: 'auto',
   'grow.advanced': 'auto',
+  /** The 2D transform frame's side handles, size pills and *Keep proportions* (milestone 103); Quick build keeps corners and the turn knob. */
+  'transform.sides': 'hide',
   /** Outline mode (milestone 101): a stage switch beside *Joints*; every editable board's points straight away. Quick build hides it. */
   'outline.mode': 'hide',
   /** Editing a base's or wall's outline (corners and points). */

@@ -3,6 +3,9 @@
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
+import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
+import { evalNumber } from '../ui/NumField';
+import { shown, useFeature } from '../easy/features';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT } from '../store/store';
 import { YieldBar } from '../ui/SplitUI';
 import { pack, pieceCopies, placementXform, quantityOf, sheetGroups, type PieceCopy } from '../model/pack';
@@ -39,7 +42,7 @@ type Drag =
   | { kind: 'pan'; sx: number; sy: number; vb: VB }
   | { kind: 'marquee'; a: Vec2; b: Vec2; additive: boolean; base: string[] }
   | { kind: 'move'; ids: string[]; placed: Placed; panelId: string; start: Vec2; startSvg: Vec2; box: Box }
-  | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean; rot?: number }
+  | { kind: 'resize'; id: string; placed: Placed; panelId: string; start: FrameBox; handle: FrameHandle; circle: boolean }
   | { kind: 'rotate'; ids: string[]; placed: Placed; panelId: string; pivot: Vec2; a0: number; last: number; deg: number }
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
@@ -236,31 +239,29 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           const sx = Math.abs(g.corner.x - g.fixed.x) < 1e-9 ? 1 : (px - g.fixed.x) / (g.corner.x - g.fixed.x);
           const sy = Math.abs(g.corner.y - g.fixed.y) < 1e-9 ? 1 : (py - g.fixed.y) / (g.corner.y - g.fixed.y);
           if (sx <= 0.02 || sy <= 0.02) return;
-          st.preview((x) => scaleDetails(x, g.ids, g.fixed, sx, sy));
+          // with Shift or Keep proportions, both by the direction moved furthest (milestone 103)
+          const keep = !!st.viewPrefs.keepRatio || ev.shiftKey;
+          const k = Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy;
+          st.preview((x) => scaleDetails(x, g.ids, g.fixed, keep ? k : sx, keep ? k : sy));
           setLabel({ text: `${fmtNum(Math.abs(px - g.fixed.x))} × ${fmtNum(Math.abs(py - g.fixed.y))}`, ...svgPoint(ev) });
           return;
         }
-        if (g.kind === 'resize' && g.rot) {
-          // a turned shape: measure the pointer in the shape's own axes from the fixed corner
-          const a = (g.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
-          const rx = px - g.fixed.x, ry = py - g.fixed.y;
-          const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
-          const w = Math.max(0.5, Math.abs(lx)), h = Math.max(0.5, Math.abs(ly));
-          const hx = ((Math.sign(lx) || 1) * w) / 2, hy = ((Math.sign(ly) || 1) * h) / 2;
-          const cx = g.fixed.x + hx * c - hy * s2, cy = g.fixed.y + hx * s2 + hy * c;
-          st.preview((x) => updateDetail(x, g.id, { cx, cy, w, h }));
-          setLabel({ text: `${fmtNum(w)} × ${fmtNum(h)}`, ...svgPoint(ev) });
+        if (g.kind === 'resize') {
+          // the transform frame (milestone 103): corners both ways, sides one, Shift or Keep proportions alike, Alt about the middle;
+          // a turned shape in its own axes; always from the box at the drag's start
+          const r = frameDrag(g.start, g.handle, { x: px, y: py }, { keep: !!st.viewPrefs.keepRatio || ev.shiftKey, alt: ev.altKey, circle: g.circle });
+          st.preview((x) => updateDetail(x, g.id, { cx: r.cx, cy: r.cy, w: r.w, h: r.h }));
+          setLabel({ text: g.circle ? `Ø ${fmtNum(r.w)}` : `${fmtNum(r.w)} × ${fmtNum(r.h)}`, ...svgPoint(ev) });
           return;
         }
-        const circle = g.kind === 'resize' ? g.circle : st.tool === 'circle';
-        const fixed = g.kind === 'resize' ? g.fixed : g.start;
+        const circle = st.tool === 'circle';
+        const fixed = g.start;
         let w = Math.abs(px - fixed.x), h = Math.abs(py - fixed.y);
         if (circle) w = h = Math.max(w, h);
         if (w < 0.5 && h < 0.5) return;
         const cx = fixed.x + ((Math.sign(px - fixed.x) || 1) * w) / 2;
         const cy = fixed.y + ((Math.sign(py - fixed.y) || 1) * h) / 2;
-        if (g.kind === 'resize') st.preview((x) => updateDetail(x, g.id, { cx, cy, w: Math.max(0.5, w), h: Math.max(0.5, h) }));
-        else {
+        {
           const shape = st.tool === 'circle' || st.tool === 'roundrect' ? st.tool : 'rect';
           st.preview((x) => void addDetail(x, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id, st.shapeThrough));
         }
@@ -427,6 +428,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
+  // side handles and the size pills (milestone 103; Guided keeps corners and the turn knob)
+  const sides = shown(useFeature('transform.sides'));
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -622,18 +625,31 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           };
           return o.region.map((r, j) => <polygon key={`${k}.${j}`} points={r.map(at).join(' ')} className="net-overlap" fill="rgba(220, 38, 38, 0.55)" stroke="#b91c1c" strokeWidth={px} pointerEvents="none" data-testid="net-overlap" />);
         })}
-        {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (
-          <Handles
-            box={{ minX: primary.detail.cx - primary.detail.w / 2, maxX: primary.detail.cx + primary.detail.w / 2, minY: primary.detail.cy - primary.detail.h / 2, maxY: primary.detail.cy + primary.detail.h / 2 }}
-            rot={primary.detail.shape === 'circle' ? 0 : (primary.detail.rot ?? 0)}
-            toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
-            size={px * 9}
-            onDown={(fixed) => (ev) => {
-              ev.stopPropagation();
-              drag.current = { kind: 'resize', id: primary.detail.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, fixed, circle: primary.detail.shape === 'circle', rot: primary.detail.shape === 'circle' ? 0 : primary.detail.rot };
-            }}
-          />
-        )}
+        {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (() => {
+          const dt = primary.detail;
+          const circle = dt.shape === 'circle';
+          const box: FrameBox = { cx: dt.cx, cy: dt.cy, w: dt.w, h: dt.h, rot: circle ? 0 : (dt.rot ?? 0) };
+          // too small on screen for handles: the pills and moving it only (one kind of handle at a time, milestone 103)
+          const small = dt.w / px < 24 && dt.h / px < 24;
+          return (
+            <>
+              {!small && (
+                <Handles
+                  box={{ minX: dt.cx - dt.w / 2, maxX: dt.cx + dt.w / 2, minY: dt.cy - dt.h / 2, maxY: dt.cy + dt.h / 2 }}
+                  rot={box.rot}
+                  side={sides}
+                  toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
+                  size={px * 9}
+                  onDown={(_fixed, corner, kind) => (ev) => {
+                    ev.stopPropagation();
+                    drag.current = { kind: 'resize', id: dt.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, start: box, handle: { kind: kind ?? 'corner', at: { x: corner.x - dt.cx, y: corner.y - dt.cy } }, circle };
+                  }}
+                />
+              )}
+              {sides && <FramePills box={box} circle={circle} id={dt.id} toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)} px={px} />}
+            </>
+          );
+        })()}
         {tool === 'select' && ringInfo && placedOf(ringInfo.panelId) && (
           <RotRing
             centre={toSvg(placedOf(ringInfo.panelId)!, ringInfo.panelId, ringInfo.pivot)}
@@ -738,3 +754,63 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   );
 }
 
+
+/**
+ * The W and H pills of a selected shape's frame (milestone 103): click one to
+ * type a size, a sum or a percent (`150%`); with *Keep proportions* the other
+ * follows. Drawn at screen size beside the frame's bottom and right sides.
+ */
+function FramePills({ box, circle, id, toSvg, px }: { box: FrameBox; circle: boolean; id: string; toSvg: (p: Vec2) => Vec2; px: number }) {
+  const t = useT();
+  const [edit, setEdit] = useState<'w' | 'h' | null>(null);
+  const [text, setText] = useState('');
+  const keep = useStore((s) => !!s.viewPrefs.keepRatio);
+  const pill = (dir: 'w' | 'h') => {
+    const at = toSvg(fromOwn(box, dir === 'w' ? { x: 0, y: -box.h / 2 } : { x: box.w / 2, y: 0 }));
+    const v = dir === 'w' ? box.w : box.h;
+    const w = px * 64, h = px * 22;
+    const x = at.x + (dir === 'w' ? -w / 2 : px * 10), y = at.y + (dir === 'w' ? px * 12 : -h / 2);
+    const commit = () => {
+      const n = evalNumber(text, v);
+      setEdit(null);
+      if (n === null || n <= 0 || Math.abs(n - v) < 1e-9) return;
+      const r = typedSize(box, dir, n, keep || circle);
+      useStore.getState().apply((d) => void updateDetail(d, id, { w: r.w, h: r.h }));
+    };
+    return (
+      <foreignObject key={dir} x={x} y={y} width={w} height={h} className="frame-pill-fo">
+        {edit === dir ? (
+          <input
+            className="frame-pill"
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') commit();
+              else if (e.key === 'Escape') setEdit(null);
+            }}
+            aria-label={t(dir === 'w' ? 'insp.width' : 'insp.height')}
+            data-testid={`frame-pill-${dir}-input`}
+          />
+        ) : (
+          <button
+            type="button"
+            className="frame-pill"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              setText(fmtNum(v));
+              setEdit(dir);
+            }}
+            title={t('frame.pillHelp')}
+            data-testid={`frame-pill-${dir}`}
+          >
+            {dir === 'w' ? 'W' : 'H'} {fmtNum(v)}
+          </button>
+        )}
+      </foreignObject>
+    );
+  };
+  return <g className="frame-pills">{circle ? pill('w') : [pill('w'), pill('h')]}</g>;
+}

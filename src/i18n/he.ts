@@ -1301,5 +1301,7 @@ export const he: Record<MsgKey, string> = {
   'view.outlineModeHelp': "עורכים מיד את קו המתאר של כל לוח: גוררים פינה, + על צלע מוסיף פינה, Delete מוחק את הנבחרת.",
   'outline.modeHint': "גררו פינה כדי להזיז אותה, + על צלע מוסיף פינה. Delete מוחק את הפינה הנבחרת; Esc מבטל את הבחירה.",
   'outline.inMode': "בעריכה (מצב קווי מתאר)",
+  'frame.pillHelp': "הקלידו מידה, חיבור (60+12) או אחוז (150%)",
+  'frame.keepRatio': "לשמור על היחס",
   'insp.depth': "עומק",
 };

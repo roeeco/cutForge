@@ -109,6 +109,7 @@ describe('the feature table (rule 3)', () => {
       'saveBoard.steps',
       'size.as',
       'sizes',
+      'transform.sides',
       'tray.ends',
       'tray.keepWhole',
       'tray.ownHeight',
