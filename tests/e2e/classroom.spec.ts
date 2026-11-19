@@ -6,7 +6,7 @@
 // Worker (workerd, local D1 and R2).
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { WORKSHOP_STATE } from './util';
+import { WORKSHOP_STATE, startTemplate } from './util';
 
 const KEY = 'e2e-teacher-key';
 
@@ -14,9 +14,7 @@ async function student(browser: Browser, material: string, name: string, code: s
   const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const page = await ctx.newPage();
   await page.goto('/');
-  await page.getByTestId('tpl-organiser').check();
-  await page.getByTestId(`mat-${material}`).click();
-  await page.getByTestId('start-go').click();
+  await startTemplate(page, 'organiser', material);
   await page.getByLabel('Design name').fill(title);
   await page.getByLabel('Design name').blur();
   await page.getByTestId('open-submit').click();
@@ -99,9 +97,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const st = await ctx.newPage();
   await st.goto('/');
-  await st.getByTestId('tpl-organiser').check();
-  await st.getByTestId('mat-ply-3').click();
-  await st.getByTestId('start-go').click();
+  await startTemplate(st, 'organiser', 'ply-3');
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);
   await st.getByTestId('sub-name').fill('Omer');

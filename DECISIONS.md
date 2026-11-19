@@ -473,3 +473,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The structure word's list and the shape, lid and ends lists have pictures**; numbers and the other add-ons do not (a picture per window or notch says little at that size).
 - **A choice refused by the engine** (rare: the whole sentence would not cut clean) leaves the word as it was and says *Not now: why* under the sentence.
 - **The narrow layout labels each word with its parameter's name** and keeps the order of the sentence.
+
+## Milestone 98: the welcome screen (SENTENCE_BUILDER_PLAN.md S5)
+- **Touching the sentence chooses it** (focus or pointer anywhere in its row), so a student never has to find its radio first; *Blank design* is still chosen by default.
+- **The default sentence is a plain box** (160 × 110 × 45 mm inside, no add-ons): the plan's example with a lid and spaces is one *+ more* away twice.
+- **The organiser leaves the welcome screen but not the app**: its saved files open with their card; browser specs start it through the test hook.

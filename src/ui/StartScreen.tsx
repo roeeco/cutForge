@@ -3,7 +3,10 @@
 import { useMemo, useState } from 'react';
 import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
-import { PRESET_CARDS, defaults, generate, templateById } from '../templates/registry';
+import { defaults, generate, templateById } from '../templates/registry';
+import { Sentence } from '../sentence/Sentence';
+import { chooseMaterial, type Change } from '../sentence/resolve';
+import type { SentenceValue } from '../sentence/model';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
 import { Library } from './Library';
@@ -15,14 +18,6 @@ import { MISSIONS, missionById, startMission } from '../easy/missions';
 import { useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
-function thumb(tplId: string, m: MaterialProfile): string | null {
-  const key = `${tplId}:${m.id}`;
-  if (!thumbCache.has(key)) {
-    const tp = templateById(tplId);
-    thumbCache.set(key, tp ? renderThumbnail(generate(tp, m, defaults(tp)), 520, 300) : null);
-  }
-  return thumbCache.get(key) ?? null;
-}
 function missionThumb(id: string, m: MaterialProfile): string | null {
   const key = `mission:${id}:${m.id}`;
   if (!thumbCache.has(key)) {
@@ -32,21 +27,6 @@ function missionThumb(id: string, m: MaterialProfile): string | null {
   return thumbCache.get(key) ?? null;
 }
 
-function BlankArt() {
-  return (
-    <svg viewBox="0 0 260 150" aria-hidden>
-      <defs>
-        <pattern id="iso" width="22" height="12.7" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)">
-          <path d="M0 0H22M0 0V12.7" stroke="#e4dccf" strokeWidth="1" fill="none" />
-        </pattern>
-      </defs>
-      <rect width="260" height="150" fill="#fbf8f3" />
-      <rect width="260" height="150" fill="url(#iso)" />
-      <circle cx="130" cy="75" r="26" fill="#f1ebe1" />
-      <path d="M130 62v26M117 75h26" stroke="#b9ad9b" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 /** The tour's picture: the small box it builds, on the same grid as Blank's. */
 function TourArt() {
@@ -75,7 +55,10 @@ export function StartScreen() {
   const lang = useStore((s) => s.lang);
   const setLang = useStore((s) => s.setLang);
   const [matId, setMatId] = useState(DEFAULT_MATERIAL.id);
+  // step 2 (milestone 98): blank, the sentence, or (Quick build) a mission
   const [tpl, setTpl] = useState('');
+  const [sentence, setSentence] = useState<SentenceValue>(() => ({ id: 'box', params: defaults(templateById('box')!) }));
+  const [notes, setNotes] = useState<Change[]>([]);
   // opened from the project menu over a design: a way back to it
   const back = useStore((s) => s.design.order.length > 0);
   // the first-use tour (milestone 43): a card until it was taken or ended, then a link; not when the class locks Quick build
@@ -86,15 +69,22 @@ export function StartScreen() {
   const offered = useStore((s) => s.viewPrefs.missions);
   const missions = quick ? MISSIONS.filter((m) => !offered || offered.includes(m.id)) : [];
   const mat = MATERIALS.find((m) => m.id === matId)!;
-  const tplOk = (id: string) => !id || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
+  const tplOk = (id: string) => !id || id === 'sentence' || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
   const effTpl = tplOk(tpl) ? tpl : '';
-  const thumbs = useMemo(() => Object.fromEntries(PRESET_CARDS().map((tp) => [tp.id, tp.materials.includes(mat.kind) ? thumb(tp.id, mat) : null])), [mat]);
+  // step 1 sets what the sentence can say: a word this material cannot make becomes what it can, with a note
+  const pickMaterial = (id: string) => {
+    const m = MATERIALS.find((x) => x.id === id)!;
+    const r = chooseMaterial(templateById(sentence.id)!, m, sentence.params, templateById);
+    setMatId(id);
+    setSentence({ id: r.def.id, params: r.params });
+    setNotes(r.changes);
+  };
   const start = () => {
     const s = useStore.getState();
     const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
-    const tp = effTpl && templateById(effTpl);
+    const tp = effTpl === 'sentence' ? templateById(sentence.id) : null;
     if (ms) s.replaceDesign(startMission(ms, mat), false);
-    else if (tp) s.replaceDesign(generate(tp, mat, defaults(tp)), false);
+    else if (tp) s.replaceDesign(generate(tp, mat, sentence.params), false);
     else if (s.design.order.length) {
       // from the library with a design open: a new one beside it (the open one is saved)
       s.replaceDesign(createDesign(mat), false);
@@ -145,7 +135,7 @@ export function StartScreen() {
       </p>
       <div className="mat-grid" role="radiogroup" aria-label={t('start.material')}>
         {MATERIALS.map((m) => (
-          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} onClick={() => setMatId(m.id)} onDoubleClick={start} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
+          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} onClick={() => pickMaterial(m.id)} onDoubleClick={start} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
             <span className="art">
               <MaterialArt kind={m.kind} thickness={m.thickness} />
             </span>
@@ -163,31 +153,21 @@ export function StartScreen() {
       <p className="step-label">
         <b>{t('start.step', { n: 2 })}</b> {t('start.template')}
       </p>
-      <div className="tpl-grid" role="radiogroup" aria-label={t('start.template')}>
-        <button className="pick-card" role="radio" aria-checked={effTpl === ''} onClick={() => setTpl('')} data-testid="tpl-blank">
-          <span className="art">
-            <BlankArt />
-          </span>
+      <div className="start-from" role="radiogroup" aria-label={t('start.template')}>
+        <button className="pick-row" role="radio" aria-checked={effTpl === ''} onClick={() => setTpl('')} data-testid="tpl-blank">
+          <span className="dot" aria-hidden />
           <span className="cap">
             <strong>{t('tpl.blank')}</strong>
             <small>{t('start.blankDesc')}</small>
           </span>
-          <span className="tick-mark">
-            <Icon name="check" size={16} />
-          </span>
         </button>
-        {PRESET_CARDS().map((tp) => (
-          <button key={tp.id} className="pick-card" role="radio" aria-checked={effTpl === tp.id} disabled={!tplOk(tp.id)} onClick={() => setTpl(tp.id)} data-testid={`tpl-${tp.id}`}>
-            <span className="art">{thumbs[tp.id] ? <img src={thumbs[tp.id]!} alt="" /> : null}</span>
-            <span className="cap">
-              <strong>{t(tp.name)}</strong>
-              <small>{t(tp.description)}</small>
-            </span>
-            <span className="tick-mark">
-              <Icon name="check" size={16} />
-            </span>
+        {/* milestone 98: presets said instead of picked (SENTENCE_BUILDER_PLAN.md) */}
+        <div className={`pick-row sentence-row${effTpl === 'sentence' ? ' on' : ''}`} onFocusCapture={() => setTpl('sentence')} onPointerDown={() => setTpl('sentence')}>
+          <button className="dot-btn" role="radio" aria-checked={effTpl === 'sentence'} aria-label={t('sen.legend')} onClick={() => setTpl('sentence')} data-testid="tpl-sentence">
+            <span className="dot" aria-hidden />
           </button>
-        ))}
+          <Sentence m={mat} value={sentence} onChange={(v) => (setSentence(v), setTpl('sentence'))} notes={notes} />
+        </div>
       </div>
       {missions.length > 0 && (
         <>

@@ -22,6 +22,10 @@ export const stand: TemplateDef = {
   version: 1,
   name: 'tpl.stand',
   description: 'tpl.stand.desc',
+  // milestone 98: *a card stand* in the welcome screen's sentence (SENTENCE_BUILDER_PLAN.md §3.2)
+  word: 'sen.stand',
+  status: 'stable',
+  sentence: { main: 'sen.s.stand' },
   materials: ['plywood', 'corrugated', 'card'],
   params: [
     { key: 'cardWidth', label: 'tpl.cardWidth', type: 'number', unit: 'mm', min: 20, max: 300, default: 90 },

@@ -5,6 +5,8 @@ import './styles.css';
 import { useStore } from './store/store';
 import * as ops from './model/ops';
 import { validate } from './model/validate';
+import { defaults, generate, templateById } from './templates/registry';
+import { MATERIALS } from './model/materials';
 import { loadBundledFonts, onFontsChange } from './text/fonts';
 
 // Fonts load in the background; when they arrive, panels with text are
@@ -21,7 +23,16 @@ void loadBundledFonts();
 // `ops` gives scripted tests the model operations (dev only, so production stays lean).
 // `issues` gives the export check's message keys for the design as it is.
 if (import.meta.env.DEV || location.search.includes('test'))
-  (window as unknown as { __cutforge: unknown }).__cutforge = { store: useStore, ops: import.meta.env.DEV ? ops : undefined, issues: () => validate(useStore.getState().design).map((i) => i.key) };
+  (window as unknown as { __cutforge: unknown }).__cutforge = {
+    store: useStore,
+    ops: import.meta.env.DEV ? ops : undefined,
+    issues: () => validate(useStore.getState().design).map((i) => i.key),
+    // a preset the welcome screen no longer lists (the organiser, milestone 98), started as the old card did
+    startTemplate: (id: string, matId: string) => {
+      const t = templateById(id), m = MATERIALS.find((x) => x.id === matId);
+      if (t && m) useStore.getState().replaceDesign(generate(t, m, defaults(t)), false);
+    },
+  };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1290,5 +1290,7 @@ export const he: Record<MsgKey, string> = {
   'sen.inc': "יותר",
   'sen.picture': "איך זה ייראה",
   'sen.loading': "מחשבים מה מתאים…",
+  'sen.stand': "מעמד לכרטיסים",
+  'sen.s.stand': "אני רוצה להכין {structure} לכרטיסים ברוחב {cardWidth} מ״מ ובעובי {cardThickness} מ״מ, בהטיה של {angle}, עם {slots} חריצים על בסיס בעומק {baseDepth} מ״מ",
   'insp.depth': "עומק",
 };

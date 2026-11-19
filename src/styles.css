@@ -965,3 +965,15 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .sentence.narrow .sen-slider, .sentence.narrow .sen-why { position: static; margin-top: 4px; }
 .sentence.narrow .sen-num-wrap.open { display: block; }
 .dev-mats button { height: auto; padding: 8px 12px; }
+/* step 2 of the welcome screen (milestone 98): Blank design or the sentence */
+.start-from { display: grid; gap: 12px; }
+.pick-row { display: flex; gap: 12px; align-items: flex-start; text-align: start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2, #fbf9f5); }
+button.pick-row { cursor: pointer; font: inherit; color: inherit; }
+.pick-row[aria-checked='true'], .pick-row.on { border-color: var(--accent-bright); box-shadow: 0 0 0 4px rgba(31, 184, 172, 0.18); }
+.pick-row .cap { display: flex; flex-direction: column; gap: 2px; }
+.pick-row .cap small { color: var(--ink-muted); font-size: 12px; }
+.pick-row .dot { width: 18px; height: 18px; flex: none; margin-top: 3px; border-radius: 50%; border: 2px solid var(--line-strong); display: inline-block; }
+.pick-row[aria-checked='true'] .dot, .pick-row.on .dot { border: 6px solid var(--accent-bright); }
+.pick-row .dot-btn { background: none; border: 0; padding: 0; margin-top: 10px; min-width: 24px; min-height: 24px; cursor: pointer; }
+.sentence-row .sentence { flex: 1; min-width: 0; }
+@media (max-width: 760px) { .sentence { grid-template-columns: 1fr; } .sentence .sen-picture { grid-column: 1; grid-row: 1; height: 170px; } .sentence .sen-body { grid-row: 2; } }

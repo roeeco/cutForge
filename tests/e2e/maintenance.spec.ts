@@ -2,7 +2,7 @@
 // keeps in step with every edit, the stage's floating labels stay clear of
 // the cards, and the contextual card's controls keep their room.
 import { test, expect, type Page } from '@playwright/test';
-import { boardTool } from './util';
+import { boardTool, startTemplate } from './util';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const design = (page: Page) => S<any>(page, () => JSON.parse(JSON.stringify((window as any).__cutforge.store.getState().design)));
@@ -11,9 +11,7 @@ const edges = (page: Page) => S<Record<string, { edges: number; highlight: numbe
 
 async function organiser(page: Page) {
   await page.goto('/');
-  await page.getByTestId('mat-ply-3').click();
-  await page.getByTestId('tpl-organiser').click();
-  await page.getByTestId('start-go').click();
+  await startTemplate(page, 'organiser', 'ply-3');
   await expect(page.getByTestId('view3d')).toBeVisible();
   return design(page);
 }

@@ -1288,6 +1288,8 @@ export const en = {
   'sen.inc': "More",
   'sen.picture': "How it will look",
   'sen.loading': "Working out what fits…",
+  'sen.stand': "a card stand",
+  'sen.s.stand': "I'd like to make {structure} for cards {cardWidth} mm wide and {cardThickness} mm thick, leaning at {angle}, with {slots} slots on a base {baseDepth} mm deep",
   'insp.depth': "Depth",
 } as const;
 

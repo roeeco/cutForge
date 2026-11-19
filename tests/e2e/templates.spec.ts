@@ -1,5 +1,5 @@
 // Milestone 5: start from a template, change parameters, keep user edits.
-import { setNum, shapeTool } from './util';
+import { setNum, shapeTool, startTemplate } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -7,9 +7,8 @@ const design = (page: Page) => S(page, () => JSON.parse(JSON.stringify((window a
 
 test('organiser template: parameters regenerate, user cutouts stay, lid follows', async ({ page }) => {
   await page.goto('/');
-  await page.getByTestId('tpl-organiser').check();
-  await page.getByTestId('mat-ply-3').click();
-  await page.getByTestId('start-go').click();
+  // milestone 98: the organiser is no longer on the welcome screen (a box in the sentence is); its card still works
+  await startTemplate(page, 'organiser', 'ply-3');
   let d = await design(page);
   expect(d.template.id).toBe('organiser');
   expect(d.order).toContain('t:divX2');
@@ -68,8 +67,11 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
 
 test('card stand template in corrugated', async ({ page }) => {
   await page.goto('/');
-  await page.getByTestId('tpl-stand').check();
+  // milestone 98: *a card stand* in the sentence
   await page.getByTestId('mat-corr-1.6').click();
+  await page.getByTestId('sen-structure').click();
+  await page.getByTestId('sen-structure-opt-stand').click();
+  await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'stand');
   await page.getByTestId('start-go').click();
   const d = await design(page);
   expect(d.order).toEqual(expect.arrayContaining(['t:base', 't:support1', 't:support3', 't:lip']));

@@ -1497,6 +1497,19 @@ Limitations
 - Focusing a word does not light up the boards it affects in the picture (`affects` is in the contract; the picture is a thumbnail image).
 - A change that needs the engine's ranges again can take up to about a second the first time (milestone 95).
 
+## Milestone 98 — the welcome screen says what to make ✅
+
+`SENTENCE_BUILDER_PLAN.md` S5. `src/ui/StartScreen.tsx`, `src/templates/stand.ts`, `src/main.tsx`.
+- **Step 2 is *Blank design* or the sentence**, the sentence's picture beside it; the template grid's cards are gone. Touching any word of the sentence chooses it; *Start* runs `generate` with its words. Missions stay below in Quick build; *Your designs* stays above step 1.
+- **Step 1's material drives the sentence** (`chooseMaterial`): a word or a structure the material cannot make becomes what it can, and the note under the sentence says so (*a carton on card → a box with a lid that lifts off on plywood*). Nothing is greyed.
+- **The card stand is a structure** (*a card stand for cards … mm wide and … mm thick, leaning at …, with … slots on a base … mm deep*); **the organiser is no longer offered** (a new organiser is *a box … with a lid that lifts off, divided into 3 × 2 spaces*). Saved organisers and the two missions that start from it are unchanged.
+- The test hook gains `startTemplate(id, material)` for browser specs that start a preset the welcome screen no longer lists; `templates`, `overhaul`, `maintenance`, `quick-shots` and `classroom` use it (`startTemplate` in `tests/e2e/util.ts`).
+
+Verified
+- Browser `tests/e2e/start-sentence.spec.ts` (3): *Blank design* gives an empty design in each of the four materials; every structure the sentence lists starts from it in every material that lists it, with no blocking issue (plywood lists no carton); a carton on card filled in, then plywood: a box with a lid that lifts off, the width kept, the note shown, and that is what starts. `templates.spec` (the organiser through the hook; the stand from the sentence), `overhaul.spec`, `maintenance.spec`: passed.
+- A longer walk (25 walks × 10 steps) through the box, the tray, the carton and the sleeve in their materials: no failure.
+- Unit suite and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
