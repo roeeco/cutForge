@@ -93,7 +93,8 @@ function shrinkTemplate(d: Design): boolean {
 }
 
 /** Warnings that do not stop a cut: shown as notes, not as things to fix. */
-export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
+import { NOTE_KEYS } from './notes';
+export { NOTE_KEYS };
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
 const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend']);

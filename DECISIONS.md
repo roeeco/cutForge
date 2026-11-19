@@ -462,3 +462,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A size inside its range may still be refused** (`accepts`), because validity is not monotonic everywhere (a corrugated net that fits only turned against the grain at one depth fits again when deeper, once it is split). The note says to try a little more or less.
 - **Shape before the add-ons, after the sizes**, so a change of size re-checks the shape.
 - **Template ids**: tray ids become `t:tray1`, … and ids built from them follow; joint ids with `:`, `/`, `~` or `|` are the engine's and are left for `solve`. The organiser's and the stand's goldens are unchanged.
+
+## Milestone 96: the sentence's carton and sleeve (SENTENCE_BUILDER_PLAN.md S3)
+- **No tuck direction word**: the engine makes a carton's tuck top off the back wall and its tuck bottom off the front (a reverse tuck); a straight tuck (both off the same wall) is not in the engine, so it is not offered.
+- **A carton needs corrugated no thicker than 2 mm** to tuck; a sleeve folds from 4 mm too.
+- **`accepts` on every change**, not only numbers: a choice offered by its list was checked with the later add-ons off; the whole sentence can still miss (a count after a change of shape), so it is checked as it stands.

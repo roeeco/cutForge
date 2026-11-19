@@ -28,6 +28,7 @@ export function walk(def: TemplateDef, m: MaterialProfile, seed: number, steps: 
       if (!w.options.length) continue;
       v = r.pick(w.options);
     } else {
+      // (a number)
       const lo = w.min ?? 0, hi = w.max ?? lo;
       // sometimes past the end: it must be refused
       if (r.chance(0.1)) {

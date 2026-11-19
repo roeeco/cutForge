@@ -7,11 +7,12 @@ import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
 import { box, tray } from './structures/box';
+import { carton, sleeve } from './structures/carton';
 import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
 import { normalizeJoints } from '../model/jointDefaults';
 import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model/dividers';
 
-export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray];
+export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve];
 /** The sentence's structures (milestone 95): templates with a word of their own, never `planned` ones. */
 export const STRUCTURES = (): TemplateDef[] => TEMPLATES.filter((t) => t.word && t.status !== 'planned');
 /** The preset cards of the welcome screen's older grid: templates that are not sentence structures. */

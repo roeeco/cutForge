@@ -63,6 +63,8 @@ export type TemplateDef = {
   status?: 'planned' | 'beta' | 'stable';
   /** Milestone 94: the structure to become when this one stops being allowed (its id). */
   fallback?: (m: MaterialProfile) => string;
+  /** Milestone 96: words set when this structure becomes its fallback (a carton on plywood becomes a box *with a lid that lifts off*). */
+  fallbackWords?: Params;
   /** Milestone 94: its sentence keys (SENTENCE_BUILDER_PLAN.md §3.4). */
   sentence?: { main: MsgKey; adds?: Record<string, MsgKey> };
   /** Milestone 94: the word for the structure itself (*a box*), when it is one of the sentence's structures. */

@@ -10,7 +10,7 @@ import type { Limit, ParamDef, Params, TemplateDef } from '../types';
 import { boxRecipe, dividerLine, holeRecipe, roundedMin, type Footprint } from '../../easy/recipes';
 import { boxLid, lidWhy, setBoxLid, type LidChoice } from '../../easy/lid';
 import { validate } from '../../model/validate';
-import { NOTE_KEYS } from '../../easy/fix';
+import { NOTE_KEYS } from '../../easy/notes';
 import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { MIN_COMPARTMENT } from '../../model/dividers';
 import { trayRing } from '../../model/cartons';
@@ -78,6 +78,12 @@ export function cleanWith(def: TemplateDef, m: MaterialProfile, p: Params, key: 
   return ok;
 }
 
+/** The whole sentence as it stands, built and checked (no add-on turned off). */
+export function cleanAll(def: TemplateDef, m: MaterialProfile, p: Params): boolean {
+  const last = def.params[def.params.length - 1];
+  return cleanWith(def, m, p, last.key, p[last.key] ?? last.default);
+}
+
 /** The clear inside along one direction for these words (a quick build of the box without its lid and spaces). */
 function insideOf(def: TemplateDef, m: MaterialProfile, p: Params): { w: number; d: number; h: number; t: number; walls: { w: number; d: number } } | null {
   const d = builtFor(def, m, { ...p, spacesBy: 'none', window: 'none', finger: 'none' }, true);
@@ -115,8 +121,8 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
     {
       key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
       options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }, { value: 'crease', label: 'sen.sizeAs.crease' }],
-      allowed: (v, _p, m) => v !== 'crease' || m.kind !== 'plywood',
-      why: () => 'sen.why.noCrease',
+      allowed: (v, p, m) => (v !== 'crease' || m.kind !== 'plywood') && cleanWith(def(), m, p, 'sizeAs', v),
+      why: (v, _p, m) => (v === 'crease' && m.kind === 'plywood' ? 'sen.why.noCrease' : 'sen.why.engine'),
     },
     {
       key: 'shape', label: 'sen.shape', type: 'choice', default: 'rect',
@@ -334,7 +340,7 @@ export const box: TemplateDef = {
   sentence: { main: 'sen.s.box' },
 };
 box.limits = boxLimits(box);
-box.accepts = (m, p) => (cleanWith(box, m, p, 'sizeAs', p.sizeAs ?? 'inside') ? null : 'sen.why.engineSize');
+box.accepts = (m, p) => (cleanAll(box, m, p) ? null : 'sen.why.engineSize');
 
 export const tray: TemplateDef = {
   id: 'tray',
@@ -349,5 +355,5 @@ export const tray: TemplateDef = {
   sentence: { main: 'sen.s.box' },
 };
 tray.limits = boxLimits(tray);
-tray.accepts = (m, p) => (cleanWith(tray, m, p, 'sizeAs', p.sizeAs ?? 'inside') ? null : 'sen.why.engineSize');
+tray.accepts = (m, p) => (cleanAll(tray, m, p) ? null : 'sen.why.engineSize');
 

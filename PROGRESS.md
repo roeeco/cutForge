@@ -1465,6 +1465,19 @@ Verified
 Limitations
 - A change that needs the size ranges again (a new width re-checks the depth's and height's ends) can take up to about a second of builds the first time; the sentence (milestone 97) shows the static range until they are ready.
 
+## Milestone 96 — the sentence's carton and sleeve ✅
+
+`SENTENCE_BUILDER_PLAN.md` S3. `src/templates/structures/carton.ts`, registered as `carton` and `sleeve`.
+- **A carton** (card, and corrugated up to 2 mm): sizes in the stated intent, *a top that tucks in · a top of four flaps*, *a bottom that snaps shut · tucks in · of four flaps*, and the add-ons *a thumb notch* and *without dust flaps* (on a tucked top, through `setClosure`) and a window in the front. **A sleeve** (card and corrugated): the tube open at both ends, with a window. Built with `addTray(…, { base: 'open', top, bottom })` and `setBoxSize`.
+- **The carton builder moved into the app**: the golden designs' `cartonDesign` is now `src/templates/structures/carton.ts`'s, and the three carton goldens are byte-identical.
+- **On a board that does not fold**, a carton becomes *a box with a lid that lifts off* (`fallback`, and `fallbackWords` set when it does), a sleeve a box; neither is listed on plywood (`canMake`).
+- **Every change must leave a sentence the engine cuts clean** (`accepts`, the whole sentence built): a choice or a number that does not is refused with its reason. *Inside · outside · crease to crease* is now asked of the engine too. Both found by a longer walk (25 walks × 10 steps): a round box divided 16 × 12 (its dividers collide) and a tall tray whose sizes turned from outside to inside grew past the sheet.
+- `NOTE_KEYS` has its own module (`src/easy/notes.ts`): the structures import the checks, which import the template registry, which lists the structures; the golden designs import the registry first.
+
+Verified
+- `tests/sentence.carton.test.ts` (10): walks through cartons (card, corrugated 1.6) and sleeves (card, both corrugated), every step built clean; plywood lists neither, 4 mm corrugated no carton; box → carton → box keeps the sizes and the window; a carton on card becomes a box with a lid that lifts off on plywood, its width kept and the change reported; a thumb notch and no dust flaps change what is cut; the design remembers *inside*.
+- Goldens byte-identical (the cartons now built by the app); unit suite and typecheck green.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -1,3 +1,5 @@
+// the template registry first: the structures it lists import the checks, which import the registry
+import '../src/templates/registry';
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
 import { addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
@@ -183,14 +185,8 @@ export function closedBox(m: (typeof MATERIALS)[number], style?: 'tuck' | 'tuckL
   return d;
 }
 
-/** A carton (milestone 68): an open base, its walls one strip glued at one corner, its ends closed. */
-export function cartonDesign(m: (typeof MATERIALS)[number], top: 'tuck' | 'seal', bottom: 'snap' | 'tuck' | 'seal'): Design {
-  const d = createDesign(m);
-  const base = addRootPanel(d, 0, 0, 80, 55);
-  addTray(d, base, 100, { base: 'open', top, bottom });
-  autoConnect(d);
-  return d;
-}
+/** A carton (milestone 68): since milestone 96 the sentence's own builder (SENTENCE_BUILDER_PLAN.md S3), so the goldens prove it unchanged. */
+export { cartonDesign } from '../src/templates/structures/carton';
 
 /** A card tray with slit-lock corners (milestone 68). */
 export function lockTray(): Design {

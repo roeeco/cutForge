@@ -127,12 +127,13 @@ export function choose(def: TemplateDef, m: MaterialProfile, params: Params, key
     return { params, changes: [] };
   }
   const r = settleFrom(def, m, { ...params, [key]: value }, i + 1);
-  // a number inside its range can still make something the engine will not cut clean (a size where the
-  // net fits only against the grain): refused, with the range and the reason (milestone 95)
-  if (isNum(p) && def.accepts) {
+  // what the change leaves must be something the engine cuts clean (milestone 95): a number inside its range
+  // can still miss (a size where the net fits only against the grain), and so can a count of spaces after a
+  // change of shape; refused, with the number's range (a choice's is empty) and the reason
+  if (def.accepts) {
     const why = def.accepts(m, r.params);
     if (why) {
-      const rg = rangeNow(def, p, params, m);
+      const rg = isNum(p) ? rangeNow(def, p, params, m) : { min: 0, max: 0 };
       return { refused: { min: rg.min, max: rg.max, why } };
     }
   }
@@ -156,7 +157,9 @@ export function chooseMaterial(def: TemplateDef, m: MaterialProfile, params: Par
   if (makes(def, m)) return { def, ...settleFrom(def, m, params, 0) };
   const seen = new Set<string>([def.id]);
   let to: TemplateDef | undefined = def;
+  let words: Params = {};
   while (to && !makes(to, m)) {
+    words = { ...words, ...(to.fallbackWords ?? {}) };
     const id = to.fallback?.(m);
     if (!id || seen.has(id)) {
       to = undefined;
@@ -166,7 +169,7 @@ export function chooseMaterial(def: TemplateDef, m: MaterialProfile, params: Par
     to = byId(id);
   }
   if (!to) return { def, ...settleFrom(def, m, params, 0) };
-  const r = chooseStructure(to, m, params);
+  const r = chooseStructure(to, m, { ...params, ...words });
   return { def: to, params: r.params, changes: [{ key: 'structure', from: def.id, to: to.id, why: 'sen.why.structure' }, ...r.changes] };
 }
 
