@@ -7,6 +7,7 @@ import type { MsgKey } from '../i18n';
 import { Icon } from './icons';
 import { shown, useFeature } from '../easy/features';
 import { QuickRail } from '../easy/QuickRail';
+import { LINE_TYPES } from '../model/lines';
 
 /** The Shapes tool's footprints (milestone 75), in the menu's order. */
 const FEET: { id: ShapeFoot; key: MsgKey; icon: string; kbd?: string; only3d?: boolean }[] = [
@@ -15,11 +16,12 @@ const FEET: { id: ShapeFoot; key: MsgKey; icon: string; kbd?: string; only3d?: b
   { id: 'circle', key: 'tool.circle', icon: 'circle', kbd: 'C' },
   { id: 'polygon', key: 'tool.polygon', icon: 'polygon', kbd: 'G', only3d: true },
   { id: 'regular', key: 'tool.regular', icon: 'ngon', only3d: true },
+  { id: 'line', key: 'tool.line', icon: 'line', kbd: 'L', only3d: true },
 ];
 const OP_ICON: Record<DetailOp, string> = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' };
 
 /** The footprint and operator a drawing tool stands for (null: not a Shapes tool). */
-export function shapeOf(tool: Tool, polyMode: 'click' | 'ngon' | 'round' | 'rounded', board: boolean): { foot: ShapeFoot; board: boolean } | null {
+export function shapeOf(tool: Tool, polyMode: 'click' | 'ngon' | 'round' | 'rounded' | 'line', board: boolean): { foot: ShapeFoot; board: boolean } | null {
   if (tool === 'panel') return { foot: 'rect', board: true };
   if (tool === 'rect') return { foot: 'rect', board: false };
   if (tool === 'roundrect') return { foot: 'rounded', board: false };
@@ -27,11 +29,12 @@ export function shapeOf(tool: Tool, polyMode: 'click' | 'ngon' | 'round' | 'roun
   if (tool !== 'polygon') return null;
   if (polyMode === 'round') return { foot: 'circle', board: true };
   if (polyMode === 'rounded') return { foot: 'rounded', board: true };
+  if (polyMode === 'line') return { foot: 'line', board: false };
   return { foot: polyMode === 'ngon' ? 'regular' : 'polygon', board };
 }
 
 /** Single-key tool shortcuts (outside text fields): the Shapes tool's footprints, Divider and Text (milestone 75). */
-export const TOOL_KEYS: Record<string, Tool | ShapeFoot> = { v: 'select', p: 'panel', r: 'rect', u: 'rounded', c: 'circle', g: 'polygon', d: 'divider', t: 'text' };
+export const TOOL_KEYS: Record<string, Tool | ShapeFoot> = { v: 'select', p: 'panel', r: 'rect', u: 'rounded', c: 'circle', g: 'polygon', l: 'line', d: 'divider', t: 'text' };
 
 /** The panel an imported shape goes on: the solo panel, the selected panel, or the selected shape's panel. */
 function targetPanel(): string | null {
@@ -99,6 +102,7 @@ function WorkshopRail() {
   const shapeBoard = useStore((s) => s.shapeBoard);
   const shapeNote = useStore((s) => s.shapeNote);
   const lastFoot = useStore((s) => s.shapeFoot);
+  const lineType = useStore((s) => s.lineType);
   const railBtn = (id: Tool, key: MsgKey, icon: string, kbd: string) => (
     <button key={id} className={tool === id ? 'on' : ''} aria-pressed={tool === id} aria-label={t(key)} onClick={() => setTool(id)} data-testid={`tool-${id}`}>
       <Icon name={icon} />
@@ -166,6 +170,25 @@ function WorkshopRail() {
       {(inShapes || tool === 'text') && (
         // the shape card: what the footprint does (only while the Shapes or Text tool is in use)
         <aside className="quick-card shape-card" aria-label={t('tool.op')} data-testid="shape-card">
+          {foot === 'line' && inShapes ? (
+            // the Line footprint (milestone 84): its operators are the line types
+            <>
+              <h4>{t('line.type')}</h4>
+              <div className="op-list" role="radiogroup" aria-label={t('line.type')}>
+                {LINE_TYPES.map((lt) => (
+                  <button key={lt} role="radio" aria-checked={lineType === lt} className={lineType === lt ? 'on' : ''} data-op={lt} onClick={() => useStore.getState().set({ lineType: lt })} data-testid={`line-${lt}`}>
+                    <Icon name={`line-${lt}`} size={20} />
+                    <span className="op-text">
+                      <strong>{t(`line.name.${lt}`)}</strong>
+                      <small>{t(`line.desc.${lt}`)}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="hint">{t('tool.shapeOnBoard')}</p>
+            </>
+          ) : (
+          <>
           <h4>{t('tool.op')}</h4>
           <div className="op-list" role="radiogroup" aria-label={t('tool.op')}>
             {inShapes && view === '3d' && (
@@ -218,6 +241,8 @@ function WorkshopRail() {
               <input type="checkbox" checked={through} onChange={() => useStore.getState().set({ shapeThrough: !through })} data-testid="op-through" />
               <Icon name="through" size={16} /> {t('tool.op.through')}
             </label>
+          )}
+          </>
           )}
         </aside>
       )}

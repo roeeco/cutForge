@@ -38,6 +38,13 @@ const P: Record<string, ReactElement> = {
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
   polygon: <path d="M12 3.5 20 9.3 17 19h-10L4 9.3Z" />,
+  // the Line footprint and its types (milestone 84)
+  line: <path d="M4 18 L11 8 L20 12" />,
+  'line-cut': <path d="M4 12h16" />,
+  'line-crease': <path d="M4 12h16" strokeDasharray="0" />,
+  'line-perf': <path d="M4 12h2.5M8.5 12h2.5M13 12h2.5M17.5 12h2.5" />,
+  'line-cutcrease': <path d="M4 12h5M11 12h5M18 12h2" />,
+  'line-guide': <path d="M4 12h1M7 12h1M10 12h1M13 12h1M16 12h1M19 12h1" />,
   // a regular hexagon (the Shapes tool's Regular footprint)
   ngon: <path d="M12 3.5 19.4 7.75v8.5L12 20.5 4.6 16.25v-8.5Z" />,
   through: <path d="M4 8h16M4 16h16M9 4l-2 16M17 4l-2 16" />,

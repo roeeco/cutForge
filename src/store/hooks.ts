@@ -132,7 +132,7 @@ export function useKeyboard() {
             s.setBoardPose('flat');
             s.chooseShape('rect', true);
           }
-        } else if (k === 'rect' || k === 'rounded' || k === 'circle' || k === 'polygon') s.chooseShape(k);
+        } else if (k === 'rect' || k === 'rounded' || k === 'circle' || k === 'polygon' || k === 'line') s.chooseShape(k);
         else if (k === 'divider') s.view === '3d' && s.setTool('divider');
         else s.setTool(k as Tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {

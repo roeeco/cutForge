@@ -28,6 +28,12 @@ describe('the Shapes tool', () => {
     ['polygon', false, 'polygon', 'click'],
     ['regular', false, 'polygon', 'ngon'],
   ];
+  it('Line (milestone 84) draws with the polygon tool, open', () => {
+    s().chooseShape('line');
+    expect(s().tool).toBe('polygon');
+    expect(s().polyMode).toBe('line');
+    expect(shapeOf(s().tool, s().polyMode, s().shapeBoard)).toEqual({ foot: 'line', board: false });
+  });
   it.each(cases)('%s with Board %s draws with the %s tool', (foot, board, tool, mode) => {
     s().chooseShape(foot, board);
     expect(s().tool).toBe(tool);

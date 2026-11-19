@@ -1349,6 +1349,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 `LIDS_LINES_PROJECTS_PLAN.md` §5 (milestone 78 there). `Panel.lines` with five types, clipped to the board and its holes, dashed per material at export, checked (a cut that would split the piece, a line off the board), drawn in 3D. Made through `ops` only; the tool is milestone 84.
 - Tests: `tests/lines.test.ts` (8): dash layout (perforation starts with a cut, cut-crease with a tie, round a corner, shorter than a dash), arcs from a bulge, dash lengths per material, clipping at the outline and at a cut-out shape's hole, every type on its layer in the file (counts of dashes), the checks, kerf compensation leaves open lines in place. Golden `lines-card` (new); every other golden byte-identical.
 
+## Milestone 84 — the Line footprint ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §6 (milestone 79 there), adapted: *Line* is the Shapes tool's sixth footprint (`L`) with the line types as its operators. A board's card lists its lines with their type and Delete, in both modes.
+- Tests: `shapesTool.test.ts` (Line draws with the polygon tool, open); browser `lines.spec.ts`: a perforation of three points and Enter on a board, retyped as a crease on the card, deleted.
+- Not yet: editing a line's points or arcs on the stage, selecting it on the stage, a line across folds on the cut plan.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

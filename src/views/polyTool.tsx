@@ -14,7 +14,7 @@ import { useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Frame, P2, Panel, V3, WallSketch } from '../model/types';
 import { GROUND_FRAME, frameNormal, toLocal, toWorld } from '../model/frame';
-import { addPlacedOutline, addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
+import { addLine, addPlacedOutline, addPolygonPanel, addPolygonShape, addRoundedRect, addRoundPanel, addWallInsert, deleteVertex, deleteWallInsert, insertVertex, isSimplePolygon, moveVertex, moveWallInsert, regularPolygon, setWallCorner } from '../model/ops';
 import { sketchRing, straightRing, wallCorners, type EdgeSeg } from '../model/edges';
 import { defaultEnd, roundPts } from '../model/round';
 import { detailSel, gridSnap, noSmartSnap, uiDir, useStore, useT } from '../store/store';
@@ -148,6 +148,20 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     }
   };
 
+  /** A line drawn on a board (milestone 84): open, of the type chosen on the card; one undo step. */
+  const finishLine = (pts: P2[]) => {
+    closedAt.t = performance.now();
+    const d = dr.current;
+    setDraft(null);
+    setControls(true);
+    if (!d?.panelId || pts.length < 2) return;
+    const st = useStore.getState();
+    const pid = d.panelId;
+    st.cancelPending();
+    st.apply((x) => void addLine(x, pid, pts, st.lineType));
+    st.select({ kind: 'panel', id: pid });
+  };
+
   const finish = (pts: P2[], regular?: number) => {
     // the click that closes a polygon must not also reach the stage (which would deselect)
     closedAt.t = performance.now();
@@ -191,7 +205,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       e.stopPropagation();
       const st = useStore.getState();
       // a polygon that works on a board (milestone 75) is not started on the floor
-      if (!panel && !st.shapeBoard && (st.polyMode === 'click' || st.polyMode === 'ngon')) return st.set({ shapeNote: 'onBoard' });
+      if (!panel && ((!st.shapeBoard && (st.polyMode === 'click' || st.polyMode === 'ngon')) || st.polyMode === 'line')) return st.set({ shapeNote: 'onBoard' });
       const frame = panel ? panel.frame : FLOOR;
       const z = panel ? faceZ(panel, tOf(st.design, panel.id))[1] : 0;
       const n = new THREE.Vector3(...frameNormal(frame));
@@ -199,7 +213,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       const l = toLocal(frame, [e.point.x, e.point.y, e.point.z]);
       const p0 = { x: snap1(l.x), y: snap1(l.y) };
       const d: Draft = { panelId: panel?.id ?? null, frame, z, plane, pts: [], cur: p0, typed: '', stamp: e.nativeEvent.timeStamp };
-      if (st.polyMode !== 'click') {
+      // corners and a line are clicked point by point; the others are dragged from a centre or corner
+      if (st.polyMode !== 'click' && st.polyMode !== 'line') {
         d.centre = p0;
         setControls(false);
       } else d.pts = [p0];
@@ -217,9 +232,10 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
       if (!raw) return;
       ev.stopPropagation();
       const p = nextPoint(d, raw, ev.shiftKey);
-      if (d.pts.length >= 3 && p === d.pts[0]) return finish(d.pts);
+      if (mode !== 'line' && d.pts.length >= 3 && p === d.pts[0]) return finish(d.pts);
       const last = d.pts[d.pts.length - 1];
-      if (last && Math.hypot(p.x - last.x, p.y - last.y) < 0.5) return;
+      // a line ends with a second click on its last point (a double click)
+      if (last && Math.hypot(p.x - last.x, p.y - last.y) < 0.5) return mode === 'line' && d.pts.length >= 2 ? finishLine(d.pts) : undefined;
       setDraft({ ...d, pts: [...d.pts, p], typed: '' });
     };
     const move = (ev: PointerEvent) => {
@@ -273,7 +289,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
         if (d.typed && len > 0 && last && d.cur) {
           const a = Math.atan2(d.cur.y - last.y, d.cur.x - last.x);
           setDraft({ ...d, pts: [...d.pts, { x: last.x + Math.cos(a) * len, y: last.y + Math.sin(a) * len }], typed: '' });
-        } else if (d.pts.length >= 3) finish(d.pts);
+        } else if (mode === 'line' && d.pts.length >= 2) finishLine(d.pts);
+        else if (d.pts.length >= 3) finish(d.pts);
       }
     };
     el.addEventListener('pointerdown', down, true);
@@ -298,7 +315,8 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
     const zz = draft.z + (draft.frame.side === 1 ? 0.4 : -0.4);
     const v = (p: P2) => new THREE.Vector3(p.x, p.y, draft.panelId ? zz : 0.4).applyMatrix4(m);
     const open = pts.map(v);
-    const close = pts.length >= 3 ? [v(pts[pts.length - 1]), v(pts[0])] : [];
+    // a line (milestone 84) stays open: no closing segment
+    const close = pts.length >= 3 && mode !== 'line' ? [v(pts[pts.length - 1]), v(pts[0])] : [];
     const last = draft.pts[draft.pts.length - 1];
     const seg = last && draft.cur && !draft.centre ? Math.hypot(draft.cur.x - last.x, draft.cur.y - last.y) : null;
     const b = draft.centre && draft.cur && mode !== 'ngon' ? boxOf(draft, draft.cur, shift) : null;
@@ -343,7 +361,7 @@ export const PolygonTool = forwardRef<PolyToolHandle, { setControls: (on: boolea
         <StageHtml position={view.label.toArray() as V3} style={{ pointerEvents: 'none' }}>
           <span className="dim-label poly-label" data-testid="poly-label" dir="ltr">
             {draft.typed ? `${draft.typed}▍ ${t('unit.mm')}` : view.box ? `${fmtNum(view.box.w)} × ${fmtNum(view.box.h)}` : view.n ? `${view.n} × r ${fmtNum(view.r ?? 0)}` : view.seg !== null ? `${fmtNum(view.seg)} ${t('unit.mm')}` : ''}
-            {!draft.centre && !view.closedOk && draft.pts.length >= 3 ? ` · ${t('poly.crosses')}` : ''}
+            {!draft.centre && mode !== 'line' && !view.closedOk && draft.pts.length >= 3 ? ` · ${t('poly.crosses')}` : ''}
           </span>
         </StageHtml>
       )}
@@ -642,7 +660,7 @@ export function PolygonToolCard() {
   return (
     <div className="card poly-card" dir={uiDir()} data-testid="poly-card" data-mode={mode}>
       {/* the Shapes tool's menu chooses polygon corners or a regular polygon (milestone 75); the card keeps their settings */}
-      <p className="kicker">{mode === 'round' || mode === 'rounded' ? t(`poly.mode.${mode}`) : t(mode === 'ngon' ? 'tool.regular' : 'tool.polygon')}</p>
+      <p className="kicker">{mode === 'round' || mode === 'rounded' || mode === 'line' ? t(`poly.mode.${mode}`) : t(mode === 'ngon' ? 'tool.regular' : 'tool.polygon')}</p>
       {mode === 'ngon' && (
         <div className="field stepper-row">
           <span className="label">{t('poly.sides')}</span>

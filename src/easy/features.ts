@@ -121,6 +121,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'tray-ends': 'tray.ends',
   'carton-bottom': 'lid',
   'lid-section': 'lid',
+  // milestone 84: a board's drawn lines, shown and deleted in both modes
+  'lines-section': null,
   'inside-section': null,
   // a board
   'bend-section': 'bend',

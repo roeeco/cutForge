@@ -3,7 +3,7 @@ import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { produce, type Draft } from 'immer';
-import type { ClosureStyle, ConnectionKind, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -44,7 +44,7 @@ export function detailSel(ids: string[]): Selection {
 }
 
 /** The Shapes tool's footprints (milestone 75). */
-export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular';
+export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular' | 'line';
 /** Tools the Shapes tool drives: a footprint drawn as a board or as a shape on one. */
 export const SHAPE_DRAW_TOOLS = new Set<string>(['panel', 'rect', 'roundrect', 'circle', 'polygon']);
 
@@ -231,7 +231,9 @@ type State = {
   /** Connection whose joint card is open (seam pill or inspector). */
   openJoint: string | null;
   /** Polygon tool: click vertices, or drag a regular n-gon. */
-  polyMode: 'click' | 'ngon' | 'round' | 'rounded';
+  polyMode: 'click' | 'ngon' | 'round' | 'rounded' | 'line';
+  /** The Line footprint's type (milestone 84). */
+  lineType: LineType;
   ngonSides: number;
   /** The polygon tool's Round mode: which round shape a drag makes (milestone 62). */
   roundShape: 'circle' | 'oval' | 'stadium';
@@ -298,7 +300,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -359,6 +361,7 @@ export const useStore = create<State>()((set, get) => ({
   shapeFoot: 'rect',
   shapeBoard: true,
   shapeNote: null,
+  lineType: 'crease',
   lidShut: {},
   setLidShut: (trayId, shut) => set({ lidShut: { ...get().lidShut, [trayId]: shut } }),
   quickLast: {},
@@ -555,13 +558,14 @@ export const useStore = create<State>()((set, get) => ({
     const f = foot ?? s.shapeFoot;
     // boards are made on the 3D stage; on the cut plan a shape works on a piece, and polygons are drawn in 3D only
     const in3d = s.view === '3d';
-    if (!in3d && (f === 'polygon' || f === 'regular')) return;
+    if (!in3d && (f === 'polygon' || f === 'regular' || f === 'line')) return;
     const b = in3d && (board ?? s.shapeBoard);
     set({ shapeFoot: f, shapeNote: null, ...(in3d ? { shapeBoard: b } : {}) });
     const poly = (m: State['polyMode']) => {
       if (get().tool !== 'polygon') get().setTool('polygon');
       if (get().polyMode !== m) set({ polyMode: m });
     };
+    if (f === 'line') return poly('line');
     if (f === 'polygon') return poly('click');
     if (f === 'regular') return poly('ngon');
     if (b) return f === 'rect' ? get().setTool('panel') : poly(f === 'rounded' ? 'rounded' : 'round');

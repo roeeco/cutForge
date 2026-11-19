@@ -386,3 +386,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Kerf compensation** does not offset open lines sideways; it pulls a cut's ends in by half the kerf, as it already did for the app's other open cuts.
 - **Checks**: `val.lineSplits` (a cut from edge to edge would split the piece; a perforation may), `val.lineOutside` (wholly off its board). `val.lineNear` (too close to a slot or joint) is not done yet.
 - **3D** draws them on both faces of the board, dashed for the dashed types.
+
+## Milestone 84: the Line footprint (LIDS_LINES_PROJECTS_PLAN.md §6, as ROADMAP.md conflict 3 settles it)
+- **A sixth footprint in the Shapes menu, not a rail button** (`L`): its card offers the five line types instead of the operators; the polygon tool draws it point by point without closing. A second click on the last point, or Enter, ends it; Shift gives 15° steps and a typed number a segment's length, as for polygons. It is drawn on a board only (the floor says *Draw it on a board*), and is made at once as one undo step: a line has no ghost to confirm, since nothing about it changes the board's outline.
+- **A board's card lists its lines** (*Lines*, with a count): each one's type, and Delete. In both modes: Quick build has no Line tool, but a line made in Workshop can be retyped and deleted there.
+- **Not yet**: moving a line's points on the stage, bowing a segment into an arc by dragging its middle (`bulge` is in the model and the file; only `ops` set it), selecting a line on the stage, and splitting a line drawn on the cut plan across folds into one line per board.

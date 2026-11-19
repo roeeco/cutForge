@@ -27,6 +27,7 @@ import { edgeLabel, isAutoName, panelLabel } from '../model/names';
 import { isCurveKey, panelEdges, segLength, sketchFillets, sketchMaxRadius } from '../model/edges';
 import { KEEP_STRAIGHT } from '../geom/fillet';
 import { Icon } from './icons';
+import { LinesSection } from './LinesUI';
 import { EdgeBar } from './EdgeBar';
 import { BoardMaterial } from './BoardMaterial';
 import { MultiPanel } from './MultiPanel';
@@ -267,6 +268,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <ExtrudeSection panelId={id} />
           <TraySection panelId={id} />
           <LidSection panelId={id} />
+          <LinesSection panelId={id} />
           <InsideSection panelId={id} />
           <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
