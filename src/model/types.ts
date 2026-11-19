@@ -194,6 +194,9 @@ export type LineType = 'cut' | 'crease' | 'perf' | 'cutcrease' | 'guide';
 /** A drawn line on a board, in the board's local coordinates. `bulge` bows the segment that starts at a point into an arc (DXF's bulge: tan of a quarter of the turn). */
 export type BoardLine = { id: string; pts: (P2 & { bulge?: number })[]; type: LineType; group?: string };
 
+/** A size of a design (milestone 88): its box's width, depth and height, or a template's parameters. */
+export type BoxSize = { id: string; name: string; w?: number; d?: number; h?: number; params?: Record<string, number | string> };
+
 export type PanelPlace = { host: string | null; face: 1 | -1; x: number; y: number; rot: number; pose: 'flat' | 'standing'; side?: 1 | -1 };
 
 /**
@@ -416,6 +419,8 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
+  /** Sizes of the design (milestone 88): each the master with these numbers applied, worked out on demand, never stored. */
+  sizes?: BoxSize[];
   /** The Quick build mission this design was started from (milestone 40), so a submission shows which. */
   mission?: { id: string; version: number };
   /** Objects placed in its compartments (milestone 40): view state kept with the design, ignored by pieces, packing and export. */

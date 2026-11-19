@@ -349,6 +349,12 @@ export function checkDesign(raw: unknown): asserts raw is Design {
   const d = raw as Record<string, any>;
   if (typeof d.id !== 'string') d.id = 'loaded';
   if (typeof d.name !== 'string') d.name = '';
+  // sizes (milestone 88): rows of numbers; a bad one is dropped
+  if (d.sizes !== undefined) {
+    const n = (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < COORD_LIMIT);
+    d.sizes = Array.isArray(d.sizes) ? d.sizes.filter((x: any) => isObj(x) && typeof x.id === 'string' && typeof x.name === 'string' && n(x.w) && n(x.d) && n(x.h) && (x.params === undefined || isObj(x.params))).slice(0, 50) : undefined;
+    if (!d.sizes?.length) delete d.sizes;
+  }
   material(d.material, 'material');
   if (d.materials !== undefined) {
     if (!isObj(d.materials)) fail('materials', 'not a list of materials');

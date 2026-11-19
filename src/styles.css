@@ -919,3 +919,6 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .plan-ann.ann-glue { fill: #8a5a00; font-style: italic; }
 .lib-project { margin-bottom: 10px; }
 .lib-project-name { display: flex; align-items: center; gap: 6px; font-weight: 700; margin: 6px 0; }
+.sizes-table { display: grid; gap: 8px; }
+.sizes-row { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.sizes-row > input { font-weight: 700; }

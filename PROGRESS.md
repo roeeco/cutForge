@@ -1378,6 +1378,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `library.test.ts` (+3): a project of three designs round-trips through one file and a single-design file still opens (and still parses for the Worker); a two-material project makes two batches; designs join a project by name, keep it through autosave, and leave it. Browser `library.spec.ts` (+1): two designs moved into a project, grouped in the library, and *The whole project* downloads.
 - Not yet: *Compare*.
 
+## Milestone 88 — sizes ✅ (in the download)
+
+`LIDS_LINES_PROJECTS_PLAN.md` §7.3 (milestone 83 there). A design with one box (or a template) has sizes in its settings card; each is the master with its numbers, checked and downloaded under its own name.
+- Tests: `tests/sizes.test.ts` (4): a hinged card box in three sizes: its lid closes each, a centred window stays centred, a corner hole keeps its distance, each is clean and exports, the master is untouched; a change to the master shows in every size; a box with a Flat lid and a divider sizes with its lid, the divider keeping its share; sizes need one box. `quickTable.test.ts`: `sizes` hidden in Quick build. Browser `sizes.spec.ts`: a size added in the settings card and downloaded under its name.
+- Not yet: showing a size on the stage.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

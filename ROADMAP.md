@@ -80,7 +80,7 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | 85 | ✅ per joint | The design-wide choice; creases on the back. |
 | 86 | ✅ built | Card thumbnails; `navigator.storage.persist()`. |
 | 87 | ✅ built | *Compare*. |
-| 88 | not started | Sizes. |
+| 88 | ✅ in the settings card and the download | Showing a size on the stage. |
 | 89 | ✅ blank sizes, glue, legend, guide-layer option | Dimension chains, the grain arrow, the title block. |
 | 90 | not started | The spec sheet. |
 | 91 | each milestone verified as it landed | A final pass once 87, 88 and 90 are in. |

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { projectDesigns, projectOf } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { projectBatches } from '../export/project';
+import { applySize } from '../model/sizes';
 import type { Design } from '../model/types';
 import { issueSelection, useStore, useT } from '../store/store';
 import { prepareExport, type KerfMode } from '../export/prepare';
@@ -70,8 +71,37 @@ export function ExportDialog() {
     }
     close();
   };
+  // milestone 88: the master and each size, as chosen; each size checked and named in its messages
+  const sizes = d.sizes ?? [];
+  const [sizeOn, setSizeOn] = useState<Record<string, boolean>>({});
+  const sizeIssues = useMemo(
+    () =>
+      sizes
+        .filter((sz) => sizeOn[sz.id])
+        .flatMap((sz) => {
+          try {
+            return validate(applySize(d, sz)).map((i) => ({ size: sz.name, text: t(i.key, issueVars(applySize(d, sz), i, t)) }));
+          } catch {
+            return [{ size: sz.name, text: t('err.damaged') }];
+          }
+        }),
+    [d, sizeOn, t],
+  );
+  const goSizes = () => {
+    for (const sz of sizes) {
+      if (!sizeOn[sz.id]) continue;
+      const x = applySize(d, sz);
+      const p = prepareExport(x, mode, { kissUp: t('export.kissUp'), kissUpShort: t('export.kissUpShort') });
+      for (const f of exportFiles(`${d.name || 'cutforge'}-${sz.name}`, p, mode)) {
+        if (format === 'dxf') downloadText(`${f.base}.dxf`, sheetsToDxf(f.sheets), 'application/dxf');
+        else downloadText(`${f.base}.svg`, f.sheets.length === 1 ? sheetToSvg(f.sheets[0]) : sheetsToSvg(f.sheets), 'image/svg+xml');
+      }
+    }
+  };
   const go = () => {
     if (scope === 'project' && project) return goProject();
+    goSizes();
+    if (sizes.length && sizeOn.master === false) return close();
     for (const f of files) {
       const sheets = f.sheets;
       const base = f.base;
@@ -123,6 +153,24 @@ export function ExportDialog() {
             <input type="radio" name="kerf" checked={mode === 'compensated'} onChange={() => setMode('compensated')} data-testid="kerf-compensated" /> {t('export.compensated')}
           </label>
         </fieldset>
+        )}
+        {sizes.length > 0 && (
+          <fieldset data-testid="export-sizes">
+            <legend>{t('sizes.export')}</legend>
+            <label>
+              <input type="checkbox" checked={sizeOn.master !== false} onChange={(e) => setSizeOn({ ...sizeOn, master: e.target.checked })} data-testid="export-size-master" /> {t('sizes.master')}
+            </label>
+            {sizes.map((sz) => (
+              <label key={sz.id}>
+                <input type="checkbox" checked={!!sizeOn[sz.id]} onChange={(e) => setSizeOn({ ...sizeOn, [sz.id]: e.target.checked })} data-testid={`export-size-${sz.name}`} /> {sz.name}
+              </label>
+            ))}
+            {sizeIssues.map((x, i) => (
+              <p key={i} className="note warn-text" data-testid="export-size-issue">
+                {t('sizes.issue', { size: x.size, msg: x.text })}
+              </p>
+            ))}
+          </fieldset>
         )}
         {project && (
           <fieldset data-testid="export-scope">

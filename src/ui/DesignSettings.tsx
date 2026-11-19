@@ -14,13 +14,15 @@ import { fmtNum } from '../i18n';
 import { TemplateSection, templateSummary } from './TemplateUI';
 import { useMaterialEdit } from './MaterialDrawer';
 import { Icon } from './icons';
+import { sizedBox, sizesWhy } from '../model/sizes';
 import { shown, useFeature } from '../easy/features';
 
-const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping'];
+const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping', 'sizes'];
 /** Below this stage height (px) the sections start closed. */
 const SHORT_STAGE = 700;
 
 export function DesignSettings() {
+  const fSz = useFeature('sizes');
   const fj = useFeature('settings.joints'), fs = useFeature('settings.snapping'), fm = useFeature('settings.material'), fNoGlue = shown(useFeature('joints.noGlue'));
   const t = useT();
   const d = useStore((s) => s.design);
@@ -122,6 +124,8 @@ export function DesignSettings() {
   };
   // Quick build (milestone 37): the app chooses joints and snapping; the material is shown, not changed
   const fJoints = shown(fj), fSnap = shown(fs), fMaterial = shown(fm), matRO = fm === 'readonly';
+  const fSizes = shown(fSz);
+  const sizesNo = sizesWhy(d);
   // milestone 78 (UI_CLEANUP_PLAN.md Part 6.1): once there is a board on the stage, the card folds to its header until opened
   const folded = d.order.length > 0 && !prefs.settingsOpen;
   const head = (
@@ -224,6 +228,43 @@ export function DesignSettings() {
           <p className="note">{t('settings.altHelp')}</p>
         </>,
       )}
+      {/* milestone 88: sizes of the design, each the master with its numbers (worked out when cut, never stored) */}
+      {fSizes && d.order.length > 0 &&
+        section(
+          'sizes',
+          t('sizes.title'),
+          d.sizes?.length ? d.sizes.map((x) => x.name).join(' · ') : '—',
+          sizesNo ? (
+            <p className="note" data-testid="sizes-why">{t(sizesNo)}</p>
+          ) : (
+            <div className="sizes-table" data-testid="sizes-table">
+              {(d.sizes ?? []).map((sz, i) => (
+                <div className="sizes-row" key={sz.id} data-testid={`size-row-${i}`}>
+                  <input value={sz.name} aria-label={t('sizes.name')} onChange={(e) => apply((x) => void (x.sizes![i].name = e.target.value))} data-testid={`size-name-${i}`} />
+                  {(['w', 'd', 'h'] as const).map((k) => (
+                    <NumField key={k} label={t(k === 'w' ? 'sizes.width' : k === 'd' ? 'sizes.depth' : 'sizes.height')} value={sz[k] ?? 0} unit={mm} min={10} max={2000} onCommit={(v) => apply((x) => void (x.sizes![i][k] = v))} testId={`size-${k}-${i}`} />
+                  ))}
+                  <button className="ghost icon-btn" aria-label={t('lib.delete')} onClick={() => apply((x) => void (x.sizes = x.sizes!.filter((_, j) => j !== i), x.sizes!.length || delete x.sizes))} data-testid={`size-delete-${i}`}>
+                    <Icon name="trash" size={16} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() =>
+                  apply((x) => {
+                    const box = sizedBox(x);
+                    const B = box ? x.panels[x.trays[box].baseId] : undefined;
+                    const n = (x.sizes?.length ?? 0) + 1;
+                    (x.sizes ??= []).push({ id: `sz${Date.now().toString(36)}${n}`, name: String.fromCharCode(64 + Math.min(26, n)), ...(B ? { w: B.w, d: B.h, h: x.trays[box!].height } : {}) });
+                  })
+                }
+                data-testid="size-add"
+              >
+                {t('sizes.add')}
+              </button>
+            </div>
+          ),
+        )}
     </section>
   );
 }
