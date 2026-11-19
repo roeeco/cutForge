@@ -1436,6 +1436,17 @@ Verified
 Limitations
 - The stage's W / H labels still show outside sizes. A base that is not a rectangle takes its walls' thickness on both sides. Templates keep their own *Sizes are* parameter (the organiser's); the sentence builder writes `Design.sizeAs` (milestone 95).
 
+## Milestone 94 — the sentence's contract and resolver ✅
+
+`SENTENCE_BUILDER_PLAN.md` S1. No interface. `src/templates/types.ts`, `src/sentence/resolve.ts`; `organiser` and `stand` gain `limits`.
+- **The contract**: a parameter may say `when` (it is in the sentence only then), `allowed` per option (an option that cannot be made is not offered), `why` (the reason one dropped out), `fallback`, `addon: { off }` (a clause added with *+ more*), `affects` (boards to light up). A template may say `limits(m, p)` (each number's range now, and why it ends there), `canMake(m)` (kind and thickness; `materials` still decides when absent, through `makes`), `status`, `fallback(m)` (the structure to become), `sentence` and `word`. Old templates need none of them.
+- **The resolver**: `resolve` (every word's state: shown, the allowed options, the range and its reason), `choose` (one word changed; every later word checked in order, and only those; a word no longer allowed takes its fallback, a number moves to the nearest end of its new range, each a `Change` with its reason; a typed number outside its own range is refused with the range), `chooseStructure` (shared words kept), `chooseMaterial` (the structure's fallback when the material cannot make it, then every word), `largestOk` (bisection for limits with no formula: at most eight builds, cached).
+- **Organiser**: the divider counts end where a space would be under `MIN_COMPARTMENT`, the dividers' height at the walls under a lift-off lid. **Stand**: as many slots as the base's depth holds.
+
+Verified
+- `tests/sentence.resolve.test.ts` (11): on a made-up structure, a change re-checks only the later words; a changed earlier word moves later numbers into range, each reported once; a dropped option's fallback and reason; a refused number with its range; choosing the current value changes nothing and `resolve` agrees; lists hold only allowed options; a material change re-checks every word; a structure the material cannot make becomes its fallback keeping shared words; bisection within its step in eight builds, cached. The organiser's count falls with a narrower box; the stand's slots end at what its base holds.
+- Goldens and template tests unchanged; unit suite and typecheck green.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

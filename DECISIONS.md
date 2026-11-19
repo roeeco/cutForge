@@ -447,3 +447,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Crease to crease is half a wall less on each side**, because since the fold overhaul a crease lies where the two mid-planes meet; on plywood (no creases) the choice is not offered.
 - **The intent is applied around a change of board** (`keepingStatedSizes`): the stated sizes are read before and set after. `ops.ts` imports `boxSize.ts`, which imports `setPanelSize` / `setTrayHeight` from `ops.ts`; the cycle is only between functions called at run time.
 - **Dividers keep their distance from the left and front** when a box is resized through `setBoxSize` (the base grows from its origin), the rule Guided's Build and the sentence's spaces rely on.
+
+## Milestone 94: the sentence's contract and resolver (SENTENCE_BUILDER_PLAN.md S1)
+- **`canMake(m)` beside `materials`**, not in place of it: the welcome screen, the missions and saved files read `materials`; `makes(t, m)` asks `canMake` first.
+- **A word not in the sentence keeps its value** (it is not reset when hidden), so it comes back as it was when an earlier word brings it back.
+- **A choice not offered changes nothing** rather than being refused with a range: lists only ever offer allowed options.
+- **A range that closes up keeps its lower end** (max never below min), so a number always has a value it can take.
+- **Bisection**: both ends are tried first, then halvings, then the result is rounded down to the step; eight builds give about 1/64 of the range.

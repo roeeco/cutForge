@@ -1180,6 +1180,12 @@ export const en = {
   'size.w.crease': "Width (creases)",
   'size.d.crease': "Depth (creases)",
   'size.h.crease': "Height (creases)",
+  'sen.why.notHere': "That choice cannot be made with the words before it.",
+  'sen.why.range': "The size before it changed, so this number moved into its range.",
+  'sen.why.structure': "This material cannot make that, so it changed to what it can.",
+  'sen.why.spaceSmall': "each space at least 5 mm",
+  'sen.why.dividerTall': "under the lid",
+  'sen.why.standDepth': "what the base's depth holds",
   'insp.depth': "Depth",
 } as const;
 

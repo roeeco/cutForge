@@ -1182,5 +1182,11 @@ export const he: Record<MsgKey, string> = {
   'size.w.crease': "רוחב (בין קפלים)",
   'size.d.crease': "עומק (בין קפלים)",
   'size.h.crease': "גובה (בין קפלים)",
+  'sen.why.notHere': "אי אפשר לבחור את זה עם המילים שלפניו.",
+  'sen.why.range': "המידה שלפניו השתנתה, ולכן המספר עבר לטווח שלו.",
+  'sen.why.structure': "החומר הזה לא מתאים לזה, ולכן זה השתנה למה שאפשר.",
+  'sen.why.spaceSmall': "כל תא לפחות 5 מ״מ",
+  'sen.why.dividerTall': "מתחת למכסה",
+  'sen.why.standDepth': "כמה שעומק הבסיס מכיל",
   'insp.depth': "עומק",
 };

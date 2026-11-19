@@ -60,6 +60,13 @@ export const stand: TemplateDef = {
       connectSeams(d, lip.panelId, ply ? undefined : 'glue');
     }
   },
+  // milestone 94: as many slots as the base's depth holds
+  limits(m, p) {
+    const t = m.thickness;
+    let n = 1;
+    while (n < 8 && standLayout(t, Number(p.cardThickness), Number(p.angle), n + 1).reach <= Number(p.baseDepth) - t) n++;
+    return { slots: { max: n, why: 'sen.why.standDepth' } };
+  },
   check(d, p) {
     const { reach } = standLayout(d.material.thickness, Number(p.cardThickness), Number(p.angle), Math.round(Number(p.slots)));
     return reach > Number(p.baseDepth) - d.material.thickness ? [{ key: 'val.standDepth', vars: {}, panel: 't:base' }] : [];
