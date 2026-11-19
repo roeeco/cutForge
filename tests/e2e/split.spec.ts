@@ -54,7 +54,8 @@ test('a class set of card trays: the cut plan reports its yield; Save material c
 test('a tray too tall for its sheet is cut so it fits; a fold pinned Keep whole moves the cut; the wall card says why it is cut', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await classSet(page, 200, 180, 55, 1);
+  // its net (319 × 299) is taller than the sheet inside its margin; a crease takes no strip (the overhaul of 19 November)
+  await classSet(page, 200, 180, 60, 1);
   const d = await design(page);
   const cut = Object.values(d.connections).find((c: any) => c.autoCut) as any;
   expect(cut).toBeTruthy();

@@ -1398,6 +1398,13 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Deferred, with the reason in `ROADMAP.md` §3 *Status* and §4: the pin hinge (81: a plywood spike), the Inset lid, hasps on caps, Compare, a size shown on the stage, the tiled 1 : 1 print, dimension chains, creases on the back.
 - Needs the owner: the design that showed dividers narrow on the cut plan; real cuts of the Flat lid's fit (0.3 mm), the Drop-in lid and the hasps; LightBurn's reading of guide-layer text and dashed lines; Hebrew strings of 74–90 read by a native speaker.
 
+## The fold overhaul (19 November) ✅
+
+The owner's report (dividers short, gaps at the side walls, corners not flush, a lid folded inwards and mirrored). See `DECISIONS.md`. A crease folds where the mid-planes meet, so a folded box is the size of its 3D model (it was about 2t larger); no fold strip or jogs in the net; flaps crease half a thickness in; tab-and-slot corners are flush with open notches; a lid's folds (which turn away from the scored face) are perforated by default. Schema 11.
+
+Verified: unit suite 914 pass, 7 skipped; typecheck clean; goldens regenerated for card and corrugated (plywood byte-identical); browser specs 143 passed (`dividers`, `closures`, `foldover`, `joints`, `lids`, `lines`, `split`, `trays`, `wings`, `bands`, `polygon`, `round`, `spec`, `templates` and the rest of the app-only suite). Looked at in the browser: a corrugated tray's corner in 3D, its net, a card box with dividers and its cap lid on the cut plan.
+- Needs the owner: a real fold of card and 4 mm corrugated to confirm the crease rule (calibrate with *Fold allowance* if a material folds larger).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
