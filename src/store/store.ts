@@ -446,6 +446,8 @@ export const useStore = create<State>()((set, get) => ({
   guidedNote: null,
   setGuidedStep: (g) => {
     if (get().view === 'solo') get().closeSolo();
+    // Send shows the sheet (milestone 109); Build and Decorate the thing, folded up
+    set({ view: g === 'send' ? '2d' : '3d', foldT: 1, assemble: null });
     set({ guidedStep: g, guidedSpace: null, selection: null, edit2d: null, sel2d: null, editOutline: null, selVertex: null, tool: 'select' });
   },
   drawerOpen: false,

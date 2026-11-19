@@ -15,7 +15,8 @@ function files(dir: string): string[] {
 
 /** Prefixes Guided may share with the other levels. */
 // conn.: the corner lists folded under *More about this box* (GUIDED_MODE.md §4, owner call 4a)
-const SHARED = ['g.', 'conn.', 'obj.', 'mission.', 'goal.', 'mat.', 'sticker.', 'lid.kind.', 'mode.', 'unit.', 'lang.', 'lib.copySuffix', 'err.', 'dlg.openFailed'];
+// export.kissUp: words written into the file, as the download dialog writes them
+const SHARED = ['g.', 'conn.', 'export.kissUp', 'obj.', 'mission.', 'goal.', 'mat.', 'sticker.', 'lid.kind.', 'mode.', 'unit.', 'lang.', 'lib.copySuffix', 'err.', 'dlg.openFailed'];
 /** Words a beginner never meets in Guided. */
 const BANNED = /\b(joint|kerf|clearance|extrude|footprint|tray|panel|edge|grow|offset|nominal|compensat|DXF|SVG|LightBurn|snap|template)/i;
 /** Guided strings allowed to use one of those words (none yet). */

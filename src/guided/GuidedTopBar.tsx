@@ -1,6 +1,8 @@
 // Guided's top bar (milestone 105): home, the thing's name, the three steps, Undo and Redo with their
 // words, and a menu. Nothing else is there.
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { validate } from '../model/validate';
+import { blocking } from '../easy/fix';
 import { useStore, useT, type GuidedStep } from '../store/store';
 import { duplicateDesign } from '../model/ops';
 import { storeDesign } from '../store/persist';
@@ -18,6 +20,10 @@ export function GuidedTopBar() {
   const canRedo = useStore((s) => s.future.length > 0);
   const locked = useStore((s) => !!s.viewPrefs.modeLocked);
   const lang = useStore((s) => s.lang);
+  // the dot on *3 Send* (milestone 109): amber while something needs fixing
+  const live = useStore((s) => s.design);
+  const deferred = useDeferredValue(live);
+  const toFix = useMemo(() => deferred.order.length > 0 && validate(deferred).some(blocking), [deferred]);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -63,6 +69,7 @@ export function GuidedTopBar() {
         {STEPS.map((s, i) => (
           <button key={s} role="tab" aria-selected={step === s} className={step === s ? 'on' : ''} onClick={() => st().setGuidedStep(s)} data-testid={`g-step-${s}`}>
             <span className="g-step-n">{i + 1}</span> {t(`g.step.${s}`)}
+            {s === 'send' && <span className={`g-dot ${toFix ? 'warn' : 'ok'}`} aria-hidden data-testid="g-send-dot" data-warn={toFix} />}
           </button>
         ))}
       </div>

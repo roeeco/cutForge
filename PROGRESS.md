@@ -1709,6 +1709,31 @@ Limitations
 - The keep-out outline shows while a shape is selected, not only while it is dragged.
 - Not tried on a touch screen.
 
+## Milestone 109 (Guided G6) — Send ✅
+
+`GUIDED_MODE.md` G6, `HANDOFF_105-118.md` §109. New `src/guided/steps/Send.tsx`, `src/net/submit.ts`, `src/export/files.ts`, `src/ui/printPlan.ts`; `src/ui/SubmitDialog.tsx` and `src/ui/ExportDialog.tsx` use them (no change for Quick build and Workshop); `src/guided/GuidedTopBar.tsx` (the dot), `src/store/store.ts` (Send shows the sheet).
+- **Step 3, Send.** The stage becomes the sheet as the laser will cut it: a picture, nothing dragged, no *Repack*, no layer legend.
+- **The check**: *Ready to cut ✓*, or each problem in plain words (*A decoration goes past the side of Front wall*) with **Fix** for the thirteen the app can fix; anything else says *This needs your teacher*, with *Open with more tools* when the class allows it. A dot on *3 Send* in the top bar turns amber while something needs fixing.
+- *One sheet of board* / *{n} sheets*, and **Use less board** when it takes more than one.
+- **The mission's goals and stars** when there is one.
+- **Watch it go together** plays the assembly on the box and **See it flat** (card and corrugated) unfolds it; *Show the sheet* goes back.
+- **One button, waiting for the check**: with a class code (from the class link or typed after *I have a class code*), **Send to my teacher**, asking the name once; a class in another board asks *Your class cuts in Plywood 3 mm. Switch to it?* and checks again after switching. Without a class, **Download the file**: the SVG at its true size, no dialog. *More download options* opens the full dialog; *Print a plan* prints the A4 plan.
+- **Underneath**: sending moved out of the dialog into `src/net/submit.ts` (the class lookup, the profile check, the switch to the class's board, the upload, the remembered code and name); the printed plan into `src/ui/printPlan.ts` and the file names into `src/export/files.ts`, so Send loads neither dialog.
+
+Decisions
+- Send waits for the check (no *Download anyway* in Guided); *More download options* is the way out (owner call 4b's default).
+- No row for the one-tap download: it is Guided-only code.
+
+Verified
+- `tests/guidedsend.test.ts` (4, the class server mocked): a class in another board is seen and the switch puts the design in it with nothing blocking; a closed class and no network say so; a send carries the design, a picture and the goals, and a second send is sent again; a failed send keeps the download, an SVG named by board and kerf.
+- `tests/e2e/guided.spec.ts` (8: English and Hebrew, 1366 × 768 and 1024 × 768, taps only, no sideways scroll): the gallery, the Pencil box, *Make it fit* (the goal ticks), a name on the front, Send: *Ready to cut ✓*, three stars, the dot clear, the download an SVG; *Box with a lid* changed to *Hinged* and back with Undo; the other levels' controls absent.
+- `tests/e2e/classroom.spec.ts` with the real Worker (5 passed, run here for the first time since milestone 100): a class set to Guided, locked, in plywood: its link opens the gallery with *Your class cuts in Plywood 3 mm* and no chips, no way to the other levels; *Send to my teacher*; the teacher sees *Pencil box · 5 of 5 goals*. The earlier classroom tests (the profile switch, a failed send, a locked Quick build class, a class's missions) pass through the refactored dialog.
+- Browser specs `spec`, `flow`, `offline`, `guided-fence`, `library`, `split` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Headless Chromium names a download with Hebrew letters *download*; the spec checks the file's contents there (a real browser keeps the name).
+- *Print a plan* is A4 only in Guided.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

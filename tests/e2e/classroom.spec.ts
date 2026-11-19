@@ -202,3 +202,50 @@ test('a class offers one mission; the submission shows it and its goals met (mil
   await expect(page.getByTestId('sub-mission')).toContainText('Pencil box');
   await expect(page.getByTestId('sub-mission')).toContainText('3 of 5 goals');
 });
+
+test('a class that starts in Guided, locked, with a board: the link starts there, Send to my teacher, the teacher sees the goals (milestone 109)', async ({ browser, page }) => {
+  await teacherLogin(page);
+  const cname = `Guided ${Date.now()}`;
+  await page.getByTestId('new-class-name').fill(cname);
+  await page.getByTestId('create-class').click();
+  const code = (await page.locator('.class-list li', { hasText: cname }).getByTestId('class-code').innerText()).trim();
+  await page.getByTestId(`class-${code}`).click();
+  await page.getByTestId('class-profile').selectOption('ply-3');
+  await page.getByTestId('class-mode').selectOption('guided');
+  await page.getByTestId('class-mode-locked').click();
+  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n), cname)).toMatchObject({ mode: 'guided', modeLocked: true, material: { id: 'ply-3' } });
+
+  // a student who used the Workshop before follows the class link
+  const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
+  const st = await ctx.newPage();
+  await st.goto(`/?class=${code}`);
+  await expect(st.getByTestId('g-start')).toBeVisible();
+  await expect(st.getByTestId('g-class-material')).toBeVisible();
+  await expect(st.getByTestId('g-materials')).toHaveCount(0);
+  await expect(st.getByTestId('g-start-more')).toHaveCount(0);
+  await st.getByTestId('g-thing-pencil-box').click();
+  await st.getByTestId('g-demo-ok').click();
+  expect(await st.evaluate(() => (window as any).__cutforge.store.getState().design.material.id)).toBe('ply-3');
+  // no way to the other levels
+  await st.getByTestId('g-menu').click();
+  await expect(st.getByTestId('g-menu-quick')).toHaveCount(0);
+  await expect(st.getByTestId('g-menu-workshop')).toHaveCount(0);
+  await st.getByTestId('g-menu').click();
+  // Make it fit, a name, Send
+  await st.getByTestId('g-add-inside').click();
+  await st.getByTestId('g-fit-pencil').click();
+  await st.getByTestId('g-step-decorate').click();
+  await st.getByTestId('g-add-name').click();
+  await st.getByTestId('g-deco-text').fill('Noa');
+  await st.getByTestId('g-deco-text').blur();
+  await st.getByTestId('g-step-send').click();
+  await expect(st.getByTestId('g-ready')).toHaveAttribute('data-ok', 'true');
+  await st.getByTestId('g-send-name').fill('Noa');
+  await st.getByTestId('g-send-teacher').click();
+  await expect(st.getByTestId('g-sent')).toBeVisible();
+  await ctx.close();
+
+  await page.getByTestId('refresh-subs').click();
+  await expect(page.getByTestId('sub-mission')).toContainText('Pencil box');
+  await expect(page.getByTestId('sub-mission')).toContainText('5 of 5 goals');
+});

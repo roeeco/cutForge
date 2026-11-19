@@ -1087,3 +1087,24 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .g-text input { min-height: 44px; font-size: 16px; }
 .guard-tip-2d { fill: #8a5a00; font-weight: 600; paint-order: stroke; stroke: #fff6e5; stroke-width: 4px; }
 .g-topbar, .g-addbar, .g-sheet h3 { user-select: none; -webkit-user-select: none; }
+
+/* ---- Guided's Send (milestone 109) ---- */
+.g-check { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.g-check li { display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--r-md); background: #fdf3e1; }
+.g-check li button { justify-self: start; }
+.g-ready.ok-text { font-weight: 600; font-size: 16px; margin: 4px 0; }
+.g-goals ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.g-goals li { display: flex; gap: 8px; align-items: center; }
+.g-goals .mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #c9c2b6; display: grid; place-items: center; font-size: 11px; flex: none; }
+.g-goals li.ok .mark { background: #2e9d63; border-color: #2e9d63; color: white; }
+.g-goals .stars { color: #d39b1d; letter-spacing: 2px; }
+.g-send { display: grid; gap: 8px; }
+.g-send .field { display: grid; gap: 4px; }
+.g-send .field input { min-height: 44px; }
+.g-big { min-height: 52px; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.g-send-more { justify-content: space-between; flex-wrap: wrap; }
+.g-send-more .link, .g-print { min-height: 44px; }
+.g-steps button { position: relative; }
+.g-dot { position: absolute; top: 6px; inset-inline-end: 8px; width: 9px; height: 9px; border-radius: 50%; }
+.g-dot.warn { background: #e0a21b; }
+.g-dot.ok { display: none; }

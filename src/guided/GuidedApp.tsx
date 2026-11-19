@@ -9,13 +9,12 @@ import { EditorBoundary } from '../ui/ErrorBoundary';
 import { MissionPanel } from '../easy/InsideUI';
 import { GuidedTopBar } from './GuidedTopBar';
 import { GuidedLayer } from './GuidedLayer';
-import { SideSheet } from './SideSheet';
-import { AddBar } from './AddBar';
 import { ViewButtons } from './ViewButtons';
 import { guidedCamera } from './camera';
 import { GuidedStart } from './GuidedStart';
 import { Build } from './steps/Build';
 import { Decorate } from './steps/Decorate';
+import { Send } from './steps/Send';
 import { GuidedNote } from './GuidedNote';
 import { boxSize } from '../model/boxSize';
 import { mainTray } from '../templates/structures/box';
@@ -39,10 +38,11 @@ export function GuidedApp() {
   const step = useStore((s) => s.guidedStep);
   const key = useStore(frameKey);
   // the opening view: seen from above and in front, re-centred when the thing changes size
+  // (and when the stage comes back from the sheet or the face-on view)
   useEffect(() => {
-    if (needsMaterial) return;
+    if (needsMaterial || view !== '3d') return;
     requestCamera(...guidedCamera(useStore.getState().design));
-  }, [key, needsMaterial]);
+  }, [key, needsMaterial, view]);
   return (
     <>
       <GuidedTopBar />
@@ -53,6 +53,10 @@ export function GuidedApp() {
               <Suspense fallback={<div className="loading" aria-busy="true" />}>
                 <Plan2D key={soloPanel} soloPanel={soloPanel} />
               </Suspense>
+            ) : view === '2d' ? (
+              <Suspense fallback={<div className="loading" aria-busy="true" />}>
+                <Plan2D />
+              </Suspense>
             ) : (
               <View3D layer={<GuidedLayer />} />
             )}
@@ -62,12 +66,9 @@ export function GuidedApp() {
           ) : step === 'decorate' ? (
             <Decorate />
           ) : (
-            <>
-              <SideSheet />
-              <AddBar />
-            </>
+            <Send />
           )}
-          {view !== 'solo' && <ViewButtons />}
+          {view === '3d' && <ViewButtons />}
           <GuidedNote />
           {view === '3d' && <MissionPanel />}
         </EditorBoundary>

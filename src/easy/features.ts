@@ -292,6 +292,10 @@ export const SECTIONS: Record<string, Feature | null> = {
   'g-deco': null,
   'g-stickers': null,
   'g-windows': null,
+  // Guided's Send sheet (milestone 109)
+  'g-check': null,
+  'g-goals': null,
+  'g-send-section': null,
 };
 
 /** A card can show its Workshop version (*More…*): it renders inside this, set to 'workshop'. */
