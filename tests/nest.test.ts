@@ -50,7 +50,7 @@ function designs(): [string, Design][] {
     ['card tray x8', tray(CARD, 80, 60, 40, 8)],
     ['long card tray x8', tray(CARD, 100, 50, 30, 8)],
     ['corrugated tray x8', tray(CORR, 80, 60, 40, 8)],
-    ['deep corrugated tray x12', tray(CORR, 50, 40, 45, 12)],
+    ['deep corrugated tray x8', tray(CORR, 60, 50, 50, 8)],
   ];
 }
 

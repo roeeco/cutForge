@@ -5,6 +5,7 @@ import { solve } from './ops';
 import { checkDesign, checkSolved, DamagedError } from './check';
 import { legacyDivider } from './dividers';
 import { rectSketch, straightRing } from './edges';
+import { materialById } from './materials';
 
 export const PROJECT_FORMAT = 'cutforge-project';
 
@@ -99,6 +100,21 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   // its joint with the base becomes the same joint as an edge on the base's
   // face (same kind and settings). Anything that does not fit stays as it was.
   9: (d) => migrateDividers(d),
+  // v10 -> v11: a fold's crease lies in the middle of its corner (the overhaul of 19 November), and
+  // `foldAllowance` is only the extra length a real crease takes. Before, it was a strip added
+  // outside every fold (built in: about one thickness), which made folded boxes about 2t too large.
+  // A built-in material takes its new value; a custom one keeps what it had beyond one thickness.
+  10: (d) => {
+    const fix = (m: any) => {
+      if (!m || typeof m !== 'object' || typeof m.foldAllowance !== 'number' || typeof m.thickness !== 'number') return;
+      const builtIn = materialById(m.id);
+      m.foldAllowance = builtIn && builtIn.kind === m.kind && Math.abs(builtIn.thickness - m.thickness) < 1e-9 ? builtIn.foldAllowance : Math.max(0, Math.round((m.foldAllowance - m.thickness) * 100) / 100);
+      if (m.kind === 'plywood') m.foldAllowance = 0;
+    };
+    fix(d?.material);
+    if (d?.materials && typeof d.materials === 'object') for (const m of Object.values<any>(d.materials)) fix(m);
+    return d;
+  },
 };
 
 function migrateDividers(d: any): any {

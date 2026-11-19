@@ -136,9 +136,9 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
         // milestone 85: how the crease is cut
         <Segmented
           label={t('conn.crease')}
-          value={c.crease ?? 'score'}
-          options={(['score', 'perf', 'cutcrease'] as const).map((v) => ({ value: v, label: t(`conn.crease.${v}`), testId: `conn-crease-${v}` }))}
-          onChange={(v) => apply((x) => setConnection(x, c.id, { crease: v === 'score' ? undefined : (v as 'perf' | 'cutcrease') }))}
+          value={c.crease ?? 'auto'}
+          options={(['auto', 'score', 'perf', 'cutcrease'] as const).map((v) => ({ value: v, label: t(`conn.crease.${v}`), testId: `conn-crease-${v}` }))}
+          onChange={(v) => apply((x) => setConnection(x, c.id, { crease: v === 'auto' ? undefined : (v as 'score' | 'perf' | 'cutcrease') }))}
           testId="conn-crease"
         />
       )}

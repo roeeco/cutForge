@@ -111,6 +111,15 @@ describe('golden exports', () => {
     });
 });
 
+// An intended change to what an old file makes (the overhaul of 19 November: a crease folds in the
+// middle of its corner, so old card and corrugated nets change on purpose): UPDATE_MIGRATED=1 writes
+// the exports the migrated files now make. The project files themselves are never rewritten.
+const MIGRATED = process.env.UPDATE_MIGRATED === '1';
+function writeMigrated(name: string, svg: string, dxf: string) {
+  writeFileSync(`${DIR}/${name}.svg`, svg);
+  writeFileSync(`${DIR}/${name}.dxf`, dxf);
+}
+
 // Project files saved by the schema v5 code (before edge keys and sketches).
 const V5 = [
   { file: 'v5-hand-ply-box.json', golden: 'hand-ply-box' },
@@ -128,6 +137,7 @@ describe('v5 project files migrate to identical exports', () => {
       expect(JSON.parse(text).schemaVersion).toBe(5);
       const d = parseProject(text);
       const { svg, dxf } = exportsOf(d);
+      if (MIGRATED) writeMigrated(v.golden, svg, dxf);
       expect(svg === readFileSync(`${DIR}/${v.golden}.svg`, 'utf8'), `${v.file} SVG`).toBe(true);
       expect(dxf === readFileSync(`${DIR}/${v.golden}.dxf`, 'utf8'), `${v.file} DXF`).toBe(true);
     });
@@ -158,6 +168,7 @@ describe('v6 project files migrate to identical exports', () => {
       const text = readFileSync(file, 'utf8');
       expect(JSON.parse(text).schemaVersion).toBe(6);
       const { svg, dxf } = exportsOf(parseProject(text));
+      if (MIGRATED) writeMigrated(v.name, svg, dxf);
       expect(svg === readFileSync(`${DIR}/${v.name}.svg`, 'utf8'), `${v.name} SVG`).toBe(true);
       expect(dxf === readFileSync(`${DIR}/${v.name}.dxf`, 'utf8'), `${v.name} DXF`).toBe(true);
     });

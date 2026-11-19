@@ -23,8 +23,9 @@ function allFit(d: Design): boolean {
 
 function bigTray() {
   const d = createDesign(CARD);
+  // its net (200 + 2 × 59.5 by 180 + 2 × 59.5) is taller than the sheet's 290 mm inside the margin
   const b = addRootPanel(d, 0, 0, 200, 180);
-  const t = addTray(d, b, 55)!;
+  const t = addTray(d, b, 60)!;
   return { d, b, t };
 }
 

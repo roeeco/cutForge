@@ -135,13 +135,16 @@ describe('hexagon plywood tray built by hand', () => {
 describe('corrugated hexagon tray', () => {
   const { d } = hexTray(CORR4, 'fold');
 
-  it('connects with tab-and-slot corners whose slots are closed holes', () => {
+  it('connects with flush tab-and-slot corners: the slots at the receiver\'s end are open notches there', () => {
     const cs = corners(d);
     expect(cs).toHaveLength(6);
     for (const c of cs) {
       expect(c.kind).toBe('tabslot');
       expect(c.broken).toBe(false);
-      expect(c.geom!.holes.length).toBeGreaterThan(0);
+      // the overhaul of 19 November: the receiver is not carried past the corner for a web
+      const receiver = c.geom!.edges.find((e) => e.panelId !== c.geom!.edges[0].panelId);
+      expect(receiver?.notches.length ?? 0).toBeGreaterThan(0);
+      expect(receiver!.notches.every((n) => n.depth > 0)).toBe(true);
     }
     for (const id of d.order) {
       const p = d.panels[id];

@@ -14,7 +14,8 @@ export type MaterialProfile = {
   thickness: number; // measured thickness (mm)
   kerf: number; // laser kerf width (mm)
   clearance: number; // joint fit clearance (mm)
-  foldAllowance: number; // fold/score allowance (mm)
+  /** Extra length a real crease takes up, beyond folding about the middle of the corner (mm, a calibration; 0 by default). Before schema 11: a strip added outside every fold. */
+  foldAllowance: number;
   sheetW: number;
   sheetH: number;
   /** Grain/flute direction on the sheet: along sheet x, along y, or none. */
@@ -267,8 +268,8 @@ export type Connection = {
   flap: number | null;
   /** Fold direction seen from the material side of the parent. */
   foldDir: 'valley' | 'mountain';
-  /** How a crease is cut (milestone 85): a score (absent), a perforation, or a cut-crease for board a score barely marks. */
-  crease?: 'perf' | 'cutcrease';
+  /** How a crease is cut (milestone 85): a score, a perforation, or a cut-crease for board a score barely marks. Absent: automatic, a score where it folds towards the scored face and a perforation where it folds away from it (a lid's rims, the overhaul of 19 November). */
+  crease?: 'score' | 'perf' | 'cutcrease';
   /**
    * The joint the student (or the template) asked for. When the angle or
    * material rules it out, `kind` falls back to the default, and it returns
@@ -361,8 +362,8 @@ export type ConnGeom = {
   holes: { panelId: string; poly: P2[] }[];
   /** Extra material joined to a panel outline (glue flaps; `flat`: in the panel's own plane in 3D too, e.g. a locking tab's barbs). */
   adds: { panelId: string; poly: P2[]; flat?: boolean; /** Drawn in 3D as a band (a rounded corner's strip), not as a slab or a flap. */ band?: boolean }[];
-  /** Score lines (flap folds). */
-  scores: { panelId: string; a: P2; b: P2 }[];
+  /** Score lines (flap folds). `toward`: the flap folds towards the panel's material side (1) or away from it (-1); absent: not known (a score that only marks). */
+  scores: { panelId: string; a: P2; b: P2; toward?: 1 | -1 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
   flaps3d: Flap3d[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
@@ -513,4 +514,4 @@ export type Tray = {
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;

@@ -13,7 +13,8 @@ describe('repro: piece placed in the sheet margin', () => {
     const d = createDesign(MATERIALS[0]); // card-0.5, sheet 500x300, margin 5
     d.split = 'never'; // kept whole: milestone 69 would cut it to fit (tests/split.test.ts)
     const b = addRootPanel(d, 0, 0, 200, 180);
-    addTray(d, b, 55);
+    // 200 + 2 × 55.5 by 180 + 2 × 55.5: a crease takes no strip (the overhaul of 19 November)
+    addTray(d, b, 56);
     const c = pieceCopies(d)[0];
     expect(c.h).toBeGreaterThan(300 - 2 * d.sheetMargin);
     expect(c.h).toBeLessThanOrEqual(300);

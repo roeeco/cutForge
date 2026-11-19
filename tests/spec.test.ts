@@ -22,10 +22,10 @@ describe('the spec sheet', () => {
     const pages = specPages(d, 'A4', tx);
     expect(pages).toHaveLength(new Set(pieceCopies(d).map((c) => c.pieceKey)).size);
     const net = pages.find((p) => p.svg.includes('glue'))!;
-    // the folded tray's net is 280 × 230: not at full size on A4, at half
+    // the folded tray's net is 279 × 229 (a crease takes no strip, the overhaul of 19 November): not at full size on A4, at half
     expect(net.scale).toBe(2);
     expect(net.svg).toContain('Scale 1 : 2');
-    expect(net.svg).toContain('Blank 280');
+    expect(net.svg).toContain('Blank 279');
     for (const w of ['Cut', 'Score', 'Engrave', 'Guide', 'Box']) expect(net.svg).toContain(w);
     const html = specHtml(pages, 'A4', 'Box', 'ltr');
     expect(html).toContain('@page { size: A4 landscape');

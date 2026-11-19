@@ -1098,6 +1098,7 @@ export const he: Record<MsgKey, string> = {
   'poly.help.line': "לחצו על לוח כדי למקם את נקודות הקו; לחצו שוב על הנקודה האחרונה או Enter לסיום. Shift: צעדים של 15°. הקלידו מספר לאורך הקטע.",
   'poly.mode.line': "קו",
   'conn.crease': "הקיפול נחתך כ",
+  'conn.crease.auto': "אוטומטי (ניקוב היכן שהקיפול פונה הרחק מצד החריטה)",
   'conn.crease.score': "חריטה",
   'conn.crease.perf': "ניקוב",
   'conn.crease.cutcrease': "חיתוך־קיפול",

@@ -2,7 +2,7 @@
 // (CORRUGATED_JOINTS.md §3, polygons-and-corrugated-agent-prompt.md §6.2).
 //
 // Beyond the wall's free edge, in the wall's own flat coordinates:
-//   rim strip   2t + fa, with a score at each of its edges
+//   rim strip   2t + fa, with a score half a thickness in from each of its edges
 //   liner       h − t (down to the base) or `depth` (a partial hem, ≤ 0.45h),
 //               shortened by t at each end where a neighbouring wall meets
 //               it (2t where that neighbour has a fold-over too)
@@ -83,7 +83,8 @@ export function foldOverGeom(d: Design, p: Panel, f: FoldOver): FoldOverGeom | n
   // rim strip, then the liner (narrower where neighbours meet it)
   g.adds.push({ panelId: p.id, poly: [at(0, 0), at(L, 0), at(L, rim), at(0, rim)] });
   g.adds.push({ panelId: p.id, poly: [at(cs, rim), at(L - ce, rim), at(L - ce, rim + liner), at(cs, rim + liner)] });
-  g.scores.push({ panelId: p.id, a: at(0, 0), b: at(L, 0) }, { panelId: p.id, a: at(0, rim), b: at(L, rim) });
+  // each crease in the middle of its corner: half a thickness past the wall's top and before the liner's (the rim is 2t, plus any fold allowance)
+  g.scores.push({ panelId: p.id, a: at(0, t / 2), b: at(L, t / 2), toward: 1 }, { panelId: p.id, a: at(0, rim - t / 2), b: at(L, rim - t / 2), toward: 1 });
   // the wall's cut holes continue through the liner, aligned (folding maps inward q to outward rim + q − t)
   for (const h of holeCuts(p))
     for (const contour of h.contours) {

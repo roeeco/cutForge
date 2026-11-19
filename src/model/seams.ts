@@ -744,12 +744,13 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const p = (s: number, u: number) => edgePoint(O, edge, s, fit.d1 - u);
     const flat = [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)];
     g.adds.push({ panelId: O.id, poly: flat });
-    g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
     // 3D: the flap folds along the receiver's face, towards the receiver's centre
     const mdO = matDir(O.frame);
     const centre = toWorld(R.frame, R.w / 2, R.h / 2, tR / 2);
     const [e0] = edgeWorld(O, edge);
     const sign = v3dot(v3sub(centre, e0), mdO) >= 0 ? 1 : -1;
+    // the crease in the middle of the corner the owner's end and the folded flap share: half a thickness into the owner
+    g.scores.push({ panelId: O.id, a: p(fit.s0, -tO / 2), b: p(fit.s1, -tO / 2), toward: sign });
     const start = sign > 0 ? tO : 0;
     const poly3 = [
       [fit.s0, 0],
@@ -833,17 +834,29 @@ function cornerTabs(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
     }
   }
   g.edges.push({ panelId: O.id, edge: eO, notches });
-  for (const poly of slots) g.holes.push({ panelId: R.id, poly });
-  // extend the receiver's end so a web stays outside the slots
+  // the corner stays flush (the overhaul of 19 November): the receiver's end is not carried past the
+  // owner's outer face for a web; where a slot reaches its end it is an open notch there (a box joint)
   const re = findEdge(R, eR);
   const cf = cornerFit(O, eO, R, eR);
-  if (re && cf) {
-    const inw = segInward(re);
-    let out = 0;
-    for (const poly of slots) for (const q of poly) out = Math.max(out, -((q.x - re.a.x) * inw.x + (q.y - re.a.y) * inw.y));
-    const b0 = cf.mapB(fit.s0), b1 = cf.mapB(fit.s1);
-    g.edges.push({ panelId: R.id, edge: eR, notches: [{ s0: Math.max(0, Math.min(b0, b1)), s1: Math.min(segLength(re), Math.max(b0, b1)), depth: -(out + minWeb(mR)) }] });
+  const L = re ? segLength(re) : 0;
+  const rn: Notch[] = [];
+  for (const poly of slots) {
+    if (!re || !cf) {
+      g.holes.push({ panelId: R.id, poly });
+      continue;
+    }
+    const dir = segDir(re), inw = segInward(re);
+    const depth = (q: P2) => (q.x - re.a.x) * inw.x + (q.y - re.a.y) * inw.y;
+    const along = (q: P2) => (q.x - re.a.x) * dir.x + (q.y - re.a.y) * dir.y;
+    if (Math.min(...poly.map(depth)) > minWeb(mR)) {
+      // a slot clear of the end (the owner meets the receiver further in): a closed hole as before
+      g.holes.push({ panelId: R.id, poly });
+      continue;
+    }
+    const a0 = Math.max(0, Math.min(...poly.map(along))), a1 = Math.min(L, Math.max(...poly.map(along)));
+    if (a1 - a0 > 1e-6) rn.push({ s0: a0, s1: a1, depth: Math.max(...poly.map(depth)) });
   }
+  if (rn.length) g.edges.push({ panelId: R.id, edge: eR, notches: rn });
   return g;
 }
 
@@ -970,7 +983,9 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
   const p = (s: number, u: number) => edgePoint(O, eO, s, fit.d1 - u);
   const flat = [p(fit.s0, 0), p(fit.s0 + taper, fh), p(fit.s1 - taper, fh), p(fit.s1, 0)];
   g.adds.push({ panelId: O.id, poly: flat });
-  g.scores.push({ panelId: O.id, a: p(fit.s0, 0), b: p(fit.s1, 0) });
+  const centre = toWorld(R.frame, R.w / 2, R.h / 2, tR / 2);
+  const toward = v3dot(v3sub(centre, edgeWorld(O, eO)[0]), matDir(O.frame)) >= 0 ? 1 : -1;
+  g.scores.push({ panelId: O.id, a: p(fit.s0, -t / 2), b: p(fit.s1, -t / 2), toward });
   const cf = cornerFit(O, eO, R, eR);
   if (cf) {
     // on the receiver's inner face, starting where the owner's inner face meets it
@@ -995,7 +1010,9 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const p = (s: number, u: number) => edgePoint(C, 'e0', s, -u);
   const flat = [p(0, 0), p(taper, fh), p(L - taper, fh), p(L, 0)];
   g.adds.push({ panelId: C.id, poly: flat });
-  g.scores.push({ panelId: C.id, a: p(0, 0), b: p(L, 0) });
+  const centre = toWorld(P.frame, P.w / 2, P.h / 2, tP / 2);
+  const toward = v3dot(v3sub(centre, toWorld(C.frame, 0, 0)), matDir(C.frame)) >= 0 ? 1 : -1;
+  g.scores.push({ panelId: C.id, a: p(0, -t / 2), b: p(L, -t / 2), toward });
   // on the parent: along the parent edge (from where the child stands on it), from the child's position inwards
   const s0 = c.span && !c.trayId ? Math.min(c.span[0], c.span[1]) : 0;
   const q = (s: number, u: number) => edgePoint(P, c.a.edge, s0 + s, c.offset + u);

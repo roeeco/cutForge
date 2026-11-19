@@ -57,7 +57,7 @@ function notchesFrom(p: Panel, list: { edge: string; notches: Notch[] }[]): Reco
   return out;
 }
 
-export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2 }[]; cuts: P2[][]; linerHoles: P2[][]; lines: { a: P2; b: P2 }[]; paths: { pts: P2[]; closed: boolean }[] };
+export type PanelExtras = { holes: P2[][]; adds: P2[][]; scores: { a: P2; b: P2; toward?: 1 | -1 }[]; cuts: P2[][]; linerHoles: P2[][]; lines: { a: P2; b: P2 }[]; paths: { pts: P2[]; closed: boolean }[] };
 const noExtras = (): PanelExtras => ({ holes: [], adds: [], scores: [], cuts: [], linerHoles: [], lines: [], paths: [] });
 
 /** Every panel's slots, flaps, scores, cuts and open cut lines, from one pass over the fold-overs and connections. */
@@ -335,10 +335,11 @@ export function edgeFlapGeom(d: Design, p: Panel, f: { edge: string; len: number
 }
 
 /** A flap `len` mm out from an edge, its ends tapered 30°, and its score line (milestone 67; a divider's end on a curved band, milestone 70). */
-export function flapOn(e: EdgeSeg, len0: number): { poly: P2[]; score: { a: P2; b: P2 } } {
+export function flapOn(e: EdgeSeg, len0: number, scoreIn = 0): { poly: P2[]; score: { a: P2; b: P2 } } {
   const L = segLength(e), dir = segDir(e), inw = segInward(e);
   const len = Math.max(2, len0);
   const taper = Math.min(len * Math.tan(Math.PI / 6), L / 3);
   const at = (s: number, o: number): P2 => ({ x: e.a.x + dir.x * s - inw.x * o, y: e.a.y + dir.y * s - inw.y * o });
-  return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, 0), b: at(L, 0) } };
+  // `scoreIn`: a crease half a thickness inside the edge, where the flap folds against a board (milestone overhaul)
+  return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, -scoreIn), b: at(L, -scoreIn) } };
 }

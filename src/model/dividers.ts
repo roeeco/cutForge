@@ -416,9 +416,9 @@ export function bandEndGeom(d: Design, c: Connection): ConnGeom | null {
   if (!p || !e) return null;
   const g: ConnGeom = { edges: [], holes: [], adds: [], scores: [], flaps3d: [] };
   if (c.kind !== 'glue') return g;
-  const f = flapOn(e, c.flap ?? autoFlap(matOf(d, p.id)));
+  const t = tOf(d, p.id);
+  const f = flapOn(e, c.flap ?? autoFlap(matOf(d, p.id)), t / 2);
   g.adds.push({ panelId: p.id, poly: f.poly });
-  g.scores.push({ panelId: p.id, ...f.score });
   // in 3D (milestone 74): the flap turned a quarter about its crease, against the band, in a plane of its own
   const a0 = toWorld(p.frame, e.a.x, e.a.y), a1 = toWorld(p.frame, e.b.x, e.b.y);
   const ax = v3norm(v3sub(a1, a0));
@@ -427,6 +427,8 @@ export function bandEndGeom(d: Design, c: Connection): ConnGeom | null {
   const N = matDir(p.frame);
   // the turn that takes the flap's outward direction W to the board's material direction N
   const A = v3dot(v3cross(ax, W), N) >= 0 ? ax : v3mul(ax, -1);
+  // it turns towards the board's material side; the crease half a thickness in from its end
+  g.scores.push({ panelId: p.id, ...f.score, toward: 1 });
   const rot = (x: V3): V3 => v3add(v3mul(x, 0), v3add(v3mul(A, v3dot(A, x)), v3cross(A, x))); // a quarter turn: x∥ + A × x
   const turn = (x: V3): V3 => v3add(a0, rot(v3sub(x, a0)));
   g.flaps3d.push({ panelId: p.id, poly: f.poly, z0: 0, z1: tOf(d, p.id), owner: p.id, frame: { o: turn(p.frame.o), u: rot(p.frame.u), v: rot(p.frame.v), side: p.frame.side } });
