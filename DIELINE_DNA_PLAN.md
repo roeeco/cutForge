@@ -94,12 +94,12 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ## 5. Milestones
 
-**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for a shape's outline to be editable by double-clicking into it. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b, D3, D1, D8**.
+**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b, D3, D1, D8**.
 
 | # | Number | Milestone | Size | Needs | Value / risk |
 | --- | --- | --- | --- | --- | --- |
 | D0 | 92 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
-| D0b | 93 | **Double-click a shape to edit its outline** (new) | M | — (shares handles with D0) | Shapes have no point editing at all today |
+| D0b | 93 | **Edit outlines in the 2D view**: double-click into a board, then into a shape (new) | M | — (shares handle logic with D0) | No point editing exists in 2D at all, for shapes or boards |
 | D3 | 94 (a), 95 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
 | D1 | 96 | The Net view: see and pick | M | — | The flat workspace; risk: a second canvas on Chromebooks |
 | D2 | 97 | Building in the flat | M | D1 (and D0 for outline handles in the flat) | |
@@ -154,42 +154,49 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ---
 
-### D0b. Double-click a shape to edit its outline (new, 2026-11-19)
+### D0b. Edit outlines in the 2D view (new, 2026-11-19; revised the same day)
 
-**Goal.** Double-clicking a shape (a cut-out, an engraving, a score, an added piece) on a board enters that shape: its corners get handles, which can be dragged, added with `+` on an edge, and deleted, as a board's outline can. Esc, Enter or a click away leaves.
+**Goal.** The owner's words: edit a shape's outline *in the 2D view* when double-clicked into. Double-clicking a board (in 3D or on the cut plan) already opens it alone, face-on, in the solo view (`openSolo`). There, a double-click on a shape (a cut-out, an engraving, a score, an added piece) enters it: its corners get handles that can be dragged, added with `+` on an edge, and deleted. The board's own outline can be edited the same way in the solo view, since today that is 3D-only. Esc, Enter or a click away leaves.
 
 **What is there** (`3709043`)
-- A shape is a `Detail` (`types.ts`): `shape` is `rect · roundrect · circle · polygon · path · text`. A polygon and an imported path are stored as `path.polys` in a unit box (−0.5…0.5) scaled to `w × h` about `cx, cy`, turned by `rot`; `regular` marks a polygon still drawn as an n-gon ("kept until a vertex is edited", but **nothing edits a shape's vertices yet**). `addPolygonShape` normalises points into that box and refuses a crossing polygon (`isSimplePolygon`). `updateDetail` only patches `cx, cy, w, h, r, op, through, rot`.
-- On the stage a shape is picked through `DetailHit` (`View3D.tsx`, about line 990) and moved, resized and turned by `ShapeGizmo`. A **double-click anywhere on a board opens its solo view** (`onDouble={() => openSolo(id)}`, about line 730), and the board mesh's `onDoubleClick` catches double-clicks on its shapes too. In the cut plan, double-click also opens solo (`Plan2D` `onDouble`).
+- A shape is a `Detail` (`types.ts`): `shape` is `rect · roundrect · circle · polygon · path · text`. A polygon and an imported path are `path.polys` in a unit box (−0.5…0.5) scaled to `w × h` about `cx, cy`, turned by `rot`; `regular` marks a polygon still drawn as an n-gon ("kept until a vertex is edited", but **nothing edits a shape's vertices yet**). `addPolygonShape` normalises points into that box and refuses a crossing polygon (`isSimplePolygon`). `updateDetail` patches only `cx, cy, w, h, r, op, through, rot`.
+- **The 2D view** (`src/views/Plan2D.tsx`, `soloPanel` prop for the solo view): its `Drag` union is `pan · marquee · move · resize · rotate · gresize · draw · piece`, so shapes can be moved, resized, turned and drawn there, but no point of a shape or of the board can be moved. In solo, the board is drawn at its own coordinates (`xf: IDENTITY`). On the sheets, a double-click opens solo (`onDouble` → `openSolo(panelAt(…))`).
+- **Board outlines** are edited in 3D only: the `edit-outline` button (`Inspector.tsx`, shown when `view === '3d'`), `State.editOutline`, `OutlineHandles` in `src/views/polyTool.tsx` (vertex drag, `+` on an edge, Delete, Esc / Enter), with the ops `moveVertex` / `insertVertex` / `deleteVertex` for a root board's `pts`, and `setWallCorner` / wall inserts / `deleteWallInsert` for a grown board's `wall` sketch.
 
-**Model** (`ops.ts`, beside `updateDetail`)
+**Model** (`ops.ts`, beside `updateDetail`): the same three steps whichever view calls them.
 - `shapePoints(dt): P2[][]`: a shape's polygons in its board's coordinates (scale, turn, place), for `polygon` and `path`.
-- `setShapePoints(d, detailId, polys: P2[][]): boolean`: the inverse. It re-fits the unit box (new `cx, cy, w, h`), keeps `rot` (points are taken back into the shape's own unturned frame, so turning still turns about the new centre), drops `regular`, and refuses (returns false, nothing changed) a crossing polygon or one under 3 points. An array (`Detail.array`) edits every copy at once, since the copies are one detail.
-- `shapeToPolygon(d, detailId)`: a `rect` becomes a 4-point `polygon` at the same place; a `roundrect` becomes a polygon of its corners and **loses its radius**. The hint says so the first time, and undo restores it. A `circle` is not converted (no corners to move): double-click selects it with its resize gizmo as today, and its card offers *Make it a polygon* (16 points) if the owner wants it (§7 question 12). A `text` is not converted: double-click puts the cursor in its card's text field instead (`setText`).
-- One drag is one undo step (`preview` / `commit`, as `OutlineHandles` does).
+- `setShapePoints(d, detailId, polys: P2[][]): boolean`: the inverse. It re-fits the unit box (new `cx, cy, w, h`), keeps `rot` (points taken back into the shape's own unturned frame), drops `regular`, and refuses (false, nothing changed) a crossing polygon or one under 3 points. An array (`Detail.array`) edits every copy at once.
+- `shapeToPolygon(d, detailId)`: a `rect` becomes a 4-point `polygon` in place; a `roundrect` becomes a polygon of its corners and **loses its radius** (the hint says so once; undo restores it). A `circle` is not converted (§7 question 12). A `text` is not converted: a double-click puts the cursor in its card's text field (`setText`).
+- One drag is one undo step (`preview` / `commit`).
 
 **Store**
-- `State.editShape: string | null` (a detail id). It excludes `editOutline`: setting one clears the other. `selVertex` is shared: an index, or `'p:i'` (polygon `p`, point `i`) for a path with several polygons. `select()` clears `editShape` unless the selection is that shape.
+- `State.editShape: string | null` (a detail id), excluding `editOutline` (setting one clears the other). `selVertex` is shared: an index, a wall corner key as today, or `'p:i'` (polygon `p`, point `i`) for a path with several polygons. `select()` clears `editShape` unless the selection is that shape.
+- `editOutline` is no longer 3D-only: the solo view of that board shows its handles too.
 
-**Stage** (`View3D.tsx`)
-- `DetailHit` gets `onDoubleClick`: `stopPropagation()` (so the board's double-click does not open solo), select the shape, `shapeToPolygon` if it is a rect or roundrect, then `set({ editShape: id })`. A double-click on the board away from any shape still opens solo.
-- While `editShape` is set, `ShapeGizmo` and `ThroughEdit` are hidden (they gate on `!editOutline` today; add `!editShape`) and the board is not draggable.
-- New `ShapeHandles` (in `polyTool.tsx`, beside `OutlineHandles`, sharing its vertex and `+` drawing, its plane math and its `OutlineSnap` marks: the board's edges and corners, the grid, the shape's own other points, 15° with Shift). It draws on the face the shape was double-clicked on, at the same `z` offset `DetailHit` uses. A path with more than 200 points shows handles on hover only near the pointer, so imported art stays usable.
-- Keys: Delete removes the selected point (refused under 3, with the reason in the hint); Esc and Enter leave; a click on empty floor or another board leaves.
-- Hint: `shape.editHint` (*Drag a corner, + adds one, Delete removes it. Esc when done.*); `shape.radiusLost` once for a roundrect.
+**The 2D view** (`Plan2D.tsx`): the main part of this milestone.
+- **Shared handle logic.** Move the view-independent part of `OutlineHandles` (which op a drag, `+` or Delete calls for which `selVertex`, the snap marks of `OutlineSnap`: the board's edges and corners, the grid, the other points, 15° with Shift) into a pure module, `src/views/outlineEdit.ts`, so the 3D handles and the new SVG handles call the same code. `OutlineHandles` keeps its behaviour (`tests/e2e/polygon.spec.ts` and the 3D outline specs stay green).
+- **SVG handles.** New `src/views/OutlineHandles2d.tsx`: round handles at each point, `+` at each edge's middle, the selected point in the delete colour, drawn above shapes in view units (constant size on screen). New `Drag` kind `{ kind: 'vertex'; target: { shape: string } | { board: string }; index: string | number; placed: Placed; start: Vec2 }`. On move: snap through `outlineEdit.ts` (tolerance `SNAP_PX` in mm at the current zoom), `preview(…)`; on release `commit()`; Esc during a drag `cancel()`.
+- **Solo view (double-clicked into a board):**
+  - Double-click a shape: `stopPropagation`, select it, `shapeToPolygon` if it is a rect or roundrect, `set({ editShape: id })`. The move / resize / rotate frame is hidden while editing.
+  - Double-click the board itself away from its shapes, or *Edit outline* on its card (the button now shows in solo too): `set({ editOutline: solo.id })`, handles on the board's outline. A board whose outline cannot be edited (round, a band wall, generated parts: `outlineWhy` from D0) says why in the hint instead.
+  - Keys: Delete removes the selected point (refused under 3, reason in the hint); Esc and Enter leave; a click on empty space leaves.
+- **Cut plan sheets:** a double-click on a shape opens solo for its board **with** `editShape` set, so one double-click gets there; a double-click on a board opens solo as today. (Editing points directly on the sheets, through the piece's placement, is left for *Nets*, below.)
+- **Nets (D1):** works like solo, through the piece's `NetPanel.xf`.
+- Hint: `shape.editHint` (*Drag a corner, + adds one, Delete removes it. Esc when done.*), `outline.help` for a board (exists), `shape.radiusLost` once for a roundrect.
 
-**Cut plan and solo** (`Plan2D.tsx`): a double-click on a shape in solo view does the same in SVG (handles in the board's coordinates; solo already draws the board at its own coordinates). On the sheets, a double-click on a shape opens solo **with** `editShape` set, so one double-click still gets there. In *Nets* (D1), it works like solo, through the piece's `NetPanel.xf`.
+**With outline mode (D0):** while *Outlines* is on, in solo a single click on a shape or the board enters it, and the hovered one shows faint handles, as on the 3D stage.
 
-**With outline mode (D0):** while *Outlines* is on, a **single** click on a shape enters it, since the mode is for editing outlines; double-click works either way.
+**3D (later, optional):** the same double-click on a shape on the 3D stage, with `ShapeHandles` from the shared module. Not part of this milestone: in 3D a double-click keeps opening solo, which is where the editing is.
 
-**Features:** `'shape.points'`, `'hide'` in Quick build (Quick build's shapes stay move, resize, turn). Its row and section in `SECTIONS`.
+**Features:** `'shape.points'`, `'hide'` in Quick build (Quick build's shapes stay move, resize, turn); board outlines in solo follow the existing *Edit outline* rule. Rows and sections in `SECTIONS`.
 
 **Tests**
-- `tests/shapePoints.test.ts`: `shapePoints` then `setShapePoints` with no change leaves the detail equal (to 1e-9), turned and not turned; moving one point moves only that point on the board (the others stay to 1e-9 across a re-fit and a `rot` of 30°); a rect converted to a polygon has the same cut contour on the cut plan; a roundrect converted has its corners as points and no `r`; `regular` is dropped on the first edit; a crossing polygon and a 2-point polygon are refused with nothing changed; an array's copies all follow; a through-cut still cuts every board in its path after an edit.
-- `tests/e2e/shape-points.spec.ts`: a board with a rectangular cut-out; double-click the cut-out (solo does **not** open), drag a corner, `+` on an edge and drag it, Delete a point, Esc; one undo per change; double-click on the board away from the shape still opens solo; in the solo view the same double-click works; Hebrew too.
+- `tests/shapePoints.test.ts`: `shapePoints` then `setShapePoints` with no change leaves the detail equal (to 1e-9), turned and not turned; moving one point moves only that point on the board (others stay to 1e-9 across the re-fit and a `rot` of 30°); a rect converted has the same cut contour on the cut plan; a roundrect converted has its corners and no `r`; `regular` dropped on the first edit; a crossing and a 2-point polygon refused with nothing changed; an array's copies follow; a through-cut still cuts every board in its path.
+- `tests/outlineEdit.test.ts`: the shared module gives the same op for the same handle as `OutlineHandles` did (root board point, wall corner, wall insert, shape point), and the same snaps.
+- `tests/e2e/outline-2d.spec.ts`: a board with a rectangular cut-out; from 3D, double-click the board (solo opens); double-click the cut-out, drag a corner, `+` on an edge and drag it, Delete a point, Esc; then double-click the board's own outline area, drag one of its corners; one undo per change; from the cut plan's sheets, a double-click on the cut-out lands in solo with it already in editing; Hebrew too (the stage is `dir="ltr"`, the hint is not).
 - Goldens byte-identical (no stored shape changes until edited).
 
-**Done when** a student can double-click a rectangular window cut in a box wall, pull one corner out to make it a trapezoid, and see it cut that way on the cut plan, without opening any card.
+**Done when** a student double-clicks a box wall, double-clicks its rectangular window in the 2D view, pulls one corner out to make it a trapezoid, then drags a corner of the wall itself, all without opening a card, and the cut plan shows both.
 
 ---
 
@@ -580,7 +587,7 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | File | Milestone | Proves |
 | --- | --- | --- |
 | `tests/outlineMode.test.ts`, `tests/e2e/outline-mode.spec.ts` | D0 | the mode follows selection, excludes joints, gives each reason; two boards edited without opening a card |
-| `tests/shapePoints.test.ts`, `tests/e2e/shape-points.spec.ts` | D0b | a shape's points round-trip, one point moves alone, refusals, double-click enters the shape and not solo |
+| `tests/shapePoints.test.ts`, `tests/outlineEdit.test.ts`, `tests/e2e/outline-2d.spec.ts` | D0b | a shape's points round-trip, one point moves alone, refusals; 2D and 3D handles call the same ops; double-click into a board, then a shape, in 2D |
 | `tests/netpick.test.ts` | D1 | edges and folds of a net are found where they are drawn |
 | `tests/netbuild.test.ts` | D2 | the flat ghost is where the board lands; a drag is one undo step |
 | `tests/edgefeatures.test.ts` | D3 | the registry changes nothing |
