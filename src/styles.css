@@ -982,3 +982,15 @@ button.pick-row { cursor: pointer; font: inherit; color: inherit; }
 .frame-pill { all: unset; box-sizing: border-box; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-family: inherit; background: var(--surface); color: var(--ink); border: 1px solid var(--accent-bright); border-radius: 999px; cursor: pointer; padding: 0 6px; }
 input.frame-pill { text-align: center; cursor: text; }
 .handles .handle.side { opacity: 0.85; }
+/* editing an outline in the 2D view (milestone 104) */
+.edit2d .e2d-seg { stroke: var(--accent-bright); stroke-dasharray: none; cursor: pointer; }
+.edit2d .e2d-seg.on { stroke: #d1372b; }
+.edit2d .e2d-pt { fill: #ffffff; stroke: var(--accent); cursor: grab; }
+.edit2d .e2d-pt.on { fill: #d1372b; stroke: #d1372b; }
+.edit2d .e2d-pt.corner { fill: #f4b740; }
+.edit2d .e2d-pt.locked { fill: #c8ccd4; stroke: #9aa3b2; cursor: default; }
+.edit2d .e2d-add { fill: #ffffff; stroke: var(--accent); opacity: 0.85; cursor: copy; }
+.edit2d-card { position: absolute; top: 124px; left: 96px; width: 280px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow-soft); z-index: 5; }
+.edit2d-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.edit2d-card h4 { margin: 0; font-size: 14px; }
+html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }

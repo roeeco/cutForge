@@ -98,6 +98,7 @@ describe('the feature table (rule 3)', () => {
       'construction',
       'curves',
       'edgeFlap',
+      'edit2d',
       'exportCheck',
       'foldover',
       'hints',

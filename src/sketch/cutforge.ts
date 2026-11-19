@@ -15,6 +15,7 @@ import { nextEdgeId, normalizeSketch, parentConnection, solve } from '../model/o
 import { isSimplePolygon } from '../model/ops';
 import { polygonArea } from '../geom/vec';
 import { sketchRegion } from './regions';
+import { scaleSketch } from './ops';
 
 const ptId = (i: number) => `p${i}`;
 
@@ -117,8 +118,9 @@ export function graphBoard(d: Design, panelId: string, g: SketchGraph): boolean 
   return true;
 }
 
-/** A shape as a graph in its own frame (millimetres about its centre, not turned); null for text. */
+/** A shape as a graph in its own frame (millimetres about its centre, not turned): its kept graph, or one made from its outline; null for text. */
 export function shapeGraph(dt: Detail): SketchGraph | null {
+  if (dt.sketch) return JSON.parse(JSON.stringify(dt.sketch)) as SketchGraph;
   const g: SketchGraph = { pts: {}, segs: {}, order: [] };
   let k = 0;
   const pt = (x: number, y: number, r?: number) => {
@@ -189,9 +191,52 @@ export function graphShape(d: Design, detailId: string, g: SketchGraph): boolean
     dt.h = h;
     dt.shape = rings.length > 1 ? 'path' : 'polygon';
     dt.path = { polys: rings.map((r) => r.map((q) => ({ x: (q.x - mx) / w, y: (q.y - my) / h }))) };
+    // the graph itself is kept (milestone 104): its curves and corners stay editable; centred on the shape like its outline
+    const k: SketchGraph = JSON.parse(JSON.stringify(g));
+    for (const q of Object.values(k.pts)) (q.x -= mx), (q.y -= my);
+    dt.sketch = k;
     delete dt.regular;
     delete dt.r;
     return true;
   }
   return false;
+}
+
+/**
+ * A shape's kept graph follows its size (milestone 104): when its width or
+ * height changes (the frame, the card, a fix), the graph is scaled about its
+ * centre so its outline fills the new box, as the flattened outline in the
+ * unit box already does. Arcs become curves under a scale that is not alike.
+ */
+export function fitShapeSketch(dt: Detail) {
+  const g = dt.sketch;
+  if (!g) return;
+  const rings = sketchRegion(g).flat();
+  if (!rings.length) return;
+  const xs = rings.flat().map((q) => q.x), ys = rings.flat().map((q) => q.y);
+  const w0 = Math.max(...xs) - Math.min(...xs), h0 = Math.max(...ys) - Math.min(...ys);
+  if (w0 <= 0 || h0 <= 0) return;
+  const sx = dt.w / w0, sy = dt.h / h0;
+  if (Math.abs(sx - 1) < 1e-9 && Math.abs(sy - 1) < 1e-9) return;
+  const mx = (Math.max(...xs) + Math.min(...xs)) / 2, my = (Math.max(...ys) + Math.min(...ys)) / 2;
+  for (const q of Object.values(g.pts)) (q.x -= mx), (q.y -= my);
+  scaleSketch(g, sx, sy);
+}
+
+/** Is this a well-formed graph (finite numbers, segments whose ends exist, bulges within ±50, each segment listed once)? */
+export function sketchOk(x: unknown): x is SketchGraph {
+  if (!x || typeof x !== 'object') return false;
+  const g = x as SketchGraph;
+  if (!g.pts || !g.segs || !Array.isArray(g.order)) return false;
+  const fin = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 1e6;
+  for (const p of Object.values(g.pts)) if (!p || !fin(p.x) || !fin(p.y) || (p.r !== undefined && !fin(p.r))) return false;
+  const ids = Object.keys(g.segs);
+  if (ids.length === 0 || ids.length !== g.order.length || ids.some((id) => !g.order.includes(id))) return false;
+  for (const s of Object.values(g.segs)) {
+    if (!g.pts[s.a] || !g.pts[s.b]) return false;
+    if (s.k === 'arc' && (!fin(s.bulge) || Math.abs(s.bulge) > 50)) return false;
+    if (s.k === 'bez' && (!fin(s.ha?.x) || !fin(s.ha?.y) || !fin(s.hb?.x) || !fin(s.hb?.y))) return false;
+    if (s.k !== 'line' && s.k !== 'arc' && s.k !== 'bez') return false;
+  }
+  return true;
 }

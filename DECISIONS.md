@@ -502,3 +502,10 @@ Defaults chosen where the brief left room. Each is reversible.
 ## Milestone 100: verification of the sentence (SENTENCE_BUILDER_PLAN.md S7)
 - **A lower limit that follows an earlier word**: the stand's base depth comes after its slots, so a change of slots moves the base up to what they need, and the base cannot be typed shallower than that.
 - **Every structure refuses what would not cut clean** (`accepts`), the stand included: a structure's own number ranges cannot say everything (a sheet, a grain, a fold that does not fit), so the whole sentence is built and checked.
+
+## Milestone 104: edit outlines in the 2D view (DIELINE_DNA_PLAN.md D0b-2)
+- **Edited in place, one undo step per change**: no separate sketch view, no *Finish* (the owner's double-click-into flow; `claude/guided-mode`'s session is not used).
+- **`Detail.sketch` beside `path`**: the graph is the editable source; `path` keeps the flattened outline every other part of the app reads (cut, snapping, guards), so nothing else had to change. The graph is in the shape's own frame and is scaled when the shape's box changes (`fitShapeSketch`), so the two never disagree.
+- **A double-click finds the shape geometrically** (inside its outline or within six pixels of it, the smallest one): a cut-out's stroke is too thin to be the click's target.
+- **The edit card sits on the side away from the shape's card** (left in English, right in Hebrew), placed by the page's direction: the 2D view itself is laid out left to right.
+- **Boards: rounded corners, not cut ones**: a board stores a radius per corner; *Cut* is offered for shapes only.

@@ -1,4 +1,5 @@
 import { outlineWhy } from '../model/outlineWhy';
+import type { Edit2D } from '../sketch/edit2d';
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
@@ -255,6 +256,9 @@ type State = {
   roundCorner: number;
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
+  /** Milestone 104: the outline being edited in the 2D view (a shape, a board, a line), and its selected point. */
+  edit2d: Edit2D | null;
+  sel2d: string | null;
   /** A base vertex index, or on a wall a free corner ('tl' | 'tr') or an inserted point's id. */
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
@@ -314,7 +318,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'edit2d' | 'sel2d' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -406,6 +410,8 @@ export const useStore = create<State>()((set, get) => ({
   roundShape: 'circle',
   roundCorner: 15,
   editOutline: null,
+  edit2d: null,
+  sel2d: null,
   selVertex: null,
   extrude: null,
   panelGhost: null,
@@ -555,7 +561,7 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
@@ -591,7 +597,7 @@ export const useStore = create<State>()((set, get) => ({
     const cur = get().view;
     set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: ONLY_3D.has(get().tool) ? 'select' : get().tool });
   },
-  closeSolo: () => set({ view: get().prevView, soloPanel: null }),
+  closeSolo: () => set({ view: get().prevView, soloPanel: null, edit2d: null, sel2d: null }),
   clickPanel: (id, additive) => {
     const cur = selectedPanelIds(get().selection);
     if (!additive) return get().select({ kind: 'panel', id });

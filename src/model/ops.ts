@@ -30,6 +30,7 @@ import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHo
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
 import { keepingStatedSizes } from './boxSize';
+import { fitShapeSketch } from '../sketch/cutforge';
 import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
@@ -1810,6 +1811,8 @@ export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<De
   if (dt.r !== undefined) dt.r = Math.max(0, Math.min(dt.r, dt.w / 2, dt.h / 2));
   // only a Cut goes through
   if (dt.op !== 'cut' || !dt.through) delete dt.through;
+  // a kept outline graph follows the new size (milestone 104)
+  if (patch.w !== undefined || patch.h !== undefined) fitShapeSketch(dt);
 }
 
 export function deleteDetail(d: Design, detailId: string) {

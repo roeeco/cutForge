@@ -6,6 +6,11 @@ import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canv
 import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
 import { evalNumber } from '../ui/NumField';
 import { shown, useFeature } from '../easy/features';
+import { canEdit, movePoint, targetOf, type Edit2D } from '../sketch/edit2d';
+import { pointInPolygon } from '../geom/vec';
+import { snapPoint as skSnap, snapTargets as skTargets } from '../sketch/snap';
+import { linePolyline } from '../model/lines';
+import { Edit2DCard, Edit2DLayer, distToSegment } from './Edit2D';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT } from '../store/store';
 import { YieldBar } from '../ui/SplitUI';
 import { pack, pieceCopies, placementXform, quantityOf, sheetGroups, type PieceCopy } from '../model/pack';
@@ -46,7 +51,8 @@ type Drag =
   | { kind: 'rotate'; ids: string[]; placed: Placed; panelId: string; pivot: Vec2; a0: number; last: number; deg: number }
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
-  | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean };
+  | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean }
+  | { kind: 'pt2d'; ptId: string; placed: Placed; panelId: string; startSvg: Vec2; moved: boolean };
 
 
 export function Plan2D({ soloPanel }: { soloPanel?: string }) {
@@ -159,6 +165,22 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const k = mmPerPx();
         void svg;
         setVB({ ...g.vb, x: g.vb.x - (ev.clientX - g.sx) * k, y: g.vb.y - (ev.clientY - g.sy) * k });
+        return;
+      }
+      if (g.kind === 'pt2d') {
+        // a point of the outline being edited (milestone 104): snapped by the sketch's own rules, then the grid
+        const cur = svgPoint(ev);
+        if (!g.moved && Math.hypot(cur.x - g.startSvg.x, cur.y - g.startSvg.y) < 3 * mmPerPx()) return;
+        g.moved = true;
+        const t2 = st.edit2d;
+        if (!t2) return;
+        const base = st.txnBase ?? st.design;
+        const tg = targetOf(base, t2);
+        if (!tg) return;
+        const raw = tg.fromBoard(toLocal(g.placed, g.panelId, cur));
+        const sn = skSnap(raw, { mmPerPx: mmPerPx(), targets: skTargets(tg.g, { exclude: [g.ptId] }), grid: (v) => (tg.wall || t2.kind !== 'shape' ? grid(v, ev) : v), noSmart: noSnap, free: ev.altKey });
+        st.preview((x) => void movePoint(x, t2, g.ptId, tg.toBoard(sn.p)));
+        setLabel({ text: `${fmtNum(sn.p.x)}, ${fmtNum(sn.p.y)}`, ...cur });
         return;
       }
       if (g.kind === 'piece') {
@@ -289,6 +311,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           st.select(detailSel([g.id]));
           st.beginPending({ kind: 'shape', ids: [g.id], panelId: g.panelId });
         }
+      } else if (g.kind === 'pt2d') {
+        // a press without a move selects the point
+        if (g.moved) st.commit();
+        else {
+          st.cancel();
+          st.set({ sel2d: g.ptId });
+        }
       } else if (g.kind !== 'pan') st.commit();
     };
     const key = (ev: KeyboardEvent) => {
@@ -401,9 +430,52 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     drag.current = { kind: 'marquee', a: svgPoint(ev), b: svgPoint(ev), additive, base: selectedDetailIds(st.selection) };
   };
   const onDouble = (pl: Placed) => (ev: React.MouseEvent) => {
-    if (solo) return;
     ev.stopPropagation();
-    useStore.getState().openSolo(panelAt(pl, svgPoint(ev)));
+    const st = useStore.getState();
+    const at = svgPoint(ev);
+    const panelId = panelAt(pl, at);
+    // milestone 104: double-clicked into a shape, a line or (in the face-on view) the board, its outline is edited here
+    const target = edit2dOk ? edit2dAt(pl, panelId, at, ev.target as Element) : null;
+    if (target) {
+      if (!solo) st.openSolo(target.panelId);
+      st.set({ edit2d: target, sel2d: null });
+      if (target.kind === 'shape') st.select(detailSel([target.id]));
+      return;
+    }
+    if (!solo) st.openSolo(panelId);
+  };
+  /** What a double-click at a point would edit: the shape under it, a line near it, or (face-on) the board itself. */
+  const edit2dAt = (pl: Placed, panelId: string, at: Vec2, el: Element | null): Edit2D | null => {
+    const p = d.panels[panelId];
+    const l = toLocal(pl, panelId, at);
+    const tol = 6 * mmPerPx();
+    // the shape under the point (inside its outline, or within a few pixels of it); the smallest wins
+    let hit = el?.closest('[data-testid^="detail-"]')?.getAttribute('data-testid')?.slice(7) ?? null;
+    if (!hit && p) {
+      let best = Infinity;
+      for (const dt of p.details) {
+        for (const c of detailContours(dt)) {
+          const poly = flattenContour(c, 0.2);
+          let near = pointInPolygon(l, poly);
+          for (let i = 0; !near && i < poly.length; i++) near = distToSegment(l, poly[i], poly[(i + 1) % poly.length]) <= tol;
+          if (near && dt.w * dt.h < best) (best = dt.w * dt.h), (hit = dt.id);
+        }
+      }
+    }
+    if (hit) {
+      const f = findDetail(d, hit);
+      const t2: Edit2D | null = f ? { kind: 'shape', id: hit, panelId: f.panel.id } : null;
+      if (t2 && canEdit(d, t2)) return t2;
+    }
+    for (const ln of p?.lines ?? []) {
+      const pts = linePolyline(ln);
+      for (let i = 0; i + 1 < pts.length; i++) if (distToSegment(l, pts[i], pts[i + 1]) <= tol) return { kind: 'line', id: ln.id, panelId };
+    }
+    if (solo) {
+      const t2: Edit2D = { kind: 'board', id: panelId, panelId };
+      if (canEdit(d, t2)) return t2;
+    }
+    return null;
   };
 
   // a shape waiting for ✓ (milestone 30): its bar above it, in screen space over the drawing
@@ -428,6 +500,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
+  const edit2d = useStore((s) => s.edit2d);
+  const edit2dOk = shown(useFeature('edit2d'));
   // side handles and the size pills (milestone 103; Guided keeps corners and the turn knob)
   const sides = shown(useFeature('transform.sides'));
   const idSet = new Set(ids);
@@ -625,7 +699,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           };
           return o.region.map((r, j) => <polygon key={`${k}.${j}`} points={r.map(at).join(' ')} className="net-overlap" fill="rgba(220, 38, 38, 0.55)" stroke="#b91c1c" strokeWidth={px} pointerEvents="none" data-testid="net-overlap" />);
         })}
-        {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (() => {
+        {tool === 'select' && !edit2d && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (() => {
           const dt = primary.detail;
           const circle = dt.shape === 'circle';
           const box: FrameBox = { cx: dt.cx, cy: dt.cy, w: dt.w, h: dt.h, rot: circle ? 0 : (dt.rot ?? 0) };
@@ -650,7 +724,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             </>
           );
         })()}
-        {tool === 'select' && ringInfo && placedOf(ringInfo.panelId) && (
+        {tool === 'select' && !edit2d && ringInfo && placedOf(ringInfo.panelId) && (
           <RotRing
             centre={toSvg(placedOf(ringInfo.panelId)!, ringInfo.panelId, ringInfo.pivot)}
             r={ringInfo.r + px * 14}
@@ -664,7 +738,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             }}
           />
         )}
-        {tool === 'select' && groupInfo && placedOf(groupInfo.panelId) && (
+        {tool === 'select' && !edit2d && groupInfo && placedOf(groupInfo.panelId) && (
           <Handles
             box={groupInfo.box}
             group
@@ -676,6 +750,10 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             }}
           />
         )}
+        {edit2d && placedOf(edit2d.panelId) && <Edit2DLayer t={edit2d} placed={placedOf(edit2d.panelId)!} toSvg={toSvg} px={px} onPoint={(ptId, ev) => {
+          ev.stopPropagation();
+          drag.current = { kind: 'pt2d', ptId, placed: placedOf(edit2d.panelId)!, panelId: edit2d.panelId, startSvg: svgPoint(ev), moved: false };
+        }} />}
         {guides && (
           <g className="guides" pointerEvents="none">
             {guides.guides.map((g, i) => {
@@ -695,6 +773,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           </text>
         )}
       </svg>
+      {edit2d && <Edit2DCard t={edit2d} />}
       {pendingAt && <PendingBarHtml x={pendingAt.x} y={pendingAt.y} />}
       <div className="plan-dock" dir={uiDir()}>
         {solo && (

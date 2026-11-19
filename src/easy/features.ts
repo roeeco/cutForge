@@ -38,6 +38,8 @@ export const FEATURES = {
   /** How a fold's crease is cut: a score, a perforation, a cut-crease (milestone 85). */
   crease: 'auto',
   'grow.advanced': 'auto',
+  /** Editing outlines in the 2D view, double-clicked into (milestone 104); Quick build's shapes stay move, resize, turn. */
+  edit2d: 'hide',
   /** The 2D transform frame's side handles, size pills and *Keep proportions* (milestone 103); Quick build keeps corners and the turn knob. */
   'transform.sides': 'hide',
   /** Outline mode (milestone 101): a stage switch beside *Joints*; every editable board's points straight away. Quick build hides it. */
@@ -156,6 +158,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'edges-section': null,
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
+  // milestone 104: the outline being edited in the 2D view
+  'edit2d-section': 'edit2d',
   // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)
   'grow-closes': 'grow.advanced',
   // shapes and several boards

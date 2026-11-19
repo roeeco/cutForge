@@ -1577,6 +1577,25 @@ Needs the owner
 - The Hebrew sentences (`sen.*`) read by a native speaker (the owner said they will check them); the word *קרטון* for *a carton* in particular.
 - Whether the welcome screen's default sentence should be the plan's example (a box with a lid that lifts off, 3 × 2 spaces) rather than a plain box.
 
+## Milestone 104 — edit outlines in the 2D view ✅
+
+`DIELINE_DNA_PLAN.md` D0b-2 (the owner's request: edit a shape's outline in the 2D view, double-clicked into). `src/sketch/edit2d.ts`, `src/views/Edit2D.tsx`, `src/views/Plan2D.tsx`; `Detail.sketch` (optional).
+- **Double-click into a board** (in 3D or on the cut plan) opens it face-on, as before. There, **a double-click on a shape** (a cut-out, an engraving, a score, an added piece) shows its points; **on one of the board's lines**, the line's points; **on the board away from its shapes**, the board's own outline. On the cut plan's sheets, a double-click on a shape opens the board face-on already editing it.
+- **Editing**: drag a point (it snaps to the outline's own points, middles and crossings, then the grid; Alt frees it); `+` at a segment's middle adds a point; click a point to select it, Delete removes it (never below three on an outline, two on a line); Esc lets go of the point, then of the outline; Enter or *Done* finishes. A small card says what is edited and offers, for a selected point, *Corner: Sharp · Round · Cut* with its size, and for a selected line, *Straight · Curved* and its typed length (the far end moves, alone on a closed outline). Each change is one undo step. The shape's move, scale and turn handles are hidden meanwhile.
+- **Shapes keep their curves**: a shape edited this way keeps its outline as a sketch graph (`Detail.sketch`, in its own frame), so its rounded corners, arcs and curves stay editable; its flattened outline stays in `path` for everything else. A rectangle becomes four points, a rounded rectangle keeps its radius as rounded corners, a circle two half arcs. Resizing the shape (frame, card, a fix) scales its graph with it; a damaged graph in a file is dropped (its outline stays).
+- **Boards** keep every edge's id (joints stay on their edges); a change that would open the outline or make it cross itself is refused. **Walls** (grown boards) move their top corners only, their bottom corners locked. **Lines** keep their type and group.
+- Quick build does not offer it (`edit2d`).
+
+Verified
+- `tests/edit2d.test.ts` (9): a rectangular cut-out's corner dragged (turned 0° and 30°) moves only that corner; a rounded rectangle's corners carry its radius, a circle stays round; a fillet on four corners survives saving, opening and a resize; `+` and Delete, and a triangle's point not deleted; a board's typed edge length moves only its far end and keeps every edge id; an outline left open is refused with the design untouched; a wall's top corner moves, a bottom one does not; a line's point moved keeps its type and group.
+- Browser `tests/e2e/outline-2d.spec.ts` (English and Hebrew, and from the cut plan): a board with a window face-on; double-click into the window, drag a corner out, type a side's length, round a corner (three undo steps); Esc twice; double-click the board away from the window and drag its corner (the window kept); from the cut plan's sheets a double-click on a round window lands face-on editing it.
+- `editing`, `shapes`, `text-pack`, `transform-2d`, `lines`, `polygon`, `outline-mode`, `templates`, `through` specs pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Outline mode (milestone 101) does not yet enter a shape with a single click in the face-on view (a double-click does); *Nets* (milestone 113) is not built.
+- A board's curved edges are shown with the editor's own curve while editing; their exact shape is the board's curve rule.
+- Mirror and align for a shape's several outlines are not on the card yet (the engine has them).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

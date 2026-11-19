@@ -75,6 +75,8 @@ export type Detail = {
   array?: DetailArray;
   /** Rotation in degrees (counter-clockwise) about the shape's centre; an array turns as a group about its centre. Missing = 0. */
   rot?: number;
+  /** Milestone 104: the shape's outline as an editable graph (its own frame, mm about its centre); `path` keeps the outline it flattens to. */
+  sketch?: SketchGraph;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
