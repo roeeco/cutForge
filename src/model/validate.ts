@@ -1,4 +1,5 @@
 // Pre-export checks, explained in plain language by the UI.
+import { lineOutside, lineSplits } from './lines';
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
 import { findEdge, segDir, segInward } from './edges';
@@ -62,6 +63,11 @@ export function validate(d: Design): Issue[] {
     }
     else if (frags > 1) issues.push({ key: 'val.split', vars: { panel: p.name, n: frags }, target: { kind: 'panel', id } });
     if (hit?.approx && frags > 0) issues.push({ key: 'val.bevel', vars: { panel: p.name }, target: { kind: 'detail', id: hit.sources[0] } });
+    // drawn lines (milestone 83): a cut from edge to edge splits the piece; a line wholly off the board is cut nowhere
+    for (const ln of p.lines ?? []) {
+      if (lineSplits(p, ln)) issues.push({ key: 'val.lineSplits', vars: { panel: p.name }, target: { kind: 'panel', id } });
+      else if (lineOutside(p, ln)) issues.push({ key: 'val.lineOutside', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    }
     for (const r of own.rings) {
       const pts = r.map((e) => e.a);
       const per = r.reduce((s2, e) => s2 + segLength(e), 0);

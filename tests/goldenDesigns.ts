@@ -1,6 +1,6 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
@@ -230,5 +230,18 @@ export function haspBox(): Design {
   const d = lidKindBox(MATERIALS[3], 'flat');
   const L = d.order.map((id) => d.panels[id]).find((p) => p.lidOf)!;
   setLidHasps(d, L.id, 2);
+  return d;
+}
+
+/** A card board with one line of each type, straight and arced (milestone 83). */
+export function linesBoard(): Design {
+  const d = createDesign(MATERIALS[0]);
+  const p = addRootPanel(d, 0, 0, 120, 90);
+  addLine(d, p, [{ x: 10, y: 10 }, { x: 50, y: 10 }], 'cut');
+  addLine(d, p, [{ x: 10, y: 25, bulge: 0.4 }, { x: 110, y: 25 }], 'crease');
+  addLine(d, p, [{ x: 10, y: 45 }, { x: 110, y: 45 }], 'perf');
+  addLine(d, p, [{ x: 10, y: 60, bulge: -0.3 }, { x: 110, y: 60 }], 'cutcrease');
+  addLine(d, p, [{ x: 10, y: 80 }, { x: 110, y: 80 }], 'guide');
+  solve(d);
   return d;
 }

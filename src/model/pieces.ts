@@ -1,5 +1,6 @@
 // Pieces: one connected flat outline to cut. Panels joined by folds form one
 // flat net (unfolded about their fold lines); everything else is separate.
+import { lineContours } from './lines';
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
 import type { Connection, Design, P2, Panel } from './types';
@@ -289,6 +290,8 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       for (const s of ex.lines) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       for (const q of ex.paths) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId }));
+      // lines drawn on the board (milestone 83): clipped to it, dashed by their type
+      contours.push(...lineContours(d, p, tf));
       const holes = new Map(holeCuts(p).map((h) => [h.dt.id, h.contours]));
       for (const dt of p.details) {
         // Adds and Cuts across the edge are part of the outline already

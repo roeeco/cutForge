@@ -176,6 +176,15 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   v3(x.frame.v, `${where}.frame.v`, true);
   if (x.frame.side !== 1 && x.frame.side !== -1) fail(`${where}.frame.side`, 'not 1 or -1');
   arr(x.details, `${where}.details`).forEach((dt, i) => detail(dt, `${where}.details[${i}]`));
+  if (x.lines !== undefined) {
+    if (!Array.isArray(x.lines)) delete x.lines;
+    else
+      x.lines = x.lines.filter(
+        (l: any) =>
+          isObj(l) && typeof l.id === 'string' && ['cut', 'crease', 'perf', 'cutcrease', 'guide'].includes(l.type) && Array.isArray(l.pts) && l.pts.length >= 2 && l.pts.length <= 500 &&
+          l.pts.every((q: any) => ptOk(q) && (q.bulge === undefined || (Number.isFinite(q.bulge) && Math.abs(q.bulge) <= 10))),
+      );
+  }
   if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin'))) delete x.lidOf;
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {

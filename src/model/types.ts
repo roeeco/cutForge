@@ -21,6 +21,8 @@ export type MaterialProfile = {
   grain: 'x' | 'y' | 'none';
   /** How tightly it bends (milestone 62, PACKAGING_PLAN.md §6.2); absent: its kind's defaults (`bendDefaults`). */
   bend?: BendLimits;
+  /** Dash lengths of a drawn perforation and cut-crease, [cut, tie] mm (milestone 83); absent: its kind's (`lineDashes`). */
+  lines?: { perf: [number, number]; crease: [number, number] };
 };
 
 /**
@@ -144,6 +146,8 @@ export type Panel = {
   foldOvers?: FoldOver[];
   /** Milestone 67: plain flaps on free edges (card and corrugated): a scored lip, `len` mm, tapered at its ends. */
   edgeFlaps?: { id: string; edge: string; len: number }[];
+  /** Lines drawn on the board (milestone 83, LIDS_LINES_PROJECTS_PLAN.md Part B): open, in its local coordinates. */
+  lines?: BoardLine[];
   /** A one-board lid of a box (milestone 79): its box's tray and its kind. A *Flat* lid rests on the walls' tops, held by their tabs through its slots; a *Drop-in* lid (milestone 80) lies inside the walls on the dividers. */
   lidOf?: { tray: string; kind: 'flat' | 'dropin'; /** Padlock hasps through a Flat lid (milestone 82): how many along the front, and the hole (mm). */ hasps?: { n: 1 | 2 | 3; hole: number } };
   /**
@@ -185,6 +189,11 @@ export type DividerRec = { at: P2; rot: number; reach: [number, number] };
  * material is on. `face` is the host's face it is on (1: its material side,
  * −1: its plane).
  */
+/** A line type (milestone 83): a slit, a fold or decorative score, a tear line, a fold for board a score barely marks, a reference never cut. */
+export type LineType = 'cut' | 'crease' | 'perf' | 'cutcrease' | 'guide';
+/** A drawn line on a board, in the board's local coordinates. `bulge` bows the segment that starts at a point into an arc (DXF's bulge: tan of a quarter of the turn). */
+export type BoardLine = { id: string; pts: (P2 & { bulge?: number })[]; type: LineType; group?: string };
+
 export type PanelPlace = { host: string | null; face: 1 | -1; x: number; y: number; rot: number; pose: 'flat' | 'standing'; side?: 1 | -1 };
 
 /**

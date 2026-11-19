@@ -1079,6 +1079,8 @@ export const he: Record<MsgKey, string> = {
   'goal.opens': "המכסה נפתח",
   'goal.padlock': "אפשר לנעול במנעול תלייה",
   'goal.clue': "רמז חרוט בפנים",
+  'val.lineSplits': "קו חיתוך על {panel} עובר מקצה לקצה ויחתוך אותו לשניים. הפכו אותו לניקוב, או עצרו אותו לפני הקצה.",
+  'val.lineOutside': "קו על {panel} נמצא כולו מחוץ ללוח, ולכן שום חלק ממנו לא ייחתך.",
   'lid.select': "לבחור את המכסה",
   'lid.why.none': "זו לא קופסה.",
   'lid.why.carton': "קרטון נסגר במכסה התחיבה שלו.",

@@ -1344,6 +1344,11 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `lidKinds.test.ts` (+5): one, two and three hasps: as many tongues and slots, each hole's lowest point at least 1 mm above the lid's top, slots the tongue's width plus the fit, no check issue, idempotent and saved unchanged; the reasons; the Escape box starts with no goal met. `missions.test.ts`: its reference solution meets every goal. Golden `lid-flat-ply-hasp2` (new); every other golden byte-identical.
 - Not yet: hasps on a cap or a hinged lid; `val.haspThin` and `val.haspBlocked` (the sizes are made safe instead: the web is never under 4 mm).
 
+## Milestone 83 — lines in the engine ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §5 (milestone 78 there). `Panel.lines` with five types, clipped to the board and its holes, dashed per material at export, checked (a cut that would split the piece, a line off the board), drawn in 3D. Made through `ops` only; the tool is milestone 84.
+- Tests: `tests/lines.test.ts` (8): dash layout (perforation starts with a cut, cut-crease with a tie, round a corner, shorter than a dash), arcs from a bulge, dash lengths per material, clipping at the outline and at a cut-out shape's hole, every type on its layer in the file (counts of dashes), the checks, kerf compensation leaves open lines in place. Golden `lines-card` (new); every other golden byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

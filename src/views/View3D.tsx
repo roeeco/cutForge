@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT, type Quality } from '../store/store';
-import type { Connection, Content, Design, Detail, Frame, P2, Panel, V3, WallSketch } from '../model/types';
+import type { Connection, Content, Design, Detail, Frame, LineType, P2, Panel, V3, WallSketch } from '../model/types';
 import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide, withSeam } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
@@ -27,6 +27,7 @@ import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
 import { applyLidPoses } from './lidPose';
+import { clippedLine } from '../model/lines';
 import { AngleArc, DimLabel, DimLine, Gizmo, MeshEdges, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
 import { Icon } from '../ui/icons';
 import { FoldSlider } from '../ui/Inspector';
@@ -979,6 +980,7 @@ function PanelObject(props: {
         </lineSegments>
       )}
       <FaceSlits d={d} p={p} zs={[z0 - 0.12, z1 + 0.12]} />
+      {p.lines?.length ? <BoardLines p={p} zs={[z0 - 0.14, z1 + 0.14]} /> : null}
       {p.details.map((dt) => {
         const isSel = selDetails.includes(dt.id);
         const color = isSel ? STAGE.selected : dt.op === 'cut' ? '#5b4128' : dt.op === 'engrave' ? '#1c1c1c' : dt.op === 'add' ? '#2e8b57' : '#2f6feb';
@@ -1394,6 +1396,35 @@ function FaceSlits({ d, p, zs }: { d: Design; p: Panel; zs: number[] }) {
     <lineSegments geometry={geom} raycast={() => null} userData={{ faceSlits: slits.length }}>
       <lineBasicMaterial color="#1c1c1c" />
     </lineSegments>
+  );
+}
+
+/** Lines drawn on a board (milestone 83) on both its faces: clipped to it, coloured by type, dashed where they are dashed in the file. */
+const LINE_COLOR: Record<LineType, string> = { cut: '#5b4128', crease: '#2f6feb', perf: '#5b4128', cutcrease: '#7a4a9c', guide: '#16a34a' };
+function BoardLines({ p, zs }: { p: Panel; zs: number[] }) {
+  const objs = useMemo(() => {
+    const out: THREE.Line[] = [];
+    for (const ln of p.lines ?? []) {
+      const dashed = ln.type === 'perf' || ln.type === 'cutcrease' || ln.type === 'guide';
+      for (const pl of clippedLine(p, ln))
+        for (const z of zs) {
+          const g = new THREE.BufferGeometry().setFromPoints(pl.map((q) => new THREE.Vector3(q.x, q.y, z)));
+          const m = dashed ? new THREE.LineDashedMaterial({ color: LINE_COLOR[ln.type], dashSize: ln.type === 'perf' ? 1.5 : 4, gapSize: ln.type === 'perf' ? 0.8 : 2 }) : new THREE.LineBasicMaterial({ color: LINE_COLOR[ln.type] });
+          const l = new THREE.Line(g, m);
+          if (dashed) l.computeLineDistances();
+          l.userData = { boardLine: ln.id };
+          out.push(l);
+        }
+    }
+    return out;
+  }, [p, zs[0], zs[1]]);
+  useEffect(() => () => objs.forEach((l) => (l.geometry.dispose(), (l.material as THREE.Material).dispose())), [objs]);
+  return (
+    <>
+      {objs.map((l, i) => (
+        <primitive key={i} object={l} raycast={() => null} />
+      ))}
+    </>
   );
 }
 

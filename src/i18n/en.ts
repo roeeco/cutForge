@@ -1077,6 +1077,8 @@ export const en = {
   'goal.opens': "The lid opens",
   'goal.padlock': "It takes a padlock",
   'goal.clue': "A clue is engraved inside",
+  'val.lineSplits': "A cut line on {panel} runs from edge to edge and would cut it in two. Make it a perforation, or stop it short of an edge.",
+  'val.lineOutside': "A line on {panel} is wholly off the board, so nothing of it is cut.",
   'lid.select': "Select the lid",
   'lid.why.none': "This is not a box.",
   'lid.why.carton': "A carton closes with its tuck top.",

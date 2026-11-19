@@ -8,7 +8,7 @@ import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { Connection, ConnectionKind, Design, Detail, DividerRec, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
@@ -2268,3 +2268,45 @@ export function copyOutlineFrom(d: Design, id: string, from: string): boolean {
 }
 
 export { canMatch, leaderOf };
+
+// ---------------------------------------------------------------------------
+// Lines drawn on a board (milestone 83, LIDS_LINES_PROJECTS_PLAN.md Part B)
+
+/** Draw a line on a board (local points; at least two). Returns its id. */
+export function addLine(d: Design, panelId: string, pts: (P2 & { bulge?: number })[], type: LineType, group?: string): string | null {
+  const p = d.panels[panelId];
+  if (!p || pts.length < 2) return null;
+  const id = newId('l');
+  (p.lines ??= []).push({ id, pts: pts.map((q) => ({ x: q.x, y: q.y, ...(q.bulge ? { bulge: q.bulge } : {}) })), type, ...(group ? { group } : {}) });
+  return id;
+}
+
+/** The board a line is on, and the line. */
+export function findLine(d: Design, lineId: string): { panel: Panel; line: BoardLine } | null {
+  for (const id of d.order) {
+    const p = d.panels[id];
+    const line = p?.lines?.find((l) => l.id === lineId);
+    if (line) return { panel: p, line };
+  }
+  return null;
+}
+
+/** Change a line: its type, its points. */
+export function updateLine(d: Design, lineId: string, patch: Partial<Pick<BoardLine, 'type' | 'pts'>>) {
+  const f = findLine(d, lineId);
+  if (!f) return;
+  Object.assign(f.line, patch);
+}
+
+/** Delete a line (and the lines drawn in the same stroke with it). */
+export function deleteLine(d: Design, lineId: string) {
+  const f = findLine(d, lineId);
+  if (!f) return;
+  const g = f.line.group;
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.lines) continue;
+    p.lines = p.lines.filter((l) => l.id !== lineId && !(g && l.group === g));
+    if (!p.lines.length) delete p.lines;
+  }
+}
