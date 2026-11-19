@@ -5,7 +5,25 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { FEATURES, SECTIONS } from '../src/easy/features';
+import { FEATURES, GUIDED, SECTIONS } from '../src/easy/features';
+
+/**
+ * Guided hides these by not mounting what holds them (milestone 105): the card (Inspector), the Workshop
+ * dock, the fold bar and the 3D gizmos. Each names where its control lives and the row or shell that hides it.
+ */
+const GUIDED_BY_SHELL: Record<string, string> = {
+  outline: 'Inspector (Edit outline): not mounted in Guided',
+  'tray.wallIt': 'Inspector (Wall it): not mounted in Guided',
+  arrays: 'Inspector (Copies in a row): not mounted in Guided',
+  align: 'Inspector (Align): not mounted in Guided',
+  copies: 'Inspector (Copies to cut): not mounted in Guided',
+  gizmo: 'the stage gizmos: stage.floorGizmo, stage.placedGizmo, stage.shapeGizmo',
+  foldSlider: 'the fold bar: stage.foldBar',
+  viewSettings: 'the dock: stage.dock',
+};
+
+/** The two columns that are not Workshop's (milestone 105: Guided has its own). */
+const TABLES = { quick: FEATURES, guided: GUIDED } as Record<string, Record<string, string>>;
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {
@@ -50,23 +68,25 @@ describe('the feature table (rule 3)', () => {
     }
   });
 
-  it('a section whose feature Quick build hides or chooses asks for it (in its own file, or where the card places it)', () => {
+  it.each(Object.keys(TABLES))('a section whose feature %s hides or chooses asks for it (in its own file, or where the card places it)', (mode) => {
+    const T = TABLES[mode];
     const asks = (src: string, f: string) => new RegExp(`(useFeature|featureState)\\('${f.replace(/\./g, '\\.')}'\\)|<Gate f="${f.replace(/\./g, '\\.')}"`).test(src);
     const inspector = SRC.find((x) => x.f.endsWith('Inspector.tsx'))!.src;
     const bad = sections().filter((s) => {
       const f = s.id && !s.id.includes('${') ? SECTIONS[s.id] : null;
-      if (!f || FEATURES[f] === 'show') return false;
+      if (!f || T[f] === 'show' || (mode === 'guided' && f in GUIDED_BY_SHELL)) return false;
       return !asks(SRC.find((x) => x.f === s.f)!.src, f) && !asks(inspector, f);
     });
     expect(bad.map((s) => `${s.f}: ${s.id} (${SECTIONS[s.id!]})`)).toEqual([]);
   });
 
-  it('every feature Quick build does not simply show is asked for somewhere in the interface', () => {
+  it.each(Object.keys(TABLES))('every feature %s does not simply show is asked for somewhere in the interface', (mode) => {
+    const T = TABLES[mode];
     const all = SRC.filter((x) => !x.f.endsWith('features.ts')).map((x) => x.src).join('\n');
     // rows that only document what Quick build shows need no question; the op dots live on the Workshop rail (rail.tools)
-    const implied = new Set(['rail.ops']);
-    const unused = Object.keys(FEATURES).filter((k) => {
-      if (FEATURES[k as keyof typeof FEATURES] === 'show' || implied.has(k)) return false;
+    const implied = new Set(['rail.ops', ...(mode === 'guided' ? Object.keys(GUIDED_BY_SHELL) : [])]);
+    const unused = Object.keys(T).filter((k) => {
+      if (T[k] === 'show' || implied.has(k)) return false;
       const q = k.replace(/\./g, '\\.');
       return !new RegExp(`(useFeature|featureState)\\('${q}'\\)|<Gate f="${q}"`).test(all);
     });
@@ -84,10 +104,23 @@ describe('the feature table (rule 3)', () => {
       'foldSlider',
       'gizmo',
       'joints.noGlue',
+      'keys.clipboard',
       'lid',
       'outline',
+      'plan.edit',
       'saveBoard',
       'settings.joints',
+      'stage.dividerButton',
+      'stage.dividerSlide',
+      'stage.dock',
+      'stage.edges',
+      'stage.floorGizmo',
+      'stage.foldBar',
+      'stage.hint',
+      'stage.pan',
+      'stage.panelWidgets',
+      'stage.placedGizmo',
+      'stage.shapeGizmo',
       'tray.wallIt',
       'viewSettings',
     ]);
@@ -102,6 +135,7 @@ describe('the feature table (rule 3)', () => {
       'exportCheck',
       'foldover',
       'hints',
+      'keys.tools',
       'match',
       'op.scoreAdd',
       'outline.mode',
@@ -116,5 +150,15 @@ describe('the feature table (rule 3)', () => {
       'tray.ownHeight',
       'yield',
     ]);
+  });
+
+  it('what Guided shows (milestone 105; a change here is a change for every beginner)', () => {
+    const by = (v: string) => Object.entries(GUIDED).filter(([, x]) => x === v).map(([k]) => k).sort();
+    expect(Object.keys(GUIDED).sort()).toEqual(Object.keys(FEATURES).sort());
+    expect(by('show')).toEqual(['cutplan', 'export.spec', 'joints.noGlue', 'lid', 'saveBoard', 'settings.joints']);
+    expect(by('readonly')).toEqual([]);
+    expect(by('auto')).toEqual(['bend', 'crease', 'export.annotations', 'export.kerf', 'hinge', 'joints', 'lid.advanced', 'size.as', 'split', 'tray.corners', 'tray.joints']);
+    // everything else, every Workshop-only control and every stage handle Guided replaces, is hidden
+    expect(by('hide').length).toBe(Object.keys(GUIDED).length - 17);
   });
 });

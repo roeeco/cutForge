@@ -8,7 +8,7 @@ export const classes = sqliteTable('classes', {
   open: integer('open', { mode: 'boolean' }).notNull().default(true),
   /** Optional calibrated material profile (JSON) students are checked against. */
   material: text('material'),
-  /** Quick build (milestone 37): the mode students start in ('quick' | 'workshop' | null), and whether they can switch. */
+  /** Quick build (milestone 37): the mode students start in ('guided' | 'quick' | 'workshop' | null; Guided from milestone 105), and whether they can switch. */
   mode: text('mode'),
   modeLocked: integer('mode_locked', { mode: 'boolean' }).notNull().default(false),
   /** Missions offered to the class (milestone 40): a JSON list of mission ids, or null for all. */

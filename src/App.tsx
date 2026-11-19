@@ -13,6 +13,7 @@ import { TourOverlay } from './tour/TourOverlay';
 import { Gate } from './easy/Gate';
 import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
+import { useMode } from './easy/features';
 import { View3D } from './views/View3D';
 
 // Loaded when first used (code splitting, 20 November): the cut plan and face-on view with the 2D editing, the
@@ -20,6 +21,8 @@ import { View3D } from './views/View3D';
 const Plan2D = lazy(() => import('./views/Plan2D').then((m) => ({ default: m.Plan2D })));
 const ExportDialog = lazy(() => import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog })));
 const TeacherApp = lazy(() => import('./teacher/TeacherApp').then((m) => ({ default: m.TeacherApp })));
+// Guided's shell (milestone 105): its own chunk
+const GuidedApp = lazy(() => import('./guided/GuidedApp').then((m) => ({ default: m.GuidedApp })));
 const SentenceDev = lazy(() => import('./sentence/SentenceDev').then((m) => ({ default: m.SentenceDev })));
 /** What shows while a part loads: the same quiet placeholder as the app's own first load. */
 const Loading = () => <div className="loading" aria-busy="true" />;
@@ -47,6 +50,7 @@ export function App() {
   }, []);
   const teacher = route.startsWith('#/teacher');
   const otherTab = useStore((s) => s.otherTab);
+  const guided = useMode() === 'guided';
   useAutosave(() => setLoaded(true));
   useKeyboard();
   // the parts loaded when first used are fetched once the editor is up, so they are there offline too
@@ -55,6 +59,7 @@ export function App() {
     const h = setTimeout(() => {
       void import('./views/Plan2D');
       void import('./ui/ExportDialog');
+      void import('./guided/GuidedApp');
     }, 0);
     return () => clearTimeout(h);
   }, [loaded]);
@@ -78,7 +83,13 @@ export function App() {
     );
   if (!loaded) return <div className="loading" aria-busy="true" />;
   return (
-    <div className="app">
+    <div className={guided ? 'app guided' : 'app'}>
+      {guided ? (
+        <Suspense fallback={<Loading />}>
+          <GuidedApp />
+        </Suspense>
+      ) : (
+        <>
       <TopBar />
       <div className="main">
         <EditorBoundary>
@@ -100,6 +111,8 @@ export function App() {
           </Gate>
         )}
       </div>
+        </>
+      )}
       {needsMaterial && <StartScreen />}
       {otherTab && (
         // milestone 86: two tabs on one design

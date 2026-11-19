@@ -1,14 +1,15 @@
-import { projectDesigns, projectNamed, projectOf, storeDesign } from '../store/persist';
+import { projectDesigns, projectOf, storeDesign } from '../store/persist';
+import { openProjectFile } from './openFile';
 import { migrateDesign } from '../model/serialize';
 import { useEffect, useRef, useState } from 'react';
 import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
 import { MATERIALS } from '../model/materials';
 import { duplicateDesign, createDesign } from '../model/ops';
-import { parseProjectFile, serializeProject, serializeProjectGroup, ProjectError } from '../model/serialize';
+import { serializeProject, serializeProjectGroup } from '../model/serialize';
 import { downloadText, safeName } from './download';
 import { Icon, Logo } from './icons';
-import { setMode } from '../easy/mode';
+import { levels, MODE_HELP, MODE_NAME, setMode } from '../easy/mode';
 import { ReadyBadge } from '../easy/ReadyBadge';
 import { shown, useFeature } from '../easy/features';
 import { TOUR_OFFERED, startTourConfirmed } from '../tour/TourNudge';
@@ -50,22 +51,7 @@ export function TopBar() {
       window.removeEventListener('keydown', key);
     };
   }, [menu]);
-  const open = async (f: File) => {
-    try {
-      // one design, or a project of several (milestone 87): every design goes in the library, the first opens
-      const file = parseProjectFile(await f.text());
-      if (file.designs.length > 1 || file.name) {
-        const pj = await projectNamed(file.name || f.name.replace(/\.cutforge\.json$|\.json$/, ''));
-        for (const x of file.designs) await storeDesign(x, pj.id).catch(() => undefined);
-      }
-      useStore.getState().replaceDesign(file.designs[0]);
-    } catch (e) {
-      // a friendly reason for any failure, never a raw error message
-      const code = e instanceof ProjectError ? e.code : 'damaged';
-      const reason = t(code === 'newerVersion' ? 'err.newerVersion' : code === 'notProject' ? 'err.notProject' : 'err.damaged');
-      alert(t('dlg.openFailed', { reason }));
-    }
-  };
+  const open = (f: File) => openProjectFile(f, t);
   const item = (fn: () => void) => () => {
     setMenu(false);
     fn();
@@ -174,9 +160,9 @@ export function TopBar() {
       </button>
       {!s.viewPrefs.modeLocked && (
         <div className="seg mode-seg tablet-hide" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
-          {(['quick', 'workshop'] as const).map((m) => (
-            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(m === 'quick' ? 'mode.quickHelp' : 'mode.workshopHelp')} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
-              {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
+          {levels(s.viewPrefs).map((m) => (
+            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(MODE_HELP[m])} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
+              {t(MODE_NAME[m])}
             </button>
           ))}
         </div>
@@ -224,9 +210,9 @@ export function TopBar() {
               <Icon name="send" /> {t('sub.button')}
             </button>
             {!s.viewPrefs.modeLocked &&
-              (['quick', 'workshop'] as const).map((m) => (
+              levels(s.viewPrefs).map((m) => (
                 <button key={m} role="menuitemradio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => (setMore(false), setMode(m))} data-testid={`more-mode-${m}`}>
-                  <Icon name={mode === m ? 'check' : 'box'} /> {t(m === 'quick' ? 'mode.quick' : 'mode.workshop')}
+                  <Icon name={mode === m ? 'check' : 'box'} /> {t(MODE_NAME[m])}
                 </button>
               ))}
             <hr />

@@ -1608,6 +1608,30 @@ Verified
 - Production build served with `vite preview`: the welcome screen loads the app, React, three.js and the 3D renderer; the cut plan's file arrives when *Cut plan* is opened, the download dialog's when it is opened; the teacher view loads; a Hebrew and English text shape is outlined (the fonts parse); no page error apart from the teacher view's call to the class server, which was not running.
 - Unit suite and typecheck green; goldens byte-identical.
 
+## Milestone 105 (Guided G2) — the mode and the shell ✅
+
+`GUIDED_MODE.md` G2, `HANDOFF_105-118.md` §105. `src/easy/features.ts`, `src/easy/mode.ts`, `src/store/store.ts`, `src/store/hooks.ts`, `src/App.tsx`, `src/views/View3D.tsx`, `src/views/Plan2D.tsx`, `src/ui/TopBar.tsx`, `src/ui/openFile.ts` (new, shared), `src/teacher/TeacherApp.tsx`, `worker/index.ts`; new `src/guided/` (`GuidedApp`, `GuidedTopBar`, `SideSheet`, `AddBar`, `ViewButtons`, `GuidedLayer`, `camera.ts`, `thing.ts`).
+- **A third level, Guided**, below Quick build. Until milestone 110 it is reached with `?guided` once (saved in this browser's preferences as `guidedPreview`), which adds it to the level switch; nothing starts in it yet. A class can be set to start in Guided (the teacher's list and the Worker accept it).
+- **Guided's shell** replaces the top bar, the rail, the card and the Workshop dock: a top bar with home, the thing's name, the steps *1 Build · 2 Decorate · 3 Send*, Undo and Redo with their words and a menu (*Start something new*, *Open a saved file*, *Save a copy*, the language, *More tools (Quick build)*, *All tools (Workshop)*, *Teacher view*); a side sheet with the thing's inside size, its spaces and its lid; view buttons *Look around*, *From above*, *Closer*, *Further*; the mission card. The stage shows no grow arrows, gizmos, divider button or slide, dock, view cube, fold bar or hint, and does not pan; the thing opens seen from 50° up in front and is framed again when it changes size. Every button is at least 44 px. In Hebrew the sheet and the bar swap sides; the stage stays left to right.
+- **What a step is**: view state (not saved, not in the history); changing it clears the selection and closes the face-on view; a new design starts at Build. The steps' contents come in 107–109.
+- **Underneath**: a full Guided column in the feature table (`GUIDED`, checked complete by the compiler), 14 new rows for the stage, the keys and the cut plan (each with all three states); `featureState` and `useFeature` pick by mode, so Guided never falls through to Workshop. The guard runs in Guided as in Quick build (`keepsCuttable`). In Guided the letter keys and Ctrl+C/V/D do nothing and Delete removes only a divider. Switching to Guided clears the joints view, outline mode, 2D editing and the face-on view. Workshop and Quick build are unchanged.
+
+Decisions (the handoff's defaults, owner questions 3 and 7)
+- The preview flag is `?guided`, saved in prefs, not a development-build switch (Playwright runs the dev server).
+- The Hebrew name is a placeholder, *מודרך*, to be reviewed with the `sen.*` and `g.*` words.
+- *Start something new* asks nothing (the open design stays in *Your designs* since milestone 86); no `Confirm.tsx`.
+- Eight rows Guided hides by not mounting what holds them (the card, the dock, the fold bar, the 3D gizmos) are listed with where they live in `tests/quickTable.test.ts` (`GUIDED_BY_SHELL`) rather than gated inside components Guided never shows.
+
+Verified
+- `tests/guidedmode.test.ts` (13): three levels and their columns; the switch offers Guided only with the flag; switching to and from Guided leaves the design and its history unchanged; switching clears the joints view, outline mode and the face-on view; a class locked in Guided stays there; the step is view state; a shape pushed into the edge keep-out is moved back in Guided; `b` and `p` do not change the tool and Ctrl+C/V/D do nothing in Guided (Workshop's `p` still does); Delete removes a divider but not a wall; the opening view is 50° up in front of the thing; the side sheet's facts.
+- `tests/guidedwords.test.ts` (4): every key under `src/guided/` is `g.*` or a shared prefix; no English `g.*` string says joint, kerf, tray, panel, edge, SVG and the rest; only `App.tsx` imports `src/guided/`, lazily; Guided imports none of the other levels' cards and bars.
+- `tests/quickTable.test.ts`: the section and use checks run for Guided's column too, and its *show* and *auto* lists are snapshot. `worker/api.test.ts`: a class patched to Guided reads back Guided; an unknown level is ignored.
+- In the browser (screenshots, English 1366 × 768 and Hebrew 1024 × 768): the shell with a box, no sideways scroll, the stage's test ids only Guided's own. Browser specs `topbar`, `quick`, `offline` pass. Unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- The steps are empty (Build, Decorate and Send arrive in 107–109); home and *Start something new* open the welcome screen until the gallery (106).
+- Not tried on a touch screen.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

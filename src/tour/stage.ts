@@ -9,6 +9,8 @@ export type StageLink = {
   project: (p: V3) => { x: number; y: number } | null;
   /** Put the camera at `pos`, looking at `target`. */
   setCamera: (pos: V3, target: V3) => void;
+  /** Move the camera `f` times as far from what it looks at (below 1: closer). */
+  zoom?: (f: number) => void;
 };
 
 let link: StageLink | null = null;
@@ -32,6 +34,11 @@ export function projectWorld(p: V3): { x: number; y: number } | null {
 export function requestCamera(pos: V3, target: V3) {
   if (link) link.setCamera(pos, target);
   else pending = [pos, target];
+}
+
+/** Zoom the stage, if it is shown (Guided's zoom buttons, milestone 105). */
+export function zoomStage(f: number) {
+  link?.zoom?.(f);
 }
 
 /** The camera the tour starts with: a three-quarter view over the origin. */

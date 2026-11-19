@@ -994,3 +994,28 @@ input.frame-pill { text-align: center; cursor: text; }
 .edit2d-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .edit2d-card h4 { margin: 0; font-size: 14px; }
 html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
+
+/* ---- Guided (milestone 105): its top bar, side sheet, add bar and view buttons. Hit targets are 44 px. ---- */
+.g-topbar { gap: 10px; }
+.g-topbar .g-home { min-height: 44px; min-width: 44px; padding: 0 6px; color: var(--accent); }
+.g-topbar .g-name { max-width: 220px; min-height: 44px; font-weight: 600; }
+.g-steps button { min-height: 44px; padding: 4px 18px; font-size: 15px; }
+.g-steps .g-step-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-sunk); font-size: 12px; font-weight: 600; margin-inline-end: 4px; }
+.g-steps button.on .g-step-n { background: var(--accent); color: var(--accent-ink); }
+.g-word-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 12px; }
+.g-menu-wrap { position: relative; }
+.g-menu { inset-inline-start: auto; inset-inline-end: 0; min-width: 240px; }
+.g-menu button { min-height: 44px; }
+.g-sheet { position: absolute; top: 16px; inset-inline-end: 16px; z-index: 5; width: 260px; padding: 14px 16px; max-height: calc(100% - 32px); overflow-y: auto; }
+.g-sheet h3 { margin: 0 0 8px; font-size: 18px; overflow-wrap: anywhere; }
+.g-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; }
+.g-facts dt { color: var(--ink-muted); }
+.g-facts dd { margin: 0; font-weight: 500; text-align: end; }
+.g-addbar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 8px; padding: 8px; }
+.g-addbar > button { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 88px; min-height: 64px; }
+.g-views { position: absolute; bottom: 16px; inset-inline-end: 16px; z-index: 5; display: flex; gap: 4px; padding: 6px; }
+.g-view-btn { min-width: 44px; min-height: 44px; padding: 0; display: grid; place-items: center; }
+@media (max-width: 1180px) {
+  .g-word-btn span { display: none; }
+  .g-steps button { padding: 4px 12px; }
+}

@@ -58,6 +58,15 @@ const P: Record<string, ReactElement> = {
   close: <path d="M6 6l12 12M18 6 6 18" />,
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
+  // Guided's top bar and view buttons (milestone 105)
+  home: <path d="M4 11.5 12 5l8 6.5M6.5 10v9h11v-9M10 19v-5h4v5" />,
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  above: (
+    <>
+      <path d="M4 8 12 4l8 4-8 4z" />
+      <path d="M12 14v6M9 17l3 3 3-3" />
+    </>
+  ),
   flip: (
     <>
       <path d="M7 4v13M3.5 13.5 7 17l3.5-3.5" />

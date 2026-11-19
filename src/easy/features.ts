@@ -6,7 +6,8 @@
 import { createContext, useContext } from 'react';
 import { useStore } from '../store/store';
 
-export type Mode = 'quick' | 'workshop';
+/** The three levels (milestone 105): Guided, Quick build, Workshop. */
+export type Mode = 'guided' | 'quick' | 'workshop';
 export type FeatureState = 'show' | 'readonly' | 'auto' | 'hide';
 
 export const FEATURES = {
@@ -109,7 +110,109 @@ export const FEATURES = {
   'joints.noGlue': 'show',
   /** The download dialog's *Nominal · Compensated*: nominal, the kerf shown. */
   'export.kerf': 'auto',
+  // ---- milestone 105 (Guided G2): what the stage shows; Quick build and Workshop as before ----
+  /** The grow arrows on a board's edges (`EdgeHandle`). */
+  'stage.edges': 'show',
+  /** A selected board's push-pull and size widgets. */
+  'stage.panelWidgets': 'show',
+  /** The floor gizmo of a board lying on the floor. */
+  'stage.floorGizmo': 'show',
+  /** The gizmo of a placed (standing) board. */
+  'stage.placedGizmo': 'show',
+  /** The *+ divider* button on a base. */
+  'stage.dividerButton': 'show',
+  /** The handle that slides a divider (Guided has its own grips). */
+  'stage.dividerSlide': 'show',
+  /** A shape's gizmo on the stage, and editing a through-cut. */
+  'stage.shapeGizmo': 'show',
+  /** The stage's dock: ortho, fit, joints, outline mode, assemble, view settings, the material legend. */
+  'stage.dock': 'show',
+  /** The fold bar under the stage. */
+  'stage.foldBar': 'show',
+  /** The hint under the stage. */
+  'stage.hint': 'show',
+  /** Dragging with the right button pans the view. */
+  'stage.pan': 'show',
+  /** Workshop's letter keys for its tools (Quick build has its own keys). */
+  'keys.tools': 'hide',
+  /** Ctrl+C, Ctrl+V and Ctrl+D on shapes (a paste waits for ✓). */
+  'keys.clipboard': 'show',
+  /** Dragging pieces on the cut plan, and *Repack*. */
+  'plan.edit': 'show',
 } as const satisfies Record<string, FeatureState>;
+
+export type Feature = keyof typeof FEATURES;
+
+/**
+ * Guided's column (milestone 105, ROADMAP §5 rule 4b): every feature says its
+ * state in Guided too, so nothing of Quick build or Workshop shows there by
+ * accident. The compiler checks that the column is complete.
+ */
+export const GUIDED = {
+  'rail.tools': 'hide',
+  'rail.ops': 'hide',
+  'op.scoreAdd': 'hide',
+  joints: 'auto',
+  'settings.joints': 'show',
+  'settings.snapping': 'hide',
+  'settings.material': 'hide',
+  drawer: 'hide',
+  'export.spec': 'show',
+  'size.as': 'auto',
+  sizes: 'hide',
+  'export.annotations': 'auto',
+  crease: 'auto',
+  'grow.advanced': 'hide',
+  edit2d: 'hide',
+  'transform.sides': 'hide',
+  'outline.mode': 'hide',
+  outline: 'hide',
+  curves: 'hide',
+  foldover: 'hide',
+  'tray.ownHeight': 'hide',
+  'tray.joints': 'auto',
+  'tray.wallIt': 'hide',
+  'tray.keepWhole': 'hide',
+  gizmo: 'hide',
+  arrays: 'hide',
+  align: 'hide',
+  copies: 'hide',
+  foldSlider: 'hide',
+  cutplan: 'show',
+  exportCheck: 'hide',
+  viewSettings: 'hide',
+  boardMaterial: 'hide',
+  construction: 'hide',
+  hinge: 'auto',
+  hints: 'hide',
+  lid: 'show',
+  'lid.advanced': 'auto',
+  'tray.ends': 'hide',
+  'tray.corners': 'auto',
+  bend: 'auto',
+  edgeFlap: 'hide',
+  match: 'hide',
+  split: 'auto',
+  yield: 'hide',
+  saveBoard: 'show',
+  'saveBoard.steps': 'hide',
+  'joints.noGlue': 'show',
+  'export.kerf': 'auto',
+  'stage.edges': 'hide',
+  'stage.panelWidgets': 'hide',
+  'stage.floorGizmo': 'hide',
+  'stage.placedGizmo': 'hide',
+  'stage.dividerButton': 'hide',
+  'stage.dividerSlide': 'hide',
+  'stage.shapeGizmo': 'hide',
+  'stage.dock': 'hide',
+  'stage.foldBar': 'hide',
+  'stage.hint': 'hide',
+  'stage.pan': 'hide',
+  'keys.tools': 'hide',
+  'keys.clipboard': 'hide',
+  'plan.edit': 'hide',
+} as const satisfies Record<Feature, FeatureState>;
 
 /**
  * Every section a card can render, and the feature that shows it (rule 3 of
@@ -173,8 +276,6 @@ export const SECTIONS: Record<string, Feature | null> = {
   'multi-panel-dividers': null,
 };
 
-export type Feature = keyof typeof FEATURES;
-
 /** A card can show its Workshop version (*More…*): it renders inside this, set to 'workshop'. */
 export const ModeOverride = createContext<Mode | null>(null);
 
@@ -186,13 +287,17 @@ export function useMode(): Mode {
 
 /** What a feature is in the current mode. */
 export function useFeature(f: Feature): FeatureState {
-  return useMode() === 'quick' ? FEATURES[f] : 'show';
+  return featureState(f, useMode());
 }
 
 /** The same outside React (event handlers, the stage). */
 export function featureState(f: Feature, mode: Mode = useStore.getState().viewPrefs.mode ?? 'workshop'): FeatureState {
-  return mode === 'quick' ? FEATURES[f] : 'show';
+  return mode === 'workshop' ? 'show' : mode === 'guided' ? GUIDED[f] : FEATURES[f];
 }
+
+/** Guided and Quick build keep shapes where the laser can cut them (the guard, the keep-out hatch, Workshop-only parts inert). */
+export const keepsCuttable = (mode: Mode | undefined) => mode === 'guided' || mode === 'quick';
+export const isGuided = (mode: Mode | undefined) => mode === 'guided';
 
 /** Is the feature's control shown (shown or read-only)? */
 export const shown = (s: FeatureState) => s === 'show' || s === 'readonly';

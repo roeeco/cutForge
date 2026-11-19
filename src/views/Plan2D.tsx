@@ -402,11 +402,11 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     useStore.getState().select({ kind: 'panel', id: panelId });
     useStore.getState().set({ sheetCopy: pl.copy.key });
     const start = layout.placements[pl.copy.key];
-    if (start) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
+    if (start && planEdit) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
   };
   const onDetailDown = (pl: Placed, dt: Detail, panelId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
-    if (shapeTool || tool === 'text' || useStore.getState().pasting) return onPieceDown(pl)(ev);
+    if (shapeTool || tool === 'text' || useStore.getState().pasting || (!solo && !planEdit)) return onPieceDown(pl)(ev);
     ev.stopPropagation();
     const st = useStore.getState();
     const cur = selectedDetailIds(st.selection);
@@ -504,6 +504,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const edit2dOk = shown(useFeature('edit2d'));
   // side handles and the size pills (milestone 103; Guided keeps corners and the turn knob)
   const sides = shown(useFeature('transform.sides'));
+  // dragging pieces and Repack (milestone 105): Guided's sheet is a picture only
+  const planEdit = shown(useFeature('plan.edit'));
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -791,7 +793,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           <button onClick={() => setVB(fitVB())} aria-label={t('view.fit')} title={t('view.fit')} data-testid="fit-view">
             <Icon name="fit" />
           </button>
-          {!solo && (
+          {!solo && planEdit && (
             <button
               onClick={() => {
                 const st = useStore.getState();

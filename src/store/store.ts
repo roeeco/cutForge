@@ -4,6 +4,7 @@ import type { Edit2D } from '../sketch/edit2d';
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
+import { keepsCuttable, type Mode } from '../easy/features';
 import { produce, type Draft } from 'immer';
 import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
@@ -113,7 +114,7 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
 function guarded(d: Design, base: Design) {
-  if (useStore.getState().viewPrefs.mode !== 'quick') {
+  if (!keepsCuttable(useStore.getState().viewPrefs.mode)) {
     solve(d);
     autoConnect(d);
     return;
@@ -143,8 +144,10 @@ export type ViewPrefs = {
   turnStep: number;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
-  /** Quick build or Workshop (milestone 37): a viewer preference, never part of the design. */
-  mode?: 'quick' | 'workshop';
+  /** Guided, Quick build or Workshop (milestones 37, 105): a viewer preference, never part of the design. */
+  mode?: Mode;
+  /** Guided can be chosen from the level switch (milestone 105; set once by `?guided` until Guided is the way in). */
+  guidedPreview?: boolean;
   /** The class chose the mode and does not let it change (milestone 37). */
   modeLocked?: boolean;
   /** The missions the class offers (milestone 40); absent: all. */
@@ -164,17 +167,42 @@ export type ViewPrefs = {
 export type BoxKind = 'open' | 'lid' | 'carton';
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping' | 'sizes';
 const PREFS_KEY = 'cutforge.viewPrefs';
-function initialPrefs(): ViewPrefs {
+/**
+ * A browser's view preferences from what it saved (`raw`, or null for a new
+ * browser): Workshop unless this browser (or its class) chose another level.
+ * `search`: the page's query; `?guided` lets Guided be chosen (milestone 105).
+ */
+export function defaultPrefs(raw: string | null, search = ''): ViewPrefs {
   const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
+  let p: ViewPrefs = { ...def, mode: 'workshop' };
   try {
-    const raw = localStorage.getItem(PREFS_KEY);
-    // Workshop unless this browser (or its class) chose Quick build
-    if (raw) return { ...def, mode: 'workshop', ...JSON.parse(raw) };
+    if (raw) p = { ...p, ...JSON.parse(raw) };
+  } catch {
+    /* a broken save: the defaults */
+  }
+  if (new URLSearchParams(search).has('guided')) p.guidedPreview = true;
+  return p;
+}
+function initialPrefs(): ViewPrefs {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(PREFS_KEY);
   } catch {
     /* storage unavailable */
   }
-  return { ...def, mode: 'workshop' };
+  const p = defaultPrefs(raw, typeof location === 'undefined' ? '' : location.search);
+  if (p.guidedPreview && !raw?.includes('guidedPreview')) {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    } catch {
+      /* ignore */
+    }
+  }
+  return p;
 }
+
+/** Guided's three steps (milestone 105): view state, not saved and not in the history. */
+export type GuidedStep = 'build' | 'decorate' | 'send';
 
 /** The first-use tour (milestone 43): the step shown, and the design when it was entered (what the step compares with). Not saved. */
 export type TourState = { step: number; entry: Design };
@@ -237,6 +265,10 @@ type State = {
   /** Copy on the cut plan the student last clicked or moved (for rotate). */
   sheetCopy: string | null;
   viewPrefs: ViewPrefs;
+  /** Guided's step (milestone 105). */
+  guidedStep: GuidedStep;
+  /** Change Guided's step: the selection clears and the face-on view closes. */
+  setGuidedStep: (s: GuidedStep) => void;
   /** Material & sheet drawer open. */
   drawerOpen: boolean;
   /** Part under the pointer (either view), for cross-highlighting. */
@@ -401,6 +433,11 @@ export const useStore = create<State>()((set, get) => ({
   exportOpen: false,
   sheetCopy: null,
   viewPrefs: initialPrefs(),
+  guidedStep: 'build',
+  setGuidedStep: (g) => {
+    if (get().view === 'solo') get().closeSolo();
+    set({ guidedStep: g, selection: null, edit2d: null, sel2d: null, editOutline: null, selVertex: null, tool: 'select' });
+  },
   drawerOpen: false,
   hoverPart: null,
   foldT: 1,
@@ -561,7 +598,7 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();

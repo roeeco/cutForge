@@ -1,6 +1,7 @@
 // Teacher view (#/teacher): sign in, classes and codes, submissions with
 // previews, downloads regenerated from the submitted project files (never a
 // submitted SVG), batching onto shared sheets with name labels, mark as cut.
+import type { Mode } from '../easy/features';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, type ApiError, type Submission, type TeacherClass } from '../net/api';
@@ -228,13 +229,14 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                   id={`mode-${c.id}`}
                   value={c.mode ?? ''}
                   onChange={async (e) => {
-                    const v = e.target.value as 'quick' | 'workshop' | '';
+                    const v = e.target.value as Mode | '';
                     await api.patchClass(c.id, { mode: v || null, ...(v ? {} : { modeLocked: false }) });
                     reload();
                   }}
                   data-testid="class-mode"
                 >
                   <option value="">{t('class.modeNone')}</option>
+                  <option value="guided">{t('mode.guided')}</option>
                   <option value="quick">{t('mode.quick')}</option>
                   <option value="workshop">{t('mode.workshop')}</option>
                 </select>
