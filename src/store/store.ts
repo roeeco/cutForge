@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { keepsCuttable, type Mode } from '../easy/features';
 import { produce, type Draft } from 'immer';
-import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, MaterialProfile, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -150,7 +150,11 @@ export type ViewPrefs = {
   guidedPreview?: boolean;
   /** The class chose the mode and does not let it change (milestone 37). */
   modeLocked?: boolean;
-  /** The missions the class offers (milestone 40); absent: all. */
+  /** The class's board (milestone 106): Guided's gallery starts every thing in it and shows no choice. */
+  classMaterial?: MaterialProfile;
+  /** The board last chosen on Guided's gallery (milestone 106; a material id). */
+  guidedMaterial?: string;
+  /** The missions the class offers (milestone 40; from 106 also Guided's plain things); absent: all. */
   missions?: string[];
   /** Quick build's Box: the kind last made (milestone 73); absent: an open box. */
   boxKind?: BoxKind;

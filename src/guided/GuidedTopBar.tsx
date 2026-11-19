@@ -2,7 +2,7 @@
 // words, and a menu. Nothing else is there.
 import { useEffect, useRef, useState } from 'react';
 import { useStore, useT, type GuidedStep } from '../store/store';
-import { createDesign, duplicateDesign } from '../model/ops';
+import { duplicateDesign } from '../model/ops';
 import { storeDesign } from '../store/persist';
 import { setMode } from '../easy/mode';
 import { openProjectFile } from '../ui/openFile';
@@ -37,8 +37,8 @@ export function GuidedTopBar() {
     setMenu(false);
     fn();
   };
-  // the open design stays in the library (milestone 86): starting something new asks nothing
-  const startNew = () => st().replaceDesign(createDesign(st().design.material), true);
+  // the gallery (milestone 106): the open design stays open and saved, first under *Keep working on …*
+  const startNew = () => useStore.setState({ needsMaterial: true });
   return (
     <header className="topbar g-topbar" data-testid="g-topbar">
       <button className="ghost g-home" onClick={startNew} title={t('g.home')} aria-label={t('g.home')} data-testid="g-home">

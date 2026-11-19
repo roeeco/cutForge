@@ -13,6 +13,7 @@ import { SideSheet } from './SideSheet';
 import { AddBar } from './AddBar';
 import { ViewButtons } from './ViewButtons';
 import { guidedCamera } from './camera';
+import { GuidedStart } from './GuidedStart';
 import { boxSize } from '../model/boxSize';
 import { mainTray } from '../templates/structures/box';
 
@@ -58,6 +59,7 @@ export function GuidedApp() {
           {view === '3d' && <MissionPanel />}
         </EditorBoundary>
       </div>
+      {needsMaterial && <GuidedStart />}
     </>
   );
 }

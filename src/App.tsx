@@ -113,7 +113,7 @@ export function App() {
       </div>
         </>
       )}
-      {needsMaterial && <StartScreen />}
+      {needsMaterial && !guided && <StartScreen />}
       {otherTab && (
         // milestone 86: two tabs on one design
         <div className="other-tab" role="alert" data-testid="other-tab">

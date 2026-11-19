@@ -7,6 +7,8 @@ import type { Design } from '../model/types';
 import { bandPose, bandWorld } from '../model/bands';
 import type { BandShown } from './foldView';
 import { boardColors } from './palette';
+// the 3D elements' JSX types (this file is also reached from the thumbnails, without the stage)
+import type {} from '@react-three/fiber';
 
 /** Steps along a band's arc: about one per 4° of its turn (a round box's band turns nearly all the way round), at least 24. */
 export const arcSteps = (b: { phi: number }) => Math.max(24, Math.min(128, Math.ceil((b.phi * 180) / Math.PI / 4)));

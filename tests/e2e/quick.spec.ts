@@ -319,10 +319,18 @@ test(`mission (${lang}): Pencil box — size the compartments until the pencils 
     await page.getByTestId(`div-comp-${label}-input`).fill(String(size));
     await page.getByTestId(`div-comp-${label}-input`).press('Enter');
   }
+  // version 2 of the mission (milestone 106): its two dividers, front to back, and its front wall (on the base's first edge)
+  const [div1, div2, front] = await S<string[]>(page, () => {
+    const d = (window as any).__cutforge.store.getState().design;
+    const divs = d.order.filter((k: string) => d.panels[k].divider).sort((a: string, b: string) => d.panels[a].divider.at.y - d.panels[b].divider.at.y);
+    const base = d.order.find((k: string) => !d.panels[k].divider && Object.values(d.connections).some((c: any) => c.grown && c.a.panelId === k));
+    const fw = (Object.values(d.connections) as any[]).find((c) => c.grown && c.a.panelId === base && c.a.edge === 'e0').b.panelId;
+    return [...divs, fw];
+  });
   // the back compartment 10 mm, then the front one 34 mm: room for 12 pencils
-  await compartment('t:divY2', 2, 10);
-  await compartment('t:divY1', 0, 34);
-  expect(await offset('t:divY1')).toBeGreaterThan(33);
+  await compartment(div2, 2, 10);
+  await compartment(div1, 0, 34);
+  expect(await offset(div1)).toBeGreaterThan(33);
   await expect(page.getByTestId('goal-fits-pencil')).toHaveAttribute('data-ok', 'true');
   await expect(page.getByTestId('content-tag')).toHaveAttribute('data-ok', 'true');
   // a name engraved on the front wall
@@ -330,8 +338,8 @@ test(`mission (${lang}): Pencil box — size the compartments until the pencils 
   await page.waitForTimeout(300);
   await page.getByTestId('quick-text').click();
   await page.getByTestId('quick-text-text').click();
-  const fw = await S<any>(page, () => (window as any).__cutforge.store.getState().design.panels['t:wall0']);
-  const p = await onFace(page, 't:wall0', fw.w / 2, fw.h / 2);
+  const fw = await S<any>(page, (k: string) => (window as any).__cutforge.store.getState().design.panels[k], front);
+  const p = await onFace(page, front, fw.w / 2, fw.h / 2);
   await page.mouse.click(p.x, p.y);
   await page.getByTestId('ghost-ok').click();
   await page.getByTestId('text-value').fill(lang === 'he' ? 'מאיה' : 'Maya');

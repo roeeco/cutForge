@@ -177,7 +177,10 @@ test('a class offers one mission; the submission shows it and its goals met (mil
     await page.getByTestId(`class-mission-${m}`).click();
     await expect(page.getByTestId(`class-mission-${m}`)).not.toBeChecked();
   }
-  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.missions, cname)).toEqual(['pencil-box']);
+  // milestone 106: the list also names Guided's plain things, all offered
+  const listed = () => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.missions as string[], cname);
+  await expect.poll(async () => (await listed()).filter((x) => ['pencil-box', 'dice-tray', 'card-stand', 'game-organiser'].includes(x))).toEqual(['pencil-box']);
+  expect(await listed()).toEqual(expect.arrayContaining(['box', 'box-lid', 'round-box', 'carton']));
 
   const ctx = await browser.newContext();
   const st = await ctx.newPage();

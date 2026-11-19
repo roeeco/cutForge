@@ -247,7 +247,7 @@ export function spaceCounts(p: Params, inside: { w: number; d: number }, t: numb
 }
 
 /** Dividers at equal steps across a box's clear inside (base coordinates). */
-function addSpaces(d: Design, trayId: string, p: Params) {
+export function addSpaces(d: Design, trayId: string, p: Params) {
   const tray = d.trays[trayId];
   const base = d.panels[tray.baseId];
   const t = tOf(d, tray.baseId);

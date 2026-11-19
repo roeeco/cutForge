@@ -1632,6 +1632,29 @@ Limitations
 - The steps are empty (Build, Decorate and Send arrive in 107–109); home and *Start something new* open the welcome screen until the gallery (106).
 - Not tried on a touch screen.
 
+## Milestone 106 (Guided G3) — things and the gallery ✅
+
+`GUIDED_MODE.md` G3, `HANDOFF_105-118.md` §106. New `src/guided/things.ts`, `src/guided/GuidedStart.tsx`, `src/easy/plainThings.ts`; `src/easy/missions.ts`, `src/easy/mode.ts`, `src/teacher/TeacherApp.tsx`, `src/views/thumbnail.ts`.
+- **In Guided, the first screen is a gallery**: *What do you want to make?* with large cards drawn by the real renderer: the missions (Pencil box, Dice tray, Card stand, Game organiser), then *Box*, *Box with a lid*, *Round box*, *Carton*. One tap starts it, named as its card, at Build. Above the cards: the class's board in one line (*Your class cuts in …*), or four board chips (the last choice remembered). A thing that cannot be made in the board is greyed and says why (the carton on plywood or 4 mm corrugated). Under the cards: *Open a saved file* and *Start with more tools* (not in a locked class). Coming back (home or *Start something new*): the newest three designs first as *Keep working on …*, then *All my designs*.
+- **Quick build and Workshop keep their welcome screen with the sentence**, unchanged; the gallery exists only in Guided.
+- **Plain things are the sentence's structures with set words** (box 120 × 80 × 45 inside; with a lid that lifts off; round 100 × 100; the carton's defaults), then detached from the template so nothing rebuilds them from the words (a change of board, the class's profile, a fix).
+- **Pencil box and Game organiser are version 2**: plain boxes with dividers of their own (the box structure's equal spacing), so Guided's arrows and one kind of lid serve them. They start with the same inside sizes, spaces and goals as version 1 in every board (the pencils still need 14.2 mm more on plywood). This also changes how they start in Quick build: a box with the *Lid* section instead of the organiser's form. A saved version-1 design still opens and its goals still count.
+- **A class's board** is kept from its link (`classMaterial` in the preferences) and every thing starts in it. **The class's list** also names the plain things; a list from before names none and offers them all. The teacher's card says *Things offered* with both groups, *Guided* among the levels, and *Students stay in this level*.
+- **Thumbnails** (the welcome screen's too) are drawn as the stage shows the design: bent walls as their bands, folds at rest. A round box's card showed only its base before.
+
+Decisions (the handoff's defaults, owner questions 6, 8, 9, 10, 12, and 4c)
+- Plain things are detached from their template. The Escape box stays with Quick build and Workshop (its padlock needs hasps). The carton is greyed with its reason, not hidden. An older class list offers every plain thing. The round box is 100 × 100 outside, its inside measured. Pencil box and Game organiser rebuilt as boxes (version 2).
+- The owner, 20 November: the gallery is the way in only in Guided; Quick build and Workshop keep the sentence. For milestone 110: Guided goes in the level switch for everyone, **Workshop stays the default for a new browser**, and new classes are unchanged.
+
+Verified
+- `tests/guidedthings.test.ts` (11): every thing starts with no blocking issue in every board it can be made in; plain things are boxes sized by the inside with no template; the carton cannot start on plywood or 4 mm corrugated; the Escape box is not in Guided; class lists (none, one mission from before, one mission and one thing); the class's profile is the board a thing starts in, else the last chosen, else plywood.
+- `tests/missions.test.ts`: reference solutions of the version-2 missions (dividers slid, a divider added, a lid); a saved version-1 Pencil box still opens and its goals count; version 2 starts with version 1's goals on the four boards.
+- Browser: the gallery in English (1366 × 768) and Hebrew (1024 × 768), no sideways scroll; the Pencil box starts with 186 × 60 × 30 inside and 3 spaces; *Keep working on …* after home. The full browser suite (app specs, 162) passes; the sentence’s walks (6 × 20 steps) and the fuzz suite pass; new `tests/e2e/guided-fence.spec.ts`: Workshop and Quick build open on the sentence with no Guided part, and a trip to Guided and back leaves the design and the level as they were. `quick.spec` finds the version-2 dividers and front wall in the design instead of by version 1's names. Goldens byte-identical.
+
+Limitations
+- `classroom.spec.ts` (with the Worker) was updated for the longer class list but not run here.
+- *Keep working on …* shows a design's saved picture, which a design saves only after its first change.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

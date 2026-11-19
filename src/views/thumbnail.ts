@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import type { Design } from '../model/types';
 import { frameMatrix, panelGeometry } from './three-geom';
 import { boardColors } from './palette';
+import { foldDisplay } from './foldView';
+import { bandGeometry } from './bandMesh';
 
 let renderer: THREE.WebGLRenderer | null = null;
 
@@ -23,6 +25,9 @@ export function renderThumbnail(d: Design, w: number, h: number): string | null 
   scene.add(key);
   const disposables: { dispose(): void }[] = [];
   const box = new THREE.Box3();
+  // as the stage shows it (milestone 106): folds at rest, bent walls drawn as their bands
+  const shown = foldDisplay(d, 1);
+  const IDM = new THREE.Matrix4();
   d.order.forEach((id, i) => {
     const p = d.panels[id];
     if (!p) return;
@@ -31,7 +36,7 @@ export function renderThumbnail(d: Design, w: number, h: number): string | null 
     const mats = [new THREE.MeshStandardMaterial({ color: c.face, roughness: 0.9 }), new THREE.MeshStandardMaterial({ color: c.edge, roughness: 0.9 })];
     const mesh = new THREE.Mesh(g, mats);
     mesh.matrixAutoUpdate = false;
-    mesh.matrix.copy(frameMatrix(p.frame));
+    mesh.matrix.copy((shown.xf.get(id) ?? IDM).clone().multiply(frameMatrix(p.frame)));
     const eg = new THREE.EdgesGeometry(g, 25);
     const lm = new THREE.LineBasicMaterial({ color: 0x3a3530, transparent: true, opacity: 0.5 });
     const lines = new THREE.LineSegments(eg, lm);
@@ -42,6 +47,18 @@ export function renderThumbnail(d: Design, w: number, h: number): string | null 
     box.expandByObject(mesh);
     disposables.push(g, eg, lm, ...mats);
   });
+  for (const b of shown.bands) {
+    const g = bandGeometry(b);
+    const mat = new THREE.MeshStandardMaterial({ color: boardColors(d, b.band.parent, Math.max(0, d.order.indexOf(b.band.parent))).face, roughness: 0.9, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.matrixAutoUpdate = false;
+    const m = shown.xf.get(b.band.parent) ?? IDM;
+    mesh.matrix.copy(b.pre ? m.clone().multiply(b.pre) : m);
+    scene.add(mesh);
+    mesh.updateMatrixWorld(true);
+    box.expandByObject(mesh);
+    disposables.push(g, mat);
+  }
   if (box.isEmpty()) return null;
   const center = box.getCenter(new THREE.Vector3());
   const radius = box.getSize(new THREE.Vector3()).length() / 2;

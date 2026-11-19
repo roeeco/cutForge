@@ -77,7 +77,8 @@ export async function joinClassFromLink(search = location.search) {
   try {
     const cls = await api.classInfo(code);
     applyClassMode(cls.mode ?? null, !!cls.modeLocked);
-    useStore.getState().setPrefs({ missions: cls.missions ?? undefined });
+    // the class's board too (milestone 106): Guided's gallery starts in it
+    useStore.getState().setPrefs({ missions: cls.missions ?? undefined, classMaterial: cls.material ?? undefined });
   } catch {
     /* offline or no such class: the editor works the same */
   }
