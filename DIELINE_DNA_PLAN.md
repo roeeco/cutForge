@@ -4,7 +4,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 **Read first.**
 - **Base: `origin/main` at `3709043` (milestone 91).** Milestones 74–91 (`ROADMAP.md`) landed between the first draft and this one: lines and crease styles, the grow card that closes a box, the lid generator, the library, projects, sizes, the dieline legend and the spec sheet. §0 lists what that changes in this plan; the milestone sections are corrected in place and marked **(rebased)** where they changed. Do not build on `claude/waffle-mode` or `claude/guided-mode`. Line numbers drift: grep for the name before editing.
-- **Numbers.** `main` ends at 91. These get real numbers from 92 in the order of §5 (D0 = 92, D0b = 93, D3a = 94 …); D4, D6 and D7 get theirs when the owner says go. Keep the D names in commit messages too (`Milestone 94 (Dieline D3a): the edge-feature registry`).
+- **Numbers.** `main` ends at 91. These get real numbers from 92 in the order of §5 (D0 = 92, D0b-1 = 93, D0c = 94, D0b-2 = 95, D3a = 96 …); D4, D6 and D7 get theirs when the owner says go. Keep the D names in commit messages too (`Milestone 96 (Dieline D3a): the edge-feature registry`).
 - **How deeply each part was checked.** First draft: `Plan2D.tsx`, `geometry.ts`, `pieces.ts`, `foldView.ts`, `export/*`, `store.ts`, `Inspector.tsx`, `EdgeBar.tsx`, `features.ts`, `fix.ts`, the golden harness. Rebase: the diff `1c4cb96..3709043` (96 files), `PROGRESS.md` and `DECISIONS.md` for 73–91, and the names this plan calls re-grepped on `3709043` (`View`, `ONLY_3D`, `Inspector.tsx` edge card, `TopBar` tabs, `App.tsx` view switch, `Plan2D` layout and props, `pieceCopies`, `adapt.ts`, `pieces.ts`, `extrasByPanel`, `flapOn`, `three-geom.ts` flat adds, `reachFor`, `MATERIALS`, `sizes.ts`, `annotate.ts`, `spec.ts`, `offset.ts`, `download.ts`, `split.ts`, `nest.ts`, `goldenDesigns.ts`, `EdgeBar`'s grow and flap blocks, `easy/lid.ts`).
 
 ## 0. What changed on `main` since the first draft (rebase notes)
@@ -27,6 +27,23 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 | This container has no `node_modules` | — | `npm ci` before the first milestone. |
 
 **The idea in one paragraph.** Panel building in 3D stays the default and the model does not change shape: boards, joints, trays, closures. What changes is that the flat net becomes a second place to do the same work, the things that hang off an edge become one engine concept, sizes can be stated the way a packaging designer states them, and the output becomes a dieline a printer or die maker can use. Every action added here is an existing operation or a new one in `src/model/ops.ts`; no second document type, no second geometry path.
+
+## 0b. What we take from `claude/guided-mode` (sketch and transform work, milestones 55–60)
+
+That branch forked from `main` at `c47c273` (milestone 43) and built, besides the waffle (disregarded here), a **sketch and shape overhaul** (`SKETCH_OVERHAUL.md` there, milestones 55–60 and the hands-on fixes of `e450c6b`). Read on `origin/claude/guided-mode`: `SKETCH_OVERHAUL.md`, its `PROGRESS.md` and `DECISIONS.md` sections 55–60, `src/sketch/*`, `src/views/canvas2d.tsx`, `src/sculpt/ui/sketch2d/*`, `src/ui/NumField.tsx`. **Rule (owner, 19 November): where this plan's idea is better, keep ours; take only what the branch does better.**
+
+| From the branch | Verdict | Why, and where it lands |
+| --- | --- | --- |
+| **`src/sketch/`**: a pure 2D sketch model (points and segments as a graph; lines, arcs by bulge, cubic Beziers; construction lines; locked points), `flatten`, `regions` (planar subdivision, holes and islands), `ops` (move, split, remove, weld, `setCorner` fillet / chamfer, `transform` / `scaleSel` / `rotateSel`, `mirror`, `align`, `setLength`, `setAngle`, `duplicate`), `snap` (close → points → middles, centres, crossings → Shift 15° → grid), `hit`, `select`, `dims` (`parsePolar` for `50<30`), `tools` (each tool a pure reducer, tested without a DOM). It imports only `P2`, its own types and `newId` (all on `main`); ~2,400 lines with ~980 lines of tests, written "so box designs can use it later" (its §11 left *using the sketcher for box designs' outlines* for later: that is D0b here). | **Take** | Far richer than the ad-hoc `outlineEdit.ts` this plan proposed: typed lengths and angles, round / cut corners, curves, a selection frame on points, snapping with labels. **D0b-1** ports it unchanged with its tests; **D0b-2** puts it behind the 2D editing. |
+| **`canvas2d.tsx`**: `useViewBox`, `Handles` with optional side handles, `RotRing`, `Marquee`, lifted out of `Plan2D.tsx` as a pure refactor | **Take** | `Plan2D.tsx` changed only ~50 lines on `main` since the fork, so the refactor ports cleanly (D0b-1). D0b-2, D0c and D1's *Nets* build on it. |
+| **The scale frame**: corner handles two directions, side handles one, Shift or *Keep proportions* (`viewPrefs.keepRatio`) alike, Alt about the middle, every move previewed from the drag's start and committed once, W / H pills that take a size, a sum or **a percent** (`evalNumber(text, base)`) | **Take** | `main`'s 2D shape handles are corners only and `evalNumber` has no percent. New milestone **D0c**. |
+| **Lessons from its hands-on pass and decisions** | **Take** | (1) Too many handles at once hid a small shape: show one kind of handle at a time (its *Move · Turn · Size*). (2) A pill's input opens on the click, not the press. (3) A tool follows the history after undo (`syncTool`). (4) On a closed outline a typed length moves only the end being changed (its fix to the plan's flood fill). (5) While editing, the left button belongs to the tool; pan with middle or right only. (6) Crossings refined to lie exactly on both curves. (7) A gesture previews from its start, then commits once. |
+| A separate **`view: 'sketch'`** with its own session (draft outside the design, its own undo history, *Finish* / *Cancel*, the top bar taken over, the stage unmounted) | **Disregard** | This plan edits in place: in the solo view (and later *Nets*), with the board, its joints and its other shapes visible, every gesture one undo step of the design, Esc / Enter / click away to leave. That keeps the owner's *double-click into it* flow and a quieter interface. |
+| Its **sketch rail** (Select, Line, Bezier, Smooth, Points, Arc, Erase, Construction, Tape) | **Disregard** | `ROADMAP.md` rule 1.3: the rail shrinks. Editing controls go on the card being edited (the branch itself moved its floating bar into a card in `e450c6b`); drawing new outlines stays with the Shapes tool and its *Line* footprint. |
+| Its **3D preview inset** (a second canvas beside the sketch) | **Disregard** | D1's *Nets* already plans a folded preview beside the flat; the solo view needs none. |
+| Free multi-outline sketches with holes for **boards** | **Disregard for boards, take for shapes** | A board's outline is one closed ring whose edges carry ids that joints and grown boards refer to (`Sketch.edgeIds`). Shapes have no such ids, so a shape may hold several outlines and holes. |
+| Its **outcomes registry, face provenance, `facets`**, sculpt stretch, tiles | **Disregard** | Waffle and sculpture work. |
+| `regions.ts`'s face tracing to split an outline by lines | **Take as a helper (D7)** | It can split a board's outline along one or more creases at once; D7's refusal rules and `polyToWall` stay. |
 
 ## 1. What is already there, so it is not rebuilt
 
@@ -70,7 +87,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 | --- | --- | --- |
 | 1 | Default way to work | **Unchanged.** The app opens in 3D and panel building is the first thing shown. Nothing in this plan removes or renames a 3D tool. |
 | 2 | The flat workspace | **(rebased)** **A *Sheets · Nets* switch at the top of the cut plan view**, not a third tab (the owner's *less busy* direction of 18 November). *Nets* shows every net unpacked at true size, with a folded 3D preview beside it. It is `Plan2D` in a new mode, not a new editor. Stored as `View = '2d'` plus `viewPrefs.planMode: 'sheets' \| 'nets'`. If the owner prefers a tab, only the switch's place changes. |
-| 3 | What Nets can do | **Exactly what 3D can do to structure:** pick an edge, grow, add a flap, pick a fold, resize a board. Same cards, same ghost and ✓, same undo. **(rebased)** Outline editing comes to the flat through outline mode (D0, then D2). |
+| 3 | What Nets can do | **Exactly what 3D can do to structure:** pick an edge, grow, add a flap, pick a fold, resize a board. Same cards, same ghost and ✓, same undo. **(rebased)** Outline editing comes to the flat through D0b-2. |
 | 4 | Edge features | **One registry** (`src/model/edgeFeatures.ts`). Fold-overs and flaps move onto it with no change in output; closures and tray ends stay joints (`ConnGeom`) and are not moved. |
 | 5 | Flap shapes | *Plain* (today's), *Tuck*, *Dust*, *Glue*, *Hang tab*. Stored on the existing `Panel.edgeFlaps` items as optional fields, so old files are plain flaps. |
 | 6 | Size intent | **A display and entry setting per design** (`Design.sizeAs`): *Outside* (today), *Inside*, *Crease to crease*. Stored geometry stays outside sizes. A material change keeps the stated size. Boxes (trays) only. **(rebased)** Milestone 88's size rows are read in the same intent. |
@@ -94,22 +111,24 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ## 5. Milestones
 
-**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b, D3, D1, D8**.
+**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b-1, D0b-2, D3, D1, D8**.
 
 | # | Number | Milestone | Size | Needs | Value / risk |
 | --- | --- | --- | --- | --- | --- |
 | D0 | 92 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
-| D0b | 93 | **Edit outlines in the 2D view**: double-click into a board, then into a shape (new) | M | — (shares handle logic with D0) | No point editing exists in 2D at all, for shapes or boards |
-| D3 | 94 (a), 95 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
-| D1 | 96 | The Net view: see and pick | M | — | The flat workspace; risk: a second canvas on Chromebooks |
-| D2 | 97 | Building in the flat | M | D1 (and D0 for outline handles in the flat) | |
-| D8 | 98 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
-| D5 | 99 | Size intent and board grades | M | — | Must work with milestone 88's sizes |
-| D9 | 100 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
+| D0b-1 | 93 | **The sketch engine and the 2D canvas**, ported from `claude/guided-mode` (§0b) | M | — | No change a student sees; goldens byte-identical |
+| D0c | 94 | **The transform frame** in 2D (side handles, keep proportions, percent) | S | D0b-1 | From the branch's scale frame |
+| D0b-2 | 95 | **Edit outlines in the 2D view**: double-click into a board, then into a shape | M–L | D0b-1 (and D0 for the mode) | No point editing exists in 2D today, for shapes, boards or lines |
+| D3 | 96 (a), 97 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
+| D1 | 98 | The Net view: see and pick | M | D0b-1 (`useViewBox`) | The flat workspace; risk: a second canvas on Chromebooks |
+| D2 | 99 | Building in the flat | M | D1 (and D0b-2 for outline handles in the flat) | |
+| D8 | 100 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
+| D5 | 101 | Size intent and board grades | M | — | Must work with milestone 88's sizes |
+| D9 | 102 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
 | D4 | — | Closures anywhere | M | D3; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
 | D6 | — | The style catalogue, and starting from the product | M | D4, D5; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
 | D7 | — | Fold along a line | L | D2; the spike | Highest risk |
-| D10 | 101 | Final verification | S | all built | |
+| D10 | 103 | Final verification | S | all built | |
 
 ---
 
@@ -143,7 +162,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 - Features: `'outline.mode'`, `'hide'` in Quick build (Quick build has no *Edit outline* today; check `SECTIONS` and keep it consistent).
 - The tour and missions: no change. Check that `startTour` turns the mode off as it turns joints off (`store.ts`, about line 413).
 
-**Later (D2):** in *Nets*, the same switch draws handles on the flat boards, in net coordinates through `NetPanel.xf`.
+**In 2D:** the mode carries to the solo view and *Nets* through D0b-2 (a single click enters what is clicked).
 
 **Tests**
 - `tests/outlineMode.test.ts` (store level): mode on, then select an editable board, sets `editOutline`; select a round board and it is null; select another editable board and it moves; joints on turns the mode off and back; turning the mode off clears `editOutline`; `outlineWhy` gives each reason on a design that has it (round, band wall, generated lid, locked).
@@ -154,49 +173,72 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ---
 
-### D0b. Edit outlines in the 2D view (new, 2026-11-19; revised the same day)
+### D0b-1. The sketch engine and the 2D canvas (ported, no visible change)
 
-**Goal.** The owner's words: edit a shape's outline *in the 2D view* when double-clicked into. Double-clicking a board (in 3D or on the cut plan) already opens it alone, face-on, in the solo view (`openSolo`). There, a double-click on a shape (a cut-out, an engraving, a score, an added piece) enters it: its corners get handles that can be dragged, added with `+` on an edge, and deleted. The board's own outline can be edited the same way in the solo view, since today that is 3D-only. Esc, Enter or a click away leaves.
+**Goal.** Bring the branch's pure sketch model and the shared 2D canvas pieces to `main` (§0b), so D0b-2, D0c, D1 and D2 build on them. Nothing a student sees changes.
 
-**What is there** (`3709043`)
-- A shape is a `Detail` (`types.ts`): `shape` is `rect · roundrect · circle · polygon · path · text`. A polygon and an imported path are `path.polys` in a unit box (−0.5…0.5) scaled to `w × h` about `cx, cy`, turned by `rot`; `regular` marks a polygon still drawn as an n-gon ("kept until a vertex is edited", but **nothing edits a shape's vertices yet**). `addPolygonShape` normalises points into that box and refuses a crossing polygon (`isSimplePolygon`). `updateDetail` patches only `cx, cy, w, h, r, op, through, rot`.
-- **The 2D view** (`src/views/Plan2D.tsx`, `soloPanel` prop for the solo view): its `Drag` union is `pan · marquee · move · resize · rotate · gresize · draw · piece`, so shapes can be moved, resized, turned and drawn there, but no point of a shape or of the board can be moved. In solo, the board is drawn at its own coordinates (`xf: IDENTITY`). On the sheets, a double-click opens solo (`onDouble` → `openSolo(panelAt(…))`).
-- **Board outlines** are edited in 3D only: the `edit-outline` button (`Inspector.tsx`, shown when `view === '3d'`), `State.editOutline`, `OutlineHandles` in `src/views/polyTool.tsx` (vertex drag, `+` on an edge, Delete, Esc / Enter), with the ops `moveVertex` / `insertVertex` / `deleteVertex` for a root board's `pts`, and `setWallCorner` / wall inserts / `deleteWallInsert` for a grown board's `wall` sketch.
+1. **`src/views/canvas2d.tsx`** from `origin/claude/guided-mode`: `useViewBox`, `Handles` (with `side`, off by default), `RotRing`, `Marquee`. Re-lift it from `main`'s `Plan2D.tsx` rather than copying the file blind: `main` added `planDims`, the legend and the dashed-line detection since the fork. `Plan2D.tsx` imports them. Run the full unit suite (goldens included) on this step alone, as the branch did.
+2. **`src/sketch/*.ts`** copied unchanged (`model`, `flatten`, `regions`, `ops`, `select`, `snap`, `hit`, `dims`, `tools`), and the types into `src/model/types.ts`: `SkPt`, `SkSeg`, `SketchGraph` (named so because `main` already has `Sketch` for a board's outline, as the branch decided). It depends on `polygon-clipping` (already on `main`) and `newId` (`src/model/ops.ts`).
+3. **Its tests** copied: `sketchmodel`, `sketchregions`, `sketchops` (less the cases that load `src/sculpt/kernel` and the milestone-50 fixture), `sketchdraw`, `sketchedit` (it imports `evalNumber`; take the percent change of D0c now or skip those two cases until D0c).
+4. **`evalNumber(text, base?)`** in `src/ui/NumField.tsx`: `150%` is 1.5 × `base`; `NumField` passes its value. Every existing field keeps working (sums).
+5. **Adapters** (new `src/sketch/cutforge.ts`, pure, tested here, used from D0b-2):
+   - `shapeGraph(dt: Detail): SketchGraph | null` and `graphShape(d, detailId, g)`: a `polygon` or `path` shape as closed chains in the board's coordinates (unturned, about `cx, cy`), and back.
+   - `boardGraph(p: Panel): SketchGraph | null` and `graphBoard(d, panelId, g): boolean`: a root board's `poly` sketch (`pts` with `curve` and `r`, `edgeIds`) as **one closed chain whose segment ids are its edge ids**; a point's `r` stays `SkPt.r`; a `curve: 'auto'` edge becomes a `bez` with the exact handles `main`'s edge flattening draws (read `src/model/edges.ts` around `curve === 'auto'` first; the branch did the same for its outlines in `outlineToGraph` / `autoEdges`, `src/sculpt/round.ts`). Back: refused (false, nothing changed) unless the graph is still one closed chain of lines and auto curves with no construction or locked segment; a segment split in two keeps its id on the first piece and gives the second `nextEdgeId(edgeIds)`, as `insertVertex` does, so every joint stays on its edge.
+   - Grown boards (`wall` sketches) get no graph: they keep the 3D handles' rules (D0b-2 uses `OutlineHandles`' ops for them).
+   - Tests (`tests/sketchAdapters.test.ts`): each golden design's root boards round-trip `boardGraph` → `graphBoard` with the same `pts`, `edgeIds` and piece contours (to 1e-9); a split edge keeps its id on the first half; a polygon, an imported path with a hole and a turned shape round-trip.
+6. **Bundle**: the sketch code loads lazily with D0b-2's editor; check `npm run build` (the branch measured +56 kB on a box design; the goal here is ~0 until a shape is edited).
 
-**Model** (`ops.ts`, beside `updateDetail`): the same three steps whichever view calls them.
-- `shapePoints(dt): P2[][]`: a shape's polygons in its board's coordinates (scale, turn, place), for `polygon` and `path`.
-- `setShapePoints(d, detailId, polys: P2[][]): boolean`: the inverse. It re-fits the unit box (new `cx, cy, w, h`), keeps `rot` (points taken back into the shape's own unturned frame), drops `regular`, and refuses (false, nothing changed) a crossing polygon or one under 3 points. An array (`Detail.array`) edits every copy at once.
-- `shapeToPolygon(d, detailId)`: a `rect` becomes a 4-point `polygon` in place; a `roundrect` becomes a polygon of its corners and **loses its radius** (the hint says so once; undo restores it). A `circle` is not converted (§7 question 12). A `text` is not converted: a double-click puts the cursor in its card's text field (`setText`).
-- One drag is one undo step (`preview` / `commit`).
+**Done when** the suite passes with the ported tests, goldens byte-identical, and nothing on screen changed.
+
+---
+
+### D0c. The transform frame in 2D
+
+**Goal.** A shape (or several) selected in the 2D view scales the way the branch's frame does (§0b). `main` has four corner handles, a turn ring, and no proportions control.
+
+- `Plan2D` uses `Handles` with `side` for shapes: corners scale two directions, sides one. Shift or **Keep proportions** (`viewPrefs.keepRatio`, saved per browser, a switch on the shape's card beside its W / H fields) scales alike; Alt about the middle. Every move previews from the drag's start (`preview` from the transaction base, never accumulating) and commits once; Esc cancels.
+- **W and H pills** on the frame, typed as a size, a sum or a percent (`evalNumber` with `base`); the card's W / H fields take the same.
+- **One kind of handle at a time** (the branch's lesson): the frame shows scale handles, and the turn ring appears only beyond the corners (as `RotRing` does now) or on a *Turn* choice if both crowd a small shape. Below about 24 px on screen, only the move hit area and the pills show.
+- The 3D `ShapeGizmo` gets the same proportions switch and percent fields (the switch is shared); its handles are not changed here.
+- Text shapes scale their size; circles scale alike only; rounded rectangles keep their radius unless scaled alike (as the branch's corner-radius rule).
+- Tests: `tests/transformFrame.test.ts` (the drag maths, pure): a corner with proportions kept scales both ways alike and keeps the far corner; a side changes one; Alt about the middle; a typed `150%` with and without proportions; a turned shape's side handle scales along its own axis. Browser: `transform-2d.spec.ts`.
+
+---
+
+### D0b-2. Edit outlines in the 2D view (owner, 19 November)
+
+**Goal.** The owner's words: edit a shape's outline *in the 2D view* when double-clicked into. A double-click on a board (in 3D or on the cut plan) already opens it alone, face-on (`openSolo`). There, a double-click on a shape (a cut-out, an engraving, a score, an added piece), on the board's own outline, or on one of the board's lines enters it, with the sketch engine of D0b-1 behind the handles. Esc, Enter or a click away leaves. Editing is **in place** (§0b): no separate sketch view, no *Finish*; each gesture is one undo step of the design.
+
+**What is there** (`3709043`): `Detail` (`rect · roundrect · circle · polygon · path · text`; a polygon or path is `path.polys` in a unit box scaled to `w × h`, turned by `rot`; `regular` "kept until a vertex is edited", but nothing edits a shape's points); the solo view (`Plan2D` with `soloPanel`, the board at its own coordinates), whose `Drag` union has no point editing; board outlines edited in 3D only (`edit-outline`, `State.editOutline`, `OutlineHandles` in `polyTool.tsx`); `Panel.lines` with `bulge` that cannot be edited on the stage (milestone 84's limitation).
+
+**Model**
+- **Shapes keep their curves:** new optional `Detail.sketch?: SketchGraph` (board coordinates about `cx, cy`, unturned). When set, the shape's contours come from `sketchRegion` (holes and islands included) and `path` is dropped; `w, h` stay its box (so the frame, sizes of milestone 88 and `updateDetail` keep working; scaling a shape with a sketch scales the sketch with `scaleSketch`). Accepted in `check.ts` with the branch's validation (finite numbers, ends that exist, bulge within ±50, `order` complete). Absent: exactly today. This is better than flattening into `path.polys`: a fillet or a curve made in 2D can be edited again.
+- **Entering a shape:** a `polygon` or `path` becomes a sketch through `shapeGraph`; a `rect` becomes 4 lines; a `roundrect` becomes 4 lines with `SkPt.r` on each corner (so **its radius is kept**, as an editable corner, improving on the earlier draft of this plan); a `circle` becomes two half arcs (bulge ±1), so it can be edited too; `regular` is dropped. A `text` is not converted: a double-click puts the cursor in its card's text field (`setText`).
+- **Boards:** `boardGraph` / `graphBoard` (D0b-1). An edit `graphBoard` refuses is not applied, and the hint says why (*A board keeps one closed outline*). Grown boards (`wall` sketches): the same handles, but each gesture calls the ops `OutlineHandles` already uses (`setWallCorner`, the wall inserts, `deleteWallInsert`), and corners only; no typed angles.
+- **Lines:** a board's `BoardLine` (`pts` with `bulge`) as one open chain; back through `updateLine` (exists). Its type and group are kept.
 
 **Store**
-- `State.editShape: string | null` (a detail id), excluding `editOutline` (setting one clears the other). `selVertex` is shared: an index, a wall corner key as today, or `'p:i'` (polygon `p`, point `i`) for a path with several polygons. `select()` clears `editShape` unless the selection is that shape.
-- `editOutline` is no longer 3D-only: the solo view of that board shows its handles too.
+- `State.edit2d: { kind: 'shape' | 'board' | 'line'; id: string; panelId: string; sel: SkSel } | null`. It excludes `editOutline` in 3D (one replaces the other). The branch's tool reducers run with a fixed tool, *Select*, plus the keyboard: `+` on a segment's middle splits it, Delete removes points, arrow keys nudge by a grid step (Shift: ten).
+- `syncTool` after every undo (branch lesson 3).
 
-**The 2D view** (`Plan2D.tsx`): the main part of this milestone.
-- **Shared handle logic.** Move the view-independent part of `OutlineHandles` (which op a drag, `+` or Delete calls for which `selVertex`, the snap marks of `OutlineSnap`: the board's edges and corners, the grid, the other points, 15° with Shift) into a pure module, `src/views/outlineEdit.ts`, so the 3D handles and the new SVG handles call the same code. `OutlineHandles` keeps its behaviour (`tests/e2e/polygon.spec.ts` and the 3D outline specs stay green).
-- **SVG handles.** New `src/views/OutlineHandles2d.tsx`: round handles at each point, `+` at each edge's middle, the selected point in the delete colour, drawn above shapes in view units (constant size on screen). New `Drag` kind `{ kind: 'vertex'; target: { shape: string } | { board: string }; index: string | number; placed: Placed; start: Vec2 }`. On move: snap through `outlineEdit.ts` (tolerance `SNAP_PX` in mm at the current zoom), `preview(…)`; on release `commit()`; Esc during a drag `cancel()`.
-- **Solo view (double-clicked into a board):**
-  - Double-click a shape: `stopPropagation`, select it, `shapeToPolygon` if it is a rect or roundrect, `set({ editShape: id })`. The move / resize / rotate frame is hidden while editing.
-  - Double-click the board itself away from its shapes, or *Edit outline* on its card (the button now shows in solo too): `set({ editOutline: solo.id })`, handles on the board's outline. A board whose outline cannot be edited (round, a band wall, generated parts: `outlineWhy` from D0) says why in the hint instead.
-  - Keys: Delete removes the selected point (refused under 3, reason in the hint); Esc and Enter leave; a click on empty space leaves.
-- **Cut plan sheets:** a double-click on a shape opens solo for its board **with** `editShape` set, so one double-click gets there; a double-click on a board opens solo as today. (Editing points directly on the sheets, through the piece's placement, is left for *Nets*, below.)
-- **Nets (D1):** works like solo, through the piece's `NetPanel.xf`.
-- Hint: `shape.editHint` (*Drag a corner, + adds one, Delete removes it. Esc when done.*), `outline.help` for a board (exists), `shape.radiusLost` once for a roundrect.
+**The 2D view** (`Plan2D.tsx`, solo first)
+- A double-click on a shape, the board's outline (its edge, or the board away from shapes), or a line: select it and set `edit2d`. While editing, the left button belongs to the edit and pan is middle or right (lesson 5); `useViewBox` from D0b-1.
+- **Drawn with the branch's layers** (adapted from `sketch2d/SelectionLayer.tsx` and `SketchView2D.tsx`): points (squares for corners, circles for smooth points, amber for rounded or cut corners), the selected curve's handles, the snap marker with its label (*End · Middle · Centre · Close · Join*), the selection frame on two or more points (D0c's frame on points: `scaleSel`, `rotateSel`), and **pills**: a selected line's length, a selected corner's angle, typed with `setLength` / `setAngle` (lesson 4; opened on the click, lesson 2).
+- **Snapping** with `snapPoint`, plus the board's own edges and corners as `body` targets when editing a shape (so a cut-out can be dragged to a board edge exactly).
+- **The card** of what is edited (not a rail, §0b): *Corner: Sharp · Round · Cut* with one size (`setCorner`, the note says how many were skipped); *Line: Straight · Curved* (for boards: curved = `curve: 'auto'`, no Bezier handles, since a board's outline stores only that); *Mirror*, *Align* for several outlines of a shape; *Delete point*. Test ids under `edit2d-*`.
+- **Each gesture is one undo step** (`preview` / `commit`); typed values one step each. A board's joints re-solve on commit, not on every preview frame, if solving is slow on a large design (measure on the organiser template first).
+- **On the sheets:** a double-click on a shape or line opens solo with `edit2d` already set; on a board, solo as today. In *Nets* (D1), the same through the piece's `NetPanel.xf`.
+- With **outline mode** (D0) on, in solo a single click enters a shape, a line or the board, and hover shows faint points.
+- Hint keys: `edit2d.hint`, `edit2d.boardOne`, `edit2d.wallCorners`.
 
-**With outline mode (D0):** while *Outlines* is on, in solo a single click on a shape or the board enters it, and the hovered one shows faint handles, as on the 3D stage.
-
-**3D (later, optional):** the same double-click on a shape on the 3D stage, with `ShapeHandles` from the shared module. Not part of this milestone: in 3D a double-click keeps opening solo, which is where the editing is.
-
-**Features:** `'shape.points'`, `'hide'` in Quick build (Quick build's shapes stay move, resize, turn); board outlines in solo follow the existing *Edit outline* rule. Rows and sections in `SECTIONS`.
+**Features:** `'edit2d'`, `'hide'` in Quick build (its shapes stay move, resize, turn); rows and sections in `SECTIONS`.
 
 **Tests**
-- `tests/shapePoints.test.ts`: `shapePoints` then `setShapePoints` with no change leaves the detail equal (to 1e-9), turned and not turned; moving one point moves only that point on the board (others stay to 1e-9 across the re-fit and a `rot` of 30°); a rect converted has the same cut contour on the cut plan; a roundrect converted has its corners and no `r`; `regular` dropped on the first edit; a crossing and a 2-point polygon refused with nothing changed; an array's copies follow; a through-cut still cuts every board in its path.
-- `tests/outlineEdit.test.ts`: the shared module gives the same op for the same handle as `OutlineHandles` did (root board point, wall corner, wall insert, shape point), and the same snaps.
-- `tests/e2e/outline-2d.spec.ts`: a board with a rectangular cut-out; from 3D, double-click the board (solo opens); double-click the cut-out, drag a corner, `+` on an edge and drag it, Delete a point, Esc; then double-click the board's own outline area, drag one of its corners; one undo per change; from the cut plan's sheets, a double-click on the cut-out lands in solo with it already in editing; Hebrew too (the stage is `dir="ltr"`, the hint is not).
-- Goldens byte-identical (no stored shape changes until edited).
+- `tests/edit2d.test.ts` (pure, through the reducers and adapters): a rect cut-out entered and one corner dragged becomes a 4-point sketch whose other corners stay to 1e-9, turned 30° and not; a roundrect entered keeps its radius as corner `r` and cuts the same contour before any edit; a circle entered cuts the same contour (within 0.02 mm); a typed length on a board's edge moves only its far end and every joint keeps its edge id; a board edit that opens the ring is refused with nothing changed; a wall's corner drag calls `setWallCorner`; a line's point dragged keeps its type and group; a shape with a fillet saved and opened unchanged; one undo per gesture.
+- `tests/e2e/outline-2d.spec.ts`: from 3D, double-click a box wall (solo opens), double-click its window, drag a corner, type a side's length in its pill, round one corner, Esc; double-click the board's own outline, drag a corner; double-click a perforation line, move its middle point; from the sheets, a double-click on the window lands in solo already editing it; Hebrew (the stage stays `dir="ltr"`).
+- Goldens byte-identical (nothing changes until edited).
 
-**Done when** a student double-clicks a box wall, double-clicks its rectangular window in the 2D view, pulls one corner out to make it a trapezoid, then drags a corner of the wall itself, all without opening a card, and the cut plan shows both.
+**Done when** a student double-clicks a box wall, double-clicks its rectangular window, pulls a corner out, types 40 mm on one side, rounds a corner, then drags a corner of the wall itself, all in the 2D view and without opening a card, and the cut plan shows it.
 
 ---
 
@@ -275,7 +317,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 **Flap handle.** For each `edgeFlaps` item of a board in the net: a handle at the middle of the flap's far edge. Drag kind `{ kind: 'flapLen'; panelId; edge }`: `preview((x) => setEdgeFlap(x, panelId, edge, len))` while dragging, `commit()` on release, `cancel()` on Esc (the store's transaction calls; a drag is one undo step).
 
-**Outline handles in the flat (with D0).** When outline mode is on in *Nets*, draw the edited board's vertex handles in net coordinates (its `NetPanel.xf`) and call the same ops `OutlineHandles` calls (`moveVertex` / `insertVertex` / `deleteVertex`, `setWallCorner`, wall inserts). This replaces decision 3's "outline editing stays in 3D and solo".
+**Outline editing in the flat (with D0b-2).** In *Nets* a double-click (or a click in outline mode) enters a board, shape or line as in solo, drawn through its `NetPanel.xf`. This replaces decision 3's "outline editing stays in 3D and solo".
 
 **Resize a board.** For a selected board that is a plain rectangle (`isRectSketch`), handles at the middle of each free straight edge. Drag kind `{ kind: 'boardSize'; panelId; edge }`, calling `setPanelSize(d, id, w, h)` in a `preview`. A grown board resizes by its far edge only (its width comes from its parent). A tray wall: call what the tray card calls (`setTrayHeight`, or `setCustomHeight` first), so the tray's rule holds. Boards with a moved corner or inserted points get no handles; the card's *Edit outline* stays the way.
 
@@ -380,7 +422,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **Tests**
 - `tests/edgefeatures.test.ts`: the registry returns for `v6CorrFoldover()` exactly what `allFoldOvers` gave; goldens unchanged (all of them, including the lid and lines goldens of 79–83).
-- **Split (rebased):** step 1 is its own commit and milestone number (94); steps 2–5 are 95.
+- **Split (rebased):** step 1 is its own commit and milestone number (96); steps 2–5 are 97.
 - `tests/flapshapes.test.ts`: each shape's outline area, far-edge width and score ends for a 60 mm edge on card; a tuck flap's inset is t + 0.5; a hang tab has a hole and no score; a plain flap equals `flapOn`; `hinged` at foldT 0 lies in the board's plane (its points equal the net's added outline) and at 1 is turned by its angle about the score.
 - New goldens: `flap-card-tuck-dust` (a hand-built lid with a tuck flap and two dust flaps), `flap-card-hang`.
 
@@ -482,7 +524,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **Goal.** A straight crease drawn from edge to edge becomes a real fold: the dieline-first way of working, landing on the same panel model.
 
-**Spike before anything else** (one test file, thrown away or kept):
+**Spike before anything else** (one test file, thrown away or kept). **(§0b)** Try `regions.ts` (D0b-1) for step 2: the board's outline graph plus the crease segments, traced into faces, gives the parts for one or several creases at once.
 1. Does a grown board at `angle: 180` solve, unfold and export? (`checkHinge` zones; `growFrame` with θ = 180°.) If not, find the smallest change that lets a fold start flat.
 2. Can the cut-off part be a `WallSketch`? `polyToWall` below must round-trip through `sketchRing` (`edges.ts`: `wallCorners` and the inserts) for a rectangle, a trapezoid and an L. Write down what it cannot represent.
 
@@ -587,7 +629,9 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | File | Milestone | Proves |
 | --- | --- | --- |
 | `tests/outlineMode.test.ts`, `tests/e2e/outline-mode.spec.ts` | D0 | the mode follows selection, excludes joints, gives each reason; two boards edited without opening a card |
-| `tests/shapePoints.test.ts`, `tests/outlineEdit.test.ts`, `tests/e2e/outline-2d.spec.ts` | D0b | a shape's points round-trip, one point moves alone, refusals; 2D and 3D handles call the same ops; double-click into a board, then a shape, in 2D |
+| ported `tests/sketch*.test.ts`, `tests/sketchAdapters.test.ts` | D0b-1 | the engine on `main`; boards and shapes round-trip, edge ids kept |
+| `tests/transformFrame.test.ts`, `tests/e2e/transform-2d.spec.ts` | D0c | proportions, sides, Alt, percent |
+| `tests/edit2d.test.ts`, `tests/e2e/outline-2d.spec.ts` | D0b-2 | shapes, boards and lines edited in 2D; refusals; one undo per gesture |
 | `tests/netpick.test.ts` | D1 | edges and folds of a net are found where they are drawn |
 | `tests/netbuild.test.ts` | D2 | the flat ghost is where the board lands; a drag is one undo step |
 | `tests/edgefeatures.test.ts` | D3 | the registry changes nothing |
@@ -614,8 +658,9 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | 9 | **(new)** Go ahead with D6's style catalogue (`ROADMAP.md` §4 deferred it)? | No for now; Quick build's *Kind* covers the first styles. |
 | 10 | **(new)** *Nets* as a switch in the cut plan, or a third top tab? | A switch (less busy). |
 | 11 | **(new)** Outline mode: handles on the hovered board too, or only on the clicked one? | Hovered too (faint), so a corner can be grabbed directly. |
-| 12 | **(new)** Double-click on a circle: offer *Make it a polygon*, or leave circles as they are? | Leave them (resize gizmo); add the button only if asked. |
-| 13 | **(new)** A roundrect entered for editing loses its radius. Acceptable, or keep round corners as arcs (`bulge`) on its points? | Accept for now (undo restores it); arcs on shape points are later. |
+| 12 | **(new)** Entering a shape stores it as a sketch (`Detail.sketch`) from then on. Fine, or keep shapes as `path` and flatten curves? | Keep the sketch (curves and corners stay editable). |
+| 13 | **(new)** Should board outlines in 2D get Bezier handles (needs a board sketch that stores them), or only *Straight · Curved* as today's `curve: 'auto'`? | Only Straight · Curved for now. |
+| 14 | **(new)** Port `src/sketch/` as is, or rewrite it? | Port as is with its tests; the branch's decisions (§0b lessons) stay. |
 
 ## 8. Risks
 
