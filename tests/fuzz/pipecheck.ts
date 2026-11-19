@@ -3,7 +3,7 @@ import type { Design } from '../../src/model/types';
 import { checkPathD, chained, finiteContour, parseDxf, parseSvg } from './check';
 import { pack, pieceCopies, placedRect, placementXform } from '../../src/model/pack';
 import { profileOf } from '../../src/model/materials';
-import { prepareExport } from '../../src/export/prepare';
+import { kissPanels, prepareExport } from '../../src/export/prepare';
 import { sheetToSvg, sheetsToSvg } from '../../src/export/svg';
 import { sheetsToDxf } from '../../src/export/dxf';
 import { LAYERS } from '../../src/export/layers';
@@ -98,7 +98,8 @@ export function checkPipeline(d: Design, seed: number, log: string[], fails: Fai
     } catch (e) {
       return fail('validate throws', String(e));
     }
-    const named = new Set(issues.filter((i) => i.key === 'val.offSheet' || i.key === 'val.tooBig').map((i) => i.target.id));
+    // a piece that fits only turned against the grain is reported as val.tooBigGrain (BUGFIX_PLAN B15), whose Fix allows turning
+    const named = new Set(issues.filter((i) => i.key === 'val.offSheet' || i.key === 'val.tooBig' || i.key === 'val.tooBigGrain').map((i) => i.target.id));
     for (const k0 of oversized) {
       const marginOnly = k0.startsWith('M:');
       const k = marginOnly ? k0.slice(2) : k0;
@@ -107,6 +108,7 @@ export function checkPipeline(d: Design, seed: number, log: string[], fails: Fai
     }
   }
 
+  const kissed = kissPanels(d);
   for (const mode of ['nominal', 'compensated'] as const) {
     let prep;
     try {
@@ -115,8 +117,20 @@ export function checkPipeline(d: Design, seed: number, log: string[], fails: Fai
       fail(`prepareExport(${mode}) throws`, String((e as Error).stack).slice(0, 400));
       continue;
     }
+    // each copy's own contours, in order; then, only on a piece with kiss-scored bends, its THIS SIDE UP note
+    // on the guide layer (milestone 66): text outlines with no panel of their own
+    const onSheets = new Map<string, typeof prep.sheets[number]['contours']>();
+    for (const s of prep.sheets) for (const tc of s.contours) onSheets.set(tc.ref?.pieceKey ?? '', [...(onSheets.get(tc.ref?.pieceKey ?? '') ?? []), tc]);
+    let labels = 0;
+    for (const c of copies) {
+      const extra = (onSheets.get(c.key) ?? []).slice(c.contours.length);
+      if (!extra.length) continue;
+      if (!c.panels.some((n) => kissed.has(n.panelId))) fail(`extra contours on a piece without kiss scores (${mode})`, `${c.key} +${extra.length}`);
+      else if (extra.some((x) => x.op !== 'guide' || x.ref?.panelId)) fail(`kiss note not a guide-layer text (${mode})`, `${c.key} ${extra.map((x) => x.op).join(',')}`);
+      labels += extra.length;
+    }
     const total = prep.sheets.reduce((s, x) => s + x.contours.length, 0);
-    const expected = copies.reduce((s, c) => s + c.contours.length, 0);
+    const expected = copies.reduce((s, c) => s + c.contours.length, 0) + labels;
     if (total !== expected) fail(`contour count changed (${mode})`, `${total} vs ${expected}`);
     for (const g of prep.materials) for (const s of g.sheets) if (s.w !== g.profile.sheetW || s.h !== g.profile.sheetH) fail('sheet size != material sheet', `${g.mat}`);
     for (const s of prep.sheets)
@@ -139,7 +153,7 @@ export function checkPipeline(d: Design, seed: number, log: string[], fails: Fai
           fail('placement sheet missing', c.key);
           continue;
         }
-        const mine = sheet.contours.filter((x) => x.ref?.pieceKey === c.key);
+        const mine = sheet.contours.filter((x) => x.ref?.pieceKey === c.key).slice(0, c.contours.length);
         const kerf = profileOf(d, c.mat).kerf;
         const nominal = c.contours.map((x) => xformContour(xf, x.contour));
         if (mine.length !== c.contours.length) {

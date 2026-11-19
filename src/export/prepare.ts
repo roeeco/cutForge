@@ -67,7 +67,7 @@ export type ExportLabels = { kissUp: string; kissUpShort: string };
 const LABELS: ExportLabels = { kissUp: 'THIS SIDE UP (kiss scores)', kissUpShort: 'UP' };
 
 /** Boards whose bends are kiss-scored (milestone 66): their piece is cut with the band's inside face up. */
-function kissPanels(d: Design): Set<string> {
+export function kissPanels(d: Design): Set<string> {
   const out = new Set<string>();
   for (const c of Object.values(d.connections)) {
     const bs = c.wing ? wingBands(d, c) : [bandOf(d, c)].filter((b): b is NonNullable<typeof b> => !!b);
