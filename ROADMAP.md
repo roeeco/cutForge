@@ -83,7 +83,7 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | 88 | ✅ in the settings card and the download | Showing a size on the stage. |
 | 89 | ✅ blank sizes, glue, legend, guide-layer option | Dimension chains, the grain arrow, the title block. |
 | 90 | ✅ fitted pages | The tiled 1 : 1 print. |
-| 91 | each milestone verified as it landed | A final pass once 87, 88 and 90 are in. |
+| 91 | ✅ verified | See `PROGRESS.md`. |
 
 ## 4. Left for later (does not fit the direction of 18 November)
 

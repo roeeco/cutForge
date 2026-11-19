@@ -1390,6 +1390,14 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `tests/spec.test.ts` (2): the largest scale that fits; a folded card tray and a board give a page each, the tray's net at 1 : 2 on A4 with its blank size, title block and legend; the print view has a page per piece and an A4 landscape `@page`. Browser `spec.spec.ts`: the print view opens with the page and its scale.
 - Not yet: the tiled 1 : 1 print.
 
+## Milestone 91 — verification of 74–90 ✅
+
+- Unit suite: 891 pass, 7 skipped; typecheck clean (app and Worker); `npm run build` succeeds (one ~1.6 MB chunk, as before).
+- Golden exports: every file from before milestone 74 byte-identical; new goldens for the Flat lid (plywood, corrugated), a full-rim cap, a Drop-in lid, a Flat lid with two hasps, and lines of each type.
+- Browser, app (`--grep-invert classroom`): 147 passed, 0 failed, 61 skipped (screenshot specs). The classroom specs need the Worker and were not run; the Worker reads single-design project files as before (`library.test.ts`).
+- Deferred, with the reason in `ROADMAP.md` §3 *Status* and §4: the pin hinge (81: a plywood spike), the Inset lid, hasps on caps, Compare, a size shown on the stage, the tiled 1 : 1 print, dimension chains, creases on the back.
+- Needs the owner: the design that showed dividers narrow on the cut plan; real cuts of the Flat lid's fit (0.3 mm), the Drop-in lid and the hasps; LightBurn's reading of guide-layer text and dashed lines; Hebrew strings of 74–90 read by a native speaker.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
