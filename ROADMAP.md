@@ -106,58 +106,69 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | **Boxes built from boards** (no tray) closing with a grown lid | cleanup Part 5.3 | Needs one answer to "what is a box" shared with the lid generator. |
 | `PRESETS_PLAN.md`, `IMAGES_ON_BOARDS.md`, the waffle branch | older branches | Not part of this round. The lids plan §16 says how each meets this work. |
 
-## 5. Milestones 92–111: the plans of 19 November
+## 5. Milestones 92–118: the plans of 19 November
 
-Two plans were written on 19 November, each first from `main` at `1c4cb96` (milestone 73), and both rebased onto `3709043` (milestone 91):
+Three plans were written on 19 November and are rebased onto `main` at `1917440` (milestone 91 and the fold overhaul):
 
 | Plan | Came from | Milestones |
 | --- | --- | --- |
+| `SENTENCE_BUILDER_PLAN.md` | the owner, 19 November | S1–S7: the welcome screen's presets become one sentence of words to pick |
+| `DIELINE_DNA_PLAN.md` | this branch; takes the sketch engine, the 2D canvas and the scale frame from `claude/guided-mode` (its §0b) | D0–D10 (less D6): editing in 2D, inside sizes, the flat workspace, flaps, artwork, production |
 | `GUIDED_MODE.md` | `claude/guided-mode` (only the plan and the mock-ups in `docs/guided-mockups/` were brought over; the branch's waffle and sculpt code stays on PR #6) | G1–G7: a first level, *Guided*, below Quick build |
-| `DIELINE_DNA_PLAN.md` | this branch; takes the sketch engine, the 2D canvas and the scale frame from `claude/guided-mode` (its §0b) | D0–D10: editing in 2D, the flat workspace, flaps, sizes, artwork, production |
 
-The two plans name their milestones by letter; **this table is the only place that numbers them.** The rules of §1 still settle conflicts, with one more: **4b. A level never sees another level's controls by accident**: every new feature row says its state in Guided, Quick build and Workshop.
+The plans name their milestones by letter; **this table is the only place that numbers them.** The rules of §1 still settle conflicts, with one more: **4b. A level never sees another level's controls by accident**: every new feature row says its state in Guided, Quick build and Workshop.
 
 ### 5.1 Order
 
 | # | Milestone | Plan | Why here |
 | --- | --- | --- | --- |
-| **92** | **What Quick build left half-done**: an unconfirmed draft is never saved; template sizes keep the dividers where they were put; the too-big fix ends clean; no Board-tool hint in Quick build | Guided G1 | Rule 1.2, bugs first. The first two were re-checked on `3709043`: `useAutosave` still saves the design while a ghost is pending, and `regenerate` still has no divider step. It also makes milestone 88's sizes of a template keep their dividers. |
-| **93** | **Outline mode** | Dieline D0 | The owner's request; small |
-| **94** | **The sketch engine and the 2D canvas** (ported) | Dieline D0b-1 | No visible change; 96, 101 (Decorate's face-on view) and 106 build on its `canvas2d` |
-| **95** | **The transform frame in 2D** | Dieline D0c | Small; `transform.sides` hidden in Guided |
-| **96** | **Edit outlines in the 2D view** | Dieline D0b-2 | The owner's request; `edit2d` hidden in Guided |
-| **97** | **Size intent** (*Outside · Inside · Crease to crease*) | Dieline D5a | Guided's Build sizes by the inside through it |
-| **98** | **The mode and the shell** | Guided G2 | |
-| **99** | **Things and the gallery** | Guided G3 | |
-| **100** | **Build** | Guided G4 | Uses 97 |
-| **101** | **Decorate** | Guided G5 | In the solo view as refactored by 94 |
-| **102** | **Send** | Guided G6 | Uses *Print a plan* (90) and *Use less board* (73) |
-| **103** | **Guided becomes the way in** | Guided G7 | A new browser and a new class start in Guided |
-| **104** | **The edge-feature registry** | Dieline D3a | No output change |
-| **105** | **Shaped flaps** (tuck, dust, glue, hang) | Dieline D3b | |
-| **106** | **The Net view** (*Sheets · Nets* in the cut plan) | Dieline D1 | |
-| **107** | **Building in the flat** | Dieline D2 | |
-| **108** | **The artwork template** (PDF and SVG) | Dieline D8 | |
-| **109** | **Board grades** | Dieline D5b | |
-| **110** | **Production**: nicks, fill the sheet, cost | Dieline D9 | |
-| **111** | **Verification of 92–110** | both (D10, and Guided's final check in G7) | |
-| — | Closures anywhere; the style catalogue; fold along a line | Dieline D4, D6, D7 | Wait for the owner (`DIELINE_DNA_PLAN.md` §7, questions 8 and 9) and D7's spike |
+| **92** | **What Quick build left half-done**: an unconfirmed draft is never saved; template sizes keep the dividers where they were put; the too-big fix ends clean; no Board-tool hint in Quick build | Guided G1 | Rule 1.2, bugs first. Re-checked on `1917440`: `useAutosave` still saves the design while a ghost is pending, and `regenerate` still has no divider step. The sentence (S2, S6) and milestone 88's sizes of a template need the divider fix. |
+| **93** | **Size intent** (*Outside · Inside · Crease to crease*), `boxSize` / `setBoxSize` | Dieline D5a | The sentence's `sizeAs` word (S2) and Guided's Build (G4) both size by the inside through it |
+| **94** | **The contract and the resolver** | Sentence S1 | The owner's newest plan; pure code |
+| **95** | **The box, the tray and spaces** | Sentence S2 | |
+| **96** | **The carton and the sleeve** | Sentence S3 | Replaces Dieline D6's style cards |
+| **97** | **The sentence component** | Sentence S4 | Can run beside 96 |
+| **98** | **The welcome screen** | Sentence S5 | |
+| **99** | **The preset card after Start** | Sentence S6 | |
+| **100** | **Sentence verification** | Sentence S7 | |
+| **101** | **Outline mode** | Dieline D0 | The owner's request |
+| **102** | **The sketch engine and the 2D canvas** (ported) | Dieline D0b-1 | No visible change; 104, 108 (Decorate) and 113 build on its `canvas2d` |
+| **103** | **The transform frame in 2D** | Dieline D0c | `transform.sides` hidden in Guided |
+| **104** | **Edit outlines in the 2D view** | Dieline D0b-2 | The owner's request; `edit2d` hidden in Guided |
+| **105** | **The mode and the shell** | Guided G2 | |
+| **106** | **Things and the gallery** | Guided G3 | Its plain things are the sentence's structures (95–96) with their default words |
+| **107** | **Build** | Guided G4 | Uses 93 |
+| **108** | **Decorate** | Guided G5 | In the solo view as refactored by 102 |
+| **109** | **Send** | Guided G6 | Uses *Print a plan* (90) and *Use less board* (73) |
+| **110** | **Guided becomes the way in** | Guided G7 | A new browser and a new class start in Guided |
+| **111** | **The edge-feature registry** | Dieline D3a | No output change |
+| **112** | **Shaped flaps** (tuck, dust, glue, hang) | Dieline D3b | Opens the sentence's later mailer and envelope (§8 there) |
+| **113** | **The Net view** (*Sheets · Nets* in the cut plan) | Dieline D1 | |
+| **114** | **Building in the flat** | Dieline D2 | |
+| **115** | **The artwork template** (PDF and SVG) | Dieline D8 | |
+| **116** | **Board grades** | Dieline D5b | The sentence's lists take them unchanged (they check the thickness) |
+| **117** | **Production**: nicks, fill the sheet, cost | Dieline D9 | |
+| **118** | **Verification of 92–117** | all three (D10, G7's final check; S7 already done at 100) | |
+| — | Closures anywhere; fold along a line | Dieline D4, D7 | Wait for the owner (`DIELINE_DNA_PLAN.md` §7, question 8) and D7's spike |
+| — | The sentence's later items (a mailer, a drawer, an envelope, sized by contents, a sentence bar in the design, Guided's gallery opening with the sentence) | Sentence §8 | Registered as `planned`, not shown |
 
-If the owner wants Guided sooner, 98–103 can move up to follow 92 and 97 directly; nothing in 93–96 is needed by them except 94's canvas refactor for 101 (Decorate), which can rebase either way.
+The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-### 5.2 Where the two plans meet, and how each meeting is settled
+### 5.2 Where the plans meet, and how each meeting is settled
 
-| # | Topic | Guided says | Dieline says | Settled |
-| --- | --- | --- | --- | --- |
-| 1 | Numbers | 87–93 | 92–103 | Both were taken or overlapping; §5.1 numbers both. |
-| 2 | Inside sizes | `insideSize` / `setInsideSize` in `src/guided/box.ts` | `boxSize` / `setBoxSize` with `Design.sizeAs` in `src/model/boxSize.ts` (D5a) | **One meaning of inside**: D5a's functions; Guided's are thin wrappers. *Divider keeps its distance from the side that did not move* goes in `setBoxSize`, so Workshop gets it too. D5 is split so D5a comes before Guided. |
-| 3 | The face-on view | Decorate in the solo view: corner handles and a turn knob, no double-click, no modifier keys | D0b-1 refactors that view (`canvas2d`); D0c adds side handles and *Keep proportions*; D0b-2 adds double-click editing | Both, gated: `transform.sides` and `edit2d` are `'hide'` in Guided. Guided's Decorate gets the refactor for free. |
-| 4 | *Make it fit* | `fitContent(d, contentId)`: grow one space by what is missing | D6 `fitToContents(d, trayId, room)`: the whole box round its contents | Both, side by side, both through `setBoxSize`; Guided's is built first (100). |
-| 5 | A list of things to start from | G3's `things.ts` for the gallery | D6's `STYLES` on the start screen | **One registry.** Built by Guided (99); D6, if the owner says go, extends it with sizes and trade codes rather than adding a second list. |
-| 6 | Feature table | A second table of states for Guided; a feature it does not list takes Quick build's | Every new control `'hide'` in Quick build | Every dieline control is then `'hide'` in Guided too; rule 4b asks each new row to say so. `quickTable.test.ts` checks both modes from 98. |
-| 7 | Ghost and ✓ | Not used in Guided | D2's grow in the flat uses the ghost | *Nets* (`plan.nets`) is hidden in Guided, so no conflict. |
-| 8 | Lid kinds | "join the Lid row when built" | — | Built (79–82). Guided always uses *Automatic*; no hasps. |
-| 9 | Coming back to a design | *Keep working on …*, then *Your designs* "when 81 is built" | — | Built as 86: the gallery leads with the newest designs. |
-| 10 | Start screen | Gallery replaces `StartScreen` in Guided | D6's *Packaging styles* row on `StartScreen` (Workshop) | Separate screens, one registry (row 5). |
-| 11 | Levels in §4 | Takes up *Levels* | — | §4's row now says so. |
-| 12 | The branch's code | Guided does not need the waffle | D0b-1 ports `src/sketch/*` and `canvas2d.tsx` | **No git merge of `claude/guided-mode`.** It forked at milestone 43 (`c47c273`), 48 milestones behind; a merge conflicts in 14 files and would mark the waffle commits merged under PR #6. Files are brought over by path, with the branch named in the commit. |
+| # | Topic | Plans | Settled |
+| --- | --- | --- | --- |
+| 1 | Numbers | Guided 87–93 and Dieline 92–103 overlapped `main` and each other; the sentence asked for Guided to be renumbered | §5.1 numbers all three. |
+| 2 | **Inside sizes** | Sentence S2 builds `boxSize` / `setBoxSize` "in `sizes.ts`"; Guided G4 has `insideSize` / `setInsideSize`; Dieline D5 has `boxSize` with `Design.sizeAs` | **One meaning of inside**: Dieline **D5a** (93), in `src/model/boxSize.ts` (`sizes.ts` is milestone 88's). The sentence's `sizeAs` word writes `Design.sizeAs`; Guided's functions are thin wrappers. *A divider keeps its distance from the side that did not move* goes in `setBoxSize`. |
+| 3 | **What a design starts from** | Sentence structures (`src/templates/structures/`); Guided G3 `things.ts`; Dieline D6 `STYLES` and start-screen cards | **The template registry is the one list.** The sentence builds it (94–96); Guided's plain things are structures with their default words; **D6 is dropped** (its cartons are S3's words, its mailer and *start from the product* are the sentence's §8). |
+| 4 | **The divider fix** | Guided G1 item 2; the sentence's S2 "if `main` does not have it" | G1 is 92, first; S2 relies on it. |
+| 5 | **The welcome screen** | Sentence S5 replaces the template grid in `StartScreen`; Guided G3 replaces `StartScreen` with a gallery in Guided; Dieline D6 had a styles row | `StartScreen` (Workshop, Quick build) gets the sentence; Guided has its gallery; the gallery may later open with the sentence (sentence §8). |
+| 6 | **Hidden or greyed** | The sentence hides what a material cannot make; the rest of the app greys with a reason (73, 78) | Hidden in the sentence's lists and the template card (S6) only; elsewhere unchanged. |
+| 7 | **The face-on view** | Guided G5 (corners, turn knob, no double-click); Dieline D0b-1, D0c, D0b-2 | Both, gated: `transform.sides` and `edit2d` are `'hide'` in Guided. |
+| 8 | ***Make it fit*** | Guided G4 `fitContent`; the sentence's later *sized by what goes inside*; Dieline D6's `fitToContents` | Guided's is built first (107), through `setBoxSize`; the sentence's word uses the same path; D6's is dropped with D6. |
+| 9 | **Feature table** | Guided adds a second table; every new Dieline and sentence control has a row | Rule 4b: each row states all three levels. `quickTable.test.ts` checks both modes from 105. |
+| 10 | **Ghost and ✓** | Guided does without; Dieline D2's grow in the flat uses it | *Nets* is hidden in Guided. |
+| 11 | **Lid kinds** | Built (79–82) | The sentence's *a lid that lifts off* and Guided's *Lifts off* use kind *Automatic*; the card after *Start* offers the others in Workshop and Quick build. |
+| 12 | **Board grades** | Dieline D5b; sentence §8 *More boards* | The sentence's `materials(m)` and `allowed` check the thickness, so grades need no change there. |
+| 13 | **The fold overhaul** (`923e0c5`, `1917440`) | A crease now lies where the mid-planes meet (`src/model/crease.ts`), `foldAllowance` defaults to 0, flaps crease `scoreIn` inside their edge, lid rims are perforated by default, schema 11 | Dieline D2's ghost in the flat and D3's shaped flaps use `foldLay` / `scoreIn`; D5a's *crease to crease* is *outside − t* for a folded box; D8's `perf` layer includes the rims' automatic perforations. The sentence reads sizes from the built design, so it is unaffected. |
+| 14 | **The guided-mode branch's code** | Dieline D0b-1 ports `src/sketch/*` and `canvas2d.tsx` | **No git merge of `claude/guided-mode`.** It forked at milestone 43 (`c47c273`); a merge conflicts in 14 files and would mark the waffle commits merged under PR #6. Files are brought over by path, with the branch named in the commit. |

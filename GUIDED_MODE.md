@@ -1,15 +1,16 @@
 # Guided mode: a first level built around a thing to make (milestones G1–G7)
 
-Status: plan. Written 2026-11-18 against `claude/waffle-mode`; re-checked on 2026-11-19 against `origin/main` at `1c4cb96` (milestone 73), when the owner decided that **Quick build stays, as the middle level**; **rebased the same day onto `origin/main` at `3709043` (milestone 91) and merged into one order with `DIELINE_DNA_PLAN.md` (`ROADMAP.md` §5)**. Nothing here is built. Mock-ups: `docs/guided-mockups/`.
+Status: plan. Written 2026-11-18 against `claude/waffle-mode`; re-checked on 2026-11-19 against `origin/main` at `1c4cb96` (milestone 73), when the owner decided that **Quick build stays, as the middle level**; **rebased the same day onto `origin/main` at `1917440` and merged into one order with `SENTENCE_BUILDER_PLAN.md` and `DIELINE_DNA_PLAN.md` (`ROADMAP.md` §5)**. Nothing here is built. Mock-ups: `docs/guided-mockups/`.
 
 **Guided** is a new first level, below Quick build: a student picks a thing, changes it by touching it, decorates it and sends it. It uses the engine Quick build already has (recipes, lids, dividers, guardrails, fixes, missions, objects). There are then three levels: **Guided · Quick build · Workshop**. Quick build and Workshop are not changed, apart from the fixes in milestone 87 and the two missions named in §4.
 
 ## 0. Base, and the other plans
 
-- **Base:** `origin/main` at `3709043` (milestone 91). This file came from `claude/guided-mode`, which sits on the waffle work (PR #6) that `main` does not have; only this file and the mock-ups were brought over, not the branch.
+- **Base:** `origin/main` at `1917440` (milestone 91 and the fold overhaul). This file came from `claude/guided-mode`, which sits on the waffle work (PR #6) that `main` does not have; only this file and the mock-ups were brought over, not the branch.
 - **Numbers:** milestones are named **G1–G7** here (they were 87–93, which `main` has since used). Their real numbers are in `ROADMAP.md` §5, which orders them with `DIELINE_DNA_PLAN.md` (D0–D10).
 - **Built on `main` since the first draft (74–91)** and now used here instead of waited for: lid kinds *Cap · Flat · Drop-in* and padlock hasps (79–82); lids beside the box and *Put on / Close* (76); *Your designs* and projects (86–87); sizes (88); names and sizes on the dieline (89); *Print a plan* (90); one *Shapes* tool and a five-button Workshop rail (75); the grow card that closes a box (77). `UI_CLEANUP_PLAN.md` is built (74–78). Lines (83–85) never appear in Guided.
-- **`DIELINE_DNA_PLAN.md`** shares four things with this plan; `ROADMAP.md` §5.2 settles each: inside sizes (G4 calls D5a's `boxSize` / `setBoxSize`), the face-on view (G5 runs in the solo view that D0b-1 refactors and D0b-2 / D0c add editing to, all hidden in Guided), *Make it fit* (G4's `fitContent` beside D6's `fitToContents`), and the gallery (G3's things registry, which D6 extends if it goes ahead).
+- **`SENTENCE_BUILDER_PLAN.md`** (S1–S7, before G2): its structures (*a box*, *a tray*, *a carton*, *a sleeve*, *a card stand*) are the one list of things to start from; G3's plain things are those structures with their default words, not a list of their own. G1's divider fix is what its S2 relies on. Its sentence may later open Guided's gallery (its §8).
+- **`DIELINE_DNA_PLAN.md`** shares four things with this plan; `ROADMAP.md` §5.2 settles each: inside sizes (G4 calls D5a's `boxSize` / `setBoxSize`), the face-on view (G5 runs in the solo view that D0b-1 refactors and D0b-2 / D0c add editing to, all hidden in Guided), *Make it fit* (G4's `fitContent` beside D6's `fitToContents`), and the gallery (D6 is dropped; the sentence's registry is the list).
 - **`PACKAGING_AND_LEARNING.md`** (on `main`) proposes a ladder of levels, *Guided · Open · Workshop*. This plan builds that ladder's three rungs, with Quick build as the middle one; the proposal's unlockable groups of features are not part of it. `ROADMAP.md` §4 had left *Levels* for later; the owner's decision of 19 November takes it up.
 - **Waffle** is not on `main`. When it is merged, its designs keep their own interface in every mode, and its card goes under the gallery.
 
@@ -247,7 +248,7 @@ Dev look: switch to Guided on a design with a box: the top bar with three steps,
 
 Files: new `src/guided/things.ts`, `src/guided/GuidedStart.tsx`; `src/easy/mode.ts`, `src/easy/missions.ts`, `src/teacher/TeacherApp.tsx`.
 
-- **Things** (`things.ts`): the gallery's cards. `{ id, title, blurb, materials, start(material): Design }`: one for each mission (`startMission`), and the plain things, each a `boxRecipe` call: `box` (rectangle, open, 120 × 80 × 45 mm inside), `box-lid` (the same, with a lid), `round-box`, `carton` (card and corrugated).
+- **Things** (`things.ts`): the gallery's cards. `{ id, title, blurb, materials, start(material): Design }`: one for each mission (`startMission`), and the plain things. **(merged)** Each plain thing is a structure of `SENTENCE_BUILDER_PLAN.md` with set words, through `generate`: `box` (*a box*, rectangle, no lid, 120 × 80 × 45 mm inside), `box-lid` (the same, *with a lid that lifts off*), `round-box` (*a box*, round), `carton` (*a carton*; listed only where the structure's `materials(m)` allows it). `things.ts` holds only the set words, never a recipe.
 - **Missions as recipes.** `pencil-box` and `game-organiser` become version 2: a `start` recipe (`boxRecipe`, then `addDividerLine` for each divider) that gives the same inside sizes and spaces as the template did. Their reference solutions in `tests/missions.test.ts` are rewritten with `setDividerOffset`, `addDividerLine` and `setBoxLid`. A saved version-1 design still opens and its goals still count.
 - **The gallery** of §3.1 replaces `StartScreen` in Guided. Workshop and Quick build keep `StartScreen`. Thumbnails come from `renderThumbnail`, cached by thing and material as today.
 - **The class's material at the start.** `joinClassFromLink` keeps the class's material profile (in the saved preferences, beside `missions`); the gallery starts every thing in it and hides the chips. `SubmitDialog`'s check stays as it is.
@@ -332,7 +333,8 @@ Files: new `src/guided/steps/Send.tsx`, `src/net/submit.ts`; `src/ui/SubmitDialo
 
 - G1 stands alone and is worth shipping by itself: it fixes today's Quick build and Workshop. It goes first of everything (`ROADMAP.md` rule 1.2, bugs first).
 - G2 must come before the rest: the shell is where every later piece lives.
-- G4 needs D5a (`boxSize` / `setBoxSize`) for its inside sizes.
+- G1 is milestone 92 and comes before everything; G2–G7 are 105–110, after the sentence (94–100) and the 2D editing (101–104).
+- G3 needs the sentence's structures (95–96); G4 needs D5a (93, `boxSize` / `setBoxSize`).
 - G5 and G6 do not depend on each other and could swap. G5 runs in the solo view after D0b-1's canvas refactor; whichever lands second rebases on the other.
 - A later Workshop or Quick build milestone that adds a control adds its Guided row (usually `'hide'`) in the same commit.
 

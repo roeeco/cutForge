@@ -1,10 +1,10 @@
 # CutForge: dieline DNA: plan (milestones D0–D10)
 
-Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-11-19 onto `origin/main` at `3709043` (milestone 91)**. Nothing here is built.
+Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-11-19 onto `origin/main` at `3709043` (milestone 91), then onto `1917440` (the fold overhaul) and merged with `SENTENCE_BUILDER_PLAN.md` and `GUIDED_MODE.md` (`ROADMAP.md` §5)**. Nothing here is built.
 
 **Read first.**
-- **Base: `origin/main` at `3709043` (milestone 91).** Milestones 74–91 (`ROADMAP.md`) landed between the first draft and this one: lines and crease styles, the grow card that closes a box, the lid generator, the library, projects, sizes, the dieline legend and the spec sheet. §0 lists what that changes in this plan; the milestone sections are corrected in place and marked **(rebased)** where they changed. Do not build on `claude/waffle-mode` or `claude/guided-mode`. Line numbers drift: grep for the name before editing.
-- **Numbers.** `main` ends at 91. **`ROADMAP.md` §5 holds the real numbers** (92–111), ordering these milestones with `GUIDED_MODE.md`'s G1–G7; this file names them D0–D10. D4, D6 and D7 get numbers when the owner says go. Commit messages carry both (`Milestone 104 (Dieline D3a): the edge-feature registry`).
+- **Base: `origin/main` at `1917440` (milestone 91 and the fold overhaul; see §0's last rows).** Milestones 74–91 (`ROADMAP.md`) landed between the first draft and this one: lines and crease styles, the grow card that closes a box, the lid generator, the library, projects, sizes, the dieline legend and the spec sheet. §0 lists what that changes in this plan; the milestone sections are corrected in place and marked **(rebased)** where they changed. Do not build on `claude/waffle-mode` or `claude/guided-mode`. Line numbers drift: grep for the name before editing.
+- **Numbers.** `main` ends at 91. **`ROADMAP.md` §5 holds the real numbers** (92–118), ordering these milestones with `SENTENCE_BUILDER_PLAN.md`'s S1–S7 and `GUIDED_MODE.md`'s G1–G7; this file names them D0–D10. D4, D6 and D7 get numbers when the owner says go. Commit messages carry both (`Milestone 111 (Dieline D3a): the edge-feature registry`).
 - **How deeply each part was checked.** First draft: `Plan2D.tsx`, `geometry.ts`, `pieces.ts`, `foldView.ts`, `export/*`, `store.ts`, `Inspector.tsx`, `EdgeBar.tsx`, `features.ts`, `fix.ts`, the golden harness. Rebase: the diff `1c4cb96..3709043` (96 files), `PROGRESS.md` and `DECISIONS.md` for 73–91, and the names this plan calls re-grepped on `3709043` (`View`, `ONLY_3D`, `Inspector.tsx` edge card, `TopBar` tabs, `App.tsx` view switch, `Plan2D` layout and props, `pieceCopies`, `adapt.ts`, `pieces.ts`, `extrasByPanel`, `flapOn`, `three-geom.ts` flat adds, `reachFor`, `MATERIALS`, `sizes.ts`, `annotate.ts`, `spec.ts`, `offset.ts`, `download.ts`, `split.ts`, `nest.ts`, `goldenDesigns.ts`, `EdgeBar`'s grow and flap blocks, `easy/lid.ts`).
 
 ## 0. What changed on `main` since the first draft (rebase notes)
@@ -23,7 +23,9 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 | The library and *Your designs* on the start screen (`Library.tsx`, `StartScreen.tsx`) | 86, 87 | D6's *Packaging styles* row goes under *Your designs*. |
 | `ROADMAP.md` §4 defers **boxes built from boards (no tray) closing with a grown lid** ("needs one answer to *what is a box* shared with the lid generator") and **a library of packaging styles / start from the product** | 91 | D4 item 1 and D6 are exactly those two items. Both now need the owner's go-ahead first (§7, questions 8 and 9). |
 | `EdgeBar.tsx`: the flap block is now `edge-add-flap` / `edge-flap` / `edge-flap-len` / `edge-flap-remove`; the feature is `'edgeFlap'` (`SECTIONS` maps `edge-flap` to it) | 73 | D3's shape row joins that block; `'flap.shape'` is a new feature row beside `'edgeFlap'` and the new section ids go in `SECTIONS` (`tests/quickTable.test.ts` fails otherwise). |
-| `SCHEMA_VERSION = 10` | — | Unchanged by this plan (rule 4). |
+| **The fold overhaul** (`923e0c5`, `1917440`): a crease lies where the two mid-planes meet (`src/model/crease.ts`: `foldLay`, `creaseDepths`), `foldAllowance` defaults to 0 (a calibration only), glue and lock flaps and `flapOn(e, len, scoreIn)` crease half a thickness inside their edge, tab-and-slot corners stay flush, a lid's rims are perforated by default (`Connection.crease` absent = automatic) | 91+ | **D2:** `ghostInNet` places the ghost with `foldLay`, not `foldXform`'s old allowance. **D3:** `flapOutline` keeps `flapOn`'s `scoreIn` (t/2 when the flap folds against a board, 0 for a hang tab at 0°); the plain flap must stay byte-identical with the new `flapOn`. **D5a:** *crease to crease* is *outside − t* for a folded box by construction; check the table against `creaseDepths`, not against the old allowance. **D8:** the `perf` layer includes the rims' automatic perforations. |
+| **`SENTENCE_BUILDER_PLAN.md`** (S1–S7, the owner's) | — | **D5a** is built first for it (milestone 93); **D6 is dropped** (the sentence replaces it); the sentence's structures registry is the one list of things to start from. |
+| `SCHEMA_VERSION = 11` (fold overhaul) | — | Unchanged by this plan (rule 4). |
 | This container has no `node_modules` | — | `npm ci` before the first milestone. |
 
 **The idea in one paragraph.** Panel building in 3D stays the default and the model does not change shape: boards, joints, trays, closures. What changes is that the flat net becomes a second place to do the same work, the things that hang off an edge become one engine concept, sizes can be stated the way a packaging designer states them, and the output becomes a dieline a printer or die maker can use. Every action added here is an existing operation or a new one in `src/model/ops.ts`; no second document type, no second geometry path.
@@ -99,7 +101,7 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 
 ## 4. Rules for whoever builds this
 
-1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 93 (Dieline D0): outline mode`. Do not deploy. Never touch `SITE_PASSWORD`.
+1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 101 (Dieline D0): outline mode`. Do not deploy. Never touch `SITE_PASSWORD`.
 2. After each milestone: `npm run typecheck`, `npm test`, `tests/netIn3d.test.ts` and `tests/quickTable.test.ts` green, and a short look in the dev server (`npm run dev`, port 5199). Run the milestone's own browser spec only; not the full e2e suite or the `SHOTS` specs.
 3. **Golden exports stay byte-identical** unless the milestone lists a new or changed case. Regenerate only with `UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts`. New cases are functions in `tests/goldenDesigns.ts`.
 4. Every stored field added is optional, accepted in `src/model/check.ts`, and absent means today's behaviour. Bump `SCHEMA_VERSION` only if a stored value changes meaning (none here should).
@@ -111,25 +113,25 @@ That branch forked from `main` at `c47c273` (milestone 43) and built, besides th
 
 ## 5. Milestones
 
-**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b-1, D0b-2, D3, D1, D8**. Guided's G1–G7 sit between D5a and D3 (`ROADMAP.md` §5).
+**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for shapes' outlines to be editable in the 2D view, double-clicked into. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b-1, D0b-2, D3, D1, D8**. The sentence (S1–S7) and Guided (G1–G7) sit between D5a and D3 (`ROADMAP.md` §5).
 
 | # | Number (`ROADMAP.md` §5) | Milestone | Size | Needs | Value / risk |
 | --- | --- | --- | --- | --- | --- |
-| D0 | 93 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
-| D0b-1 | 94 | **The sketch engine and the 2D canvas**, ported from `claude/guided-mode` (§0b) | M | — | No change a student sees; goldens byte-identical |
-| D0c | 95 | **The transform frame** in 2D (side handles, keep proportions, percent) | S | D0b-1 | From the branch's scale frame |
-| D0b-2 | 96 | **Edit outlines in the 2D view**: double-click into a board, then into a shape | M–L | D0b-1 (and D0 for the mode) | No point editing exists in 2D today, for shapes, boards or lines |
-| D5a | 97 | **Size intent** (*Outside · Inside · Crease to crease*) | S–M | — | Guided's G4 needs it; must work with milestone 88's sizes |
-| D3 | 104 (a), 105 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
-| D1 | 106 | The Net view: see and pick | M | D0b-1 (`useViewBox`) | The flat workspace; risk: a second canvas on Chromebooks |
-| D2 | 107 | Building in the flat | M | D1 (and D0b-2 for outline handles in the flat) | |
-| D8 | 108 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
-| D5b | 109 | Board grades | S | — | Data and a drawer list |
-| D9 | 110 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
+| D0 | 101 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
+| D0b-1 | 102 | **The sketch engine and the 2D canvas**, ported from `claude/guided-mode` (§0b) | M | — | No change a student sees; goldens byte-identical |
+| D0c | 103 | **The transform frame** in 2D (side handles, keep proportions, percent) | S | D0b-1 | From the branch's scale frame |
+| D0b-2 | 104 | **Edit outlines in the 2D view**: double-click into a board, then into a shape | M–L | D0b-1 (and D0 for the mode) | No point editing exists in 2D today, for shapes, boards or lines |
+| D5a | 93 | **Size intent** (*Outside · Inside · Crease to crease*) | S–M | milestone 92 | The sentence's `sizeAs` word (S2) and Guided's G4 need it; must work with milestone 88's sizes |
+| D3 | 111 (a), 112 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
+| D1 | 113 | The Net view: see and pick | M | D0b-1 (`useViewBox`) | The flat workspace; risk: a second canvas on Chromebooks |
+| D2 | 114 | Building in the flat | M | D1 (and D0b-2 for outline handles in the flat) | |
+| D8 | 115 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
+| D5b | 116 | Board grades | S | — | Data and a drawer list |
+| D9 | 117 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
 | D4 | — | Closures anywhere | M | D3; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
-| D6 | — | The style catalogue, and starting from the product | M | D4, D5a, Guided's G3 registry; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
+| ~~D6~~ | — | ~~The style catalogue, and starting from the product~~ | — | — | **Dropped: replaced by `SENTENCE_BUILDER_PLAN.md`** (its cartons are S3's words; its mailer and *start from the product* are the sentence's §8) |
 | D7 | — | Fold along a line | L | D2; the spike | Highest risk |
-| D10 | 111 | Final verification (with Guided's) | S | all built | |
+| D10 | 118 | Final verification (with Guided's) | S | all built | |
 
 ---
 
@@ -424,7 +426,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **Tests**
 - `tests/edgefeatures.test.ts`: the registry returns for `v6CorrFoldover()` exactly what `allFoldOvers` gave; goldens unchanged (all of them, including the lid and lines goldens of 79–83).
-- **Split (rebased):** step 1 is its own commit and milestone number (104); steps 2–5 are 105.
+- **Split (rebased):** step 1 is its own commit and milestone number (111); steps 2–5 are 112.
 - `tests/flapshapes.test.ts`: each shape's outline area, far-edge width and score ends for a 60 mm edge on card; a tuck flap's inset is t + 0.5; a hang tab has a hole and no score; a plain flap equals `flapOn`; `hinged` at foldT 0 lies in the board's plane (its points equal the net's added outline) and at 1 is turned by its angle about the score.
 - New goldens: `flap-card-tuck-dust` (a hand-built lid with a tuck flap and two dust flaps), `flap-card-hang`.
 
@@ -453,7 +455,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 ### D5. Size intent (D5a) and board grades (D5b)
 
-**(rebased)** Split in two: **D5a** is *Size intent* below, and comes early because Guided's G4 sizes every box by its inside through `boxSize` / `setBoxSize`; **D5b** is *Board grades*, independent, later. Guided also needs `setBoxSize` to leave each divider at its distance from the side that does not move (G4 checks it); put that rule in `setBoxSize`, not in Guided's wrapper, so Workshop's card gets it too.
+**(rebased)** Split in two: **D5a** is *Size intent* below, and comes early (milestone 93) because the sentence builder's `sizeAs` word (S2) and Guided's G4 size every box by its inside through `boxSize` / `setBoxSize`; the sentence's `generate` writes its `sizeAs` word into `Design.sizeAs`, and offers *crease to crease* only on card and corrugated; **D5b** is *Board grades*, independent, later. Guided also needs `setBoxSize` to leave each divider at its distance from the side that does not move (G4 checks it); put that rule in `setBoxSize`, not in Guided's wrapper, so Workshop's card gets it too.
 
 **Size intent (D5a)**
 - `Design.sizeAs?: 'outside' | 'inside' | 'crease'` (absent: outside).
@@ -485,7 +487,9 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 ---
 
-### D6. The style catalogue, and starting from the product
+### D6. The style catalogue, and starting from the product: **dropped**
+
+**(merged)** Replaced by `SENTENCE_BUILDER_PLAN.md`: its S3 moves the four carton builders out of `tests/goldenDesigns.ts` into `src/templates/structures/carton.ts` (the step below), its structures registry is the list, and the mailer and *starting from the product* are in its §8. What follows is kept for reference only.
 
 **Read first:** `PACKAGING_AND_LEARNING.md` milestones 48 and 49 (now on `main`). This milestone replaces both; take its wording for the start screen if the owner prefers it.
 
@@ -698,6 +702,7 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | `LIDS_LINES_PROJECTS_PLAN.md` / `ROADMAP.md` (74–91, built) | D7 builds on lines (83–84); D8 on crease styles (85), `annotate` (89) and the spec sheet (90); D5 must work with sizes (88). Their §15 / §4 *Fold along a drawn line* is D7. `ROADMAP.md` §4 defers D4's item 1 and D6. |
 | `PACKAGING_AND_LEARNING.md` (on `main`) | Its 48 (styles) and 49 (start from the product) are D6; its 54's artwork guide is D8. Its learning milestones (50–53) are untouched. |
 | `UI_CLEANUP_PLAN.md` | Changes the rail and the grow card. Build it first if both are going ahead: D2 then calls whatever the grow card has become. |
+| `SENTENCE_BUILDER_PLAN.md` (S1–S7) | Ordered in `ROADMAP.md` §5. Takes D5a (built first for it) and replaces D6. |
 | `GUIDED_MODE.md` (G1–G7, brought over from `claude/guided-mode`) | Ordered with this plan in `ROADMAP.md` §5. Shared: D5a's inside sizes (G4), the solo view (G5 beside D0b / D0c), *Make it fit* (G4 beside D6), the things registry (G3, extended by D6). Every control here is `'hide'` in Guided. |
 | `claude/waffle-mode` (49–60) | Independent. Its 2D sketch workspace is for sculptures; the Net view is `Plan2D`. Do not merge the two editors. |
 
