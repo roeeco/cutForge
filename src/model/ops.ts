@@ -1905,7 +1905,7 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
   if (patch.tabs !== undefined) c.tabs = patch.tabs === null ? null : Math.max(1, Math.round(patch.tabs));
   if (patch.flap !== undefined) c.flap = patch.flap === null ? null : Math.max(3, patch.flap);
   if (patch.foldDir) c.foldDir = patch.foldDir;
-  // how a crease is cut (milestone 85): an explicit undefined is a score again
+  // how a crease is cut (milestone 85): an explicit undefined is automatic again
   if ('crease' in patch) {
     if (patch.crease) c.crease = patch.crease;
     else delete c.crease;

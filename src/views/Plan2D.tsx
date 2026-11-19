@@ -59,7 +59,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
   const dims = useStore((s) => !!s.viewPrefs.planDims);
-  const dashedUsed = useMemo(() => d.order.some((id) => d.panels[id]?.lines?.some((l) => l.type === 'perf' || l.type === 'cutcrease')) || Object.values(d.connections).some((c) => c.crease), [d]);
+  const dashedUsed = useMemo(() => d.order.some((id) => d.panels[id]?.lines?.some((l) => l.type === 'perf' || l.type === 'cutcrease')) || Object.values(d.connections).some((c) => c.crease && c.crease !== 'score') || Object.values(d.trays ?? {}).some((x) => x.lidOf), [d]);
   const modeKey = solo ? `solo:${solo.id}` : 'sheets';
 
   const layout = useMemo(() => {

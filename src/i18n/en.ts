@@ -1096,6 +1096,7 @@ export const en = {
   'poly.help.line': "Click on a board to place the line's points; click the last point again or press Enter to end it. Shift: 15° steps. Type a number for the segment length.",
   'poly.mode.line': "Line",
   'conn.crease': "Crease cut as",
+  'conn.crease.auto': "Automatic (perforated where it folds away from the scored face)",
   'conn.crease.score': "Score",
   'conn.crease.perf': "Perforated",
   'conn.crease.cutcrease': "Cut-crease",

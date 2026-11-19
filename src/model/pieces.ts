@@ -9,8 +9,10 @@ import type { TaggedContour, Xform2 } from '../geom/types';
 import { applyX, composeX, flattenContour, IDENTITY, pointInPolygon, polygonArea, polygonContour, xformContour, L } from '../geom/vec';
 import { holeCuts, ownOutline } from './outline';
 import { throughRegions } from './through';
-import { edgeInwardLocal, edgeLocal } from './frame';
-import { findEdge } from './edges';
+import { edgeInwardLocal, edgeLocal, matDir, toWorld } from './frame';
+import { v3dot, v3sub } from '../geom/v3';
+import { findEdge, segInward } from './edges';
+import { foldLay } from './crease';
 import { cornerDepths, cornerFit } from './seams';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
@@ -66,8 +68,10 @@ export function foldHolds(d: Design, c: Connection): boolean {
 export function grownFoldXform(d: Design, c: Connection): Xform2 {
   // a fold with a radius (milestone 63): the band's developed width lies between the cut-back panels
   const b = bandOf(d, c);
-  const al = b ? b.lb - b.trimP - b.trimC : matOf(d, c.a.panelId).foldAllowance;
-  return foldXform(d.panels[c.a.panelId], c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
+  // a crease (the overhaul of 19 November): the child lies where its mid-plane unfolds about the crease
+  const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
+  const al = b ? b.lb - b.trimP - b.trimC : C ? foldLay(d, P, c.a.edge, C, c.b.edge).a : matOf(d, c.a.panelId).foldAllowance;
+  return foldXform(P, c.a.edge, al, c.span && !c.trayId ? Math.min(...c.span) : 0);
 }
 
 /** Every fold joining two panels into one net. */
@@ -125,8 +129,8 @@ export function cornerFoldXform(d: Design, parentId: string, pe: string, childId
   const mirror = Math.sign(cross(dC, iC)) !== Math.sign(cross(tgtD, tgtI));
   const src = mirror ? { x: -dC.x, y: dC.y } : dC;
   const rot = Math.atan2(tgtD.y, tgtD.x) - Math.atan2(src.y, src.x);
-  const cut = cornerDepths(tOf(d, parentId), fit, tOf(d, childId)).depth;
-  const off = matOf(d, parentId).foldAllowance - cut;
+  // the child's (uncut) edge where its mid-plane unfolds about the crease in the corner's middle
+  const off = foldLay(d, P, pe, C, ce).a;
   const from = { x: aC.x + dC.x * fit.mapB(fit.s0), y: aC.y + dC.y * fit.mapB(fit.s0) };
   const to = { x: aP.x + dP.x * fit.s0 - iP.x * off, y: aP.y + dP.y * fit.s0 - iP.y * off };
   const r = applyX({ tx: 0, ty: 0, rot, mirror: mirror || undefined }, from);
@@ -255,12 +259,83 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
     // on a sloped edge the strip overlaps both panels a hair, so the union joins them despite float noise
     ov = Math.abs(B.x - A.x) > 1e-9 && Math.abs(B.y - A.y) > 1e-9 ? 1e-5 : 0;
   }
-  const P = d.panels[parentId];
+  const P = d.panels[parentId], C = d.panels[child];
   const i = edgeInwardLocal(P, pe);
-  const al = matOf(d, parentId).foldAllowance;
   const off = (q: P2, k: number) => ({ x: q.x - i.x * k, y: q.y - i.y * k });
-  const strip = al > 1e-9 ? [off(A, -ov), off(B, -ov), off(B, al + ov), off(A, al + ov)] : null;
-  return { parent: parentId, child, strip, scores: [{ a: off(A, al / 2), b: off(B, al / 2) }] };
+  // the score on the crease, the strip only where the child's material starts out from the edge (a fold allowance)
+  const ce = c.grown ? c.b.edge : child === c.a.panelId ? c.a.edge : c.b.edge;
+  const lay = C ? foldLay(d, P, pe, C, ce) : { a: 0, score: 0 };
+  const cut = !c.grown && C ? cornerDepths(tOf(d, parentId), cornerFit(P, pe, C, ce, 1e-6)!, tOf(d, child)).depth : 0;
+  const start = lay.a + cut;
+  // both run only along the stretch the child's material attaches (a wall cut back at a corner stops short of it)
+  if (c.grown && C) [A, B] = childStretch(d, P, pe, C, ce, A, B);
+  // no allowance on a sloped edge: still a hairline strip, so the union joins the two despite float noise
+  const strip = start > 1e-9 || (ov > 0 && start > -1e-9) ? [off(A, -ov), off(B, -ov), off(B, Math.max(0, start) + ov), off(A, Math.max(0, start) + ov)] : null;
+  return { parent: parentId, child, strip, scores: [{ a: off(A, -lay.score), b: off(B, -lay.score) }] };
+}
+
+/**
+ * The part of the parent's edge segment A → B a grown child's material meets:
+ * the child's notched outline along its own edge, carried onto the parent's
+ * (a grown child's edge runs the same way from the span's start).
+ */
+function childStretch(d: Design, P: Panel, pe: string, C: Panel, ce: string, A: P2, B: P2): [P2, P2] {
+  const e = findEdge(C, ce);
+  if (!e) return [A, B];
+  const L = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) || 1;
+  const dir = { x: (e.b.x - e.a.x) / L, y: (e.b.y - e.a.y) / L }, inw = segInward(e);
+  let lo = Infinity, hi = -Infinity;
+  for (const ring of panelOutlines(C, panelNotches(d, C)))
+    for (const q of ring) {
+      const v = { x: q.x - e.a.x, y: q.y - e.a.y };
+      if (Math.abs(v.x * inw.x + v.y * inw.y) > 1e-6) continue;
+      const s = v.x * dir.x + v.y * dir.y;
+      lo = Math.min(lo, s);
+      hi = Math.max(hi, s);
+    }
+  const lp = Math.hypot(B.x - A.x, B.y - A.y);
+  if (!(hi > lo) || lp < 1e-9) return [A, B];
+  const s0 = Math.max(0, lo), s1 = Math.min(lp, hi);
+  if (s1 - s0 < 1e-6) return [A, B];
+  const at = (s: number): P2 => ({ x: A.x + ((B.x - A.x) / lp) * s, y: A.y + ((B.y - A.y) / lp) * s });
+  return [at(s0), at(s1)];
+}
+
+/**
+ * Which face of the sheet a board's material side is on in a piece: 1 when it
+ * is the face the box's own folds turn towards (the scored face: a base's
+ * walls fold up towards it), -1 the other. Pieces are cut in their boards'
+ * own coordinates; a board whose frame is mirrored there (a lid, turned over
+ * onto its box) has its material on the other face.
+ */
+export function faceOf(d: Design, panelId: string, xf: Xform2): 1 | -1 {
+  const side = d.panels[panelId]?.frame.side ?? 1;
+  return (xf.mirror ? -side : side) as 1 | -1;
+}
+
+/** Does a fold's child lie on its parent's material side (1) or the other (-1)? */
+export function foldToward(d: Design, parentId: string, childId: string): 1 | -1 {
+  const P = d.panels[parentId], C = d.panels[childId];
+  if (!P || !C) return 1;
+  const cc = toWorld(C.frame, C.w / 2, C.h / 2, tOf(d, childId) / 2);
+  return v3dot(v3sub(cc, P.frame.o), matDir(P.frame)) >= tOf(d, parentId) / 2 ? 1 : -1;
+}
+
+/** How a fold's crease is cut: the student's choice, else a perforation where it folds away from the scored face (null: a score). */
+export function creaseOf(d: Design, c: Connection, parentXf: Xform2): 'perf' | 'cutcrease' | null {
+  if (c.kind !== 'fold') return null;
+  if (c.crease === 'score') return null;
+  if (c.crease) return c.crease;
+  if (c.wing || bandOf(d, c)) return null;
+  const parent = c.grown ? c.a.panelId : c.hingeOf === c.a.panelId ? c.b.panelId : c.a.panelId;
+  const child = c.grown ? c.b.panelId : c.hingeOf!;
+  return foldToward(d, parent, child) * faceOf(d, parent, parentXf) < 0 ? 'perf' : null;
+}
+
+/** A perforation from a to b (piece coordinates), as a material's dashes on the CUT layer. */
+function perfContours(d: Design, panelId: string, a: P2, b: P2, ref: { panelId: string; foldId?: string }): TaggedContour[] {
+  const [cut, tie] = lineDashes(matOf(d, panelId)).perf;
+  return dashes([a, b], cut, tie, true).map((k) => ({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(k[0], k[k.length - 1])] }, ref }));
 }
 
 function groupPieces(d: Design, group: NetPanel[]): Piece[] {
@@ -287,7 +362,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       }
       for (const h of own.holes) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
       for (const h of [...ex.holes, ...ex.linerHoles]) contours.push({ op: 'cut', role: 'hole', contour: polygonContour(h.map(tf)), ref: { panelId } });
-      for (const s of ex.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      for (const s of ex.scores) {
+        // a flap that folds away from the scored face (a lid's): perforated so it folds that way (the overhaul of 19 November)
+        if (s.toward && s.toward * faceOf(d, panelId, xf) < 0) contours.push(...perfContours(d, panelId, tf(s.a), tf(s.b), { panelId }));
+        else contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
+      }
       for (const s of ex.lines) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(s.a), tf(s.b))] }, ref: { panelId } });
       for (const q of ex.paths) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId }));
       // lines drawn on the board (milestone 83): clipped to it, dashed by their type
@@ -313,10 +392,12 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (!band || !gx) continue;
       const tf = (q: P2) => applyX(gx.xf, q);
       if (band.strip) polys.push([toRing(band.strip.map(tf))]);
-      // a crease cut as a perforation or a cut-crease (milestone 85): dashes on the CUT layer instead of a score
-      const dash = c.crease && c.kind === 'fold' ? lineDashes(matOf(d, band.child))[c.crease === 'perf' ? 'perf' : 'crease'] : null;
+      // a crease cut as a perforation or a cut-crease (milestone 85): dashes on the CUT layer instead of a score;
+      // left automatic, a fold that turns away from the scored face is perforated (a lid's rims fold outwards)
+      const crease = creaseOf(d, c, gx.xf);
+      const dash = crease ? lineDashes(matOf(d, band.child))[crease === 'perf' ? 'perf' : 'crease'] : null;
       for (const ln of band.scores)
-        if (dash) for (const k of dashes([tf(ln.a), tf(ln.b)], dash[0], dash[1], c.crease === 'perf')) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(k[0], k[k.length - 1])] }, ref: { panelId: band.child, foldId: c.id } });
+        if (dash) for (const k of dashes([tf(ln.a), tf(ln.b)], dash[0], dash[1], crease === 'perf')) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(k[0], k[k.length - 1])] }, ref: { panelId: band.child, foldId: c.id } });
         else contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
       for (const ln of band.cuts ?? []) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
       for (const q of band.paths ?? []) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId: band.child, foldId: c.id }));

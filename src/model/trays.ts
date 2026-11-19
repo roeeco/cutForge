@@ -6,7 +6,7 @@
 // wall opens its edge; "Wall it" closes it again.
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
 import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
-import { matOf, minWeb, tOf } from './materials';
+import { tOf } from './materials';
 import { removePanelRecord } from './place';
 import { KEEP_STRAIGHT } from '../geom/fillet';
 
@@ -86,10 +86,10 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
  * Inside corners: where the base turns inward (a reflex vertex) and walls
  * stand on both edges, the wall on the outgoing edge reaches back past the
  * vertex to the other wall's inner face, closing the gap (by t / sin of the
- * turn; at a square inside corner, t). With a tab-and-slot joint there it
- * reaches a web further, so the slots are closed holes.
+ * turn; at a square inside corner, t). Tab slots there are open notches at
+ * its end (the overhaul of 19 November), so it reaches no further.
  */
-export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key: string) => string | undefined, seamKind: (a: string, b: string) => ConnectionKind | undefined) {
+export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key: string) => string | undefined, _seamKind?: (a: string, b: string) => ConnectionKind | undefined) {
   for (const id of d.order) {
     const p = d.panels[id];
     if (p && p.ext) delete p.ext;
@@ -115,9 +115,8 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
       const W = d.panels[closer];
       if (!W) continue;
       const sin = Math.min(1, Math.abs(turn));
-      // to the other wall's inner face: its thickness; a web past tab slots in it
-      let ext = tOf(d, other) / Math.max(sin, 0.2);
-      if (seamKind(wa, wb) === 'tabslot') ext += Math.max(2, minWeb(matOf(d, other))) + matOf(d, other).clearance / 2;
+      // to the other wall's inner face: its thickness (tab slots at the corner are open notches, milestone overhaul: no web)
+      const ext = tOf(d, other) / Math.max(sin, 0.2);
       W.ext = flip ? { s: W.ext?.s ?? 0, e: ext } : { s: ext, e: W.ext?.e ?? 0 };
     }
   }
