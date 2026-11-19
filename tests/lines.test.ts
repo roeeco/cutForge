@@ -110,3 +110,25 @@ describe('lines on a board', () => {
     expect(30 - open(b)[0]).toBeLessThanOrEqual(CARD.kerf + 1e-9);
   });
 });
+
+describe('how a fold is made (milestone 85)', () => {
+  it('a card tray fold as a perforation or a cut-crease: dashes on CUT and no score; back to a score', async () => {
+    const { addTray, autoConnect, setConnection } = await import('../src/model/ops');
+    const d = createDesign(CARD);
+    const b = addRootPanel(d, 0, 0, 100, 70);
+    addTray(d, b, 40);
+    autoConnect(d);
+    const fold = Object.values(d.connections).find((c) => c.grown && c.kind === 'fold')!;
+    const of = () => buildPieces(d).flatMap((p) => p.contours.filter((k) => k.ref?.foldId === fold.id));
+    expect(of().every((k) => k.op === 'score')).toBe(true);
+    setConnection(d, fold.id, { crease: 'perf' });
+    expect(of().length).toBeGreaterThan(5);
+    expect(of().every((k) => k.op === 'cut')).toBe(true);
+    setConnection(d, fold.id, { crease: 'cutcrease' });
+    const cc = of();
+    expect(cc.every((k) => k.op === 'cut')).toBe(true);
+    setConnection(d, fold.id, { crease: undefined });
+    expect(of().every((k) => k.op === 'score')).toBe(true);
+    expect(roundTrip(d)).toBeNull();
+  });
+});

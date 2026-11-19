@@ -91,7 +91,7 @@ describe('the feature table (rule 3)', () => {
       'viewSettings',
     ]);
     expect(by('readonly')).toEqual(['drawer', 'settings.material']);
-    expect(by('auto')).toEqual(['bend', 'export.kerf', 'grow.advanced', 'hinge', 'joints', 'lid.advanced', 'settings.snapping', 'split', 'tray.corners', 'tray.joints']);
+    expect(by('auto')).toEqual(['bend', 'crease', 'export.kerf', 'grow.advanced', 'hinge', 'joints', 'lid.advanced', 'settings.snapping', 'split', 'tray.corners', 'tray.joints']);
     expect(by('hide')).toEqual([
       'boardMaterial',
       'construction',

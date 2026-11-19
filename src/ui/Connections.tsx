@@ -19,6 +19,8 @@ import { BendSection } from './BendUI';
 import { CutChoice } from './SplitUI';
 import { connKindKey } from './connLabel';
 import { pairKinds } from '../model/jointDefaults';
+import { shown, useFeature } from '../easy/features';
+import { bandOf } from '../model/bands';
 
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
   // a tray's rounded corner (milestone 64)
@@ -54,6 +56,9 @@ function jointLength(d: Design, c: Connection): number {
 export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: string }) {
   const t = useT();
   const d = useStore((s) => s.design);
+  // milestone 85: a crease's cut; a fold with a radius has its own pattern instead
+  const creaseF = useFeature('crease');
+  const bandOfC = c.kind === 'fold' ? bandOf(d, c) : null;
   const apply = useStore((s) => s.apply);
   const mm = t('unit.mm');
   const isChild = c.grown && c.b.panelId === panelId;
@@ -125,6 +130,16 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           ]}
           onChange={(v) => apply((x) => setConnection(x, c.id, { foldDir: v as 'valley' | 'mountain' }))}
           testId="conn-folddir"
+        />
+      )}
+      {c.kind === 'fold' && !bandOfC && shown(creaseF) && (
+        // milestone 85: how the crease is cut
+        <Segmented
+          label={t('conn.crease')}
+          value={c.crease ?? 'score'}
+          options={(['score', 'perf', 'cutcrease'] as const).map((v) => ({ value: v, label: t(`conn.crease.${v}`), testId: `conn-crease-${v}` }))}
+          onChange={(v) => apply((x) => setConnection(x, c.id, { crease: v === 'score' ? undefined : (v as 'perf' | 'cutcrease') }))}
+          testId="conn-crease"
         />
       )}
       {!c.grown && (

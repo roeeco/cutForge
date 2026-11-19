@@ -27,6 +27,8 @@ export const FEATURES = {
   /** The material drawer: the material can always be changed; read-only keeps its numbers (kerf, clearance, sheet) as they are. */
   drawer: 'readonly',
   /** The grow card's angle dial and Up/Down flip, side walls, part of the edge, adapt switch and ghost outline editing; Quick build grows at 90° on the whole edge, adapting. */
+  /** How a fold's crease is cut: a score, a perforation, a cut-crease (milestone 85). */
+  crease: 'auto',
   'grow.advanced': 'auto',
   /** Editing a base's or wall's outline (corners and points). */
   outline: 'show',

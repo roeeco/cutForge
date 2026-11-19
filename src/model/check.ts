@@ -286,6 +286,7 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.tabs !== null && x.tabs !== undefined) num(x.tabs, `${where}.tabs`, { min: 0, max: 999 });
   if (x.flap !== null && x.flap !== undefined) num(x.flap, `${where}.flap`, { min: 0, max: 1000 });
   oneOf(x.foldDir, ['valley', 'mountain'] as const, `${where}.foldDir`);
+  if (x.crease !== undefined && x.crease !== 'perf' && x.crease !== 'cutcrease') delete x.crease;
   if (x.tabLen !== undefined) oneOf(x.tabLen, TAB_LOCKS, `${where}.tabLen`);
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');

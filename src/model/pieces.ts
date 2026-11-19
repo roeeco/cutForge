@@ -1,6 +1,6 @@
 // Pieces: one connected flat outline to cut. Panels joined by folds form one
 // flat net (unfolded about their fold lines); everything else is separate.
-import { lineContours } from './lines';
+import { dashes, lineContours, lineDashes } from './lines';
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
 import type { Connection, Design, P2, Panel } from './types';
@@ -313,7 +313,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       if (!band || !gx) continue;
       const tf = (q: P2) => applyX(gx.xf, q);
       if (band.strip) polys.push([toRing(band.strip.map(tf))]);
-      for (const ln of band.scores) contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
+      // a crease cut as a perforation or a cut-crease (milestone 85): dashes on the CUT layer instead of a score
+      const dash = c.crease && c.kind === 'fold' ? lineDashes(matOf(d, band.child))[c.crease === 'perf' ? 'perf' : 'crease'] : null;
+      for (const ln of band.scores)
+        if (dash) for (const k of dashes([tf(ln.a), tf(ln.b)], dash[0], dash[1], c.crease === 'perf')) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(k[0], k[k.length - 1])] }, ref: { panelId: band.child, foldId: c.id } });
+        else contours.push({ op: 'score', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
       for (const ln of band.cuts ?? []) contours.push({ op: 'cut', role: 'line', contour: { closed: false, segs: [L(tf(ln.a), tf(ln.b))] }, ref: { panelId: band.child, foldId: c.id } });
       for (const q of band.paths ?? []) contours.push(pathContour(q.pts.map(tf), q.closed, { panelId: band.child, foldId: c.id }));
     }

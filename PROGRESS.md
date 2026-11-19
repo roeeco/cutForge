@@ -1355,6 +1355,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `shapesTool.test.ts` (Line draws with the polygon tool, open); browser `lines.spec.ts`: a perforation of three points and Enter on a board, retyped as a crease on the card, deleted.
 - Not yet: editing a line's points or arcs on the stage, selecting it on the stage, a line across folds on the cut plan.
 
+## Milestone 85 — how a fold is made ✅ (per joint)
+
+`LIDS_LINES_PROJECTS_PLAN.md` §5.3 (milestone 80 there). A crease fold can be a score, a perforation or a cut-crease, on its joint's card in Workshop.
+- Tests: `lines.test.ts`: a card tray's fold as a perforation and a cut-crease puts dashes on CUT and no score, and back to a score; saved and opened unchanged. `quickTable.test.ts`: `crease` is chosen by the app in Quick build. Every golden byte-identical.
+- Not yet: the design-wide choice, creases on the back.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

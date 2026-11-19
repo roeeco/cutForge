@@ -264,6 +264,8 @@ export type Connection = {
   flap: number | null;
   /** Fold direction seen from the material side of the parent. */
   foldDir: 'valley' | 'mountain';
+  /** How a crease is cut (milestone 85): a score (absent), a perforation, or a cut-crease for board a score barely marks. */
+  crease?: 'perf' | 'cutcrease';
   /**
    * The joint the student (or the template) asked for. When the angle or
    * material rules it out, `kind` falls back to the default, and it returns
