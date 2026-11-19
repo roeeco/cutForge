@@ -483,6 +483,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Notes on the card, not a toast**: the card already holds the template's other messages (shapes that could not be kept); the notes sit with them and stay until the next change.
 - **The card's fields keep their own bounds**; the engine's range is shown when a number is refused (working it out for every field on every change would build the box many times).
 
+## Milestone 100: verification of the sentence (SENTENCE_BUILDER_PLAN.md S7)
+- **A lower limit that follows an earlier word**: the stand's base depth comes after its slots, so a change of slots moves the base up to what they need, and the base cannot be typed shallower than that.
+- **Every structure refuses what would not cut clean** (`accepts`), the stand included: a structure's own number ranges cannot say everything (a sheet, a grain, a fold that does not fit), so the whole sentence is built and checked.
+
 ## Milestone 101: outline mode (DIELINE_DNA_PLAN.md D0)
 - **`viewPrefs.outlineMode`** (`outlines` already means *draw outlines*), excluded with `joints` in `setPrefs`.
 - **Boards stay pickable in the mode** (they are inert while one outline is edited outside it), so a click on another board moves the editing.
@@ -498,10 +502,6 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Alt keeps both meanings** in the 2D frame: scale about the middle (the branch's frame) and no smart snapping (CutForge's Alt everywhere).
 - **The direction moved furthest leads** when proportions are kept (the branch's rule), so a corner drag never shrinks the side being pulled.
 - **Pills drawn in the sheet** (`foreignObject`), at screen size, beside the frame's bottom and right; a click opens the input (not the press: the branch's lesson).
-
-## Milestone 100: verification of the sentence (SENTENCE_BUILDER_PLAN.md S7)
-- **A lower limit that follows an earlier word**: the stand's base depth comes after its slots, so a change of slots moves the base up to what they need, and the base cannot be typed shallower than that.
-- **Every structure refuses what would not cut clean** (`accepts`), the stand included: a structure's own number ranges cannot say everything (a sheet, a grain, a fold that does not fit), so the whole sentence is built and checked.
 
 ## Milestone 104: edit outlines in the 2D view (DIELINE_DNA_PLAN.md D0b-2)
 - **Edited in place, one undo step per change**: no separate sketch view, no *Finish* (the owner's double-click-into flow; `claude/guided-mode`'s session is not used).

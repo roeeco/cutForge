@@ -154,6 +154,8 @@ The plans name their milestones by letter; **this table is the only place that n
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
+**Status (20 November):** 92–104 built (see `PROGRESS.md`); stopped before Guided's G2 (105) for the owner's review.
+
 ### 5.2 Where the plans meet, and how each meeting is settled
 
 | # | Topic | Plans | Settled |
