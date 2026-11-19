@@ -1080,3 +1080,10 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   .g-demo-pic * { animation: none !important; }
 }
 .g-help { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 64px; }
+.g-row { display: flex; gap: 8px; margin-top: 10px; }
+.g-row button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.g-fonts { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+.g-fonts button { flex: 1; min-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-text input { min-height: 44px; font-size: 16px; }
+.guard-tip-2d { fill: #8a5a00; font-weight: 600; paint-order: stroke; stroke: #fff6e5; stroke-width: 4px; }
+.g-topbar, .g-addbar, .g-sheet h3 { user-select: none; -webkit-user-select: none; }

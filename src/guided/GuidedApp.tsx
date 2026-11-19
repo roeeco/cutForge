@@ -15,6 +15,7 @@ import { ViewButtons } from './ViewButtons';
 import { guidedCamera } from './camera';
 import { GuidedStart } from './GuidedStart';
 import { Build } from './steps/Build';
+import { Decorate } from './steps/Decorate';
 import { GuidedNote } from './GuidedNote';
 import { boxSize } from '../model/boxSize';
 import { mainTray } from '../templates/structures/box';
@@ -58,6 +59,8 @@ export function GuidedApp() {
           </main>
           {step === 'build' ? (
             <Build />
+          ) : step === 'decorate' ? (
+            <Decorate />
           ) : (
             <>
               <SideSheet />

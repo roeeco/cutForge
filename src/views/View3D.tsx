@@ -53,7 +53,7 @@ import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../mode
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
-import { featureState, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
+import { featureState, isGuided, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
 import { outlineWhy } from '../model/outlineWhy';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
@@ -1260,6 +1260,8 @@ function ContentsView({ d, xf, onDown }: { d: Design; xf: Map<string, THREE.Matr
 function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map<string, THREE.Matrix4> }) {
   const t = useT();
   const note = useStore((s) => s.guardNote);
+  // Guided's words for the same tip (milestone 108): side, corner teeth, the next cut-out
+  const guidedWords = isGuided(useMode());
   const [, tick] = useState(0);
   useEffect(() => {
     if (!note) return;
@@ -1293,7 +1295,7 @@ function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map
       {f && note && (
         <StageHtml position={W(xf.get(f.panel.id) ?? IDM, f.panel.frame, f.detail.cx, f.detail.cy + f.detail.h / 2 + 4, tOf(d, f.panel.id))} style={{ pointerEvents: 'none' }}>
           <span className="guard-tip" data-testid="guard-tip" data-why={note.why}>
-            {t(`guard.${note.why}`, { mm: fmtNum(note.mm, 1) })}
+            {t(`${guidedWords ? 'g.guard' : 'guard'}.${note.why}`, { mm: fmtNum(note.mm, 1) })}
           </span>
         </StageHtml>
       )}

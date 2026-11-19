@@ -108,8 +108,10 @@ describe('the feature table (rule 3)', () => {
       'lid',
       'outline',
       'plan.edit',
+      'plan.legend',
       'saveBoard',
       'settings.joints',
+      'solo.guard',
       'stage.dividerButton',
       'stage.dividerSlide',
       'stage.dock',
@@ -155,10 +157,10 @@ describe('the feature table (rule 3)', () => {
   it('what Guided shows (milestone 105; a change here is a change for every beginner)', () => {
     const by = (v: string) => Object.entries(GUIDED).filter(([, x]) => x === v).map(([k]) => k).sort();
     expect(Object.keys(GUIDED).sort()).toEqual(Object.keys(FEATURES).sort());
-    expect(by('show')).toEqual(['cutplan', 'export.spec', 'joints.noGlue', 'lid', 'saveBoard', 'settings.joints']);
+    expect(by('show')).toEqual(['cutplan', 'export.spec', 'joints.noGlue', 'lid', 'saveBoard', 'settings.joints', 'solo.guard']);
     expect(by('readonly')).toEqual([]);
     expect(by('auto')).toEqual(['bend', 'crease', 'export.annotations', 'export.kerf', 'hinge', 'joints', 'lid.advanced', 'size.as', 'split', 'tray.corners', 'tray.joints']);
     // everything else, every Workshop-only control and every stage handle Guided replaces, is hidden
-    expect(by('hide').length).toBe(Object.keys(GUIDED).length - 17);
+    expect(by('hide').length).toBe(Object.keys(GUIDED).length - 18);
   });
 });

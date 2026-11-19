@@ -129,7 +129,7 @@ export const FEATURES = {
   'stage.dock': 'show',
   /** The fold bar under the stage. */
   'stage.foldBar': 'show',
-  /** The hint under the stage. */
+  /** The hint under the stage, and under the cut plan and the face-on view (milestone 108). */
   'stage.hint': 'show',
   /** Dragging with the right button pans the view. */
   'stage.pan': 'show',
@@ -139,6 +139,10 @@ export const FEATURES = {
   'keys.clipboard': 'show',
   /** Dragging pieces on the cut plan, and *Repack*. */
   'plan.edit': 'show',
+  /** The guard's keep-out outline and *Kept … mm* tip in the face-on view (milestone 108); only where the guard runs. */
+  'solo.guard': 'show',
+  /** The cut plan's legend of layers (*Cut · Score · Engrave · Guide*, milestone 89). */
+  'plan.legend': 'show',
 } as const satisfies Record<string, FeatureState>;
 
 export type Feature = keyof typeof FEATURES;
@@ -212,6 +216,8 @@ export const GUIDED = {
   'keys.tools': 'hide',
   'keys.clipboard': 'hide',
   'plan.edit': 'hide',
+  'solo.guard': 'show',
+  'plan.legend': 'hide',
 } as const satisfies Record<Feature, FeatureState>;
 
 /**
@@ -282,6 +288,10 @@ export const SECTIONS: Record<string, Feature | null> = {
   'g-more': 'settings.joints',
   'g-template': null,
   'g-made-more': null,
+  // Guided's Decorate sheet (milestone 108)
+  'g-deco': null,
+  'g-stickers': null,
+  'g-windows': null,
 };
 
 /** A card can show its Workshop version (*More…*): it renders inside this, set to 'workshop'. */

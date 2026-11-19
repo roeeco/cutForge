@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
 import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
 import { evalNumber } from '../ui/NumField';
-import { shown, useFeature } from '../easy/features';
+import { isGuided, keepsCuttable, shown, useFeature, useMode } from '../easy/features';
+import { keepOutZones } from '../easy/guard';
 import { canEdit, movePoint, targetOf, type Edit2D } from '../sketch/edit2d';
 import { pointInPolygon } from '../geom/vec';
 import { snapPoint as skSnap, snapTargets as skTargets } from '../sketch/snap';
@@ -506,6 +507,11 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const sides = shown(useFeature('transform.sides'));
   // dragging pieces and Repack (milestone 105): Guided's sheet is a picture only
   const planEdit = shown(useFeature('plan.edit'));
+  // milestone 108: the guard's keep-out and its tip face-on too, where the guard runs (Guided, Quick build)
+  const mode = useMode();
+  const guardOn = keepsCuttable(mode) && shown(useFeature('solo.guard'));
+  const guardNote = useStore((s) => s.guardNote);
+  const fLegend = shown(useFeature('plan.legend')), fHint = shown(useFeature('stage.hint'));
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -769,6 +775,24 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           </g>
         )}
         {marquee && <Marquee a={marquee.a} b={marquee.b} px={px} />}
+        {guardOn && solo && placedOf(solo.id) && (() => {
+          const pl = placedOf(solo.id)!;
+          const busy = ids.some((id) => solo.details.some((x) => x.id === id));
+          const z = busy ? keepOutZones(d, solo.id) : null;
+          const ring = (pts: Vec2[]) => pts.map((q) => toSvg(pl, solo.id, q)).map((q) => `${q.x},${q.y}`).join(' ');
+          const recent = guardNote && Date.now() - guardNote.at < 2500 ? solo.details.find((x) => x.id === guardNote.detailId) : null;
+          const tip = recent && toSvg(pl, solo.id, { x: recent.cx, y: recent.cy + recent.h / 2 + 4 });
+          return (
+            <g className="guard-2d" pointerEvents="none" data-testid="guard-2d">
+              {z && [z.inset, ...z.holes].filter((r) => r.length > 2).map((r, i) => <polygon key={i} points={ring(r)} fill="none" stroke="#d08a1a" strokeOpacity={0.75} strokeDasharray={`${px * 6} ${px * 4}`} strokeWidth={px * 1.2} />)}
+              {tip && guardNote && (
+                <text x={tip.x} y={tip.y} textAnchor="middle" className="guard-tip-2d" fontSize={px * 13} data-testid="guard-tip" data-why={guardNote.why}>
+                  {t(`${isGuided(mode) ? 'g.guard' : 'guard'}.${guardNote.why}`, { mm: fmtNum(guardNote.mm, 1) })}
+                </text>
+              )}
+            </g>
+          );
+        })()}
         {label && (
           <text x={label.x + px * 12} y={label.y - px * 12} className="dim-text" fontSize={px * 13}>
             {label.text} {t('unit.mm')}
@@ -780,7 +804,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       <div className="plan-dock" dir={uiDir()}>
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">
-            {t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
+            {isGuided(mode) ? t('g.deco.back') : t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
           </button>
         )}
         <div className="cluster">
@@ -815,8 +839,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         )}
         {!solo && <YieldBar />}
       </div>
-      {/* milestone 89: what each colour and dash means, always */}
-      <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
+      {/* milestone 89: what each colour and dash means, always (Guided names no layers, milestone 108) */}
+      {fLegend && <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
         {(['cut', 'score', 'engrave', 'guide'] as const).map((op) => (
           <span key={op}>
             <i style={{ background: LAYERS[op].hex }} /> {t(`ann.legend.${op}`)}
@@ -827,10 +851,10 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             <i className="dashed" style={{ borderColor: LAYERS.cut.hex }} /> {t('ann.legend.dashed')}
           </span>
         )}
-      </div>
-      <div className="view-hint" dir={uiDir()}>
+      </div>}
+      {fHint && <div className="view-hint" dir={uiDir()}>
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
-      </div>
+      </div>}
     </div>
   );
 }

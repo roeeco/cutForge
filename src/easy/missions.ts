@@ -70,7 +70,8 @@ const nameEngraved: Goal = {
   group: 2,
   label: 'goal.name',
   check: (d) => {
-    const placeholders = new Set((['en', 'he'] as Lang[]).map((l) => translate(l, 'text.default')));
+    // the text tool's default and Guided's *Your name* (milestone 108) are placeholders, not words of the student's
+    const placeholders = new Set((['en', 'he'] as Lang[]).flatMap((l) => [translate(l, 'text.default'), translate(l, 'g.deco.namePlaceholder')]));
     for (const id of d.order) if (d.panels[id].details.some((x) => x.shape === 'text' && x.op === 'engrave' && x.text && x.text.value.trim() && !placeholders.has(x.text.value.trim()))) return { ok: true, target: id };
     return { ok: false, target: mainBox(d) };
   },
@@ -148,7 +149,8 @@ const clueInside: Goal = {
   group: 2,
   label: 'goal.clue',
   check: (d) => {
-    const placeholders = new Set((['en', 'he'] as Lang[]).map((l) => translate(l, 'text.default')));
+    // the text tool's default and Guided's *Your name* (milestone 108) are placeholders, not words of the student's
+    const placeholders = new Set((['en', 'he'] as Lang[]).flatMap((l) => [translate(l, 'text.default'), translate(l, 'g.deco.namePlaceholder')]));
     for (const t of Object.values(d.trays ?? {})) {
       if (t.lidOf) continue;
       const ids = [t.baseId, ...Object.values(d.connections).filter((c) => c.grown && c.trayId === t.id).map((c) => c.b.panelId)];

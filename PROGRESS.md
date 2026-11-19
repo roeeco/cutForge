@@ -1684,6 +1684,31 @@ Limitations
 - A drag changes the design live rather than moving an outline; one undo step either way.
 - Objects can be dragged to another space with the existing tag drag (Quick build's), not yet with a Guided-specific grip.
 
+## Milestone 108 (Guided G5) — Decorate ✅
+
+`GUIDED_MODE.md` G5, `HANDOFF_105-118.md` §108. New `src/guided/decorate.ts`, `src/guided/steps/Decorate.tsx`; `src/views/Plan2D.tsx` (the guard face-on, the hint and legend through the table), `src/views/View3D.tsx` (Guided's words in the guard's tip), `src/easy/missions.ts` (*Your name* is a placeholder), `src/easy/features.ts`.
+- **Step 2, Decorate.** The arrows and grips go. One tap on a side opens it face-on (Guided has no double-click); *Back to the box* closes it. A divider, a curved side (a round box's wall) or a part made with all tools says why it cannot be decorated.
+- **Name, Sticker, Window** on the add bar, each placed in the middle of the open side (or the front, which then opens), selected and ready to drag:
+  - *Name* is engraved (never cut), already saying the student's name when the app knows it (from sending), else *Your name*; letters at least as tall as the board allows, at most a third of the side. Its card: what it says, a size slider (from the board's smallest readable size), the three fonts.
+  - *Sticker*: the eight stickers as pictures, a quarter of the side, engraved.
+  - *Window*: circle, rounded or rectangle, a third of the side, cut out; its card has *Cut out · Engrave*.
+  - Every decoration has *Copy* and *Remove*. Each action is one undo step, through Guided's rule (a change that cannot be cut is not made).
+- **The guard face-on** (Guided and Quick build): while a shape on the open side is selected, its keep-out shows as a dashed outline, and the tip *Kept 2 mm from the side* (*from the corner teeth*, *from the next cut-out*) shows by the shape after the guard moves it. The 3D tip uses the same words in Guided.
+- **Nothing of the Workshop face-on view in Guided**: no outline editing, side handles, operation dots, arrays or align (their rows were hidden in 105), and now no layer legend and no hint bar (*Shift-click…*, *Alt to drag*).
+
+Decisions
+- New rows `solo.guard` (Guided and Quick build show; Workshop never guards, so it has no tip to show) and `plan.legend` (Guided hide); the face-on hint follows `stage.hint`.
+- *Your name* does not meet *Your name engraved*.
+
+Verified
+- `tests/guideddecorate.test.ts` (6): a name, a sticker and a window in the middle of every side that can be decorated, of every thing in every board, leave no new blocking problem; the front of a plain box takes all three in every board; a divider, a round box's wall and a side too small say why and make nothing; a real name meets the goal, *Your name* (both languages) and *Text* do not; a name on a lid's top stays when the lid changes kind; the face-on view's Workshop controls are hidden in Guided.
+- In the browser (Pencil box, English and Hebrew, 1366 × 768): Decorate, tap the front (face-on, *Decorating Front wall*), *Name* typed *Maya* / *מאיה* (the goal ticks), a star dragged into the corner stops short with the tip, *Back to the box* (both show on the box). Browser specs `guided-fence`, `editing`, `shapes`, `text-pack`, `transform-2d`, `outline-2d`, `quick`, `spec`, `sizes` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- A box with rounded corners (made with more tools) has bands on its walls' edges, so its walls count as curved and cannot be decorated in Guided.
+- The keep-out outline shows while a shape is selected, not only while it is dragged.
+- Not tried on a touch screen.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
