@@ -10,6 +10,7 @@ import { box, tray } from './structures/box';
 import { carton, sleeve } from './structures/carton';
 import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
 import { normalizeJoints } from '../model/jointDefaults';
+import { chooseMaterial } from '../sentence/resolve';
 import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model/dividers';
 
 export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve];
@@ -205,6 +206,14 @@ function keepDividerPlaces(old: Design, d: Design, t: TemplateDef) {
 
 /** Change the material (or its values); a template design regenerates so lids, slots and sizes follow. */
 export function changeMaterial(d: Design, m: MaterialProfile): { design: Design; lost: Lost[] } {
+  const t = d.template && templateById(d.template.id);
+  // a sentence's structure (milestone 99): its words checked for the new board first, as the welcome screen's
+  // step 1 does (a carton on plywood becomes a box with a lid that lifts off; boards keep their roles)
+  if (t && t.word && d.template) {
+    const r = chooseMaterial(t, m, d.template.params, templateById);
+    const from: Design = r.def.id === t.id ? d : { ...d, template: { id: r.def.id, version: r.def.version, params: r.params } };
+    return regenerate(from, r.params, m);
+  }
   if (d.template) return regenerate(d, d.template.params, m);
   const copy: Design = JSON.parse(JSON.stringify(d));
   setMaterial(copy, m);

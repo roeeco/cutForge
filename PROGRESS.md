@@ -1510,6 +1510,17 @@ Verified
 - A longer walk (25 walks × 10 steps) through the box, the tray, the carton and the sleeve in their materials: no failure.
 - Unit suite and typecheck green; goldens byte-identical.
 
+## Milestone 99 — the preset card after Start ✅
+
+`SENTENCE_BUILDER_PLAN.md` S6. `src/ui/TemplateUI.tsx`, `src/templates/registry.ts` (`changeMaterial`).
+- **The template card follows the sentence's rules**: it shows only the words that apply now (`when`, `only`), each list only the options allowed now (worked out once per set of words), and a change goes through `choose`: later words are checked again and what was dropped or moved is said in notes on the card (*Spaces across: 3, because each space at least 5 mm*); a number past its end, or a change the engine would not cut clean, is refused with its range or reason and the design is untouched. The organiser and the stand get the same checks (their limits from milestone 94).
+- **A change of board in the drawer** runs the sentence's material check for a structure first (`changeMaterial`): a carton changed to plywood becomes a box with a lid that lifts off, its sizes kept, its boards keeping their roles so shapes on them stay.
+
+Verified
+- `tests/sentence.card.test.ts` (5): a narrower box drops spaces it can no longer hold and says so; a count past its end is refused; a name engraved on the front wall after *Start* survives a change of width; a divider moved after *Start* stays through a change of height; a carton changed to plywood becomes a box with a lid that lifts off, keeping its width.
+- Browser `tests/e2e/sentence-card.spec.ts`: a plywood box divided 12 across from the sentence; on its card the words a count does not use are not shown; width 60 lowers the count with a note; 20 across is refused with its range and nothing changes.
+- Unit suite and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

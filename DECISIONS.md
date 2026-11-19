@@ -478,3 +478,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Touching the sentence chooses it** (focus or pointer anywhere in its row), so a student never has to find its radio first; *Blank design* is still chosen by default.
 - **The default sentence is a plain box** (160 × 110 × 45 mm inside, no add-ons): the plan's example with a lid and spaces is one *+ more* away twice.
 - **The organiser leaves the welcome screen but not the app**: its saved files open with their card; browser specs start it through the test hook.
+
+## Milestone 99: the preset card after Start (SENTENCE_BUILDER_PLAN.md S6)
+- **Notes on the card, not a toast**: the card already holds the template's other messages (shapes that could not be kept); the notes sit with them and stay until the next change.
+- **The card's fields keep their own bounds**; the engine's range is shown when a number is refused (working it out for every field on every change would build the box many times).
