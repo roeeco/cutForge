@@ -1145,6 +1145,8 @@ export const en = {
   'spec.glue': "Glue joints: {n}",
   'spec.kerf': "kerf {k} mm",
   'spec.scale': "Scale 1 : {n}",
+  'spec.A4': "A4",
+  'spec.A3': "A3",
   'lid.select': "Select the lid",
   'lid.why.none': "This is not a box.",
   'lid.why.carton': "A carton closes with its tuck top.",

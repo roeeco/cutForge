@@ -219,8 +219,11 @@ export function ExportDialog() {
           // milestone 90: a printed plan of each kind of piece, at a stated scale (Save as PDF from the print view)
           <div className="field spec-row" data-testid="export-spec-row">
             <select value={paper} onChange={(e) => setPaper(e.target.value as Paper)} aria-label={t('spec.paper')} data-testid="export-spec-paper">
-              <option value="A4">A4</option>
-              <option value="A3">A3</option>
+              {(['A4', 'A3'] as const).map((x) => (
+                <option key={x} value={x}>
+                  {t(`spec.${x}`)}
+                </option>
+              ))}
             </select>
             <button onClick={printSpec} data-testid="export-spec">
               {t('spec.print')}

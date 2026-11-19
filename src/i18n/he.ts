@@ -1147,6 +1147,8 @@ export const he: Record<MsgKey, string> = {
   'spec.glue': "חיבורי דבק: {n}",
   'spec.kerf': "קרף {k} מ״מ",
   'spec.scale': "קנה מידה 1 : {n}",
+  'spec.A4': "A4",
+  'spec.A3': "A3",
   'lid.select': "לבחור את המכסה",
   'lid.why.none': "זו לא קופסה.",
   'lid.why.carton': "קרטון נסגר במכסה התחיבה שלו.",

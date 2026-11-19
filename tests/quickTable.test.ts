@@ -80,6 +80,7 @@ describe('the feature table (rule 3)', () => {
       'arrays',
       'copies',
       'cutplan',
+      'export.spec',
       'foldSlider',
       'gizmo',
       'joints.noGlue',
