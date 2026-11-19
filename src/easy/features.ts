@@ -274,6 +274,14 @@ export const SECTIONS: Record<string, Feature | null> = {
   'multi-panel-align': 'align',
   'multi-panel-distribute': 'align',
   'multi-panel-dividers': null,
+  // Guided's Build sheet (milestone 107): src/guided/ mounts only in Guided, so these show nowhere else
+  'g-divider': null,
+  'g-space': null,
+  'g-lid': 'lid',
+  'g-inside': null,
+  'g-more': 'settings.joints',
+  'g-template': null,
+  'g-made-more': null,
 };
 
 /** A card can show its Workshop version (*More…*): it renders inside this, set to 'workshop'. */

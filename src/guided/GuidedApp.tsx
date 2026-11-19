@@ -14,6 +14,8 @@ import { AddBar } from './AddBar';
 import { ViewButtons } from './ViewButtons';
 import { guidedCamera } from './camera';
 import { GuidedStart } from './GuidedStart';
+import { Build } from './steps/Build';
+import { GuidedNote } from './GuidedNote';
 import { boxSize } from '../model/boxSize';
 import { mainTray } from '../templates/structures/box';
 
@@ -33,6 +35,7 @@ export function GuidedApp() {
   const soloPanel = useStore((s) => s.soloPanel);
   const soloExists = useStore((s) => !!(s.soloPanel && s.design.panels[s.soloPanel]));
   const needsMaterial = useStore((s) => s.needsMaterial);
+  const step = useStore((s) => s.guidedStep);
   const key = useStore(frameKey);
   // the opening view: seen from above and in front, re-centred when the thing changes size
   useEffect(() => {
@@ -53,9 +56,16 @@ export function GuidedApp() {
               <View3D layer={<GuidedLayer />} />
             )}
           </main>
-          <SideSheet />
+          {step === 'build' ? (
+            <Build />
+          ) : (
+            <>
+              <SideSheet />
+              <AddBar />
+            </>
+          )}
           {view !== 'solo' && <ViewButtons />}
-          <AddBar />
+          <GuidedNote />
           {view === '3d' && <MissionPanel />}
         </EditorBoundary>
       </div>

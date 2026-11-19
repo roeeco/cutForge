@@ -1655,6 +1655,35 @@ Limitations
 - `classroom.spec.ts` (with the Worker) was updated for the longer class list but not run here.
 - *Keep working on …* shows a design's saved picture, which a design saves only after its first change.
 
+## Milestone 107 (Guided G4) — Build ✅
+
+`GUIDED_MODE.md` G4, `HANDOFF_105-118.md` §107. New `src/guided/box.ts`, `fit.ts`, `apply.ts`, `GuidedLayer.tsx`, `steps/Build.tsx`, `Demo.tsx`, `GuidedNote.tsx`, `pictures.tsx`, `templateControls.ts`; `src/easy/features.ts` (the Build sheet's sections), `src/store/store.ts` (`guidedSpace`, `guidedNote`).
+- **Size by touching it.** Three arrows on the box: *Wide*, *Deep*, *Tall*, on the sides that move. A drag changes the box live and is one undo step; each arrow's label takes a typed number. Sizes are always the inside. A size the sheet cannot take stops at the largest that fits and says *That is as big as the sheet allows*.
+- **Dividers.** Each has a round grip on its top (a third of the way along, clear of the objects' tags). Sliding it snaps to equal spaces near the middle. Tapping a divider offers *Remove*; only a divider can be removed.
+- **Spaces.** Tapping a space selects it: its inside size, *Split it* with two pictures (*Front to back*, *Side to side*; greyed with the reason when a half would be under 20 mm), and what is in it. *Divider* on the add bar splits the selected space, or the largest, across its longer side.
+- **Lid.** *Lid* on the add bar: *None · Lifts off · Hinged*, each greyed with today's reason when it cannot be made; the kind stays automatic, no hasps. A carton also has its *Bottom* pictures.
+- **What goes inside.** Six objects as pictures; a tap puts one in the selected space or the best free one. Each lot shows its count (− +), *fits* in green or *needs {n} mm more* in amber, **Make it fit** and *Take out*. *Make it fit* grows the box by what is missing and gives all of it to that space: every divider beyond the space moves with it, so the other spaces keep their sizes; a box that is not a rectangle grows all round. It says *They cannot all fit on one sheet* when it cannot.
+- **Other things.** The card stand (and a saved version-1 organiser) shows its sizes as sliders with plain names (*How far it leans*). A design that is more than one box says *Made with more tools: you can decorate it and send it*, with a button to Quick build (or Workshop when a part needs it), and has no arrows.
+- **More about this box**, folded shut: how the corners hold (the two joint lists) and *No glue* on card and corrugated.
+- **Pictures of the gestures**: pull an arrow, slide a divider, drag to look around, shown the first time a box is built and again from *How?* on the add bar; still under reduced motion.
+- **Guided's one rule**: a Build action, or the end of a drag, that would leave the thing impossible to cut is not made, and a note says so (`guidedApply`, `guidedCommit`). The fuzz found the cases: a lid on a hexagonal tray in 4 mm corrugated, a divider slid onto a wall's slot, a box shrunk past its dividers.
+
+Decisions
+- No feature rows for Guided-only widgets (the arrows, grips and spaces): `src/guided/` mounts only in Guided. The Build sheet's sections are in `SECTIONS`.
+- Guided's lid picker is built on `PictureChoice` + `lidWhy` + `setBoxLid`, not on `LidSection`, so the style row and hasps never show (no `lid.style`/`lid.locks` rows needed).
+- *More about this box* uses the joint names (*Finger joint*…) inside the fold (owner call 4a); `conn.` is on the words test's shared list.
+
+Verified
+- `tests/guidedbox.test.ts` (11): sizes round-trip in the four boards; a name on the front wall survives a resize; dividers keep their distance from the left and the front; a split goes through the middle of one space, stays in it, adds one space and leaves the others; a split leaving a half under 20 mm is refused; *Divider* splits the largest space across its longer side; move and remove leave the other dividers; each lid choice is what `setBoxLid` makes; a lid follows a resize (Flat on plywood, cap on card); `kindOf` (plain things and mission boxes are boxes, the stand a template, a box with a wall added *more*); the rule refuses a change with a new blocking problem, with no undo step, and keeps a good one.
+- `tests/guidedfit.test.ts` (5): Pencil box, the pencils fit, the box is 14.2 mm deeper, the other spaces within 0.1 mm, a second call changes nothing; every mission lot fits in every board with nothing blocking; the dice tray grows all round; a lot too big for the sheet gives null; a divider across a space beyond the grown one moves with it.
+- `tests/fuzz/guided.test.ts`: random things, boards and Build actions (size, split, move, remove, lid, objects, *Make it fit*) through the guard and the rule: nothing throws, nothing blocking after any step, and fewer than a quarter of actions refused (run at 60 sessions × 10 steps).
+- In the browser (Pencil box, plywood, 1366 × 768): pull deeper, tap a space and split it, *Make it fit* (the goal ticks), a lid on and off, slide a grip, then Undo back to the start, one step per action. The card stand's lean slider meets *Leans back at 45° or less*; the Game organiser in Hebrew at 1024 × 768 with no sideways scroll. Browser specs `guided-fence`, `quick`, `quick-revised`, `dividers`, `lids`, `templates`, `offline`, `start-sentence` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Not tried on a trackpad or touch screen (owner question 2). The arrows are the stage's push-pull handles (14 px cones): big enough with a mouse, to be checked by finger.
+- A drag changes the design live rather than moving an outline; one undo step either way.
+- Objects can be dragged to another space with the existing tag drag (Quick build's), not yet with a Guided-specific grip.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

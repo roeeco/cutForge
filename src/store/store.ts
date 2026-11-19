@@ -273,6 +273,10 @@ type State = {
   guidedStep: GuidedStep;
   /** Change Guided's step: the selection clears and the face-on view closes. */
   setGuidedStep: (s: GuidedStep) => void;
+  /** Guided's selected space (milestone 107): its index in the box's spaces; view state. */
+  guidedSpace: number | null;
+  /** Guided's short note on the stage (a size stopped at the sheet, a split refused), and when it was set. */
+  guidedNote: { key: MsgKey; vars?: Record<string, string | number>; at: number } | null;
   /** Material & sheet drawer open. */
   drawerOpen: boolean;
   /** Part under the pointer (either view), for cross-highlighting. */
@@ -438,9 +442,11 @@ export const useStore = create<State>()((set, get) => ({
   sheetCopy: null,
   viewPrefs: initialPrefs(),
   guidedStep: 'build',
+  guidedSpace: null,
+  guidedNote: null,
   setGuidedStep: (g) => {
     if (get().view === 'solo') get().closeSolo();
-    set({ guidedStep: g, selection: null, edit2d: null, sel2d: null, editOutline: null, selVertex: null, tool: 'select' });
+    set({ guidedStep: g, guidedSpace: null, selection: null, edit2d: null, sel2d: null, editOutline: null, selVertex: null, tool: 'select' });
   },
   drawerOpen: false,
   hoverPart: null,
@@ -602,7 +608,7 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();

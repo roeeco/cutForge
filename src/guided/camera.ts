@@ -29,7 +29,7 @@ export function guidedCamera(d: Design, up = GUIDED_ELEVATION): [V3, V3] {
   const b = boardsBox(d) ?? { min: [-100, 0, -100] as V3, max: [100, 0, 100] as V3 };
   const c: V3 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
   const r = Math.max(60, Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]) / 2);
-  const dist = (r * 1.45) / Math.tan((45 * Math.PI) / 360);
+  const dist = (r * 1.35) / Math.tan((45 * Math.PI) / 360);
   const a = (up * Math.PI) / 180;
   return [[c[0], c[1] + dist * Math.sin(a), c[2] + dist * Math.cos(a)], c];
 }
