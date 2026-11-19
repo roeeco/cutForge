@@ -922,3 +922,5 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .sizes-table { display: grid; gap: 8px; }
 .sizes-row { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-sm); }
 .sizes-row > input { font-weight: 700; }
+.spec-row { display: flex; gap: 8px; align-items: center; }
+.spec-row select { width: auto; }

@@ -419,3 +419,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **What follows a size**: the base and so its walls; a lid of its own its box; a folded lid that closes the box is fitted again (the tuck top's own fitting); dividers keep their share of the base; shapes and lines are not scaled — one within 1 mm of its board's middle stays in the middle, any other keeps its distance from the nearer edge.
 - **In the download**: *Sizes: Master · S · M · L* as checkboxes; each size's files carry its name; each checked size is run through the export check and its messages are named by the size.
 - **The settings card** has a *Sizes* section (Workshop; Quick build hides it). **Not yet**: showing a size on the stage and the cut plan read-only (the plan's *Showing size L* banner); a size is seen through its download for now.
+
+## Milestone 90: the spec sheet (LIDS_LINES_PROJECTS_PLAN.md §9)
+- **One page per kind of piece** (copies alike are one page), drawn at the largest of 1 : 1, 1 : 2, 1 : 5, 1 : 10, 1 : 20 that fits A4 or A3 landscape, the scale stated; scores dashed, with the piece's annotations (board names, blank size, *glue*), a title block (name, date, material, blank size, pieces, glue joints, kerf, scale) and the line legend. An SVG with real text in a print view whose `@page` is the paper: *Print a plan* in the download dialog opens it and the browser's *Save as PDF* gives a PDF. No PDF library.
+- **Not yet**: the 1 : 1 print tiled across pages with overlap marks, dimension chains on the page, fold direction marks.

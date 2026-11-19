@@ -3,6 +3,7 @@ import { projectDesigns, projectOf } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { projectBatches } from '../export/project';
 import { applySize } from '../model/sizes';
+import { specHtml, specPages, type Paper, type SpecText } from '../export/spec';
 import type { Design } from '../model/types';
 import { issueSelection, useStore, useT } from '../store/store';
 import { prepareExport, type KerfMode } from '../export/prepare';
@@ -98,6 +99,32 @@ export function ExportDialog() {
       }
     }
   };
+  const specF = shown(useFeature('export.spec'));
+  const [paper, setPaper] = useState<Paper>('A4');
+  const lang = useStore((s) => s.lang);
+  const specText = (): SpecText => ({
+    title: d.name || t('top.untitled'),
+    date: new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB'),
+    material: t(d.material.nameKey as 'mat.ply3'),
+    blank: t('spec.blank'),
+    pieces: t('spec.pieces'),
+    glue: t('spec.glue'),
+    kerf: t('spec.kerf', { k: fmtNum(d.material.kerf, 2) }),
+    scale: t('spec.scale'),
+    legend: { cut: t('ann.legend.cut'), score: t('ann.legend.score'), engrave: t('ann.legend.engrave'), guide: t('ann.legend.guide') },
+    glueWord: t('ann.glue'),
+    unit: t('unit.mm'),
+    name: (id) => panelLabel(d, id, t),
+  });
+  const printSpec = () => {
+    const pages = specPages(d, paper, specText());
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(specHtml(pages, paper, d.name || 'CutForge', lang === 'he' ? 'rtl' : 'ltr'));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
   const go = () => {
     if (scope === 'project' && project) return goProject();
     goSizes();
@@ -187,6 +214,18 @@ export function ExportDialog() {
           <label className="check" data-testid="export-annotate-row">
             <input type="checkbox" checked={annotate} onChange={(e) => setAnnotate(e.target.checked)} data-testid="export-annotate" /> {t('export.annotate')}
           </label>
+        )}
+        {specF && (
+          // milestone 90: a printed plan of each kind of piece, at a stated scale (Save as PDF from the print view)
+          <div className="field spec-row" data-testid="export-spec-row">
+            <select value={paper} onChange={(e) => setPaper(e.target.value as Paper)} aria-label={t('spec.paper')} data-testid="export-spec-paper">
+              <option value="A4">A4</option>
+              <option value="A3">A3</option>
+            </select>
+            <button onClick={printSpec} data-testid="export-spec">
+              {t('spec.print')}
+            </button>
+          </div>
         )}
         <div className="kerf-box" data-testid="kerf-box">
           <strong>{!kerfChoice ? t('export.kerfQuick', { k: fmtNum(d.material.kerf, 2) }) : mode === 'nominal' ? t('export.kerf', { k: fmtNum(d.material.kerf, 2) }) : t('export.kerfComp', { h: fmtNum(d.material.kerf / 2, 3) })}</strong>

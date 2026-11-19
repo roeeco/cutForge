@@ -1384,6 +1384,12 @@ It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays th
 - Tests: `tests/sizes.test.ts` (4): a hinged card box in three sizes: its lid closes each, a centred window stays centred, a corner hole keeps its distance, each is clean and exports, the master is untouched; a change to the master shows in every size; a box with a Flat lid and a divider sizes with its lid, the divider keeping its share; sizes need one box. `quickTable.test.ts`: `sizes` hidden in Quick build. Browser `sizes.spec.ts`: a size added in the settings card and downloaded under its name.
 - Not yet: showing a size on the stage.
 
+## Milestone 90 — the spec sheet ✅ (fitted pages)
+
+`LIDS_LINES_PROJECTS_PLAN.md` §9 (milestone 85 there). *Print a plan* (A4 or A3) in the download dialog: one page per kind of piece at a stated scale, with its annotations, a title block and the legend.
+- Tests: `tests/spec.test.ts` (2): the largest scale that fits; a folded card tray and a board give a page each, the tray's net at 1 : 2 on A4 with its blank size, title block and legend; the print view has a page per piece and an A4 landscape `@page`. Browser `spec.spec.ts`: the print view opens with the page and its scale.
+- Not yet: the tiled 1 : 1 print.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
