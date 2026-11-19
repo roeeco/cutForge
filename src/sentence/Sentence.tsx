@@ -53,7 +53,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   const { m, value } = props;
   const def = templateById(value.id)!;
   const p = value.params;
-  const words = useMemo(() => resolve(def, m, p, { lists: false }), [def, m, p]);
+  const words = useMemo(() => resolve(def, m, p, { lists: false, ranges: false }), [def, m, p]);
   const [notes, setNotes] = useState<Change[]>([]);
   const [refusedChoice, setRefusedChoice] = useState<MsgKey | null>(null);
   const [out, setOut] = useState<Readout | null>(null);

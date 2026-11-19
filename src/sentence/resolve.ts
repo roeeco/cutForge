@@ -61,11 +61,16 @@ export function rangeNow(def: TemplateDef, p: ParamDef, params: Params, m: Mater
  * options of each list (they can take a build each to work out); the
  * sentence asks for one list with `listOf` when it is opened.
  */
-export function resolve(def: TemplateDef, m: MaterialProfile, params: Params, o: { lists?: boolean } = {}): WordState[] {
+export function resolve(def: TemplateDef, m: MaterialProfile, params: Params, o: { lists?: boolean; ranges?: boolean } = {}): WordState[] {
   return def.params.map((p) => {
     const value = params[p.key] ?? p.default;
     const shown = shownNow(p, params, m);
     if (p.type === 'choice') return { key: p.key, value, shown, ...(o.lists === false ? {} : { options: optionsNow(p, params, m) }) };
+    // `ranges: false`: the word's own bounds only (the engine's can take builds; asked for when the field opens)
+    if (o.ranges === false) {
+      const own = p as Extract<ParamDef, { min: number }>;
+      return { key: p.key, value, shown, min: own.min, max: own.max };
+    }
     const r = rangeNow(def, p, params, m);
     return { key: p.key, value, shown, min: r.min, max: r.max, limitWhy: r.why };
   });
