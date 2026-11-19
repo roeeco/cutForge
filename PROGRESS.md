@@ -1478,6 +1478,25 @@ Verified
 - `tests/sentence.carton.test.ts` (10): walks through cartons (card, corrugated 1.6) and sleeves (card, both corrugated), every step built clean; plywood lists neither, 4 mm corrugated no carton; box → carton → box keeps the sizes and the window; a carton on card becomes a box with a lid that lifts off on plywood, its width kept and the change reported; a thumb notch and no dust flaps change what is cut; the design remembers *inside*.
 - Goldens byte-identical (the cartons now built by the app); unit suite and typecheck green.
 
+## Milestone 97 — the sentence component ✅
+
+`SENTENCE_BUILDER_PLAN.md` S4. `src/sentence/Sentence.tsx`, `Word.tsx`, `NumberWord.tsx`, `model.ts`, `SentenceDev.tsx`; styles in `styles.css`.
+- **One whole sentence per language with named slots** (`sen.s.box`, `sen.s.carton`, `sen.s.sleeve`) and a clause per add-on (`sen.add.*`), joined by each language's rule; never glued from fragments. Numbers sit in `<bdi dir="ltr">`.
+- **A word** is a button with a dashed underline and ▾, at least 44 px tall, named so it makes sense alone (*Lid: a lid that lifts off. Change.*); its list follows the select-only combobox pattern (Enter or Space opens, arrows and type-ahead move, Enter picks, Esc closes) and is worked out when it opens, with a small picture per option for the structure, the shape, the lid and a carton's ends (`renderThumbnail`, cached).
+- **A number** is a field five characters wide; focusing it opens a slider with − and +, its range and why it ends there (the word's own bounds at once, the engine's when worked out). Enter or leaving commits, Esc puts it back, sums and percents work (`evalNumber(text, base)`: `150%`); a refused number keeps its value and shows *From … to … mm: why*.
+- ***+ more*** lists the add-ons that are off and can be made; each one on is a clause with ×. **The line under the sentence** is measured on the built design (each space, or how many spaces of about the size asked and their exact size, or the range on a round box; the outside; pieces; sheets and use), with the first thing that stops the cut. **Change notes** say what changed and why, and are read out from an `aria-live` region. **The picture** is rebuilt 150 ms after the last change. **Under 600 px** the same words are labelled rows.
+- A development page, `?sentence`, shows the sentence with step 1's materials and a language switch.
+
+Verified
+- `tests/sentence.model.test.ts` (4): every structure's sentence splits into slots that are its words, in both languages; clauses follow the words (a polygon's sides, an add-on on, the rest in *+ more*); the line is measured (each space of a 3 × 2 plywood box, outside 166 × 116 × 48 mm, pieces, one sheet; size mode gives the count and spaces at least as big as asked).
+- `tests/i18n.test.ts`: every slot of an English sentence, clause or line is in the Hebrew one, and the reverse.
+- Browser, `tests/e2e/sentence.spec.ts` (5) in English and Hebrew at 1366 px and in English at 375 px: every word chosen with the keyboard alone (structure, a number, an add-on through *+ more*, its ×); a narrower box lowers the space count, with the note and the live region; a count past its end refused with its range; the narrow layout has the same state and no sideways scroll.
+- Looked at in Hebrew (1366 px) and at 375 px: the sentence reads right to left with its numbers left to right; the slider sits under its field on a phone.
+
+Limitations
+- Focusing a word does not light up the boards it affects in the picture (`affects` is in the contract; the picture is a thumbnail image).
+- A change that needs the engine's ranges again can take up to about a second the first time (milestone 95).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

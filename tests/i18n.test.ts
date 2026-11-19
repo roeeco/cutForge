@@ -35,3 +35,11 @@ describe('i18n catalog', () => {
     }
   });
 });
+
+describe('the sentence in two languages (milestone 97)', () => {
+  it('every slot of an English sentence or clause is in the Hebrew one, and the reverse', () => {
+    const slots = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const k of Object.keys(en).filter((x) => x.startsWith('sen.s.') || x.startsWith('sen.add.') || x.startsWith('sen.out.')))
+      expect(slots((he as Record<string, string>)[k]), k).toEqual(slots((en as Record<string, string>)[k]));
+  });
+});

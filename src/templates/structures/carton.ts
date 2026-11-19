@@ -149,7 +149,7 @@ export const sleeve: TemplateDef = {
   fallback: () => 'box',
   params: [...sizeParams(60), window],
   generate: (d, p, role) => generateTube(d, p, {}, role),
-  sentence: { main: 'sen.s.carton' },
+  sentence: { main: 'sen.s.sleeve' },
 };
 sleeve.limits = sizeLimits(sleeve);
 sleeve.accepts = (m, p) => (cleanAll(sleeve, m, p) ? null : 'sen.why.engineSize');

@@ -467,3 +467,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **No tuck direction word**: the engine makes a carton's tuck top off the back wall and its tuck bottom off the front (a reverse tuck); a straight tuck (both off the same wall) is not in the engine, so it is not offered.
 - **A carton needs corrugated no thicker than 2 mm** to tuck; a sleeve folds from 4 mm too.
 - **`accepts` on every change**, not only numbers: a choice offered by its list was checked with the later add-ons off; the whole sentence can still miss (a count after a change of shape), so it is checked as it stands.
+
+## Milestone 97: the sentence component (SENTENCE_BUILDER_PLAN.md S4)
+- **A list is worked out when it opens**, after it has painted (*Working out what fits…*), because an option can take a build to answer; the sentence itself is resolved without its lists.
+- **The structure word's list and the shape, lid and ends lists have pictures**; numbers and the other add-ons do not (a picture per window or notch says little at that size).
+- **A choice refused by the engine** (rare: the whole sentence would not cut clean) leaves the word as it was and says *Not now: why* under the sentence.
+- **The narrow layout labels each word with its parameter's name** and keeps the order of the sentence.

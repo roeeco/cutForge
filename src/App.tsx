@@ -17,6 +17,7 @@ import { joinClassFromLink } from './easy/mode';
 import { View3D } from './views/View3D';
 import { Plan2D } from './views/Plan2D';
 import { TeacherApp } from './teacher/TeacherApp';
+import { SentenceDev } from './sentence/SentenceDev';
 import { EditorBoundary } from './ui/ErrorBoundary';
 
 export function App() {
@@ -49,6 +50,8 @@ export function App() {
     document.title = t('app.name');
   }, [lang]);
   if (teacher) return <TeacherApp />;
+  // the sentence on its own, in development (milestone 97)
+  if (import.meta.env.DEV && location.search.includes('sentence')) return <SentenceDev />;
   if (!loaded) return <div className="loading" aria-busy="true" />;
   return (
     <div className="app">
