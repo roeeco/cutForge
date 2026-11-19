@@ -98,6 +98,11 @@ export type CloseAs = 'liftoff' | 'hinged' | 'fixed' | `style:${ClosureStyle}`;
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
 export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
+/** The design autosave writes (milestone 92): while a draft waits for ✓, the design from before it, so a reload never keeps an unconfirmed draft. */
+export function designToSave(s: { design: Design; pending: Pending | null }): Design {
+  return s.pending ? s.pending.base : s.design;
+}
+
 /** Quick build grows at 90° on the whole edge, adapting, with the design's joint (feature 'grow.advanced' is 'auto', milestone 37). */
 const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, kind: undefined, sketch: null, editGhost: false };
 

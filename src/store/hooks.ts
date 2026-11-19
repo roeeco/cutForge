@@ -6,7 +6,7 @@ import { libraryChannel, loadLocal, saveLocal, TAB } from './persist';
 import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
-import { detailSel, selectedDetailIds, type Tool } from './store';
+import { designToSave, detailSel, selectedDetailIds, type Tool } from './store';
 import { validate } from '../model/validate';
 import { isBad, rememberGood } from './goodDesign';
 
@@ -39,12 +39,14 @@ export function useAutosave(onLoaded: () => void) {
       unsub = useStore.subscribe((s, prev) => {
         // a drag commits by ending its transaction without a new design object: save then too
         const committed = !!prev.txnBase && !s.txnBase && s.design !== prev.txnBase;
-        if ((s.design === prev.design && !committed) || s.txnBase) return;
+        // a draft waiting for ✓ is never saved (milestone 92): its base is, and the design once ✓ or ✗ ends it
+        const ended = !!prev.pending && !s.pending;
+        if ((s.design === prev.design && !committed && !ended) || s.txnBase) return;
         if (timer) clearTimeout(timer);
         useStore.getState().set({ saveState: 'saving' });
         timer = setTimeout(async () => {
           timer = undefined;
-          const d = useStore.getState().design;
+          const d = designToSave(useStore.getState());
           if (useStore.getState().otherTab) return;
           // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {

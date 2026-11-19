@@ -174,9 +174,9 @@ function session(seed: number, fails: Fail[], stats: Record<string, number>) {
     const after = tryRun('validate after fix throws', () => validate(dd));
     if (!after) continue;
     const still = after.some((x) => x.key === i.key && x.target.id === i.target.id);
-    // 'added': the tooBig Fix can bring up other issues on the shrunk box; open, see PROGRESS.md (bug-fix phase 5).
-    // STRICT=1 reports it too.
-    const KNOWN = process.env.STRICT ? [] : (process.env.SKIP_KNOWN ?? 'added').split(',');
+    // milestone 92: the tooBig Fix leaves the design as it was when the shrunk box would have new issues,
+    // so nothing is known-bad any more (SKIP_KNOWN can still name classes to skip while debugging)
+    const KNOWN = process.env.STRICT ? [] : (process.env.SKIP_KNOWN ?? '').split(',').filter(Boolean);
     if (ok && still && !KNOWN.includes(i.key)) fail(`fix reports success but ${i.key} remains`, `target ${i.target.kind}:${i.target.id}`);
     if (!ok) stats[`fix failed ${i.key}`] = (stats[`fix failed ${i.key}`] ?? 0) + 1;
     // a fix must not add new blocking issues of another kind on top (soft check)

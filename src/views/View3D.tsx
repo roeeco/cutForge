@@ -2776,6 +2776,15 @@ function FoldBar() {
   );
 }
 
+/**
+ * The hint under the stage. On an empty stage Workshop says how to draw the first board; Quick build
+ * says nothing there (milestone 92: it has no Board tool, and the note beside its rail says where to start).
+ */
+export function stageHintKey<K extends string>(empty: boolean, tool: string, mode: 'quick' | 'workshop', hint: K): K | 'view.empty3d' | null {
+  if (empty && tool === 'select') return mode === 'quick' ? null : 'view.empty3d';
+  return hint;
+}
+
 export function View3D() {
   const t = useT();
   // Quick build calls the joints view "How it's built" (milestone 37)
@@ -2902,7 +2911,10 @@ export function View3D() {
       {/* the fold slider above the hint, both at the bottom centre, clear of the cards at the sides */}
       <div className="stage-bottom">
         <FoldBar />
-        <div className="view-hint" dir={uiDir()}>{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
+        {(() => {
+          const k = stageHintKey(empty, tool, prefs.mode ?? 'workshop', hint);
+          return k ? <div className="view-hint" dir={uiDir()}>{t(k)}</div> : null;
+        })()}
       </div>
       <PolygonToolCard />
       <span hidden data-testid="quality" data-quality={quality} />

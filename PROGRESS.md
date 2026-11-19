@@ -1405,6 +1405,21 @@ The owner's report (dividers short, gaps at the side walls, corners not flush, a
 Verified: unit suite 914 pass, 7 skipped; typecheck clean; goldens regenerated for card and corrugated (plywood byte-identical); browser specs 143 passed (`dividers`, `closures`, `foldover`, `joints`, `lids`, `lines`, `split`, `trays`, `wings`, `bands`, `polygon`, `round`, `spec`, `templates` and the rest of the app-only suite). Looked at in the browser: a corrugated tray's corner in 3D, its net, a card box with dividers and its cap lid on the cut plan.
 - Needs the owner: a real fold of card and 4 mm corrugated to confirm the crease rule (calibrate with *Fold allowance* if a material folds larger).
 
+## Milestone 92 — what Quick build left half-done ✅
+
+`GUIDED_MODE.md` G1 (`ROADMAP.md` §5). Each fix came after a test that failed without it.
+- **A draft is never saved.** Autosave writes `designToSave(state)`: while a ghost waits for ✓ (a Box footprint, a shape, a pasted group), the design from before it; when ✓ or ✗ ends the draft, the design then. A reload before ✓ leaves nothing behind.
+- **Template sizes keep the dividers where they were put** (`keepDividerPlaces` in `src/templates/registry.ts`): in a row the student changed (a divider moved from where the template put it, or one the student added), each divider keeps its share of the row through a change of width, depth or height; one more divider goes to the middle of the widest space; a row no one moved keeps the template's even spacing; no space ends smaller than `MIN_COMPARTMENT`, else the row keeps the template's places.
+- **The too-big fix ends clean, or says it did not work.** On a copy: a template's design shrinks through its own sizes in millimetres (`shrinkTemplate`, regenerated, a few passes), so the next size change does not grow it back; any other design as before. The copy is taken only when the piece fits and no new kind of blocking issue appears; otherwise the design is untouched and `fixIssue` returns false. The Quick build fuzzer's known exception (`added`) is gone: it is strict by default now.
+- **Quick build's empty stage** shows no hint (it named the Board tool, which Quick build does not have; the note beside the rail says where to start). Workshop unchanged.
+
+Verified
+- `tests/regress/repro-draft-saved.test.ts` (3): a Box footprint before ✓ saves the empty design and after ✓ the box; a shape waiting for ✓ saves the board without it; the empty-stage hint by mode.
+- `tests/regress/repro-template-dividers.test.ts` (10): in plywood and corrugated, a divider moved 9 mm stays through a height change, keeps its share through a width change, two stay and the third fills the widest space when the count goes up, an unmoved row stays even; the too-big fix on a template on a small sheet shrinks its sizes and a later size change does not bring the issue back; a fix that cannot be made leaves the design object identical.
+- `tests/fuzz/quick.test.ts` with `STRICT=1 FUZZ_N=40`: no failure (it found 7 sessions of new issues after the shrink before).
+- Unit suite 927 pass, 7 skipped; typecheck clean; goldens byte-identical.
+- Browser (dev server, Quick build, plywood): a Box dragged and not confirmed, reloaded: no board; the empty stage has no hint.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
