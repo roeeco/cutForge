@@ -1,10 +1,10 @@
-# CutForge: dieline DNA: plan (milestones D0–D10, numbered 92–101)
+# CutForge: dieline DNA: plan (milestones D0–D10)
 
 Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-11-19 onto `origin/main` at `3709043` (milestone 91)**. Nothing here is built.
 
 **Read first.**
 - **Base: `origin/main` at `3709043` (milestone 91).** Milestones 74–91 (`ROADMAP.md`) landed between the first draft and this one: lines and crease styles, the grow card that closes a box, the lid generator, the library, projects, sizes, the dieline legend and the spec sheet. §0 lists what that changes in this plan; the milestone sections are corrected in place and marked **(rebased)** where they changed. Do not build on `claude/waffle-mode` or `claude/guided-mode`. Line numbers drift: grep for the name before editing.
-- **Numbers.** `main` ends at 91. These become **92–101** when work starts (D1 = 92 … D10 = 101), in the order of §5; keep the D names in commit messages too (`Milestone 92 (Dieline D3a): the edge-feature registry`).
+- **Numbers.** `main` ends at 91. These get real numbers from 92 in the order of §5 (D0 = 92, D0b = 93, D3a = 94 …); D4, D6 and D7 get theirs when the owner says go. Keep the D names in commit messages too (`Milestone 94 (Dieline D3a): the edge-feature registry`).
 - **How deeply each part was checked.** First draft: `Plan2D.tsx`, `geometry.ts`, `pieces.ts`, `foldView.ts`, `export/*`, `store.ts`, `Inspector.tsx`, `EdgeBar.tsx`, `features.ts`, `fix.ts`, the golden harness. Rebase: the diff `1c4cb96..3709043` (96 files), `PROGRESS.md` and `DECISIONS.md` for 73–91, and the names this plan calls re-grepped on `3709043` (`View`, `ONLY_3D`, `Inspector.tsx` edge card, `TopBar` tabs, `App.tsx` view switch, `Plan2D` layout and props, `pieceCopies`, `adapt.ts`, `pieces.ts`, `extrasByPanel`, `flapOn`, `three-geom.ts` flat adds, `reachFor`, `MATERIALS`, `sizes.ts`, `annotate.ts`, `spec.ts`, `offset.ts`, `download.ts`, `split.ts`, `nest.ts`, `goldenDesigns.ts`, `EdgeBar`'s grow and flap blocks, `easy/lid.ts`).
 
 ## 0. What changed on `main` since the first draft (rebase notes)
@@ -82,7 +82,7 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ## 4. Rules for whoever builds this
 
-1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 92 (Dieline D3a): the edge-feature registry`. Do not deploy. Never touch `SITE_PASSWORD`.
+1. `git fetch origin`, then work on the session's branch, started from `origin/main` (`3709043` or later). One commit per milestone: `Milestone 92 (Dieline D0): outline mode`. Do not deploy. Never touch `SITE_PASSWORD`.
 2. After each milestone: `npm run typecheck`, `npm test`, `tests/netIn3d.test.ts` and `tests/quickTable.test.ts` green, and a short look in the dev server (`npm run dev`, port 5199). Run the milestone's own browser spec only; not the full e2e suite or the `SHOTS` specs.
 3. **Golden exports stay byte-identical** unless the milestone lists a new or changed case. Regenerate only with `UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts`. New cases are functions in `tests/goldenDesigns.ts`.
 4. Every stored field added is optional, accepted in `src/model/check.ts`, and absent means today's behaviour. Bump `SCHEMA_VERSION` only if a stored value changes meaning (none here should).
@@ -94,21 +94,22 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 
 ## 5. Milestones
 
-**Order (rebased).** D0 is new: the owner asked on 19 November for outline editing as a mode, like joint mode. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D3, D1, D8**.
+**Order (rebased).** D0 and D0b are new: on 19 November the owner asked for outline editing as a mode, like joint mode, and for a shape's outline to be editable by double-clicking into it. It is small, needs nothing and makes D2's outline handles and D7's fold-from-a-line easier to reach, so it goes first. D3 moves ahead of D1: its step 1 changes no output and every later milestone draws through the registry. D1 → D2 then build the flat workspace on it. D8 is independent and the most useful output, so it follows the core. **D4 and D6 wait for the owner** (`ROADMAP.md` §4 deferred both; §7 questions 8 and 9). D7's prerequisites are built, but it is the riskiest milestone, so it comes last. If time is short: **D0, D0b, D3, D1, D8**.
 
 | # | Number | Milestone | Size | Needs | Value / risk |
 | --- | --- | --- | --- | --- | --- |
 | D0 | 92 | **Outline mode** (new) | S–M | — | High value for little work; touches `View3D`, the store and `Inspector` only |
-| D3 | 93 (a), 94 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
-| D1 | 95 | The Net view: see and pick | M | — | The flat workspace; risk: a second canvas on Chromebooks |
-| D2 | 96 | Building in the flat | M | D1 (and D0 for outline handles in the flat) | |
-| D8 | 97 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
-| D5 | 98 | Size intent and board grades | M | — | Must work with milestone 88's sizes |
-| D9 | 99 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
+| D0b | 93 | **Double-click a shape to edit its outline** (new) | M | — (shares handles with D0) | Shapes have no point editing at all today |
+| D3 | 94 (a), 95 (b) | The edge-feature registry (a); shaped flaps (b) | L | — (D1 adds its flat handles later) | Tuck, dust and hang flaps on any edge; (a) proven by byte-identical goldens |
+| D1 | 96 | The Net view: see and pick | M | — | The flat workspace; risk: a second canvas on Chromebooks |
+| D2 | 97 | Building in the flat | M | D1 (and D0 for outline handles in the flat) | |
+| D8 | 98 | The artwork template (PDF and SVG) | L | — (uses 83–85 and 89–90, all built) | The output a printer accepts; the most self-contained milestone |
+| D5 | 99 | Size intent and board grades | M | — | Must work with milestone 88's sizes |
+| D9 | 100 | Production: nicks, fill the sheet, cost | S | — | Nicks are small and practical on card |
 | D4 | — | Closures anywhere | M | D3; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
 | D6 | — | The style catalogue, and starting from the product | M | D4, D5; **the owner's go-ahead** | Was deferred in `ROADMAP.md` §4 |
 | D7 | — | Fold along a line | L | D2; the spike | Highest risk |
-| D10 | last | Final verification | S | all built | |
+| D10 | 101 | Final verification | S | all built | |
 
 ---
 
@@ -150,6 +151,45 @@ Status: plan, written 2026-11-19 from `1c4cb96` (milestone 73); **rebased 2026-1
 - Goldens byte-identical (no model change).
 
 **Done when** a student can turn on *Outlines* and reshape three boards one after another without opening a card.
+
+---
+
+### D0b. Double-click a shape to edit its outline (new, 2026-11-19)
+
+**Goal.** Double-clicking a shape (a cut-out, an engraving, a score, an added piece) on a board enters that shape: its corners get handles, which can be dragged, added with `+` on an edge, and deleted, as a board's outline can. Esc, Enter or a click away leaves.
+
+**What is there** (`3709043`)
+- A shape is a `Detail` (`types.ts`): `shape` is `rect · roundrect · circle · polygon · path · text`. A polygon and an imported path are stored as `path.polys` in a unit box (−0.5…0.5) scaled to `w × h` about `cx, cy`, turned by `rot`; `regular` marks a polygon still drawn as an n-gon ("kept until a vertex is edited", but **nothing edits a shape's vertices yet**). `addPolygonShape` normalises points into that box and refuses a crossing polygon (`isSimplePolygon`). `updateDetail` only patches `cx, cy, w, h, r, op, through, rot`.
+- On the stage a shape is picked through `DetailHit` (`View3D.tsx`, about line 990) and moved, resized and turned by `ShapeGizmo`. A **double-click anywhere on a board opens its solo view** (`onDouble={() => openSolo(id)}`, about line 730), and the board mesh's `onDoubleClick` catches double-clicks on its shapes too. In the cut plan, double-click also opens solo (`Plan2D` `onDouble`).
+
+**Model** (`ops.ts`, beside `updateDetail`)
+- `shapePoints(dt): P2[][]`: a shape's polygons in its board's coordinates (scale, turn, place), for `polygon` and `path`.
+- `setShapePoints(d, detailId, polys: P2[][]): boolean`: the inverse. It re-fits the unit box (new `cx, cy, w, h`), keeps `rot` (points are taken back into the shape's own unturned frame, so turning still turns about the new centre), drops `regular`, and refuses (returns false, nothing changed) a crossing polygon or one under 3 points. An array (`Detail.array`) edits every copy at once, since the copies are one detail.
+- `shapeToPolygon(d, detailId)`: a `rect` becomes a 4-point `polygon` at the same place; a `roundrect` becomes a polygon of its corners and **loses its radius**. The hint says so the first time, and undo restores it. A `circle` is not converted (no corners to move): double-click selects it with its resize gizmo as today, and its card offers *Make it a polygon* (16 points) if the owner wants it (§7 question 12). A `text` is not converted: double-click puts the cursor in its card's text field instead (`setText`).
+- One drag is one undo step (`preview` / `commit`, as `OutlineHandles` does).
+
+**Store**
+- `State.editShape: string | null` (a detail id). It excludes `editOutline`: setting one clears the other. `selVertex` is shared: an index, or `'p:i'` (polygon `p`, point `i`) for a path with several polygons. `select()` clears `editShape` unless the selection is that shape.
+
+**Stage** (`View3D.tsx`)
+- `DetailHit` gets `onDoubleClick`: `stopPropagation()` (so the board's double-click does not open solo), select the shape, `shapeToPolygon` if it is a rect or roundrect, then `set({ editShape: id })`. A double-click on the board away from any shape still opens solo.
+- While `editShape` is set, `ShapeGizmo` and `ThroughEdit` are hidden (they gate on `!editOutline` today; add `!editShape`) and the board is not draggable.
+- New `ShapeHandles` (in `polyTool.tsx`, beside `OutlineHandles`, sharing its vertex and `+` drawing, its plane math and its `OutlineSnap` marks: the board's edges and corners, the grid, the shape's own other points, 15° with Shift). It draws on the face the shape was double-clicked on, at the same `z` offset `DetailHit` uses. A path with more than 200 points shows handles on hover only near the pointer, so imported art stays usable.
+- Keys: Delete removes the selected point (refused under 3, with the reason in the hint); Esc and Enter leave; a click on empty floor or another board leaves.
+- Hint: `shape.editHint` (*Drag a corner, + adds one, Delete removes it. Esc when done.*); `shape.radiusLost` once for a roundrect.
+
+**Cut plan and solo** (`Plan2D.tsx`): a double-click on a shape in solo view does the same in SVG (handles in the board's coordinates; solo already draws the board at its own coordinates). On the sheets, a double-click on a shape opens solo **with** `editShape` set, so one double-click still gets there. In *Nets* (D1), it works like solo, through the piece's `NetPanel.xf`.
+
+**With outline mode (D0):** while *Outlines* is on, a **single** click on a shape enters it, since the mode is for editing outlines; double-click works either way.
+
+**Features:** `'shape.points'`, `'hide'` in Quick build (Quick build's shapes stay move, resize, turn). Its row and section in `SECTIONS`.
+
+**Tests**
+- `tests/shapePoints.test.ts`: `shapePoints` then `setShapePoints` with no change leaves the detail equal (to 1e-9), turned and not turned; moving one point moves only that point on the board (the others stay to 1e-9 across a re-fit and a `rot` of 30°); a rect converted to a polygon has the same cut contour on the cut plan; a roundrect converted has its corners as points and no `r`; `regular` is dropped on the first edit; a crossing polygon and a 2-point polygon are refused with nothing changed; an array's copies all follow; a through-cut still cuts every board in its path after an edit.
+- `tests/e2e/shape-points.spec.ts`: a board with a rectangular cut-out; double-click the cut-out (solo does **not** open), drag a corner, `+` on an edge and drag it, Delete a point, Esc; one undo per change; double-click on the board away from the shape still opens solo; in the solo view the same double-click works; Hebrew too.
+- Goldens byte-identical (no stored shape changes until edited).
+
+**Done when** a student can double-click a rectangular window cut in a box wall, pull one corner out to make it a trapezoid, and see it cut that way on the cut plan, without opening any card.
 
 ---
 
@@ -333,7 +373,7 @@ In `View3D` render `<HingedParts />` once for all `edgeFeatures(d)`; in `three-g
 
 **Tests**
 - `tests/edgefeatures.test.ts`: the registry returns for `v6CorrFoldover()` exactly what `allFoldOvers` gave; goldens unchanged (all of them, including the lid and lines goldens of 79–83).
-- **Split (rebased):** step 1 is its own commit and milestone number (93); steps 2–5 are 94.
+- **Split (rebased):** step 1 is its own commit and milestone number (94); steps 2–5 are 95.
 - `tests/flapshapes.test.ts`: each shape's outline area, far-edge width and score ends for a 60 mm edge on card; a tuck flap's inset is t + 0.5; a hang tab has a hole and no score; a plain flap equals `flapOn`; `hinged` at foldT 0 lies in the board's plane (its points equal the net's added outline) and at 1 is turned by its angle about the score.
 - New goldens: `flap-card-tuck-dust` (a hand-built lid with a tuck flap and two dust flaps), `flap-card-hang`.
 
@@ -540,6 +580,7 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | File | Milestone | Proves |
 | --- | --- | --- |
 | `tests/outlineMode.test.ts`, `tests/e2e/outline-mode.spec.ts` | D0 | the mode follows selection, excludes joints, gives each reason; two boards edited without opening a card |
+| `tests/shapePoints.test.ts`, `tests/e2e/shape-points.spec.ts` | D0b | a shape's points round-trip, one point moves alone, refusals, double-click enters the shape and not solo |
 | `tests/netpick.test.ts` | D1 | edges and folds of a net are found where they are drawn |
 | `tests/netbuild.test.ts` | D2 | the flat ghost is where the board lands; a drag is one undo step |
 | `tests/edgefeatures.test.ts` | D3 | the registry changes nothing |
@@ -566,6 +607,8 @@ In the usual form: typecheck, the unit suite, goldens, the specs added here run 
 | 9 | **(new)** Go ahead with D6's style catalogue (`ROADMAP.md` §4 deferred it)? | No for now; Quick build's *Kind* covers the first styles. |
 | 10 | **(new)** *Nets* as a switch in the cut plan, or a third top tab? | A switch (less busy). |
 | 11 | **(new)** Outline mode: handles on the hovered board too, or only on the clicked one? | Hovered too (faint), so a corner can be grabbed directly. |
+| 12 | **(new)** Double-click on a circle: offer *Make it a polygon*, or leave circles as they are? | Leave them (resize gizmo); add the button only if asked. |
+| 13 | **(new)** A roundrect entered for editing loses its radius. Acceptable, or keep round corners as arcs (`bulge`) on its points? | Accept for now (undo restores it); arcs on shape points are later. |
 
 ## 8. Risks
 
