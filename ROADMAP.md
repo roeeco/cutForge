@@ -62,6 +62,29 @@ Each ends as the earlier ones do: typecheck, unit suite, golden exports byte-ide
 
 If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 89.
 
+### Status (2026-11-19)
+
+| # | State | What is left (see `PROGRESS.md` and `DECISIONS.md` for each) |
+| --- | --- | --- |
+| 74 | ✅ built | Dividers narrow on the cut plan: not reproduced; needs the owner's design. |
+| 75 | ✅ built | Old test ids were moved, not aliased. |
+| 76 | ✅ built | — |
+| 77 | ✅ built | *Rests* on plywood is the Flat lid (79); boxes built from boards without a tray do not close yet. |
+| 78 | ✅ built | Rail labels and the start screen's first question left for later (§4). |
+| 79 | ✅ built: Cap and Flat, Automatic, reasons, a cap's rim | `val.lidKind`, the Extrude card's *Lid* row, the fit spike. |
+| 80 | ✅ Drop-in | Inset deferred (§4). |
+| 81 | ⏸ deferred | Needs the plywood spike (§4). |
+| 82 | ✅ on Flat lids, and the Escape box | Hasps on a cap or a hinged lid (§4). |
+| 83 | ✅ built | `val.lineNear`; arcs are flattened in the file. |
+| 84 | ✅ built | Editing a line's points and arcs on the stage; lines across folds on the cut plan. |
+| 85 | ✅ per joint | The design-wide choice; creases on the back. |
+| 86 | ✅ built | Card thumbnails; `navigator.storage.persist()`. |
+| 87 | not started | Projects: named groups, the project file, *Cut the whole project*, *Compare*. |
+| 88 | not started | Sizes. |
+| 89 | ✅ blank sizes, glue, legend, guide-layer option | Dimension chains, the grain arrow, the title block. |
+| 90 | not started | The spec sheet. |
+| 91 | each milestone verified as it landed | A final pass once 87, 88 and 90 are in. |
+
 ## 4. Left for later (does not fit the direction of 18 November)
 
 | Item | From | Why it waits |
