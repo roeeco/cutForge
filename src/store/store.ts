@@ -1,3 +1,4 @@
+import { outlineWhy } from '../model/outlineWhy';
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
@@ -127,6 +128,8 @@ export type ViewPrefs = {
   quality: Quality;
   dims: boolean;
   joints: boolean;
+  /** Outline mode (milestone 101): every editable board's outline can be edited on the stage straight away. Excludes `joints`. */
+  outlineMode?: boolean;
   /** Smart snapping (to other shapes, edges, panels, rest angles). Alt turns it off for one drag. */
   snap: boolean;
   /** Grid snapping: positions round to the grid step where no smart target is near. Alt turns it off for one drag. */
@@ -416,6 +419,7 @@ export const useStore = create<State>()((set, get) => ({
     const st = get();
     if (st.viewPrefs.mode !== 'workshop') st.setPrefs({ mode: 'workshop' });
     if (st.viewPrefs.joints) st.setPrefs({ joints: false });
+    if (st.viewPrefs.outlineMode) st.setPrefs({ outlineMode: false });
     // a new design, as Start with Blank makes it
     st.replaceDesign(createDesign(), true);
     get().apply((d) => setMaterial(d, MATERIALS.find((m) => m.id === 'ply-3') ?? d.material));
@@ -553,7 +557,7 @@ export const useStore = create<State>()((set, get) => ({
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
-    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
+    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : get().viewPrefs.outlineMode && s?.kind === 'panel' && !s.ids?.length && !outlineWhy(get().design, s.id) ? { editOutline: s.id, selVertex: null } : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
     // another tool drops what the last one made and was not confirmed
@@ -608,12 +612,20 @@ export const useStore = create<State>()((set, get) => ({
   set: (p) => set(p),
   setPrefs: (p) => {
     const next = { ...get().viewPrefs, ...p };
+    // the joints view and outline mode exclude each other (milestone 101)
+    if (p.outlineMode) next.joints = false;
+    if (p.joints) next.outlineMode = false;
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(next));
     } catch {
       /* ignore */
     }
     set({ viewPrefs: next });
+    if (p.outlineMode === true) {
+      // the mode edits what is selected (or the next board picked) with the Select tool
+      const sel = get().selection;
+      set({ tool: 'select', editOutline: sel?.kind === 'panel' && !sel.ids?.length && !outlineWhy(get().design, sel.id) ? sel.id : null, selVertex: null });
+    } else if (p.outlineMode === false || p.joints) set({ editOutline: null, selVertex: null });
   },
   setBoardPose: (pose) => set({ panelPose: pose }),
   choosePolyTool: (kind) => {

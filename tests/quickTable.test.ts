@@ -103,6 +103,7 @@ describe('the feature table (rule 3)', () => {
       'hints',
       'match',
       'op.scoreAdd',
+      'outline.mode',
       'rail.ops',
       'rail.tools',
       'saveBoard.steps',

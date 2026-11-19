@@ -1290,6 +1290,15 @@ export const en = {
   'sen.loading': "Working out what fits…",
   'sen.stand': "a card stand",
   'sen.s.stand': "I'd like to make {structure} for cards {cardWidth} mm wide and {cardThickness} mm thick, leaning at {angle}, with {slots} slots on a base {baseDepth} mm deep",
+  'outline.why.none': "This board has no outline to edit.",
+  'outline.why.divider': "A divider's ends are found by the box: move it on its card.",
+  'outline.why.lid': "This lid is made again when its box changes: change it on the box's card.",
+  'outline.why.round': "A round board's shape is set on its card (or use Convert to points).",
+  'outline.why.curved': "A curved wall follows its base.",
+  'view.outlineMode': "Outlines",
+  'view.outlineModeHelp': "Edit any board's outline straight away: drag a corner, + on an edge adds one, Delete removes the selected one.",
+  'outline.modeHint': "Drag a corner to move it, + on an edge adds one. Delete removes the selected corner; Esc clears it.",
+  'outline.inMode': "Editing (outline mode)",
   'insp.depth': "Depth",
 } as const;
 

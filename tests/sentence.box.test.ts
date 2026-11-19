@@ -27,6 +27,15 @@ describe.each(MATERIALS.map((m) => [m.id, m] as const))('every sentence the list
   }, 300_000);
 });
 
+describe.each(MATERIALS.map((m) => [m.id, m] as const))('every card stand the lists allow builds clean: %s', (_id, m) => {
+  it('stand', () => {
+    const def = templateById('stand')!;
+    const fails: WalkFail[] = [];
+    for (let s = 1; s <= WALKS; s++) fails.push(...walk(def, m, s * 6151 + m.thickness * 100, STEPS));
+    expect(fails.map((f) => `${f.why} (seed ${f.seed} step ${f.step}) ${JSON.stringify(f.params)}`)).toEqual([]);
+  }, 300_000);
+});
+
 describe('spaces', () => {
   const m = MATERIALS[3];
   const base = (d: ReturnType<typeof generate>) => d.trays[mainTray(d)!].baseId;

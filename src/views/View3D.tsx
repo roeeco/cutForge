@@ -54,6 +54,7 @@ import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
 import { featureState, shown, useFeature, useMode } from '../easy/features';
+import { outlineWhy } from '../model/outlineWhy';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
 import { closeLabel } from '../ui/EdgeBar';
@@ -149,10 +150,20 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const tool = useStore((s) => s.tool);
   const grow = useStore((s) => s.grow);
   const prefs = useStore((s) => s.viewPrefs);
-  // looking at the joints: their labels, without the grow, move and turn handles (a clearer joint stage)
-  const jointsOn = prefs.joints;
+  // looking at the joints: their labels, without the grow, move and turn handles (a clearer joint stage);
+  // outline mode (milestone 101) hides the same handles, so only the outlines' points are there
+  const fOutline = shown(useFeature('outline.mode'));
+  const outlineMode = !!prefs.outlineMode && fOutline;
+  const jointsOn = prefs.joints || outlineMode;
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
+  // the last board hovered keeps its faint points until another is hovered: a corner sits on the board's edge,
+  // so reaching for it leaves the board (milestone 101)
+  const [outlineHover, setOutlineHover] = useState<string | null>(null);
+  useEffect(() => {
+    if (!outlineMode) setOutlineHover(null);
+    else if (hoverPart) setOutlineHover(hoverPart);
+  }, [outlineMode, hoverPart]);
   const openJoint = useStore((s) => s.openJoint);
   const panelGhost = useStore((s) => s.panelGhost);
   const fHinge = shown(useFeature('hinge')), fJoints = shown(useFeature('joints'));
@@ -728,7 +739,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             } : undefined}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
-            inert={!!editOutline || display.away.has(id)}
+            inert={(!!editOutline && !outlineMode) || display.away.has(id)}
             cutHit={!!cutHits?.has(id)}
             through={throughMap.get(id)}
           />
@@ -765,7 +776,11 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {tool === 'panel' && !folded && !panelGhost && floorHover && <FloorHover at={floorHover} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
-        <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
+        <OutlineHandles key={selPanel} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
+      )}
+      {/* outline mode: the board under the pointer shows its points faintly; grabbing one edits it at once */}
+      {outlineMode && tool === 'select' && !folded && outlineHover && outlineHover !== editOutline && design.panels[outlineHover] && !outlineWhy(design, outlineHover) && !locked(outlineHover) && (
+        <OutlineHandles key={outlineHover} p={design.panels[outlineHover]} m={display.xf.get(outlineHover) ?? IDM} t={design.material.thickness} faint />
       )}
       {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
       {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && (
@@ -2789,6 +2804,7 @@ export function View3D() {
   const t = useT();
   // Quick build calls the joints view "How it's built" (milestone 37)
   const jointsKey = shown(useFeature('joints')) ? 'view.joints' : 'quick.howBuilt';
+  const fOutlineMode = useFeature('outline.mode');
   const tool = useStore((s) => s.tool);
   const empty = useStore((s) => s.design.order.length === 0);
   const prefs = useStore((s) => s.viewPrefs);
@@ -2825,9 +2841,14 @@ export function View3D() {
   // the joints view shows one panel's joints at a time
   const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
   const edgeSel = useStore((s) => s.selection?.kind === 'edge');
+  const outlineModeOn = useStore((s) => !!s.viewPrefs.outlineMode);
+  // outline mode: a hovered board that cannot be edited says why
+  const outlineNo = useStore((s) => (s.viewPrefs.outlineMode && s.hoverPart ? outlineWhy(s.design, s.hoverPart) : null));
   const hint =
     foldT < 0.999
       ? 'fold.hint'
+      : outlineModeOn && tool === 'select'
+        ? (outlineNo ?? 'outline.modeHint')
       : jointsIdle
         ? 'joint.pickPanel'
       : picking && tool === 'select'
@@ -2897,6 +2918,19 @@ export function View3D() {
             <Icon name="finger" />
             <span>{t(jointsKey === 'view.joints' ? 'view.jointsOn' : jointsKey)}</span>
           </button>
+          {shown(fOutlineMode) && (
+            <button
+              className={`stage-toggle outline-toggle ${prefs.outlineMode ? 'on' : ''}`}
+              onClick={() => useStore.getState().setPrefs({ outlineMode: !prefs.outlineMode })}
+              title={t('view.outlineModeHelp')}
+              aria-label={t('view.outlineMode')}
+              aria-pressed={!!prefs.outlineMode}
+              data-testid="toggle-outline"
+            >
+              <Icon name="polygon" />
+              <span>{t('view.outlineMode')}</span>
+            </button>
+          )}
           <button onClick={playAssembly} title={t('assemble.go')} aria-label={t('assemble.go')} data-testid="assemble-go">
             <Icon name="play" />
           </button>

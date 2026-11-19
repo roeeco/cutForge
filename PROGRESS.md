@@ -1521,6 +1521,22 @@ Verified
 - Browser `tests/e2e/sentence-card.spec.ts`: a plywood box divided 12 across from the sentence; on its card the words a count does not use are not shown; width 60 lowers the count with a note; 20 across is refused with its range and nothing changes.
 - Unit suite and typecheck green; goldens byte-identical.
 
+## Milestone 101 — outline mode ✅
+
+`DIELINE_DNA_PLAN.md` D0 (the owner's request of 19 November). `src/model/outlineWhy.ts`, `src/store/store.ts`, `src/views/View3D.tsx`, `src/views/polyTool.tsx`, `src/ui/Inspector.tsx`.
+- **An *Outlines* switch in the stage's view cluster**, beside *Joints*: while it is on, the board under the pointer shows its points faintly, and grabbing one edits that board in the same press (no selecting, no card). Selecting a board edits its outline; selecting another moves the editing there. The grow, move and turn handles are hidden as in the joints view, and boards stay pickable. Joints and outline mode exclude each other; turning it on picks the Select tool and edits what is selected; off lets go.
+- **One rule for which outlines can be edited** (`outlineWhy`), used by the card's *Edit outline* and the mode: a board drawn as points and a grown wall can; a round board, a curved wall, a divider and a lid the generator made cannot, and the hint says why when one is hovered.
+- **Keys**: only the board being edited answers; in the mode Esc lets go of the point, then of the board, and the mode stays on (the switch leaves it). The card's *Edit outline* reads *Editing (outline mode)* while the mode is on.
+- Quick build hides the switch (`outline.mode`).
+
+Verified
+- `tests/outlineMode.test.ts` (5): selecting edits an editable board, moves to another, not a round one; turning on edits the selection, off lets go; joints and the mode exclude each other; without the mode nothing changes; `outlineWhy` for a base, a wall, a divider, a generated lid and a round board.
+- Browser `tests/e2e/outline-mode.spec.ts` (English and Hebrew): two boards, the switch on, a corner of one dragged after hovering it, then a corner of the other straight away without clicking it first; one undo per drag restores each; Esc, then the switch off.
+- Found on the way: the faint points vanished as the pointer reached a corner (it leaves the board there), so the last board hovered keeps them until another is hovered. `polygon`, `refine`, `wall-outline` and `joints` specs pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- On a touch screen there is no hover: a tap selects the board, which then shows its points (not tried on a device).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

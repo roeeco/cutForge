@@ -38,6 +38,8 @@ export const FEATURES = {
   /** How a fold's crease is cut: a score, a perforation, a cut-crease (milestone 85). */
   crease: 'auto',
   'grow.advanced': 'auto',
+  /** Outline mode (milestone 101): a stage switch beside *Joints*; every editable board's points straight away. Quick build hides it. */
+  'outline.mode': 'hide',
   /** Editing a base's or wall's outline (corners and points). */
   outline: 'show',
   /** Curved outline points. */

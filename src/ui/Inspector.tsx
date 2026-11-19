@@ -39,6 +39,7 @@ import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
 import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
+import { outlineWhy } from '../model/outlineWhy';
 
 const OP_ICONS = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' } as const;
 
@@ -98,6 +99,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
+  const outlineMode = useStore((s) => !!s.viewPrefs.outlineMode);
   const edgesOpen = useStore((s) => s.viewPrefs.edgesOpen);
   const opsAll = shown(useFeature('op.scoreAdd'));
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
@@ -254,14 +256,16 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <Gate f="foldover">
             <FoldOverSection panelId={id} />
           </Gate>
-          {((!parent && p.sketch.kind === 'poly' && !p.sketch.round) || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
+          {/* one rule for which outlines can be edited (milestone 101), shared with outline mode */}
+          {!outlineWhy(d, id) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
               aria-pressed={editOutline === id}
+              disabled={outlineMode}
               onClick={() => useStore.getState().set({ editOutline: editOutline === id ? null : id, selVertex: null })}
               data-testid="edit-outline"
             >
-              <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
+              <Icon name="polygon" size={16} /> {t(outlineMode ? 'outline.inMode' : editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
           {editOutline === id && (

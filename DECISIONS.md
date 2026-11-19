@@ -482,3 +482,9 @@ Defaults chosen where the brief left room. Each is reversible.
 ## Milestone 99: the preset card after Start (SENTENCE_BUILDER_PLAN.md S6)
 - **Notes on the card, not a toast**: the card already holds the template's other messages (shapes that could not be kept); the notes sit with them and stay until the next change.
 - **The card's fields keep their own bounds**; the engine's range is shown when a number is refused (working it out for every field on every change would build the box many times).
+
+## Milestone 101: outline mode (DIELINE_DNA_PLAN.md D0)
+- **`viewPrefs.outlineMode`** (`outlines` already means *draw outlines*), excluded with `joints` in `setPrefs`.
+- **Boards stay pickable in the mode** (they are inert while one outline is edited outside it), so a click on another board moves the editing.
+- **A generated Flat or Drop-in lid's outline is no longer editable** from its card: it is made again from its box (it was offered before and reset by the next change).
+- **The last board hovered keeps its faint points**: a corner sits on the board's edge, so reaching for it leaves the board.
