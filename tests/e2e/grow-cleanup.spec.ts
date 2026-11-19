@@ -38,7 +38,8 @@ test('a lid grown across a plywood box: hinged by default, lifts off when chosen
   const past = await S<number>(page, () => (window as any).__cutforge.store.getState().past.length);
   await page.getByTestId('grow-go').click();
   const d = await design(page);
-  expect(Object.values(d.trays).some((t: any) => t.lidOf === tray)).toBe(true);
+  // plywood's lid that lifts off is a Flat lid (milestone 79)
+  expect(Object.values(d.panels).some((p: any) => p.lidOf?.tray === tray)).toBe(true);
   expect(await S<number>(page, () => (window as any).__cutforge.store.getState().past.length)).toBe(past + 1);
   expect(errors).toEqual([]);
 });

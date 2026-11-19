@@ -308,11 +308,30 @@ export function flatLidGeom(d: Design, c: { a: { panelId: string }; b: { panelId
   const on = flatOnFrame(d, L, box);
   if (!on) return g;
   const tW = tOf(d, W.id), tL = tOf(d, L.id);
-  const tw = Math.min(len / 4, Math.max(8, 3 * tW));
-  const at = len < 80 ? [0.5] : [0.25, 0.75];
-  const notches = at.map((f) => ({ s0: f * len - tw / 2, s1: f * len + tw / 2, depth: -tL }));
-  g.edges.push({ panelId: W.id, edge: 'e2', notches });
   const ux = (top.b.x - top.a.x) / len, uy = (top.b.y - top.a.y) / len;
+  // the front wall (on the base's first edge) carries the hasps instead of its tabs (milestone 82): tongues through the lid, a padlock hole above it
+  const front = Object.values(d.connections).some((x) => x.grown && x.a.panelId === box.baseId && x.b.panelId === W.id && x.a.edge.split('#')[0] === 'e0');
+  const hasps = front ? L.lidOf?.hasps : undefined;
+  let notches: { s0: number; s1: number; depth: number }[];
+  if (hasps) {
+    const web = Math.max(4, tW + 1), tw = hasps.hole + 2 * web;
+    notches = Array.from({ length: hasps.n }, (_, i) => (i + 1) / (hasps.n + 1)).map((f) => ({ s0: f * len - tw / 2, s1: f * len + tw / 2, depth: -(tL + 1 + hasps.hole + web) }));
+    // the padlock's hole in each tongue: its lowest point 1 mm above the lid's top
+    const out = { x: uy, y: -ux };
+    // away from the wall's middle: up past its top edge
+    const toEdge = { x: (top.a.x + top.b.x) / 2 - W.w / 2, y: (top.a.y + top.b.y) / 2 - W.h / 2 };
+    const sgn = out.x * toEdge.x + out.y * toEdge.y >= 0 ? 1 : -1;
+    for (const n of notches) {
+      const s = (n.s0 + n.s1) / 2, up = tL + 1 + hasps.hole / 2;
+      const cx = top.a.x + ux * s + out.x * sgn * up, cy = top.a.y + uy * s + out.y * sgn * up;
+      g.holes.push({ panelId: W.id, poly: Array.from({ length: 36 }, (_, k) => ({ x: cx + (hasps.hole / 2) * Math.cos((k * Math.PI) / 18), y: cy + (hasps.hole / 2) * Math.sin((k * Math.PI) / 18) })) });
+    }
+  } else {
+    const tw = Math.min(len / 4, Math.max(8, 3 * tW));
+    const at = len < 80 ? [0.5] : [0.25, 0.75];
+    notches = at.map((f) => ({ s0: f * len - tw / 2, s1: f * len + tw / 2, depth: -tL }));
+  }
+  g.edges.push({ panelId: W.id, edge: 'e2', notches });
   for (const n of notches) {
     // the tab's footprint at the lid's underside, in the lid's coordinates when it rests on the box
     const corner = (s: number, z: number) => toLocal(on, toWorld(W.frame, top.a.x + ux * s, top.a.y + uy * s, z));
@@ -418,3 +437,6 @@ function fingerSpot(d: Design, box: Tray, lid: Panel, x0: number, y0: number): P
     }
   return c;
 }
+
+/** A padlock's hole sizes on offer (mm): a luggage padlock's shackle is 3–4 mm, a classroom one's 5–6. */
+export const HASP_HOLES = [6, 8, 10] as const;

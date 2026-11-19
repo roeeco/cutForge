@@ -1,6 +1,6 @@
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
@@ -222,5 +222,13 @@ export function dropinBox(m: (typeof MATERIALS)[number]): Design {
   addDividerLine(d, base, { x: 80, y: 10 }, { x: 80, y: 100 }, 35);
   autoConnect(d);
   setBoxLid(d, tray, 'liftoff', 'dropin');
+  return d;
+}
+
+/** A plywood box with a Flat lid and two padlock hasps (milestone 82). */
+export function haspBox(): Design {
+  const d = lidKindBox(MATERIALS[3], 'flat');
+  const L = d.order.map((id) => d.panels[id]).find((p) => p.lidOf)!;
+  setLidHasps(d, L.id, 2);
   return d;
 }

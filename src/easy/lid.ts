@@ -367,3 +367,13 @@ export function setCapRim(d: Design, trayId: string, rim: CapRim) {
   const t = matOf(d, cap.baseId).thickness;
   setTrayHeight(d, cap.id, (rim === 'full' ? box.height : rim === 'half' ? box.height / 2 : 12) + t);
 }
+
+/** Why a box's lid cannot take a padlock (milestone 82), or null. Hasps go through a Flat lid, which plywood makes. */
+export function locksWhy(d: Design, trayId: string): MsgKey | null {
+  const t = d.trays?.[trayId];
+  if (!t) return 'lid.why.none';
+  if (matOf(d, t.baseId).kind !== 'plywood') return 'lid.why.locksPly';
+  const lid = boxLid(d, trayId);
+  if (lid.kind !== 'liftoff' || lid.style !== 'flat') return 'lid.why.locksFlat';
+  return null;
+}

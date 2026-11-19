@@ -1334,6 +1334,16 @@ Verified: unit suite 811 pass, 7 skipped; typecheck clean; golden exports byte-i
 `LIDS_LINES_PROJECTS_PLAN.md` §3.2 (milestone 75 there, less the pose: milestone 76). *Lifts off* gains **Drop-in**: one board inside the walls on the dividers, a finger hole clear of them, offered where the dividers are lower than the walls by its thickness. Inset is deferred (`DECISIONS.md`).
 - Tests: `lidKinds.test.ts` (+4): in plywood, corrugated and card, a box with two crossing dividers: the lid is the inside less the fit, rests on the dividers, its finger hole clears both, its own piece, no check issue, idempotent and saved unchanged; a box without dividers is refused with the reason. Golden `lid-dropin-ply` (new); every other golden byte-identical.
 
+## Milestone 81 — the pin hinge: deferred
+
+It needs its spike in real plywood (`DECISIONS.md`). Plywood's *Hinged* stays the living hinge.
+
+## Milestone 82 — hasps and the Escape box ✅
+
+`LIDS_LINES_PROJECTS_PLAN.md` §3.4 (milestone 77 there), on Flat lids. The *Lid* section has **Locks: None · 1 · 2 · 3** (and the hole size in Workshop): the front wall's tabs grow into tongues with a padlock hole above the lid. Greyed with the reason off plywood or without a Flat lid. A new mission, **Escape box**.
+- Tests: `lidKinds.test.ts` (+5): one, two and three hasps: as many tongues and slots, each hole's lowest point at least 1 mm above the lid's top, slots the tongue's width plus the fit, no check issue, idempotent and saved unchanged; the reasons; the Escape box starts with no goal met. `missions.test.ts`: its reference solution meets every goal. Golden `lid-flat-ply-hasp2` (new); every other golden byte-identical.
+- Not yet: hasps on a cap or a hinged lid; `val.haspThin` and `val.haspBlocked` (the sizes are made safe instead: the web is never under 4 mm).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

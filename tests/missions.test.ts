@@ -3,8 +3,9 @@ import { dividerRow } from '../src/model/dividers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { FONTS, registerFont } from '../src/text/fonts';
-import { addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
+import { setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
+import { boxLid, setBoxLid } from '../src/easy/lid';
 import { MISSIONS, missionById, missionState, placeContents, startMission } from '../src/easy/missions';
 import { regenerate } from '../src/templates/registry';
 import { capacity, compartments, contentFit } from '../src/easy/objects';
@@ -65,6 +66,15 @@ const SOLVE: Record<string, (d: Design) => Design> = {
     r.contents = placeContents(r, [{ object: 'deck', count: 1 }, { object: 'dice', count: 5 }]);
     return r;
   },
+  // milestone 82: a Flat lid with one hasp, a clue engraved on the front wall
+  'escape-box': (d) => {
+    const tray = Object.keys(d.trays)[0];
+    setBoxLid(d, tray, 'liftoff', 'flat');
+    const lid = boxLid(d, tray);
+    if (lid.kind === 'liftoff') setLidHasps(d, lid.top, 1);
+    engrave(d, wall(d, d.trays[tray].baseId, 'e0'), 'Look under');
+    return d;
+  },
 };
 
 describe('missions', () => {
@@ -81,8 +91,8 @@ describe('missions', () => {
       expect(end.done).toBe(true);
     });
   }
-  it('the registry has the four first missions', () => {
-    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser']);
+  it('the registry has the four first missions and the Escape box', () => {
+    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box']);
     expect(missionById('pencil-box')?.goals.length).toBeGreaterThan(2);
   });
 });

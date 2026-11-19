@@ -449,6 +449,15 @@ export function addDropinLid(d: Design, trayId: string): string | null {
   return id;
 }
 
+/** Padlock hasps on a Flat lid (milestone 82): how many along the front (null: none), and the hole (mm). */
+export function setLidHasps(d: Design, lidId: string, n: 1 | 2 | 3 | null, hole?: number) {
+  const L = d.panels[lidId];
+  if (!L?.lidOf || L.lidOf.kind !== 'flat') return;
+  if (n === null) delete L.lidOf.hasps;
+  else L.lidOf.hasps = { n, hole: hole ?? L.lidOf.hasps?.hole ?? 8 };
+  solve(d);
+}
+
 /** An arched lid's flat strip across the top (mm) and its front flap below the arch (mm). */
 export const ARCH_STRIP = 4, ARCH_FLAP = 15;
 

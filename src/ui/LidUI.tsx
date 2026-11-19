@@ -5,9 +5,10 @@
 // carton's *Bottom* as pictures, where its lists are hidden (Quick build).
 import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
-import { setTrayEnds } from '../model/ops';
+import { setLidHasps, setTrayEnds } from '../model/ops';
+import { HASP_HOLES } from '../model/lid';
 import { matOf } from '../model/materials';
-import { autoStyle, boxLid, boxOfPanel, capRimOf, lidParts, lidStyleWhy, lidWhy, LID_STYLES, setBoxLid, setCapRim, type BoxLid, type CapRim, type LidChoice, type LidStyle } from '../easy/lid';
+import { autoStyle, boxLid, locksWhy, boxOfPanel, capRimOf, lidParts, lidStyleWhy, lidWhy, LID_STYLES, setBoxLid, setCapRim, type BoxLid, type CapRim, type LidChoice, type LidStyle } from '../easy/lid';
 import { Segmented } from './NumField';
 import { shown, useFeature } from '../easy/features';
 import { PictureChoice, type PictureOption } from './Pictures';
@@ -61,6 +62,9 @@ export function LidSection({ panelId }: { panelId: string }) {
     apply((x) => void (n = setBoxLid(x, tray.id, c).dropped));
     setDropped(n);
   };
+  const locks = locksWhy(d, tray.id);
+  const flatTop = lid.kind === 'liftoff' && lid.style === 'flat' ? lid.top : null;
+  const hasps = flatTop ? d.panels[flatTop]?.lidOf?.hasps : undefined;
   const top = lid.kind === 'liftoff' ? lid.top : lid.kind === 'hinged' || lid.kind === 'arched' || lid.kind === 'fixed' ? lid.lid : null;
   return (
     <div className="subsection lid-section" data-testid="lid-section" data-lid={lid.kind}>
@@ -87,6 +91,21 @@ export function LidSection({ panelId }: { panelId: string }) {
           options={(['shallow', 'half', 'full'] as const).map((r) => ({ value: r, label: t(`lid.rim.${r}`), testId: `lid-rim-${r}` }))}
           onChange={(r) => apply((x) => setCapRim(x, tray.id, r as CapRim))}
         />
+      )}
+      {(lid.kind === 'liftoff' || lid.kind === 'hinged') && (
+        // milestone 82: padlock hasps through a Flat lid; greyed with why elsewhere
+        <div className="field" data-testid="lid-locks">
+          <Segmented
+            label={t('lid.locks')}
+            value={String(hasps?.n ?? 0)}
+            options={['0', '1', '2', '3'].map((n) => ({ value: n, label: n === '0' ? t('lid.locks.none') : n, testId: `lid-locks-${n}`, disabled: !!locks }))}
+            onChange={(v) => void (flatTop && apply((x) => setLidHasps(x, flatTop, v === '0' ? null : (Number(v) as 1 | 2 | 3))))}
+          />
+          {locks && <p className="note">{t(locks)}</p>}
+          {hasps && adv && (
+            <Segmented label={t('lid.hole')} value={String(hasps.hole)} options={HASP_HOLES.map((h) => ({ value: String(h), label: `${h} ${t('unit.mm')}`, testId: `lid-hole-${h}` }))} onChange={(v) => void (flatTop && apply((x) => setLidHasps(x, flatTop, hasps.n, Number(v))))} />
+          )}
+        </div>
       )}
       {(lid.kind === 'liftoff' || lid.kind === 'hinged' || lid.kind === 'arched') && (
         // milestone 76: a lid of its own lies beside the box, a folded one is shown open; this shows it in place (view only)

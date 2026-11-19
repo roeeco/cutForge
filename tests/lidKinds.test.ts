@@ -1,7 +1,7 @@
 // Milestone 79 (LIDS_LINES_PROJECTS_PLAN.md §3.2): the lid generator: Cap and Flat, why one cannot be made, Automatic.
 import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
-import { addDividerLine, addRootPanel, addRoundPanel, addTray, autoConnect, createDesign, deletePanel, setCustomHeight, setPanelSize, setTrayHeight, solve } from '../src/model/ops';
+import { addDividerLine, addRootPanel, addRoundPanel, setLidHasps, addTray, autoConnect, createDesign, deletePanel, setCustomHeight, setPanelSize, setTrayHeight, solve } from '../src/model/ops';
 import { autoStyle, boxLid, capRimOf, lidStyleWhy, setBoxLid, setCapRim } from '../src/easy/lid';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatLip, flatOnFrame } from '../src/model/lid';
 import { pointInPolygon } from '../src/geom/vec';
@@ -178,5 +178,54 @@ describe('the Drop-in lid (milestone 80)', () => {
   it('needs dividers lower than the walls by its thickness', () => {
     const { d, tray } = box(PLY);
     expect(lidStyleWhy(d, tray, 'dropin')).toBe('lid.why.dropinDividers');
+  });
+});
+
+describe('hasps (milestone 82)', () => {
+  it.each([1, 2, 3] as const)('%i on a Flat lid: tongues through the lid, each hole above it, clean to cut', (n) => {
+    const { d, tray } = box(PLY, 160, 100, 60);
+    setBoxLid(d, tray, 'liftoff', 'flat');
+    const L = flatLidsOf(d, tray)[0];
+    setLidHasps(d, L.id, n);
+    const on = flatOnFrame(d, L, d.trays[tray])!;
+    const tabs = Object.values(d.connections).filter((c) => c.id.startsWith('lidtab:'));
+    const front = tabs.find((c) => c.geom!.holes.some((h) => h.panelId === c.a.panelId))!;
+    expect(front).toBeTruthy();
+    const W = d.panels[front.a.panelId];
+    const wallHoles = front.geom!.holes.filter((h) => h.panelId === W.id);
+    const slots = front.geom!.holes.filter((h) => h.panelId === L.id);
+    expect(wallHoles).toHaveLength(n);
+    expect(slots).toHaveLength(n);
+    const topY = toWorld(on, 0, 0, PLY.thickness)[1];
+    for (const h of wallHoles) {
+      const lowest = Math.min(...h.poly.map((q) => toWorld(W.frame, q.x, q.y)[1]));
+      expect(lowest).toBeGreaterThanOrEqual(topY + 1 - 1e-6);
+      const w = Math.max(...h.poly.map((q) => q.x)) - Math.min(...h.poly.map((q) => q.x));
+      expect(w).toBeCloseTo(8, 1);
+    }
+    const web = Math.max(4, PLY.thickness + 1);
+    for (const sl of slots) {
+      const xs = sl.poly.map((q) => q.x), ys = sl.poly.map((q) => q.y);
+      expect(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))).toBeCloseTo(8 + 2 * web + 0.3, 6);
+    }
+    expect(validate(d).map((i) => i.key)).toEqual([]);
+    expect(idempotence(d)).toBeNull();
+    expect(roundTrip(d)).toBeNull();
+  });
+  it('a padlock needs plywood and a Flat lid', async () => {
+    const { locksWhy } = await import('../src/easy/lid');
+    const c = box(CORR4);
+    setBoxLid(c.d, c.tray, 'liftoff');
+    expect(locksWhy(c.d, c.tray)).toBe('lid.why.locksPly');
+    const p = box(PLY);
+    setBoxLid(p.d, p.tray, 'liftoff', 'cap');
+    expect(locksWhy(p.d, p.tray)).toBe('lid.why.locksFlat');
+    setBoxLid(p.d, p.tray, 'liftoff', 'flat');
+    expect(locksWhy(p.d, p.tray)).toBeNull();
+  });
+  it('the Escape box starts with no goal met', async () => {
+    const { MISSIONS, missionState, startMission } = await import('../src/easy/missions');
+    const d = startMission(MISSIONS.find((m) => m.id === 'escape-box')!, PLY);
+    expect(missionState(d)!.goals.filter((g) => g.ok && g.goal.group === 0)).toEqual([]);
   });
 });

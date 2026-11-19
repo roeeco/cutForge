@@ -112,6 +112,47 @@ const deckFits: Goal = {
 
 const angleChosen: Goal = { id: 'angle', group: 2, label: 'goal.angle', check: (d) => ({ ok: !!d.template && Number(d.template.params.angle) <= 45, target: 't:base' }) };
 
+/** The box's lid opens (milestone 82): it lifts off or is hinged. */
+const lidOpens: Goal = {
+  id: 'opens',
+  group: 0,
+  label: 'goal.opens',
+  check: (d) => {
+    for (const t of Object.values(d.trays ?? {})) {
+      const l = boxLid(d, t.id);
+      if (l.kind === 'liftoff' || l.kind === 'hinged') return { ok: true, target: l.kind === 'liftoff' ? l.top : l.lid };
+    }
+    return { ok: false, target: mainBox(d) };
+  },
+};
+
+/** It takes a padlock: a hasp through its lid (milestone 82). */
+const takesPadlock: Goal = {
+  id: 'padlock',
+  group: 0,
+  label: 'goal.padlock',
+  check: (d) => {
+    const L = d.order.map((id) => d.panels[id]).find((p) => p?.lidOf?.hasps);
+    return { ok: !!L, target: L?.id ?? mainBox(d) };
+  },
+};
+
+/** A clue engraved inside the box: text on its base or a wall (not on the lid). */
+const clueInside: Goal = {
+  id: 'clue',
+  group: 2,
+  label: 'goal.clue',
+  check: (d) => {
+    const placeholders = new Set((['en', 'he'] as Lang[]).map((l) => translate(l, 'text.default')));
+    for (const t of Object.values(d.trays ?? {})) {
+      if (t.lidOf) continue;
+      const ids = [t.baseId, ...Object.values(d.connections).filter((c) => c.grown && c.trayId === t.id).map((c) => c.b.panelId)];
+      for (const id of ids) if (d.panels[id]?.details.some((x) => x.shape === 'text' && x.op === 'engrave' && x.text?.value.trim() && !placeholders.has(x.text.value.trim()))) return { ok: true, target: id };
+    }
+    return { ok: false, target: mainBox(d) };
+  },
+};
+
 // ---------- the missions ----------
 
 export const MISSIONS: Mission[] = [
@@ -154,6 +195,17 @@ export const MISSIONS: Mission[] = [
     template: { id: 'organiser', params: { sizeMode: 'inner', width: 200, depth: 140, height: 50, dividersX: 1, dividersY: 0, dividerHeight: 40, lid: 'none' } },
     contents: [{ object: 'deck', count: 1 }, { object: 'dice', count: 5 }],
     goals: [compartmentsAtLeast(4), hasLid, contentsFit('goal.deckIn', 'deck', 1), oneSheet, readyToCut],
+  },
+  {
+    // milestone 82 (LIDS_LINES_PROJECTS_PLAN.md §4): three locks, three puzzles; nothing is met on arrival
+    id: 'escape-box',
+    version: 1,
+    title: 'mission.escape',
+    description: 'mission.escape.desc',
+    materials: ['plywood'],
+    start: (d) => void boxRecipe(d, { kind: 'rect', x0: -70, z0: -50, x1: 70, z1: 50 }, 70),
+    contents: [],
+    goals: [lidOpens, takesPadlock, oneSheet, readyToCut, clueInside],
   },
 ];
 export const missionById = (id: string) => MISSIONS.find((m) => m.id === id);
