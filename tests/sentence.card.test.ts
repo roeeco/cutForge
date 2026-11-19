@@ -23,7 +23,7 @@ describe('the preset card after Start', () => {
     const d = generate(box, PLY, { ...defaults(box), spacesBy: 'count', nx: 12, ny: 1 } as Params);
     const r = onCard(d, 'width', 60);
     if (!('design' in r)) throw new Error('refused');
-    expect(r.changes.find((c) => c.key === 'nx')).toBeTruthy();
+    expect(r.changes!.find((c) => c.key === 'nx')).toBeTruthy();
     expect(Number(r.design!.template!.params.nx)).toBeLessThan(12);
   });
 
