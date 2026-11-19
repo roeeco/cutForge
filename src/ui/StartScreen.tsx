@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
-import { TEMPLATES, defaults, generate, templateById } from '../templates/registry';
+import { PRESET_CARDS, defaults, generate, templateById } from '../templates/registry';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
 import { Library } from './Library';
@@ -88,7 +88,7 @@ export function StartScreen() {
   const mat = MATERIALS.find((m) => m.id === matId)!;
   const tplOk = (id: string) => !id || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
   const effTpl = tplOk(tpl) ? tpl : '';
-  const thumbs = useMemo(() => Object.fromEntries(TEMPLATES.map((tp) => [tp.id, tp.materials.includes(mat.kind) ? thumb(tp.id, mat) : null])), [mat]);
+  const thumbs = useMemo(() => Object.fromEntries(PRESET_CARDS().map((tp) => [tp.id, tp.materials.includes(mat.kind) ? thumb(tp.id, mat) : null])), [mat]);
   const start = () => {
     const s = useStore.getState();
     const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
@@ -176,7 +176,7 @@ export function StartScreen() {
             <Icon name="check" size={16} />
           </span>
         </button>
-        {TEMPLATES.map((tp) => (
+        {PRESET_CARDS().map((tp) => (
           <button key={tp.id} className="pick-card" role="radio" aria-checked={effTpl === tp.id} disabled={!tplOk(tp.id)} onClick={() => setTpl(tp.id)} data-testid={`tpl-${tp.id}`}>
             <span className="art">{thumbs[tp.id] ? <img src={thumbs[tp.id]!} alt="" /> : null}</span>
             <span className="cap">

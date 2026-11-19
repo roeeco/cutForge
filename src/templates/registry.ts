@@ -6,11 +6,16 @@ import type { Design, MaterialProfile } from '../model/types';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
+import { box, tray } from './structures/box';
 import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
 import { normalizeJoints } from '../model/jointDefaults';
 import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model/dividers';
 
-export const TEMPLATES: TemplateDef[] = [organiser, stand];
+export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray];
+/** The sentence's structures (milestone 95): templates with a word of their own, never `planned` ones. */
+export const STRUCTURES = (): TemplateDef[] => TEMPLATES.filter((t) => t.word && t.status !== 'planned');
+/** The preset cards of the welcome screen's older grid: templates that are not sentence structures. */
+export const PRESET_CARDS = (): TemplateDef[] => TEMPLATES.filter((t) => !t.word);
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
 export const PREFIX = 't:';
 
@@ -18,30 +23,44 @@ export function defaults(t: TemplateDef): Params {
   return Object.fromEntries(t.params.map((p) => [p.key, p.default]));
 }
 
-/** Rename panel and connection ids throughout a design. */
+/**
+ * Rename panel and connection ids throughout a design: every key and every
+ * string value that is exactly an old id, wherever it is (a closure keyed by
+ * its lid, a lid's tray, a divider's ends, a joint's geometry), so a
+ * structure's own references follow (milestone 95). A connection between two
+ * generated panels gets a stable id from its two ends.
+ */
 function renameIds(d: Design, map: Map<string, string>) {
   const r = (id: string) => map.get(id) ?? id;
-  const panels: Design['panels'] = {};
-  for (const [id, p] of Object.entries(d.panels)) panels[r(id)] = { ...p, id: r(id), ...(p.place?.host ? { place: { ...p.place, host: r(p.place.host) } } : {}) };
-  d.panels = panels;
-  for (const t of Object.values(d.trays ?? {})) t.baseId = r(t.baseId);
-  d.order = d.order.map(r);
-  const pieces: Design['pieces'] = {};
-  for (const [id, q] of Object.entries(d.pieces)) pieces[r(id)] = q;
-  d.pieces = pieces;
-  const conns: Design['connections'] = {};
+  const all = new Map(map);
+  // (edge keys written as the old edge numbers, so ids stay the same across schema versions)
+  const n = (e: string) => (e === 'face' ? '-1' : e.replace(/^e(\d+)$/, '$1'));
   for (const c of Object.values(d.connections)) {
-    c.a = { ...c.a, panelId: r(c.a.panelId) };
-    c.b = { ...c.b, panelId: r(c.b.panelId) };
-    if (c.geom)
-      c.geom = JSON.parse(JSON.stringify(c.geom), (k, v) => (k === 'panelId' && typeof v === 'string' ? r(v) : v));
-    // stable connection id from its two ends
-    // (edge keys written as the old edge numbers, so ids stay the same across schema versions)
-    const n = (e: string) => (e === 'face' ? '-1' : e.replace(/^e(\d+)$/, '$1'));
-    const id = c.a.panelId.startsWith(PREFIX) && c.b.panelId.startsWith(PREFIX) ? `${PREFIX}c:${c.a.panelId.slice(2)}.${n(c.a.edge)}-${c.b.panelId.slice(2)}.${n(c.b.edge)}` : c.id;
-    conns[id] = { ...c, id };
+    const a = r(c.a.panelId), b = r(c.b.panelId);
+    // a joint the engine derives (a Flat lid's tabs `lidtab:…`, a closure `close:…`, a wing, a split `~n`) is made again by `solve` under its own id
+    if (/[:/~|]/.test(c.id)) continue;
+    if (a.startsWith(PREFIX) && b.startsWith(PREFIX)) all.set(c.id, `${PREFIX}c:${a.slice(2)}.${n(c.a.edge)}-${b.slice(2)}.${n(c.b.edge)}`);
   }
-  d.connections = conns;
+  // trays get stable ids too, and every id built from a tray's (a carton's top `<tray>/top`, its fold `<tray>/top/c`, an end `end:<tray>:top`) follows
+  const trays = Object.keys(d.trays ?? {});
+  const trayIds = new Map(trays.map((id, k) => [id, `${PREFIX}tray${k + 1}`]));
+  const sub = (x: string) => {
+    if (all.has(x)) return all.get(x)!;
+    for (const [o, n2] of trayIds) if (x.includes(o)) return x.split(o).join(n2);
+    return x;
+  };
+  const deep = (x: unknown): unknown => {
+    if (typeof x === 'string') return sub(x);
+    if (Array.isArray(x)) return x.map(deep);
+    if (x && typeof x === 'object') {
+      const o: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(x)) o[sub(k)] = deep(v);
+      return o;
+    }
+    return x;
+  };
+  const next = deep(d) as Design;
+  for (const k of Object.keys(next) as (keyof Design)[]) (d as Record<string, unknown>)[k] = next[k];
 }
 
 /** Generate a fresh design for a template (stable ids, panels named by role). */

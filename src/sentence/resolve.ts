@@ -56,15 +56,25 @@ export function rangeNow(def: TemplateDef, p: ParamDef, params: Params, m: Mater
   return { min, max, why };
 }
 
-/** Every word's state, in sentence order. */
-export function resolve(def: TemplateDef, m: MaterialProfile, params: Params): WordState[] {
+/**
+ * Every word's state, in sentence order. `lists: false` leaves out the
+ * options of each list (they can take a build each to work out); the
+ * sentence asks for one list with `listOf` when it is opened.
+ */
+export function resolve(def: TemplateDef, m: MaterialProfile, params: Params, o: { lists?: boolean } = {}): WordState[] {
   return def.params.map((p) => {
     const value = params[p.key] ?? p.default;
     const shown = shownNow(p, params, m);
-    if (p.type === 'choice') return { key: p.key, value, shown, options: optionsNow(p, params, m) };
+    if (p.type === 'choice') return { key: p.key, value, shown, ...(o.lists === false ? {} : { options: optionsNow(p, params, m) }) };
     const r = rangeNow(def, p, params, m);
     return { key: p.key, value, shown, min: r.min, max: r.max, limitWhy: r.why };
   });
+}
+
+/** One list's allowed options now (for a list being opened). */
+export function listOf(def: TemplateDef, m: MaterialProfile, params: Params, key: string): Value[] {
+  const p = def.params.find((x) => x.key === key);
+  return p ? optionsNow(p, params, m) : [];
 }
 
 /** One word checked against the words before it: its new value and the change, or nothing to change. */
@@ -73,8 +83,9 @@ function check(def: TemplateDef, p: ParamDef, params: Params, m: MaterialProfile
   // a word not in the sentence keeps its value (it comes back as it was)
   if (!shownNow(p, params, m)) return null;
   if (p.type === 'choice') {
+    // the current value first: the whole list is only worked out when it is not allowed any more
+    if (p.options.some((o) => o.value === cur) && (!p.allowed || p.allowed(cur, params, m))) return null;
     const opts = optionsNow(p, params, m);
-    if (opts.some((o) => o === cur)) return null;
     if (!opts.length) return null;
     const fb = p.fallback?.(params, m);
     const to = fb !== undefined && opts.includes(fb) ? fb : opts[0];
@@ -115,7 +126,17 @@ export function choose(def: TemplateDef, m: MaterialProfile, params: Params, key
     // a list only offers what is allowed; anything else changes nothing
     return { params, changes: [] };
   }
-  return settleFrom(def, m, { ...params, [key]: value }, i + 1);
+  const r = settleFrom(def, m, { ...params, [key]: value }, i + 1);
+  // a number inside its range can still make something the engine will not cut clean (a size where the
+  // net fits only against the grain): refused, with the range and the reason (milestone 95)
+  if (isNum(p) && def.accepts) {
+    const why = def.accepts(m, r.params);
+    if (why) {
+      const rg = rangeNow(def, p, params, m);
+      return { refused: { min: rg.min, max: rg.max, why } };
+    }
+  }
+  return r;
 }
 
 /** The words of one structure carried to another: shared keys keep their values, the rest start at their defaults. */

@@ -55,6 +55,8 @@ export type TemplateDef = {
   check?: (d: Design, p: Params) => TemplateIssue[];
   /** Milestone 94: each number's range for this material and these words (merged over its own `min` / `max`). */
   limits?: (m: MaterialProfile, p: Params) => Record<string, Limit>;
+  /** Milestone 95: are these words (just settled) ones the engine builds clean? A typed number that makes them not is refused with this reason. */
+  accepts?: (m: MaterialProfile, p: Params) => MsgKey | null;
   /** Milestone 94: can this material (kind and thickness) make it? Absent: `materials` decides. */
   canMake?: (m: MaterialProfile) => boolean;
   /** Milestone 94: `planned` structures are registered and never shown. */

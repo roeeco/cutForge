@@ -1447,6 +1447,24 @@ Verified
 - `tests/sentence.resolve.test.ts` (11): on a made-up structure, a change re-checks only the later words; a changed earlier word moves later numbers into range, each reported once; a dropped option's fallback and reason; a refused number with its range; choosing the current value changes nothing and `resolve` agrees; lists hold only allowed options; a material change re-checks every word; a structure the material cannot make becomes its fallback keeping shared words; bisection within its step in eight builds, cached. The organiser's count falls with a narrower box; the stand's slots end at what its base holds.
 - Goldens and template tests unchanged; unit suite and typecheck green.
 
+## Milestone 95 — the sentence's box, tray and spaces ✅
+
+`SENTENCE_BUILDER_PLAN.md` S2. `src/templates/structures/box.ts`, registered as templates `box` and `tray` (kept off the welcome screen's preset grid until milestone 98).
+- **Words** (in sentence order): width, depth, height, *inside · outside · crease to crease* (no creases on plywood), shape (*square corners · rounded corners · round · straight sides*, with the number of sides), and the add-ons: a lid (*lifts off · hinged · arched*; the box only), spaces (*into nx × ny* or *of about sx × sy mm*; a size only on square or rounded corners), a window and a finger notch in the front wall (the box), two handle slots (the tray). The build is `boxRecipe`, `setBoxSize` in the stated intent (milestone 93, so the design remembers it), `dividerLine` at equal steps, `holeRecipe`, `setBoxLid`.
+- **Every list asks the engine** (`cleanWith`): an option is offered when the structure built with it, the later add-ons off, has nothing that stops the cut (`validate`), and for a lid when `lidWhy` allows it and the lid is really made. Cached per material and words; a word's own value is checked first, so a change only builds for the add-ons that are on.
+- **Ranges**: width, depth and height end at the largest size that still cuts clean with square corners and no add-ons, found by bisection over builds (nine at most, cached, worked out only for the number asked about); counts end where a space would be under `MIN_COMPARTMENT`; a wanted space size at the inside. A size inside its range that the engine would still not cut clean (found: a corrugated net that fits only against the grain at some depths) is refused with its reason (`TemplateDef.accepts`).
+- **Spaces** are measured on the built design (`compartments`); the formula only chooses the count: n = max(1, floor((W + t) / (s + t))).
+- **Stable ids for generated designs** (`renameIds` in the registry): every board gets a role (base, each wall by its edge, dividers in order, a lid's parts), trays get stable ids, and every reference follows (a deep rename of exact ids, and of ids built from a tray's). Joints the engine derives (`lidtab:…`, `close:…`, wings) keep their own ids and are made again by `solve`: renaming them left stale copies beside new ones, which broke a plywood Flat lid with dividers.
+
+Verified
+- `tests/sentence.box.test.ts` (15): random walks through the box's and the tray's words in all four materials (any word, back as well as forward, a number past its end refused), each step built and checked: no blocking issue, no word left on a value its list does not offer; spaces measured equal the formula to 0.1 mm (count) and are at least the size asked (size); a narrower box lowers a count with its reason; round and many-sided boxes offer a count only; the inside survives a change of board; every hidden option has a reason; a regenerated box keeps every board's id.
+- The walks found, and this milestone fixed: rounded walls bent too tight on tall boxes (the corner now bends for the walls' full height), a window too close to a finger notch, a box too tall for an arched or hinged lid, round boxes whose wall strip is longer than a sheet, the Flat lid broken by the renaming above.
+- `tests/fuzz/templates.test.ts` keeps free random parameters for the preset templates only (the structures go through their resolver); it found that a rounded box with a hinged lid and free random sizes breaks two export invariants (an oversized piece not reported, contour counts differing): left as a separate task.
+- Goldens byte-identical; unit suite and typecheck green.
+
+Limitations
+- A change that needs the size ranges again (a new width re-checks the depth's and height's ends) can take up to about a second of builds the first time; the sentence (milestone 97) shows the static range until they are ready.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

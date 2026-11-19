@@ -454,3 +454,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A choice not offered changes nothing** rather than being refused with a range: lists only ever offer allowed options.
 - **A range that closes up keeps its lower end** (max never below min), so a number always has a value it can take.
 - **Bisection**: both ends are tried first, then halvings, then the result is rounded down to the step; eight builds give about 1/64 of the range.
+
+## Milestone 95: the sentence's box, tray and spaces (SENTENCE_BUILDER_PLAN.md S2)
+- **The lists ask the engine by building** (`cleanWith`), not only through the functions the plan named (`lidWhy`, `roundedMin`): the random walks showed that each of those can say yes to something that then does not cut clean (a tall rounded box, an arched lid on a deep box). Building is 5–60 ms a time; the answers are cached.
+- **The later add-ons are left off** when an option is asked about: each add-on is checked in its own turn, after the words before it.
+- **Size ranges are found by bisection with square corners and no add-ons**, so they are the box's own limits; a shape or an add-on that does not fit at that size falls back after.
+- **A size inside its range may still be refused** (`accepts`), because validity is not monotonic everywhere (a corrugated net that fits only turned against the grain at one depth fits again when deeper, once it is split). The note says to try a little more or less.
+- **Shape before the add-ons, after the sizes**, so a change of size re-checks the shape.
+- **Template ids**: tray ids become `t:tray1`, … and ids built from them follow; joint ids with `:`, `/`, `~` or `|` are the engine's and are left for `solve`. The organiser's and the stand's goldens are unchanged.
