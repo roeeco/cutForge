@@ -2,7 +2,7 @@
 import '../src/templates/registry';
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { addEdgeFlap, addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
@@ -239,5 +239,14 @@ export function linesBoard(): Design {
   addLine(d, p, [{ x: 10, y: 60, bulge: -0.3 }, { x: 110, y: 60 }], 'cutcrease');
   addLine(d, p, [{ x: 10, y: 80 }, { x: 110, y: 80 }], 'guide');
   solve(d);
+  return d;
+}
+
+/** A card board with two plain flaps made by hand (milestone 67), one 15 mm and one of the default length (milestone 111's golden, made before the edge-feature registry). */
+export function plainFlapBoard(): Design {
+  const d = createDesign(CARD);
+  const p = addRootPanel(d, 0, 0, 80, 50);
+  addEdgeFlap(d, p, 'e2', 15);
+  addEdgeFlap(d, p, 'e1');
   return d;
 }

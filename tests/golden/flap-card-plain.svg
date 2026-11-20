@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="500mm" height="300mm" viewBox="0 0 500 300">
+  <g id="SCORE" fill="none" stroke="#0000FF" stroke-width="0.1">
+    <path d="M85 20 L5 20"/>
+    <path d="M85 70 L85 20"/>
+  </g>
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M5 70 L85 70 L85 69.9942 L97 63.0718 L97 26.9282 L85 20.0058 L85 20 L84.9942 20 L76.3397 5 L13.6603 5 L5.0058 20 L5 20 Z"/>
+  </g>
+</svg>
