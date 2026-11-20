@@ -1,7 +1,8 @@
 // Quick build's guardrails and one-click fixes (milestone 39).
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { addDetail, addRootPanel, addText, autoConnect, createDesign, setMaterial, solve } from '../src/model/ops';
 import { MATERIALS, minWeb } from '../src/model/materials';
 import { validate, type Issue } from '../src/model/validate';

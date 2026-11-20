@@ -424,7 +424,17 @@ function SnapMarks({ snap, at, z, k }: { snap: OutlineSnap | null; at: P2 | null
 }
 
 /** Vertex handles of a base being edited: drag a vertex, select it and press Delete, click "+" on an edge to insert one. */
-export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: number }) {
+/**
+ * Outline mode (milestone 101): grabbing a point of a board shown faintly (the
+ * one under the pointer) makes it the board being edited, in the same press.
+ */
+function claim(id: string) {
+  const st = useStore.getState();
+  if (st.editOutline !== id) st.select({ kind: 'panel', id });
+  if (st.viewPrefs.outlineMode && useStore.getState().editOutline !== id) useStore.getState().set({ editOutline: id });
+}
+
+export function OutlineHandles({ p, m, t, faint = false }: { p: Panel; m: THREE.Matrix4; t: number; faint?: boolean }) {
   const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
   const selVertex = useStore((s) => s.selVertex);
   const rc = useMemo(() => new THREE.Raycaster(), []);
@@ -440,6 +450,17 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
       const st = useStore.getState();
       const tgt = ev.target as HTMLElement | null;
       if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA')) return;
+      // only the board being edited answers keys (outline mode can show a second, faintly)
+      if (st.editOutline !== p.id) return;
+      if (st.viewPrefs.outlineMode && (ev.key === 'Escape' || ev.key === 'Enter')) {
+        // the mode stays on: Esc lets go of the point, then of the board
+        if (ev.key === 'Escape') {
+          ev.stopPropagation();
+          if (st.selVertex !== null) st.set({ selVertex: null });
+          else st.select(null);
+        }
+        return;
+      }
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && st.selVertex !== null) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -457,13 +478,14 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
     return () => window.removeEventListener('keydown', key, true);
   }, [p.id]);
 
-  if (s.kind === 'wall') return <WallHandles p={p} mat={mat} z={z} k={k} />;
+  if (s.kind === 'wall') return <WallHandles p={p} mat={mat} z={z} k={k} faint={faint} />;
   const tolAt = (w: THREE.Vector3) => SNAP_PX * mmPerPx(camera, gl.domElement.clientHeight || 600, w);
   const drawn = sketchRing(p);
   const n = s.pts.length;
   const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    claim(p.id);
     const st = useStore.getState();
     st.set({ selVertex: i });
     if (controls) controls.enabled = false;
@@ -496,7 +518,7 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
       {s.pts.map((q, i) => (
         <mesh key={`v${i}`} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={startDrag(i)} onPointerOver={() => setHover(`v${i}`)} onPointerOut={() => setHover(null)} userData={{ vertex: i }}>
           <sphereGeometry args={[k * (hover === `v${i}` || selVertex === i ? 1.3 : 1), 12, 10]} />
-          <meshBasicMaterial color={selVertex === i ? '#d1372b' : STAGE.selected} depthTest={false} />
+          <meshBasicMaterial color={selVertex === i && !faint ? '#d1372b' : STAGE.selected} depthTest={false} transparent opacity={faint ? 0.45 : 1} />
         </mesh>
       ))}
       {s.pts.map((q, i) => {
@@ -513,13 +535,14 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               e.stopPropagation();
+              claim(p.id);
               const st = useStore.getState();
               st.apply((x) => void insertVertex(x, p.id, i));
               st.set({ selVertex: i + 1 });
             }}
           >
             <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
-            <meshBasicMaterial color={hover === `m${i}` ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={0.9} />
+            <meshBasicMaterial color={hover === `m${i}` ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={faint ? 0.4 : 0.9} />
           </mesh>
         );
       })}
@@ -532,7 +555,7 @@ export function OutlineHandles({ p, m, t }: { p: Panel; m: THREE.Matrix4; t: num
  * dragged; "+" on a free edge inserts a point; the attached bottom edge is
  * locked (its corners are shown greyed).
  */
-function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number; k: number }) {
+function WallHandles({ p, mat, z, k, faint = false }: { p: Panel; mat: THREE.Matrix4; z: number; k: number; faint?: boolean }) {
   const { camera, gl, controls } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; controls: { enabled: boolean } | null };
   const selVertex = useStore((s) => s.selVertex);
   const [hover, setHover] = useState<string | null>(null);
@@ -546,6 +569,7 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
   const drag = (id: string, from: P2, at: (l: P2) => void) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    claim(p.id);
     const st = useStore.getState();
     st.set({ selVertex: id });
     if (controls) controls.enabled = false;
@@ -599,7 +623,7 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
   const ball = (id: string, q: P2, on: ((e: ThreeEvent<PointerEvent>) => void) | null, color?: string) => (
     <mesh key={id} position={[q.x, q.y, z]} renderOrder={9} onPointerDown={on ?? undefined} onPointerOver={() => on && setHover(id)} onPointerOut={() => setHover(null)} userData={{ vertex: id }}>
       <sphereGeometry args={[k * (hover === id || selVertex === id ? 1.3 : 1), 12, 10]} />
-      <meshBasicMaterial color={color ?? (selVertex === id ? '#d1372b' : STAGE.selected)} depthTest={false} transparent opacity={on ? 1 : 0.45} />
+      <meshBasicMaterial color={color ?? (selVertex === id && !faint ? '#d1372b' : STAGE.selected)} depthTest={false} transparent opacity={(on ? 1 : 0.45) * (faint ? 0.45 : 1)} />
     </mesh>
   );
   const rect = [{ x: 0, y: p.h }, { x: p.w, y: p.h }];
@@ -632,6 +656,7 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
               onPointerDown={(ev) => {
                 if (ev.button !== 0) return;
                 ev.stopPropagation();
+                claim(p.id);
                 const at = toInsert(edge, mid);
                 let nid: string | null = null;
                 useStore.getState().apply((x) => void (nid = addWallInsert(x, p.id, edge, at.t, at.off)));
@@ -639,7 +664,7 @@ function WallHandles({ p, mat, z, k }: { p: Panel; mat: THREE.Matrix4; z: number
               }}
             >
               <boxGeometry args={[k * 1.2, k * 1.2, k * 1.2]} />
-              <meshBasicMaterial color={hover === id ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={0.9} />
+              <meshBasicMaterial color={hover === id ? STAGE.selected : '#ffffff'} depthTest={false} transparent opacity={faint ? 0.4 : 0.9} />
             </mesh>
           );
         })}

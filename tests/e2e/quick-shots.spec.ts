@@ -1,7 +1,7 @@
 // Review screenshots for Quick build (milestones 37–41), skipped unless SHOTS=1:
 //   SHOTS=1 npx playwright test -c pw-app.config.ts quick-shots
 import { test, type Page } from '@playwright/test';
-import { QUICK_STATE } from './util';
+import { QUICK_STATE, startTemplate } from './util';
 const OUT = 'docs/quick-shots';
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const shot = (page: Page, lang: string, name: string) => page.screenshot({ path: `${OUT}/${lang}-${name}.png` });
@@ -162,9 +162,7 @@ for (const lang of ['en', 'he']) {
     test.skip(!process.env.SHOTS);
     await page.goto('/');
     if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
-    await page.getByTestId('mat-ply-3').click();
-    await page.getByTestId('tpl-organiser').click();
-    await page.getByTestId('start-go').click();
+    await startTemplate(page, 'organiser', 'ply-3');
     await S(page, () => (window as any).__cutforge.store.getState().select({ kind: 'panel', id: 't:divX1' }));
     await page.getByTestId('fit-view').click();
     await page.waitForTimeout(500);

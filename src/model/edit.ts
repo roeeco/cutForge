@@ -1,3 +1,4 @@
+import { fitShapeSketch } from '../sketch/cutforge';
 // Group editing of details: move, duplicate, delete, scale about the group's
 // box, align and distribute within one flat surface, live arrays.
 import type { Design, Detail, DetailArray, Panel, V3 } from './types';
@@ -55,6 +56,8 @@ export function scaleDetails(d: Design, ids: string[], anchor: { x: number; y: n
     if (o.r !== undefined) patch.r = o.r * Math.min(Math.abs(sx), Math.abs(sy));
     const t = findDetail(d, id);
     if (t) Object.assign(t.detail, patch);
+    // a kept outline graph follows (milestone 104)
+    if (t) fitShapeSketch(t.detail);
     if (t && t.detail.text && o.text) t.detail.text.size = Math.max(1, o.text.size * k);
   }
 }

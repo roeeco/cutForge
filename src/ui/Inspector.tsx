@@ -38,6 +38,8 @@ import { Gate } from '../easy/Gate';
 import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
+import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
+import { outlineWhy } from '../model/outlineWhy';
 
 const OP_ICONS = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' } as const;
 
@@ -97,6 +99,8 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
   const editOutline = useStore((s) => s.editOutline);
+  const outlineMode = useStore((s) => !!s.viewPrefs.outlineMode);
+  const keepRatio = useStore((s) => !!s.viewPrefs.keepRatio);
   const edgesOpen = useStore((s) => s.viewPrefs.edgesOpen);
   const opsAll = shown(useFeature('op.scoreAdd'));
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
@@ -160,8 +164,15 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <NumField label={t('insp.diameter')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-diameter" />
           ) : (
             <>
-              <NumField label={t('insp.width')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-w" />
-              <NumField label={t('insp.height')} value={dt.h} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { h: v }))} testId="detail-h" />
+              {/* with Keep proportions the other size follows (milestone 103; shared with the 2D frame and the 3D gizmo) */}
+              <NumField label={t('insp.width')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, keepRatio ? { w: v, h: dt.h * (v / dt.w) } : { w: v }))} testId="detail-w" />
+              <NumField label={t('insp.height')} value={dt.h} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, keepRatio ? { h: v, w: dt.w * (v / dt.h) } : { h: v }))} testId="detail-h" />
+              <Gate f="transform.sides">
+                <label className="check" title={t('frame.pillHelp')}>
+                  <input type="checkbox" checked={keepRatio} onChange={(e) => useStore.getState().setPrefs({ keepRatio: e.target.checked })} data-testid="keep-ratio" />
+                  {t('frame.keepRatio')}
+                </label>
+              </Gate>
             </>
           )}
           {dt.shape === 'roundrect' && <NumField label={t('insp.radius')} value={dt.r ?? 0} unit={mm} min={0} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { r: v }))} />}
@@ -183,6 +194,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
     if (p) {
       const pc = parentConnection(d, id);
       const parent = pc ? d.panels[pc.a.panelId] : undefined;
+      const boxTray = boxOfBase(d, id);
       const growable = panelEdges(p).filter((e) => segLength(e) >= MIN_PANEL && !isCurveKey(e.key) && edgeHasRoom(d, id, e.key, MIN_PANEL));
       body = (
         <section data-testid="inspector-panel" key={id}>
@@ -208,14 +220,31 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
+          {boxTray && <SizeAsSwitch trayId={boxTray} />}
           {p.divider ? (
             // a divider's length comes from its ends (milestone 44)
             <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} disabled onCommit={() => undefined} testId="panel-w" />
           ) : (
-            <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+            (() => {
+              // a box's base shows its sizes as the design states them (milestone 93)
+              const f = boxTray ? statedField(d, boxTray, 'w') : null;
+              return f ? (
+                <NumField label={t(f.label ?? 'insp.width')} value={f.value} unit={mm} min={5} onCommit={(v) => apply((x) => f.commit(x, v))} testId="panel-w" />
+              ) : (
+                <NumField label={t('insp.width')} value={p.w} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, v, undefined))} testId="panel-w" />
+              );
+            })()
           )}
           {parent && <p className="note">{t('insp.widthOwned', { panel: panelLabel(d, parent.id, t) })}</p>}
-          <NumField label={t(quickWords && !parent && !p.divider && p.place?.pose !== 'standing' ? 'insp.depth' : 'insp.height')} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+          {(() => {
+            const f = boxTray ? statedField(d, boxTray, 'd') : null;
+            const lbl = quickWords && !parent && !p.divider && p.place?.pose !== 'standing' ? 'insp.depth' : 'insp.height';
+            return f ? (
+              <NumField label={t(f.label ?? lbl)} value={f.value} unit={mm} min={5} onCommit={(v) => apply((x) => f.commit(x, v))} testId="panel-h" />
+            ) : (
+              <NumField label={t(lbl)} value={p.h} unit={mm} min={5} onCommit={(v) => apply((x) => setPanelSize(x, id, undefined, v))} testId="panel-h" />
+            );
+          })()}
           <RoundSection panelId={id} />
           {p.divider && <DividerSection panelId={id} />}
           {!parent && !p.divider && (
@@ -235,14 +264,16 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <Gate f="foldover">
             <FoldOverSection panelId={id} />
           </Gate>
-          {((!parent && p.sketch.kind === 'poly' && !p.sketch.round) || (parent && p.sketch.kind === 'wall')) && view === '3d' && (
+          {/* one rule for which outlines can be edited (milestone 101), shared with outline mode */}
+          {!outlineWhy(d, id) && view === '3d' && (
             <button
               className={editOutline === id ? 'on' : ''}
               aria-pressed={editOutline === id}
+              disabled={outlineMode}
               onClick={() => useStore.getState().set({ editOutline: editOutline === id ? null : id, selVertex: null })}
               data-testid="edit-outline"
             >
-              <Icon name="polygon" size={16} /> {t(editOutline === id ? 'outline.done' : 'outline.edit')}
+              <Icon name="polygon" size={16} /> {t(outlineMode ? 'outline.inMode' : editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
           {editOutline === id && (

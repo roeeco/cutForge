@@ -1,6 +1,7 @@
 // Seeded random design generator for the output-pipeline fuzzers.
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../../src/text/fonts';
+import { FONTS } from '../../src/text/fonts';
+import { registerFont } from '../../src/text/registerFont';
 import type { Design, MaterialProfile } from '../../src/model/types';
 import { MATERIALS } from '../../src/model/materials';
 import { addDetail, addPolygonPanel, addRootPanel, addText, addTray, createDesign, growPanel, regularPolygon, setConstruction, setPanelMaterial, solve, addPathShape } from '../../src/model/ops';

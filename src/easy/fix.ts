@@ -12,6 +12,7 @@ import { validate } from '../model/validate';
 import { pieceCopies } from '../model/pack';
 import { pieceRoot } from '../model/pieces';
 import { profileOf } from '../model/materials';
+import { regenerate, templateById } from '../templates/registry';
 
 /** The same issue (key and target) is still reported. */
 const sheetIssueFor = (d: Design, i: Issue) => validate(d).some((x) => x.key === i.key && x.target.kind === i.target.kind && x.target.id === i.target.id);
@@ -22,6 +23,7 @@ const sheetIssueFor = (d: Design, i: Issue) => validate(d).some((x) => x.key ===
  * joints and folds do not scale exactly. Done only when it fits.
  */
 function shrinkToSheet(d: Design, rootId: string): boolean {
+  if (!d.panels[rootId]) return false;
   const fits = () => {
     const c = pieceCopies(d).find((x) => x.copy === 0 && pieceRoot(x.pieceKey) === rootId);
     if (!c) return { ok: true, f: 1 };
@@ -54,8 +56,45 @@ function shrinkToSheet(d: Design, rootId: string): boolean {
   return fits().ok;
 }
 
+/** Put a copy's contents in place of a draft's, key by key (an immer draft cannot be reassigned). */
+function replaceWith(d: Design, src: Design) {
+  const t = d as unknown as Record<string, unknown>, f = src as unknown as Record<string, unknown>;
+  for (const k of Object.keys(t)) if (!(k in f)) delete t[k];
+  for (const k of Object.keys(f)) t[k] = f[k];
+}
+
+/**
+ * A template's design shrinks through its own sizes (milestone 92), so the
+ * next change of a size does not grow it back: every size in millimetres is
+ * scaled by one factor (never under its minimum) and the design regenerated,
+ * a few passes, until the piece fits.
+ */
+function shrinkTemplate(d: Design): boolean {
+  const t = d.template && templateById(d.template.id);
+  if (!t) return false;
+  let cur: Design = JSON.parse(JSON.stringify(d));
+  for (let k = 0; k < 6; k++) {
+    const still = validate(cur).find((x) => x.key === 'val.tooBig');
+    if (!still) {
+      replaceWith(d, cur);
+      return true;
+    }
+    const c = pieceCopies(cur).find((x) => x.copy === 0 && pieceRoot(x.pieceKey) === still.target.id) ?? pieceCopies(cur).find((x) => x.copy === 0);
+    if (!c) return false;
+    const prof = profileOf(cur, c.mat);
+    const W = prof.sheetW - 2 * cur.sheetMargin, H = prof.sheetH - 2 * cur.sheetMargin;
+    const canTurn = prof.grain === 'none' || !!cur.allowRotate;
+    const f = Math.min(0.995, Math.max(Math.min(W / c.w, H / c.h), canTurn ? Math.min(W / c.h, H / c.w) : 0) * 0.995);
+    const params = { ...cur.template!.params };
+    for (const p of t.params) if (p.type === 'number' && p.unit === 'mm' && typeof params[p.key] === 'number') params[p.key] = Math.max(p.min ?? 0, Math.round(Number(params[p.key]) * f * 10) / 10);
+    cur = regenerate(cur, params).design;
+  }
+  return false;
+}
+
 /** Warnings that do not stop a cut: shown as notes, not as things to fix. */
-export const NOTE_KEYS = new Set(['val.split', 'val.bevel']);
+import { NOTE_KEYS } from './notes';
+export { NOTE_KEYS };
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
 const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend']);
@@ -78,8 +117,16 @@ export function fixIssue(d: Design, i: Issue): boolean {
       delete f.detail.through;
       return true;
     }
-    case 'val.tooBig':
-      return i.target.kind === 'panel' && shrinkToSheet(d, i.target.id);
+    case 'val.tooBig': {
+      if (i.target.kind !== 'panel') return false;
+      // done only when it fits and nothing new stops the cut (milestone 92); else the design is left as it was
+      const work = JSON.parse(JSON.stringify(d)) as Design;
+      const had = new Set(validate(work).filter((x) => !NOTE_KEYS.has(x.key)).map((x) => x.key));
+      const ok = work.template ? shrinkTemplate(work) : shrinkToSheet(work, i.target.id);
+      if (!ok || validate(work).some((x) => !NOTE_KEYS.has(x.key) && !had.has(x.key))) return false;
+      replaceWith(d, work);
+      return true;
+    }
     case 'val.tooBigGrain':
       // it fits turned: let the packer turn pieces against the grain
       d.allowRotate = true;

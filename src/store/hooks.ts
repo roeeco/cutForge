@@ -6,8 +6,10 @@ import { libraryChannel, loadLocal, saveLocal, TAB } from './persist';
 import { migrateDesign } from '../model/serialize';
 import { deletePanel } from '../model/ops';
 import { deleteDetails, duplicateDetails, moveDetailsVisual } from '../model/edit';
-import { detailSel, selectedDetailIds, type Tool } from './store';
+import { designToSave, detailSel, selectedDetailIds, type Tool } from './store';
 import { validate } from '../model/validate';
+import { featureState, shown } from '../easy/features';
+import { isDivider } from '../model/dividers';
 import { isBad, rememberGood } from './goodDesign';
 
 /** Load the autosaved design once, then save every committed change. */
@@ -39,12 +41,14 @@ export function useAutosave(onLoaded: () => void) {
       unsub = useStore.subscribe((s, prev) => {
         // a drag commits by ending its transaction without a new design object: save then too
         const committed = !!prev.txnBase && !s.txnBase && s.design !== prev.txnBase;
-        if ((s.design === prev.design && !committed) || s.txnBase) return;
+        // a draft waiting for ✓ is never saved (milestone 92): its base is, and the design once ✓ or ✗ ends it
+        const ended = !!prev.pending && !s.pending;
+        if ((s.design === prev.design && !committed && !ended) || s.txnBase) return;
         if (timer) clearTimeout(timer);
         useStore.getState().set({ saveState: 'saving' });
         timer = setTimeout(async () => {
           timer = undefined;
-          const d = useStore.getState().design;
+          const d = designToSave(useStore.getState());
           if (useStore.getState().otherTab) return;
           // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {
@@ -77,9 +81,10 @@ const isTyping = (e: KeyboardEvent) => {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 };
 
-export function useKeyboard() {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+/** The app's keys (exported for tests, milestone 105). */
+export function handleKey(e: KeyboardEvent) {
+  {
+    {
       const s = useStore.getState();
       const mod = e.ctrlKey || e.metaKey;
       if (mod && !isTyping(e) && e.key.toLowerCase() === 'z') {
@@ -93,18 +98,20 @@ export function useKeyboard() {
       if (isTyping(e)) return;
       const sel = s.selection;
       const ids = selectedDetailIds(sel);
+      // Guided (milestone 105) has no clipboard: a paste would wait for ✓, which Guided never asks for
+      const clip = shown(featureState('keys.clipboard'));
       // copy and paste shapes (milestone 33): the paste follows the pointer, a click puts it down, ✓ keeps it
-      if (mod && e.key.toLowerCase() === 'c' && ids.length) {
+      if (clip && mod && e.key.toLowerCase() === 'c' && ids.length) {
         e.preventDefault();
         s.copyShapes();
         return;
       }
-      if (mod && e.key.toLowerCase() === 'v' && s.clipboard?.length) {
+      if (clip && mod && e.key.toLowerCase() === 'v' && s.clipboard?.length) {
         e.preventDefault();
         s.pasteShapes();
         return;
       }
-      if (mod && e.key.toLowerCase() === 'd' && ids.length) {
+      if (clip && mod && e.key.toLowerCase() === 'd' && ids.length) {
         e.preventDefault();
         let copies: string[] = [];
         s.apply((d) => void (copies = duplicateDetails(d, ids)));
@@ -113,7 +120,8 @@ export function useKeyboard() {
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (ids.length) s.apply((d) => deleteDetails(d, ids));
-        else if (sel?.kind === 'panel' && !s.editOutline) s.apply((d) => deletePanel(d, sel.id));
+        // Guided removes only a divider (its sides and bottom are the thing itself)
+        else if (sel?.kind === 'panel' && !s.editOutline && (s.viewPrefs.mode !== 'guided' || isDivider(s.design.panels[sel.id]))) s.apply((d) => deletePanel(d, sel.id));
         e.preventDefault();
       } else if (e.key === 'Escape') {
         if (s.txnBase) return; // views cancel their own gestures
@@ -129,7 +137,7 @@ export function useKeyboard() {
         // D again: Divider and Standing board take turns (milestone 44)
         else if (a === 'divider' && s.view === '3d' && s.tool === 'divider') startAction('standing');
         else if (s.view === '3d' || a === 'hole' || a === 'text') startAction(a);
-      } else if (s.viewPrefs.mode !== 'quick' && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
+      } else if (shown(featureState('keys.tools')) && !mod && !e.altKey && e.key.length === 1 && TOOL_KEYS[e.key.toLowerCase()]) {
         const k = TOOL_KEYS[e.key.toLowerCase()];
         // the Shapes tool (milestone 75): P is a rectangle that makes a board, P again flat ↔ standing;
         // R, U, C and G choose the footprint and keep the operator
@@ -150,8 +158,13 @@ export function useKeyboard() {
         s.apply((d) => moveDetailsVisual(d, ids, dx, dy, s.view === 'solo' ? s.soloPanel : null));
         e.preventDefault();
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    }
+  }
+}
+
+export function useKeyboard() {
+  useEffect(() => {
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, []);
 }

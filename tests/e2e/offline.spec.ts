@@ -8,6 +8,8 @@ test('works offline after load', async ({ page, context }) => {
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
+  // the parts loaded when first used (cut plan, download dialog) are fetched once the editor is up
+  await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   page.on('request', (r) => requests.push(r.url()));
 

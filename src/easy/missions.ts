@@ -12,6 +12,9 @@ import { boxLid } from './lid';
 import { sheetUse } from './sheet';
 import { boxBases, bestCell, capacity, compartments, contentFit, objectById, sizeOf } from './objects';
 import { boxRecipe } from './recipes';
+import { setBoxSize } from '../model/boxSize';
+import { addSpaces, mainTray } from '../templates/structures/box';
+import type { Mode } from './features';
 import { translate, type Lang } from '../i18n';
 
 export type GoalResult = { ok: boolean; target?: string };
@@ -25,6 +28,8 @@ export type Mission = {
   /** The starting design: a template with parameters, or a recipe. */
   template?: { id: string; params: Record<string, number | string> };
   start?: (d: Design) => void;
+  /** The levels whose gallery offers it (milestone 106); absent: every level. */
+  levels?: Mode[];
   /** What goes inside at the start: an object and how many. */
   contents: { object: string; count: number }[];
   goals: Goal[];
@@ -65,7 +70,8 @@ const nameEngraved: Goal = {
   group: 2,
   label: 'goal.name',
   check: (d) => {
-    const placeholders = new Set((['en', 'he'] as Lang[]).map((l) => translate(l, 'text.default')));
+    // the text tool's default and Guided's *Your name* (milestone 108) are placeholders, not words of the student's
+    const placeholders = new Set((['en', 'he'] as Lang[]).flatMap((l) => [translate(l, 'text.default'), translate(l, 'g.deco.namePlaceholder')]));
     for (const id of d.order) if (d.panels[id].details.some((x) => x.shape === 'text' && x.op === 'engrave' && x.text && x.text.value.trim() && !placeholders.has(x.text.value.trim()))) return { ok: true, target: id };
     return { ok: false, target: mainBox(d) };
   },
@@ -143,7 +149,8 @@ const clueInside: Goal = {
   group: 2,
   label: 'goal.clue',
   check: (d) => {
-    const placeholders = new Set((['en', 'he'] as Lang[]).map((l) => translate(l, 'text.default')));
+    // the text tool's default and Guided's *Your name* (milestone 108) are placeholders, not words of the student's
+    const placeholders = new Set((['en', 'he'] as Lang[]).flatMap((l) => [translate(l, 'text.default'), translate(l, 'g.deco.namePlaceholder')]));
     for (const t of Object.values(d.trays ?? {})) {
       if (t.lidOf) continue;
       const ids = [t.baseId, ...Object.values(d.connections).filter((c) => c.grown && c.trayId === t.id).map((c) => c.b.panelId)];
@@ -155,14 +162,25 @@ const clueInside: Goal = {
 
 // ---------- the missions ----------
 
+/** A rectangular open box of this inside size (sizes stated as inside), split into equal spaces `nx` across and `ny` front to back. */
+function boxWithSpaces(d: Design, inside: { w: number; d: number; h: number }, nx: number, ny: number) {
+  if (!boxRecipe(d, { kind: 'rect', x0: -inside.w / 2, z0: -inside.d / 2, x1: inside.w / 2, z1: inside.d / 2 }, inside.h)) return;
+  const tray = mainTray(d)!;
+  d.sizeAs = 'inside';
+  setBoxSize(d, tray, inside, 'inside');
+  if (nx > 1 || ny > 1) addSpaces(d, tray, { spacesBy: 'count', nx, ny });
+}
+
 export const MISSIONS: Mission[] = [
   {
+    // version 2 (milestone 106): a box of the Lid section with dividers of its own, so Guided's arrows and grips and one
+    // kind of lid serve it; version 1 started from the organiser template (a saved one still opens and counts)
     id: 'pencil-box',
-    version: 1,
+    version: 2,
     title: 'mission.pencil',
     description: 'mission.pencil.desc',
     materials: ['plywood', 'corrugated', 'card'],
-    template: { id: 'organiser', params: { sizeMode: 'inner', width: 186, depth: 60, height: 30, dividersX: 0, dividersY: 2, dividerHeight: 24, lid: 'none' } },
+    start: (d) => boxWithSpaces(d, { w: 186, d: 60, h: 30 }, 1, 3),
     contents: [{ object: 'pencil', count: 12 }],
     goals: [contentsFit('goal.pencils', 'pencil', 12), compartmentsAtLeast(3), oneSheet, readyToCut, nameEngraved],
   },
@@ -188,11 +206,11 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'game-organiser',
-    version: 1,
+    version: 2,
     title: 'mission.organiser',
     description: 'mission.organiser.desc',
     materials: ['plywood', 'corrugated', 'card'],
-    template: { id: 'organiser', params: { sizeMode: 'inner', width: 200, depth: 140, height: 50, dividersX: 1, dividersY: 0, dividerHeight: 40, lid: 'none' } },
+    start: (d) => boxWithSpaces(d, { w: 200, d: 140, h: 50 }, 2, 1),
     contents: [{ object: 'deck', count: 1 }, { object: 'dice', count: 5 }],
     goals: [compartmentsAtLeast(4), hasLid, contentsFit('goal.deckIn', 'deck', 1), oneSheet, readyToCut],
   },
@@ -203,6 +221,8 @@ export const MISSIONS: Mission[] = [
     title: 'mission.escape',
     description: 'mission.escape.desc',
     materials: ['plywood'],
+    // its padlock needs hasps, which Guided does not offer (owner question 8: it stays Quick build's)
+    levels: ['quick', 'workshop'],
     start: (d) => void boxRecipe(d, { kind: 'rect', x0: -70, z0: -50, x1: 70, z1: 50 }, 70),
     contents: [],
     goals: [lidOpens, takesPadlock, oneSheet, readyToCut, clueInside],

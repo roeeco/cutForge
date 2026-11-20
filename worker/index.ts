@@ -273,8 +273,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (typeof b.name === 'string' && clean(b.name, 60)) patch.name = clean(b.name, 60);
       if (b.material === null) patch.material = null;
       else if (b.material && typeof b.material === 'object') patch.material = JSON.stringify(b.material).slice(0, 5000);
-      // Quick build (milestones 37, 40): the class's default mode, locked or not, and the missions it offers
-      if (b.mode === null || b.mode === 'quick' || b.mode === 'workshop') patch.mode = b.mode;
+      // the class's default level (milestones 37, 40, 105: Guided, Quick build or Workshop), locked or not, and the missions it offers
+      if (b.mode === null || b.mode === 'guided' || b.mode === 'quick' || b.mode === 'workshop') patch.mode = b.mode;
       if (typeof b.modeLocked === 'boolean') patch.modeLocked = b.modeLocked;
       if (b.missions === null) patch.missions = null;
       else if (Array.isArray(b.missions)) patch.missions = JSON.stringify(b.missions.filter((x) => typeof x === 'string').slice(0, 50).map((x) => x.slice(0, 40)));

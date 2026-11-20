@@ -5,6 +5,7 @@
 import type { TemplateDef } from './types';
 import { addDivider, addRootPanel, connectSeams, growPanel } from '../model/ops';
 import type { ConnectionKind, Design } from '../model/types';
+import { MIN_COMPARTMENT } from '../model/dividers';
 
 function tray(d: Design, x: number, z: number, W: number, D: number, H: number, prefix: string, role: (n: string, id: string) => void) {
   const ply = d.material.kind === 'plywood';
@@ -66,6 +67,19 @@ export const organiser: TemplateDef = {
       const LW = W + 2 * c + 2 * t, LD = D + 2 * c + 2 * t;
       tray(d, W / 2 + 30, LD / 2, LW, LD, Number(p.lidRim) + t, 'lid', role);
     }
+  },
+  // milestone 94: the counts end where a space would be smaller than the smallest compartment, a divider's height at the walls under a lid
+  limits(m, p) {
+    const t = m.thickness;
+    const inner = p.sizeMode === 'inner';
+    const Wi = Number(p.width) - (inner ? 0 : 2 * t), Di = Number(p.depth) - (inner ? 0 : 2 * t);
+    const most = (L: number) => Math.max(0, Math.floor((L - MIN_COMPARTMENT) / (MIN_COMPARTMENT + t) + 1e-9));
+    const H = Number(p.height) + (inner ? t : 0);
+    return {
+      dividersX: { max: most(Wi), why: 'sen.why.spaceSmall' },
+      dividersY: { max: most(Di), why: 'sen.why.spaceSmall' },
+      ...(p.lid === 'liftoff' ? { dividerHeight: { max: Math.max(5, H - t), why: 'sen.why.dividerTall' } } : {}),
+    };
   },
   check(d, p) {
     if (p.lid !== 'liftoff') return [];

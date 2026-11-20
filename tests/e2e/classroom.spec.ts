@@ -6,7 +6,7 @@
 // Worker (workerd, local D1 and R2).
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { WORKSHOP_STATE } from './util';
+import { WORKSHOP_STATE, startTemplate } from './util';
 
 const KEY = 'e2e-teacher-key';
 
@@ -14,9 +14,7 @@ async function student(browser: Browser, material: string, name: string, code: s
   const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const page = await ctx.newPage();
   await page.goto('/');
-  await page.getByTestId('tpl-organiser').check();
-  await page.getByTestId(`mat-${material}`).click();
-  await page.getByTestId('start-go').click();
+  await startTemplate(page, 'organiser', material);
   await page.getByLabel('Design name').fill(title);
   await page.getByLabel('Design name').blur();
   await page.getByTestId('open-submit').click();
@@ -99,9 +97,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
   const st = await ctx.newPage();
   await st.goto('/');
-  await st.getByTestId('tpl-organiser').check();
-  await st.getByTestId('mat-ply-3').click();
-  await st.getByTestId('start-go').click();
+  await startTemplate(st, 'organiser', 'ply-3');
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);
   await st.getByTestId('sub-name').fill('Omer');
@@ -181,7 +177,10 @@ test('a class offers one mission; the submission shows it and its goals met (mil
     await page.getByTestId(`class-mission-${m}`).click();
     await expect(page.getByTestId(`class-mission-${m}`)).not.toBeChecked();
   }
-  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.missions, cname)).toEqual(['pencil-box']);
+  // milestone 106: the list also names Guided's plain things, all offered
+  const listed = () => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n)?.missions as string[], cname);
+  await expect.poll(async () => (await listed()).filter((x) => ['pencil-box', 'dice-tray', 'card-stand', 'game-organiser'].includes(x))).toEqual(['pencil-box']);
+  expect(await listed()).toEqual(expect.arrayContaining(['box', 'box-lid', 'round-box', 'carton']));
 
   const ctx = await browser.newContext();
   const st = await ctx.newPage();
@@ -202,4 +201,51 @@ test('a class offers one mission; the submission shows it and its goals met (mil
   await page.getByTestId('refresh-subs').click();
   await expect(page.getByTestId('sub-mission')).toContainText('Pencil box');
   await expect(page.getByTestId('sub-mission')).toContainText('3 of 5 goals');
+});
+
+test('a class that starts in Guided, locked, with a board: the link starts there, Send to my teacher, the teacher sees the goals (milestone 109)', async ({ browser, page }) => {
+  await teacherLogin(page);
+  const cname = `Guided ${Date.now()}`;
+  await page.getByTestId('new-class-name').fill(cname);
+  await page.getByTestId('create-class').click();
+  const code = (await page.locator('.class-list li', { hasText: cname }).getByTestId('class-code').innerText()).trim();
+  await page.getByTestId(`class-${code}`).click();
+  await page.getByTestId('class-profile').selectOption('ply-3');
+  await page.getByTestId('class-mode').selectOption('guided');
+  await page.getByTestId('class-mode-locked').click();
+  await expect.poll(() => page.evaluate(async (n) => (await (await fetch('/api/teacher/classes')).json()).find((c: any) => c.name === n), cname)).toMatchObject({ mode: 'guided', modeLocked: true, material: { id: 'ply-3' } });
+
+  // a student who used the Workshop before follows the class link
+  const ctx = await browser.newContext({ storageState: WORKSHOP_STATE });
+  const st = await ctx.newPage();
+  await st.goto(`/?class=${code}`);
+  await expect(st.getByTestId('g-start')).toBeVisible();
+  await expect(st.getByTestId('g-class-material')).toBeVisible();
+  await expect(st.getByTestId('g-materials')).toHaveCount(0);
+  await expect(st.getByTestId('g-start-more')).toHaveCount(0);
+  await st.getByTestId('g-thing-pencil-box').click();
+  await st.getByTestId('g-demo-ok').click();
+  expect(await st.evaluate(() => (window as any).__cutforge.store.getState().design.material.id)).toBe('ply-3');
+  // no way to the other levels
+  await st.getByTestId('g-menu').click();
+  await expect(st.getByTestId('g-menu-quick')).toHaveCount(0);
+  await expect(st.getByTestId('g-menu-workshop')).toHaveCount(0);
+  await st.getByTestId('g-menu').click();
+  // Make it fit, a name, Send
+  await st.getByTestId('g-add-inside').click();
+  await st.getByTestId('g-fit-pencil').click();
+  await st.getByTestId('g-step-decorate').click();
+  await st.getByTestId('g-add-name').click();
+  await st.getByTestId('g-deco-text').fill('Noa');
+  await st.getByTestId('g-deco-text').blur();
+  await st.getByTestId('g-step-send').click();
+  await expect(st.getByTestId('g-ready')).toHaveAttribute('data-ok', 'true');
+  await st.getByTestId('g-send-name').fill('Noa');
+  await st.getByTestId('g-send-teacher').click();
+  await expect(st.getByTestId('g-sent')).toBeVisible();
+  await ctx.close();
+
+  await page.getByTestId('refresh-subs').click();
+  await expect(page.getByTestId('sub-mission')).toContainText('Pencil box');
+  await expect(page.getByTestId('sub-mission')).toContainText('5 of 5 goals');
 });

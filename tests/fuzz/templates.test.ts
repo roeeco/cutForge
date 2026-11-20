@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { loadFonts, rng, seedMath, type R } from './gen';
 import { checkPipeline, type Fail } from './pipecheck';
 import { MATERIALS } from '../../src/model/materials';
-import { TEMPLATES, changeMaterial, generate, regenerate } from '../../src/templates/registry';
+import { PRESET_CARDS, changeMaterial, generate, regenerate } from '../../src/templates/registry';
 import type { ParamDef, Params } from '../../src/templates/types';
 import { validate } from '../../src/model/validate';
 import { addDetail } from '../../src/model/ops';
@@ -29,7 +29,8 @@ describe('fuzz: templates', () => {
     for (let s = SEED0; s < SEED0 + N; s++) {
       const r = rng(s);
       seedMath(s);
-      const t = r.pick(TEMPLATES);
+      // the presets with free parameters; the sentence's structures are walked through their resolver (tests/sentence.*.test.ts)
+      const t = r.pick(PRESET_CARDS());
       const mat = r.pick(MATERIALS.filter((m) => t.materials.includes(m.kind)));
       const params: Params = Object.fromEntries(t.params.map((p) => [p.key, value(r, p)]));
       const log = [`${t.id} ${mat.id} ${JSON.stringify(params)}`];

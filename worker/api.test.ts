@@ -102,6 +102,18 @@ describe('class submissions', () => {
     expect((await submit(env, cls.code, { ...ok, deviceId: 'dev-eeeeeeee' })).status).toBe(403);
   });
 
+  it('a class can start in Guided (milestone 105), locked or not; an unknown level is ignored', async () => {
+    const { env } = testEnv();
+    const cookie = await login(env);
+    const cls = await (await call(env, '/api/teacher/classes', { method: 'POST', cookie, body: JSON.stringify({ name: 'G' }) })).json();
+    await call(env, `/api/teacher/classes/${cls.id}`, { method: 'PATCH', cookie, body: JSON.stringify({ mode: 'guided', modeLocked: true }) });
+    const info = await (await call(env, `/api/class/${cls.code}`)).json();
+    expect(info.mode).toBe('guided');
+    expect(info.modeLocked).toBe(true);
+    await call(env, `/api/teacher/classes/${cls.id}`, { method: 'PATCH', cookie, body: JSON.stringify({ mode: 'expert' }) });
+    expect((await (await call(env, `/api/class/${cls.code}`)).json()).mode).toBe('guided');
+  });
+
   it('class material profile is returned to students; deleting a class removes its files', async () => {
     const { env, files } = testEnv();
     const cookie = await login(env);

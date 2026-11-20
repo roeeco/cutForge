@@ -1,6 +1,8 @@
 // Teacher view (#/teacher): sign in, classes and codes, submissions with
 // previews, downloads regenerated from the submitted project files (never a
 // submitted SVG), batching onto shared sheets with name labels, mark as cut.
+import { offered, PLAIN_IDS, PLAIN_THINGS } from '../easy/plainThings';
+import type { Mode } from '../easy/features';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { api, type ApiError, type Submission, type TeacherClass } from '../net/api';
@@ -190,13 +192,13 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
             )}
             {c.id === current && (
               <fieldset className="field class-missions" data-testid="class-missions">
-                <legend>{t('class.missions')}</legend>
+                <legend>{t('class.thingsOffered')}</legend>
                 <label className="check">
                   <input
                     type="checkbox"
                     checked={!c.missions}
                     onChange={async (e) => {
-                      await api.patchClass(c.id, { missions: e.target.checked ? null : MISSIONS.map((m) => m.id) });
+                      await api.patchClass(c.id, { missions: e.target.checked ? null : [...MISSIONS.map((m) => m.id), ...PLAIN_IDS] });
                       reload();
                     }}
                     data-testid="class-missions-all"
@@ -219,6 +221,24 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                       {t(m.title)}
                     </label>
                   ))}
+                {/* Guided's plain things (milestone 106); a list from before names none and offers them all */}
+                {c.missions &&
+                  PLAIN_THINGS.map((x) => (
+                    <label key={x.id} className="check">
+                      <input
+                        type="checkbox"
+                        checked={offered(c.missions, x.id)}
+                        onChange={async (e) => {
+                          const listed = c.missions!.filter((k) => !PLAIN_IDS.includes(k));
+                          const plain = PLAIN_IDS.filter((k) => (k === x.id ? e.target.checked : offered(c.missions, k)));
+                          await api.patchClass(c.id, { missions: [...listed, ...plain] });
+                          reload();
+                        }}
+                        data-testid={`class-thing-${x.id}`}
+                      />
+                      {t(x.title)}
+                    </label>
+                  ))}
               </fieldset>
             )}
             {c.id === current && (
@@ -228,13 +248,14 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                   id={`mode-${c.id}`}
                   value={c.mode ?? ''}
                   onChange={async (e) => {
-                    const v = e.target.value as 'quick' | 'workshop' | '';
+                    const v = e.target.value as Mode | '';
                     await api.patchClass(c.id, { mode: v || null, ...(v ? {} : { modeLocked: false }) });
                     reload();
                   }}
                   data-testid="class-mode"
                 >
                   <option value="">{t('class.modeNone')}</option>
+                  <option value="guided">{t('mode.guided')}</option>
                   <option value="quick">{t('mode.quick')}</option>
                   <option value="workshop">{t('mode.workshop')}</option>
                 </select>

@@ -1,7 +1,8 @@
 // Bundled fonts (SIL Open Font License, see public/fonts/*-LICENSE.txt).
 // Each family is split into a Hebrew and a Latin subset; glyphs are taken
 // from whichever subset has them.
-import { parse, type Font } from 'opentype.js';
+// opentype.js (about a sixth of the app) is loaded with the fonts, not with the app (code splitting, 20 November)
+import type { Font } from 'opentype.js';
 
 export const FONTS = [
   { id: 'rubik', name: 'Rubik', file: 'rubik' },
@@ -27,8 +28,9 @@ export function onFontsChange(f: () => void) {
   return () => listeners.delete(f);
 }
 
-export function registerFont(id: FontId, hebrew: ArrayBuffer, latin: ArrayBuffer) {
-  loaded.set(id, { hebrew: parse(hebrew), latin: parse(latin) });
+/** Register a family's parsed fonts (the browser after `loadBundledFonts`; tests through `registerFont` in `./registerFont`). */
+export function registerParsed(id: FontId, pair: FontPair) {
+  loaded.set(id, pair);
   version++;
   listeners.forEach((l) => l());
 }
@@ -41,7 +43,8 @@ export async function loadBundledFonts(base = (import.meta as { env?: { BASE_URL
         const [h, l] = await Promise.all(
           ['hebrew', 'latin'].map((s) => fetch(`${base}fonts/${f.file}-${s}-400-normal.woff`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))),
         );
-        registerFont(f.id, h, l);
+        const { parse } = await import('opentype.js');
+        registerParsed(f.id, { hebrew: parse(h), latin: parse(l) });
       } catch {
         /* reported per text shape by validation */
       }

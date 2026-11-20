@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -53,7 +53,8 @@ import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../mode
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
-import { featureState, shown, useFeature, useMode } from '../easy/features';
+import { featureState, isGuided, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
+import { outlineWhy } from '../model/outlineWhy';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
 import { closeLabel } from '../ui/EdgeBar';
@@ -140,7 +141,7 @@ function Wdir(m: THREE.Matrix4, v: V3): V3 {
 
 type Label = { text: string; x: number; y: number };
 
-function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; quality: 'simple' | 'rich' }) {
+function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => void; quality: 'simple' | 'rich'; layer?: ReactNode }) {
   const t = useT();
   // the view cube sits above the view buttons, which are on the left in Hebrew
   const rtl = useStore((s) => s.lang === 'he');
@@ -149,16 +150,31 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
   const tool = useStore((s) => s.tool);
   const grow = useStore((s) => s.grow);
   const prefs = useStore((s) => s.viewPrefs);
-  // looking at the joints: their labels, without the grow, move and turn handles (a clearer joint stage)
-  const jointsOn = prefs.joints;
+  // looking at the joints: their labels, without the grow, move and turn handles (a clearer joint stage);
+  // outline mode (milestone 101) hides the same handles, so only the outlines' points are there
+  const fOutline = shown(useFeature('outline.mode'));
+  const outlineMode = !!prefs.outlineMode && fOutline;
+  const jointsOn = prefs.joints || outlineMode;
   const foldT = useStore((s) => s.foldT);
   const hoverPart = useStore((s) => s.hoverPart);
+  // the last board hovered keeps its faint points until another is hovered: a corner sits on the board's edge,
+  // so reaching for it leaves the board (milestone 101)
+  const [outlineHover, setOutlineHover] = useState<string | null>(null);
+  useEffect(() => {
+    if (!outlineMode) setOutlineHover(null);
+    else if (hoverPart) setOutlineHover(hoverPart);
+  }, [outlineMode, hoverPart]);
   const openJoint = useStore((s) => s.openJoint);
   const panelGhost = useStore((s) => s.panelGhost);
   const fHinge = shown(useFeature('hinge')), fJoints = shown(useFeature('joints'));
-  // Quick build shows parts made with Workshop tools read-only (milestone 37): no edges, gizmo or slide on them
-  const quick = useMode() === 'quick';
+  // Quick build (and Guided, milestone 105) shows parts made with Workshop tools read-only (milestone 37): no edges, gizmo or slide on them
+  const quick = keepsCuttable(useMode());
   const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
+  // what the stage shows in this mode (milestone 105): Guided has its own handles
+  const fEdges = shown(useFeature('stage.edges')), fWidgets = shown(useFeature('stage.panelWidgets'));
+  const fFloorGizmo = shown(useFeature('stage.floorGizmo')), fPlacedGizmo = shown(useFeature('stage.placedGizmo'));
+  const fDividerButton = shown(useFeature('stage.dividerButton')), fDividerSlide = shown(useFeature('stage.dividerSlide'));
+  const fShapeGizmo = shown(useFeature('stage.shapeGizmo')), fPan = shown(useFeature('stage.pan')), fDock = shown(useFeature('stage.dock'));
   const [faceHover, setFaceHover] = useState<{ panelId: string; face: 1 | -1 } | null>(null);
   // the tour can leave panels off the stage for a step (the lid while drawing inside the box, milestone 43)
   const tourHidden = useStore((s) => {
@@ -546,6 +562,14 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         camera.updateMatrixWorld();
         invalidate();
       },
+      zoom: (f) => {
+        if (camera instanceof THREE.OrthographicCamera) {
+          camera.zoom /= f;
+          camera.updateProjectionMatrix();
+        } else camera.position.sub(ctl.target).multiplyScalar(f).add(ctl.target);
+        ctl.update();
+        invalidate();
+      },
     });
     return () => registerStage(null);
   }, [camera, gl, controls]);
@@ -708,7 +732,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             hover={hoverPart === id}
             outlines={prefs.outlines}
             showEdges={(tool === 'select' || tool === 'wall') && !folded && !jointsOn && (selPanel === id || hoverPart === id) && !locked(id)}
-            edges={!jointsOn}
+            edges={!jointsOn && fEdges}
             selDetails={selectedDetailIds(sel)}
             selEdge={selEdge && selEdge.panelId === id ? selEdge.edge : null}
             tool={tool}
@@ -728,7 +752,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
             } : undefined}
             onDetailDown={(did) => onDetailDown(p, did)}
             onDouble={() => useStore.getState().openSolo(id)}
-            inert={!!editOutline || display.away.has(id)}
+            inert={(!!editOutline && !outlineMode) || display.away.has(id)}
             cutHit={!!cutHits?.has(id)}
             through={throughMap.get(id)}
           />
@@ -746,8 +770,8 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
         <BandObject key={s.band.id} s={s} d={design} m={s.pre ? (display.xf.get(s.band.parent) ?? IDM).clone().multiply(s.pre) : (display.xf.get(s.band.parent) ?? IDM)} index={design.order.indexOf(s.band.parent)} outlines={prefs.outlines} />
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
-      {selEdge && !folded && !jointsOn && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
-      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && !jointsOn && editOutline !== selPanel && (
+      {selEdge && !folded && !jointsOn && fEdges && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
+      {selPanel && design.panels[selPanel] && tool === 'select' && !folded && !jointsOn && editOutline !== selPanel && fWidgets && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
       {activeThrough && (
@@ -757,7 +781,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           </span>
         </StageHtml>
       )}
-      {tool === 'select' && !folded && !jointsOn && selAlso.length === 2 && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
+      {tool === 'select' && !folded && !jointsOn && selAlso.length === 2 && fDividerButton && <DividerButton d={design} a={selAlso[0]} b={selAlso[1]} />}
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {(tool === 'panel' || tool === 'divider') && !folded && <PanelGhostView d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
@@ -765,27 +789,31 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
       {tool === 'panel' && !folded && !panelGhost && floorHover && <FloorHover at={floorHover} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
-        <OutlineHandles p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
+        <OutlineHandles key={selPanel} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} t={design.material.thickness} />
       )}
-      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
-      {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && (
+      {/* outline mode: the board under the pointer shows its points faintly; grabbing one edits it at once */}
+      {outlineMode && tool === 'select' && !folded && outlineHover && outlineHover !== editOutline && design.panels[outlineHover] && !outlineWhy(design, outlineHover) && !locked(outlineHover) && (
+        <OutlineHandles key={outlineHover} p={design.panels[outlineHover]} m={display.xf.get(outlineHover) ?? IDM} t={design.material.thickness} faint />
+      )}
+      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && fWidgets && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && fDividerSlide && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
-      {multi && tool === 'select' && !folded && !jointsOn && !selAlso.some(locked) && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
+      {multi && tool === 'select' && !folded && !jointsOn && !selAlso.some(locked) && fFloorGizmo && <GroupGizmo d={design} ids={selAlso} tolAt={tolAt} />}
       {selPanel && tool === 'select' && !folded && !jointsOn && !selGrown && editOutline !== selPanel && !selLocked && design.panels[selPanel] && (
         design.panels[selPanel].place?.host ? (
-          <>
+          fPlacedGizmo && <>
             <PlacedGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
             {design.panels[selPanel].place?.pose === 'standing' && <PlacedFlip d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} />}
           </>
         ) : (
-          <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
+          fFloorGizmo && <FloorGizmo d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
         )
       )}
-      {sel?.kind === 'detail' && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && (
+      {sel?.kind === 'detail' && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && fShapeGizmo && (
         <ShapeGizmo d={design} ids={sel.ids} m={display.xf.get(findDetail(design, sel.id)?.panel.id ?? '') ?? IDM} tolAt={tolAt} />
       )}
-      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
+      {sel?.kind === 'detail' && sel.ids.length === 1 && tool === 'select' && !folded && !jointsOn && !editOutline && !shapeLocked && fShapeGizmo && <ThroughEdit d={design} id={sel.id} tolAt={tolAt} />}
       {!folded && <ContentsView d={design} xf={display.xf} onDown={(c, e) => {
         if (tool !== 'select' || e.button !== 0) return;
         e.stopPropagation();
@@ -804,8 +832,9 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           <meshBasicMaterial color={STAGE.selected} transparent opacity={0.35} />
         </mesh>
       )}
-      <OrbitControls makeDefault enableDamping={false} />
-      <GizmoHelper alignment={rtl ? 'bottom-left' : 'bottom-right'} margin={[CUBE_MARGIN[0], CUBE_MARGIN[1]]} renderPriority={quality === 'rich' ? 2 : 1}>
+      {layer}
+      <OrbitControls makeDefault enableDamping={false} enablePan={fPan} />
+      {fDock && <GizmoHelper alignment={rtl ? 'bottom-left' : 'bottom-right'} margin={[CUBE_MARGIN[0], CUBE_MARGIN[1]]} renderPriority={quality === 'rich' ? 2 : 1}>
         <GizmoViewcube
           faces={[t('cube.right'), t('cube.left'), t('cube.top'), t('cube.bottom'), t('cube.front'), t('cube.back')]}
           font='600 26px "Rubik UI", system-ui, sans-serif'
@@ -815,7 +844,7 @@ function Scene({ setLabel, quality }: { setLabel: (s: Label | null) => void; qua
           strokeColor="#94a3b8"
           opacity={1}
         />
-      </GizmoHelper>
+      </GizmoHelper>}
       {quality === 'rich' && <AOEffects />}
     </>
   );
@@ -1231,6 +1260,8 @@ function ContentsView({ d, xf, onDown }: { d: Design; xf: Map<string, THREE.Matr
 function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map<string, THREE.Matrix4> }) {
   const t = useT();
   const note = useStore((s) => s.guardNote);
+  // Guided's words for the same tip (milestone 108): side, corner teeth, the next cut-out
+  const guidedWords = isGuided(useMode());
   const [, tick] = useState(0);
   useEffect(() => {
     if (!note) return;
@@ -1264,7 +1295,7 @@ function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map
       {f && note && (
         <StageHtml position={W(xf.get(f.panel.id) ?? IDM, f.panel.frame, f.detail.cx, f.detail.cy + f.detail.h / 2 + 4, tOf(d, f.panel.id))} style={{ pointerEvents: 'none' }}>
           <span className="guard-tip" data-testid="guard-tip" data-why={note.why}>
-            {t(`guard.${note.why}`, { mm: fmtNum(note.mm, 1) })}
+            {t(`${guidedWords ? 'g.guard' : 'guard'}.${note.why}`, { mm: fmtNum(note.mm, 1) })}
           </span>
         </StageHtml>
       )}
@@ -2776,10 +2807,23 @@ function FoldBar() {
   );
 }
 
-export function View3D() {
+/**
+ * The hint under the stage. On an empty stage Workshop says how to draw the first board; Quick build
+ * says nothing there (milestone 92: it has no Board tool, and the note beside its rail says where to start).
+ */
+export function stageHintKey<K extends string>(empty: boolean, tool: string, mode: Mode, hint: K): K | 'view.empty3d' | null {
+  if (mode === 'guided') return null;
+  if (empty && tool === 'select') return mode === 'quick' ? null : 'view.empty3d';
+  return hint;
+}
+
+/** The 3D stage. `layer`: what another shell draws inside the scene (Guided's handles, milestone 105), so this file never imports it. */
+export function View3D({ layer }: { layer?: ReactNode } = {}) {
   const t = useT();
+  const fDock = shown(useFeature('stage.dock')), fFoldBar = shown(useFeature('stage.foldBar')), fHint = shown(useFeature('stage.hint'));
   // Quick build calls the joints view "How it's built" (milestone 37)
   const jointsKey = shown(useFeature('joints')) ? 'view.joints' : 'quick.howBuilt';
+  const fOutlineMode = useFeature('outline.mode');
   const tool = useStore((s) => s.tool);
   const empty = useStore((s) => s.design.order.length === 0);
   const prefs = useStore((s) => s.viewPrefs);
@@ -2816,9 +2860,14 @@ export function View3D() {
   // the joints view shows one panel's joints at a time
   const jointsIdle = useStore((s) => s.viewPrefs.joints && !(s.selection?.kind === 'panel' && !s.selection.ids?.length));
   const edgeSel = useStore((s) => s.selection?.kind === 'edge');
+  const outlineModeOn = useStore((s) => !!s.viewPrefs.outlineMode);
+  // outline mode: a hovered board that cannot be edited says why
+  const outlineNo = useStore((s) => (s.viewPrefs.outlineMode && s.hoverPart ? outlineWhy(s.design, s.hoverPart) : null));
   const hint =
     foldT < 0.999
       ? 'fold.hint'
+      : outlineModeOn && tool === 'select'
+        ? (outlineNo ?? 'outline.modeHint')
       : jointsIdle
         ? 'joint.pickPanel'
       : picking && tool === 'select'
@@ -2851,7 +2900,7 @@ export function View3D() {
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
         <color attach="background" args={[STAGE.bg]} />
         <OverlayContext.Provider value={overlay}>
-          <Scene setLabel={setLabel} quality={quality} />
+          <Scene setLabel={setLabel} quality={quality} layer={layer} />
         </OverlayContext.Provider>
         <CameraRig ortho={ortho} fitSignal={fit} onAutoFit={() => setFit((f) => f + 1)} />
         <CameraKeeper />
@@ -2866,7 +2915,7 @@ export function View3D() {
           {label.text} {t('unit.mm')}
         </div>
       )}
-      <div className="view-dock" dir={uiDir()}>
+      {fDock && <div className="view-dock" dir={uiDir()}>
         {/* milestone 78: the view cube and the view buttons are one cluster (the cube is drawn by the stage over this slot) */}
         <div className="view-stack" data-testid="view-cluster">
         <div className="cube-slot" aria-hidden />
@@ -2888,6 +2937,19 @@ export function View3D() {
             <Icon name="finger" />
             <span>{t(jointsKey === 'view.joints' ? 'view.jointsOn' : jointsKey)}</span>
           </button>
+          {shown(fOutlineMode) && (
+            <button
+              className={`stage-toggle outline-toggle ${prefs.outlineMode ? 'on' : ''}`}
+              onClick={() => useStore.getState().setPrefs({ outlineMode: !prefs.outlineMode })}
+              title={t('view.outlineModeHelp')}
+              aria-label={t('view.outlineMode')}
+              aria-pressed={!!prefs.outlineMode}
+              data-testid="toggle-outline"
+            >
+              <Icon name="polygon" />
+              <span>{t('view.outlineMode')}</span>
+            </button>
+          )}
           <button onClick={playAssembly} title={t('assemble.go')} aria-label={t('assemble.go')} data-testid="assemble-go">
             <Icon name="play" />
           </button>
@@ -2898,11 +2960,14 @@ export function View3D() {
         </div>
         {settings && <ViewSettings onClose={() => setSettings(false)} />}
         <MaterialLegend />
-      </div>
+      </div>}
       {/* the fold slider above the hint, both at the bottom centre, clear of the cards at the sides */}
       <div className="stage-bottom">
-        <FoldBar />
-        <div className="view-hint" dir={uiDir()}>{empty && tool === 'select' ? t('view.empty3d') : t(hint)}</div>
+        {fFoldBar && <FoldBar />}
+        {fHint && (() => {
+          const k = stageHintKey(empty, tool, prefs.mode ?? 'workshop', hint);
+          return k ? <div className="view-hint" dir={uiDir()}>{t(k)}</div> : null;
+        })()}
       </div>
       <PolygonToolCard />
       <span hidden data-testid="quality" data-quality={quality} />

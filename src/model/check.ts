@@ -1,3 +1,4 @@
+import { sketchOk } from '../sketch/cutforge';
 // Structural check of a loaded design (BUGFIX_PLAN B3): project files and class
 // submissions come from outside, so before `solve` sees one, every field the
 // model reads is checked for its type, and every number for being finite and
@@ -79,6 +80,8 @@ function detail(dt: unknown, where: string) {
   if (badId(x.id)) fail(`${where}.id`, 'bad id');
   oneOf(x.shape, SHAPES, `${where}.shape`);
   oneOf(x.op, OPS, `${where}.op`);
+  // milestone 104: a shape's editable outline graph; a damaged one is dropped (its flattened outline stays)
+  if (x.sketch !== undefined && !sketchOk(x.sketch)) delete x.sketch;
   num(x.cx, `${where}.cx`);
   num(x.cy, `${where}.cy`);
   num(x.w, `${where}.w`, { min: 0 });
@@ -349,6 +352,8 @@ export function checkDesign(raw: unknown): asserts raw is Design {
   const d = raw as Record<string, any>;
   if (typeof d.id !== 'string') d.id = 'loaded';
   if (typeof d.name !== 'string') d.name = '';
+  // size intent (milestone 93): absent is outside; anything else is dropped
+  if (d.sizeAs !== undefined && d.sizeAs !== 'inside' && d.sizeAs !== 'crease') delete d.sizeAs;
   // sizes (milestone 88): rows of numbers; a bad one is dropped
   if (d.sizes !== undefined) {
     const n = (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < COORD_LIMIT);

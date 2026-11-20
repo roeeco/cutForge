@@ -90,3 +90,10 @@ export async function settle(page: Page) {
     { polling: 50, timeout: 10_000 },
   );
 }
+
+/** Start a preset the welcome screen no longer lists (the organiser, milestone 98), as its card did. */
+export async function startTemplate(page: Page, id: string, matId: string) {
+  await page.evaluate(([i, m]) => (window as any).__cutforge.startTemplate(i, m), [id, matId]);
+  await expect(page.getByTestId('material-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('view3d')).toBeVisible();
+}

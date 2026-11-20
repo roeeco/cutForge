@@ -4,7 +4,8 @@
 // is joined by a connection, or the export check names the pair.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import {
   addDetail,
   addDivider,

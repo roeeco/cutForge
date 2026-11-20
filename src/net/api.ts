@@ -22,7 +22,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (type.includes('json') && !path.endsWith('/project') ? r.json() : r.text()) as Promise<T>;
 }
 
-export type ClassMode = 'quick' | 'workshop' | null;
+export type ClassMode = import('../easy/features').Mode | null;
 export type ClassInfo = { name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null };
 export type TeacherClass = { id: string; code: string; name: string; open: boolean; material: import('../model/types').MaterialProfile | null; mode?: ClassMode; modeLocked?: boolean; missions?: string[] | null; createdAt: number; submissions: number; fresh: number };
 export type Submission = { id: string; classId: string; displayName: string; title: string; materialId: string; materialKind: string; thickness: number; pieceCount: number; status: 'new' | 'cut'; superseded: boolean; createdAt: number; device: string; mission?: string | null; goalsMet?: number | null; goalsTotal?: number | null };

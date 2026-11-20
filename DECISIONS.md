@@ -434,3 +434,83 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Corners stay flush.** Tab-and-slot corners no longer carry the receiver past the corner for a web outside its slots (corrugated walls stood 3 mm proud); a slot at the receiver's end is an open notch, a box joint, which is how laser-cut cardboard corners are usually made. Inside corners no longer reach a web further either. A slot that lies clear of the end stays a closed hole.
 - **A fold that turns away from the scored face is perforated by default.** Pieces are cut in their boards' coordinates; a lid's board is mirrored (turned over onto its box), so its rims fold away from the face the box's folds turn towards: outwards, which keeps its outline the box's own way round. A score folds well one way only, so those folds (and the lid's flaps) are perforated. The crease choice is now *Automatic · Score · Perforated · Cut-crease*; `Connection.crease: 'score'` keeps a score.
 - **Tests changed on purpose**: card and corrugated goldens regenerated (`UPDATE_GOLDEN=1`, and `UPDATE_MIGRATED=1` for the exports old files now make); plywood goldens unchanged. Size-bound tests (splitting, the margin repro, the spec sheet's blank size, one nesting design) moved to sizes that still exercise them; the hinge-sliver repro checks an L tray, since flush corners let its 7-gon lie flat without a hinge.
+
+## Milestone 92: what Quick build left half-done (GUIDED_MODE.md G1)
+- **Autosave writes the design from before a draft**, not the draft (`designToSave`); the end of a draft (✓ or ✗) triggers a save even though the design object did not change at ✓.
+- **Which dividers keep their place**: only rows the student changed. A row still at the template's spacing follows the template (so 2 → 3 dividers stays even), because keeping an untouched row's places would make the template look broken. "Changed" means a template divider more than 0.01 mm from where the template would put it with the old sizes, or any divider the student added in that row.
+- **A share of the row** (the divider's centre between the row's two faces), not a distance from one side: a width change spreads the student's layout instead of crowding one end.
+- **The too-big fix works on a copy** and is taken whole or not at all; for a template, every size in millimetres (`unit: 'mm'`) scales by one factor, never under its minimum, rounded to 0.1 mm. Templates' size limits already respect the four classroom sheets, so this matters for custom materials with small sheets.
+
+## Milestone 93: size intent (DIELINE_DNA_PLAN.md D5a)
+- **In `boxSize.ts`, not `sizes.ts`**: milestone 88 owns `sizes.ts` (size rows).
+- **What lies under and over the inside**: a cut base (its thickness); an open base (a tube) its bottom flaps when it has a bottom, else nothing (a sleeve); a closed top (`top`) its thickness. A lid of its own does not count: inside is measured to the rim.
+- **Crease to crease is half a wall less on each side**, because since the fold overhaul a crease lies where the two mid-planes meet; on plywood (no creases) the choice is not offered.
+- **The intent is applied around a change of board** (`keepingStatedSizes`): the stated sizes are read before and set after. `ops.ts` imports `boxSize.ts`, which imports `setPanelSize` / `setTrayHeight` from `ops.ts`; the cycle is only between functions called at run time.
+- **Dividers keep their distance from the left and front** when a box is resized through `setBoxSize` (the base grows from its origin), the rule Guided's Build and the sentence's spaces rely on.
+
+## Milestone 94: the sentence's contract and resolver (SENTENCE_BUILDER_PLAN.md S1)
+- **`canMake(m)` beside `materials`**, not in place of it: the welcome screen, the missions and saved files read `materials`; `makes(t, m)` asks `canMake` first.
+- **A word not in the sentence keeps its value** (it is not reset when hidden), so it comes back as it was when an earlier word brings it back.
+- **A choice not offered changes nothing** rather than being refused with a range: lists only ever offer allowed options.
+- **A range that closes up keeps its lower end** (max never below min), so a number always has a value it can take.
+- **Bisection**: both ends are tried first, then halvings, then the result is rounded down to the step; eight builds give about 1/64 of the range.
+
+## Milestone 95: the sentence's box, tray and spaces (SENTENCE_BUILDER_PLAN.md S2)
+- **The lists ask the engine by building** (`cleanWith`), not only through the functions the plan named (`lidWhy`, `roundedMin`): the random walks showed that each of those can say yes to something that then does not cut clean (a tall rounded box, an arched lid on a deep box). Building is 5–60 ms a time; the answers are cached.
+- **The later add-ons are left off** when an option is asked about: each add-on is checked in its own turn, after the words before it.
+- **Size ranges are found by bisection with square corners and no add-ons**, so they are the box's own limits; a shape or an add-on that does not fit at that size falls back after.
+- **A size inside its range may still be refused** (`accepts`), because validity is not monotonic everywhere (a corrugated net that fits only turned against the grain at one depth fits again when deeper, once it is split). The note says to try a little more or less.
+- **Shape before the add-ons, after the sizes**, so a change of size re-checks the shape.
+- **Template ids**: tray ids become `t:tray1`, … and ids built from them follow; joint ids with `:`, `/`, `~` or `|` are the engine's and are left for `solve`. The organiser's and the stand's goldens are unchanged.
+
+## Milestone 96: the sentence's carton and sleeve (SENTENCE_BUILDER_PLAN.md S3)
+- **No tuck direction word**: the engine makes a carton's tuck top off the back wall and its tuck bottom off the front (a reverse tuck); a straight tuck (both off the same wall) is not in the engine, so it is not offered.
+- **A carton needs corrugated no thicker than 2 mm** to tuck; a sleeve folds from 4 mm too.
+- **`accepts` on every change**, not only numbers: a choice offered by its list was checked with the later add-ons off; the whole sentence can still miss (a count after a change of shape), so it is checked as it stands.
+
+## Milestone 97: the sentence component (SENTENCE_BUILDER_PLAN.md S4)
+- **A list is worked out when it opens**, after it has painted (*Working out what fits…*), because an option can take a build to answer; the sentence itself is resolved without its lists.
+- **The structure word's list and the shape, lid and ends lists have pictures**; numbers and the other add-ons do not (a picture per window or notch says little at that size).
+- **A choice refused by the engine** (rare: the whole sentence would not cut clean) leaves the word as it was and says *Not now: why* under the sentence.
+- **The narrow layout labels each word with its parameter's name** and keeps the order of the sentence.
+
+## Milestone 98: the welcome screen (SENTENCE_BUILDER_PLAN.md S5)
+- **Touching the sentence chooses it** (focus or pointer anywhere in its row), so a student never has to find its radio first; *Blank design* is still chosen by default.
+- **The default sentence is a plain box** (160 × 110 × 45 mm inside, no add-ons): the plan's example with a lid and spaces is one *+ more* away twice.
+- **The organiser leaves the welcome screen but not the app**: its saved files open with their card; browser specs start it through the test hook.
+
+## Milestone 99: the preset card after Start (SENTENCE_BUILDER_PLAN.md S6)
+- **Notes on the card, not a toast**: the card already holds the template's other messages (shapes that could not be kept); the notes sit with them and stay until the next change.
+- **The card's fields keep their own bounds**; the engine's range is shown when a number is refused (working it out for every field on every change would build the box many times).
+
+## Milestone 100: verification of the sentence (SENTENCE_BUILDER_PLAN.md S7)
+- **A lower limit that follows an earlier word**: the stand's base depth comes after its slots, so a change of slots moves the base up to what they need, and the base cannot be typed shallower than that.
+- **Every structure refuses what would not cut clean** (`accepts`), the stand included: a structure's own number ranges cannot say everything (a sheet, a grain, a fold that does not fit), so the whole sentence is built and checked.
+
+## Milestone 101: outline mode (DIELINE_DNA_PLAN.md D0)
+- **`viewPrefs.outlineMode`** (`outlines` already means *draw outlines*), excluded with `joints` in `setPrefs`.
+- **Boards stay pickable in the mode** (they are inert while one outline is edited outside it), so a click on another board moves the editing.
+- **A generated Flat or Drop-in lid's outline is no longer editable** from its card: it is made again from its box (it was offered before and reset by the next change).
+- **The last board hovered keeps its faint points**: a corner sits on the board's edge, so reaching for it leaves the board.
+
+## Milestone 102: the sketch engine and the 2D canvas (DIELINE_DNA_PLAN.md D0b-1)
+- **Ported as is** with its tests, its decisions in `claude/guided-mode`'s `DECISIONS.md` (milestones 56–59) holding here too; only its tests that need the waffle's 3D kernel stay there.
+- **`canvas2d.tsx` is the branch's file**: `main`'s cut plan had the same view-box code and handles; the branch's are a superset (side handles off by default, a test-id prefix), so the cut plan is unchanged.
+- **A board's curved edge is a Bezier in its graph only as a marker**: its shape stays the board's own curve rule (`curveRing`); writing back keeps *curve* on its first point.
+
+## Milestone 103: the transform frame in 2D (DIELINE_DNA_PLAN.md D0c)
+- **Alt keeps both meanings** in the 2D frame: scale about the middle (the branch's frame) and no smart snapping (CutForge's Alt everywhere).
+- **The direction moved furthest leads** when proportions are kept (the branch's rule), so a corner drag never shrinks the side being pulled.
+- **Pills drawn in the sheet** (`foreignObject`), at screen size, beside the frame's bottom and right; a click opens the input (not the press: the branch's lesson).
+
+## Milestone 104: edit outlines in the 2D view (DIELINE_DNA_PLAN.md D0b-2)
+- **Edited in place, one undo step per change**: no separate sketch view, no *Finish* (the owner's double-click-into flow; `claude/guided-mode`'s session is not used).
+- **`Detail.sketch` beside `path`**: the graph is the editable source; `path` keeps the flattened outline every other part of the app reads (cut, snapping, guards), so nothing else had to change. The graph is in the shape's own frame and is scaled when the shape's box changes (`fitShapeSketch`), so the two never disagree.
+- **A double-click finds the shape geometrically** (inside its outline or within six pixels of it, the smallest one): a cut-out's stroke is too thin to be the click's target.
+- **The edit card sits on the side away from the shape's card** (left in English, right in Hebrew), placed by the page's direction: the 2D view itself is laid out left to right.
+- **Boards: rounded corners, not cut ones**: a board stores a radius per corner; *Cut* is offered for shapes only.
+
+## Code splitting (20 November)
+- **Libraries bundled, not from a public CDN**: browsers keep a separate cache per site, so a CDN's copy is not shared with other sites; bundling keeps only the parts used; a school network that blocks a CDN, an outage, the offline mode and the students' privacy all argue for one origin; Cloudflare already serves the files from its edge.
+- **Rolldown's `advancedChunks`** (Vite 8), not `manualChunks`, which merged three.js's core into the 3D renderer's file.
+- **The 3D view is not deferred**: the welcome screen draws its pictures with three.js and the editor opens on the 3D view.

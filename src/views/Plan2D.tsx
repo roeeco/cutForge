@@ -2,6 +2,16 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
+import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
+import { evalNumber } from '../ui/NumField';
+import { isGuided, keepsCuttable, shown, useFeature, useMode } from '../easy/features';
+import { keepOutZones } from '../easy/guard';
+import { canEdit, movePoint, targetOf, type Edit2D } from '../sketch/edit2d';
+import { pointInPolygon } from '../geom/vec';
+import { snapPoint as skSnap, snapTargets as skTargets } from '../sketch/snap';
+import { linePolyline } from '../model/lines';
+import { Edit2DCard, Edit2DLayer, distToSegment } from './Edit2D';
 import { detailSel, gridSnap, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT } from '../store/store';
 import { YieldBar } from '../ui/SplitUI';
 import { pack, pieceCopies, placementXform, quantityOf, sheetGroups, type PieceCopy } from '../model/pack';
@@ -33,21 +43,18 @@ const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
 type Placed = { copy: PieceCopy; sheet: number; xf: Xform2; ox: number; H: number };
 /** One sheet drawn in the cut plan: its material, its number within that material, where it sits and its size. */
 type Slot = { mat: string; profile: MaterialProfile; i: number; n: number; ox: number; W: number; H: number };
-type VB = { x: number; y: number; w: number; h: number };
-type Box = { minX: number; maxX: number; minY: number; maxY: number };
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; vb: VB }
   | { kind: 'marquee'; a: Vec2; b: Vec2; additive: boolean; base: string[] }
   | { kind: 'move'; ids: string[]; placed: Placed; panelId: string; start: Vec2; startSvg: Vec2; box: Box }
-  | { kind: 'resize'; id: string; placed: Placed; panelId: string; fixed: Vec2; circle: boolean; rot?: number }
+  | { kind: 'resize'; id: string; placed: Placed; panelId: string; start: FrameBox; handle: FrameHandle; circle: boolean }
   | { kind: 'rotate'; ids: string[]; placed: Placed; panelId: string; pivot: Vec2; a0: number; last: number; deg: number }
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
-  | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean };
+  | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean }
+  | { kind: 'pt2d'; ptId: string; placed: Placed; panelId: string; startSvg: Vec2; moved: boolean };
 
-// view boxes survive switching views (solo → back restores the framing)
-const savedVB = new Map<string, VB>();
 
 export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const t = useT();
@@ -117,37 +124,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     const x0 = left + (availW - totalW * k) / 2, y0 = topPx + (availH - H * k) / 2;
     return { x: -x0 / k, y: -y0 / k, w: cw / k, h: ch / k };
   };
-  const [vb, setVBState] = useState<VB>(() => savedVB.get(modeKey) ?? fitVB());
-  const setVB = (v: VB | ((o: VB) => VB)) =>
-    setVBState((o) => {
-      const n = typeof v === 'function' ? v(o) : v;
-      savedVB.set(modeKey, n);
-      return n;
-    });
-  useEffect(() => setVBState(savedVB.get(modeKey) ?? fitVB()), [modeKey]);
-  // the first fit ran before the drawing had a size: fit again once it has one
-  useEffect(() => {
-    if (!savedVB.has(modeKey)) setVBState(fitVB());
-  }, []);
+  // the view box, its zoom and pan, kept per mode across remounts (src/views/canvas2d.tsx, milestone 102)
+  const { vb, setVB, svgPoint, mmPerPx, onWheel, zoom } = useViewBox(svgRef, modeKey, fitVB);
   const [label, setLabel] = useState<{ text: string; x: number; y: number } | null>(null);
   const [guides, setGuides] = useState<{ guides: Guide[]; targets: Vec2[]; placed: Placed; panelId: string } | null>(null);
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const drag = useRef<Drag | null>(null);
 
-  const svgPoint = (ev: { clientX: number; clientY: number }): Vec2 => {
-    const svg = svgRef.current!;
-    const pt = svg.createSVGPoint();
-    pt.x = ev.clientX;
-    pt.y = ev.clientY;
-    const r = pt.matrixTransform(svg.getScreenCTM()!.inverse());
-    return { x: r.x, y: r.y };
-  };
-  /** mm per screen pixel (fixed-pixel snap threshold at every zoom). */
-  const mmPerPx = () => {
-    const svg = svgRef.current;
-    if (!svg || !svg.clientWidth) return vb.w / 900;
-    return Math.max(vb.w / svg.clientWidth, vb.h / svg.clientHeight);
-  };
   const toPiece = (pl: Placed, p: Vec2): Vec2 => {
     const q = invertPoint(pl.xf, { x: p.x - pl.ox, y: pl.H - p.y });
     return { x: q.x + pl.copy.origin.x, y: q.y + pl.copy.origin.y };
@@ -183,6 +166,22 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         const k = mmPerPx();
         void svg;
         setVB({ ...g.vb, x: g.vb.x - (ev.clientX - g.sx) * k, y: g.vb.y - (ev.clientY - g.sy) * k });
+        return;
+      }
+      if (g.kind === 'pt2d') {
+        // a point of the outline being edited (milestone 104): snapped by the sketch's own rules, then the grid
+        const cur = svgPoint(ev);
+        if (!g.moved && Math.hypot(cur.x - g.startSvg.x, cur.y - g.startSvg.y) < 3 * mmPerPx()) return;
+        g.moved = true;
+        const t2 = st.edit2d;
+        if (!t2) return;
+        const base = st.txnBase ?? st.design;
+        const tg = targetOf(base, t2);
+        if (!tg) return;
+        const raw = tg.fromBoard(toLocal(g.placed, g.panelId, cur));
+        const sn = skSnap(raw, { mmPerPx: mmPerPx(), targets: skTargets(tg.g, { exclude: [g.ptId] }), grid: (v) => (tg.wall || t2.kind !== 'shape' ? grid(v, ev) : v), noSmart: noSnap, free: ev.altKey });
+        st.preview((x) => void movePoint(x, t2, g.ptId, tg.toBoard(sn.p)));
+        setLabel({ text: `${fmtNum(sn.p.x)}, ${fmtNum(sn.p.y)}`, ...cur });
         return;
       }
       if (g.kind === 'piece') {
@@ -263,31 +262,29 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           const sx = Math.abs(g.corner.x - g.fixed.x) < 1e-9 ? 1 : (px - g.fixed.x) / (g.corner.x - g.fixed.x);
           const sy = Math.abs(g.corner.y - g.fixed.y) < 1e-9 ? 1 : (py - g.fixed.y) / (g.corner.y - g.fixed.y);
           if (sx <= 0.02 || sy <= 0.02) return;
-          st.preview((x) => scaleDetails(x, g.ids, g.fixed, sx, sy));
+          // with Shift or Keep proportions, both by the direction moved furthest (milestone 103)
+          const keep = !!st.viewPrefs.keepRatio || ev.shiftKey;
+          const k = Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy;
+          st.preview((x) => scaleDetails(x, g.ids, g.fixed, keep ? k : sx, keep ? k : sy));
           setLabel({ text: `${fmtNum(Math.abs(px - g.fixed.x))} × ${fmtNum(Math.abs(py - g.fixed.y))}`, ...svgPoint(ev) });
           return;
         }
-        if (g.kind === 'resize' && g.rot) {
-          // a turned shape: measure the pointer in the shape's own axes from the fixed corner
-          const a = (g.rot * Math.PI) / 180, c = Math.cos(a), s2 = Math.sin(a);
-          const rx = px - g.fixed.x, ry = py - g.fixed.y;
-          const lx = rx * c + ry * s2, ly = -rx * s2 + ry * c;
-          const w = Math.max(0.5, Math.abs(lx)), h = Math.max(0.5, Math.abs(ly));
-          const hx = ((Math.sign(lx) || 1) * w) / 2, hy = ((Math.sign(ly) || 1) * h) / 2;
-          const cx = g.fixed.x + hx * c - hy * s2, cy = g.fixed.y + hx * s2 + hy * c;
-          st.preview((x) => updateDetail(x, g.id, { cx, cy, w, h }));
-          setLabel({ text: `${fmtNum(w)} × ${fmtNum(h)}`, ...svgPoint(ev) });
+        if (g.kind === 'resize') {
+          // the transform frame (milestone 103): corners both ways, sides one, Shift or Keep proportions alike, Alt about the middle;
+          // a turned shape in its own axes; always from the box at the drag's start
+          const r = frameDrag(g.start, g.handle, { x: px, y: py }, { keep: !!st.viewPrefs.keepRatio || ev.shiftKey, alt: ev.altKey, circle: g.circle });
+          st.preview((x) => updateDetail(x, g.id, { cx: r.cx, cy: r.cy, w: r.w, h: r.h }));
+          setLabel({ text: g.circle ? `Ø ${fmtNum(r.w)}` : `${fmtNum(r.w)} × ${fmtNum(r.h)}`, ...svgPoint(ev) });
           return;
         }
-        const circle = g.kind === 'resize' ? g.circle : st.tool === 'circle';
-        const fixed = g.kind === 'resize' ? g.fixed : g.start;
+        const circle = st.tool === 'circle';
+        const fixed = g.start;
         let w = Math.abs(px - fixed.x), h = Math.abs(py - fixed.y);
         if (circle) w = h = Math.max(w, h);
         if (w < 0.5 && h < 0.5) return;
         const cx = fixed.x + ((Math.sign(px - fixed.x) || 1) * w) / 2;
         const cy = fixed.y + ((Math.sign(py - fixed.y) || 1) * h) / 2;
-        if (g.kind === 'resize') st.preview((x) => updateDetail(x, g.id, { cx, cy, w: Math.max(0.5, w), h: Math.max(0.5, h) }));
-        else {
+        {
           const shape = st.tool === 'circle' || st.tool === 'roundrect' ? st.tool : 'rect';
           st.preview((x) => void addDetail(x, g.panelId, shape, st.shapeOp, cx, cy, w, h, g.id, st.shapeThrough));
         }
@@ -314,6 +311,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           // a ghost until ✓ (milestone 30)
           st.select(detailSel([g.id]));
           st.beginPending({ kind: 'shape', ids: [g.id], panelId: g.panelId });
+        }
+      } else if (g.kind === 'pt2d') {
+        // a press without a move selects the point
+        if (g.moved) st.commit();
+        else {
+          st.cancel();
+          st.set({ sel2d: g.ptId });
         }
       } else if (g.kind !== 'pan') st.commit();
     };
@@ -359,16 +363,6 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     return out;
   };
 
-  const onWheel = (ev: React.WheelEvent) => {
-    const p = svgPoint(ev);
-    const k = Math.exp(ev.deltaY * 0.0015);
-    setVB((v) => {
-      const w = Math.min(20000, Math.max(5, v.w * k));
-      const s = w / v.w;
-      return { x: p.x - (p.x - v.x) * s, y: p.y - (p.y - v.y) * s, w, h: v.h * s };
-    });
-  };
-  const zoom = (k: number) => setVB((v) => ({ x: v.x + (v.w * (1 - k)) / 2, y: v.y + (v.h * (1 - k)) / 2, w: v.w * k, h: v.h * k }));
 
   const shapeTool = tool === 'rect' || tool === 'circle' || tool === 'roundrect';
   const ids = selectedDetailIds(sel);
@@ -409,11 +403,11 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     useStore.getState().select({ kind: 'panel', id: panelId });
     useStore.getState().set({ sheetCopy: pl.copy.key });
     const start = layout.placements[pl.copy.key];
-    if (start) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
+    if (start && planEdit) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
   };
   const onDetailDown = (pl: Placed, dt: Detail, panelId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
-    if (shapeTool || tool === 'text' || useStore.getState().pasting) return onPieceDown(pl)(ev);
+    if (shapeTool || tool === 'text' || useStore.getState().pasting || (!solo && !planEdit)) return onPieceDown(pl)(ev);
     ev.stopPropagation();
     const st = useStore.getState();
     const cur = selectedDetailIds(st.selection);
@@ -437,9 +431,52 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     drag.current = { kind: 'marquee', a: svgPoint(ev), b: svgPoint(ev), additive, base: selectedDetailIds(st.selection) };
   };
   const onDouble = (pl: Placed) => (ev: React.MouseEvent) => {
-    if (solo) return;
     ev.stopPropagation();
-    useStore.getState().openSolo(panelAt(pl, svgPoint(ev)));
+    const st = useStore.getState();
+    const at = svgPoint(ev);
+    const panelId = panelAt(pl, at);
+    // milestone 104: double-clicked into a shape, a line or (in the face-on view) the board, its outline is edited here
+    const target = edit2dOk ? edit2dAt(pl, panelId, at, ev.target as Element) : null;
+    if (target) {
+      if (!solo) st.openSolo(target.panelId);
+      st.set({ edit2d: target, sel2d: null });
+      if (target.kind === 'shape') st.select(detailSel([target.id]));
+      return;
+    }
+    if (!solo) st.openSolo(panelId);
+  };
+  /** What a double-click at a point would edit: the shape under it, a line near it, or (face-on) the board itself. */
+  const edit2dAt = (pl: Placed, panelId: string, at: Vec2, el: Element | null): Edit2D | null => {
+    const p = d.panels[panelId];
+    const l = toLocal(pl, panelId, at);
+    const tol = 6 * mmPerPx();
+    // the shape under the point (inside its outline, or within a few pixels of it); the smallest wins
+    let hit = el?.closest('[data-testid^="detail-"]')?.getAttribute('data-testid')?.slice(7) ?? null;
+    if (!hit && p) {
+      let best = Infinity;
+      for (const dt of p.details) {
+        for (const c of detailContours(dt)) {
+          const poly = flattenContour(c, 0.2);
+          let near = pointInPolygon(l, poly);
+          for (let i = 0; !near && i < poly.length; i++) near = distToSegment(l, poly[i], poly[(i + 1) % poly.length]) <= tol;
+          if (near && dt.w * dt.h < best) (best = dt.w * dt.h), (hit = dt.id);
+        }
+      }
+    }
+    if (hit) {
+      const f = findDetail(d, hit);
+      const t2: Edit2D | null = f ? { kind: 'shape', id: hit, panelId: f.panel.id } : null;
+      if (t2 && canEdit(d, t2)) return t2;
+    }
+    for (const ln of p?.lines ?? []) {
+      const pts = linePolyline(ln);
+      for (let i = 0; i + 1 < pts.length; i++) if (distToSegment(l, pts[i], pts[i + 1]) <= tol) return { kind: 'line', id: ln.id, panelId };
+    }
+    if (solo) {
+      const t2: Edit2D = { kind: 'board', id: panelId, panelId };
+      if (canEdit(d, t2)) return t2;
+    }
+    return null;
   };
 
   // a shape waiting for ✓ (milestone 30): its bar above it, in screen space over the drawing
@@ -464,6 +501,17 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const primary = sel?.kind === 'detail' ? findDetail(d, sel.id) : null;
   const selPanelId = sel?.kind === 'panel' ? sel.id : sel?.kind === 'edge' ? sel.panelId : primary?.panel.id;
   const px = mmPerPx();
+  const edit2d = useStore((s) => s.edit2d);
+  const edit2dOk = shown(useFeature('edit2d'));
+  // side handles and the size pills (milestone 103; Guided keeps corners and the turn knob)
+  const sides = shown(useFeature('transform.sides'));
+  // dragging pieces and Repack (milestone 105): Guided's sheet is a picture only
+  const planEdit = shown(useFeature('plan.edit'));
+  // milestone 108: the guard's keep-out and its tip face-on too, where the guard runs (Guided, Quick build)
+  const mode = useMode();
+  const guardOn = keepsCuttable(mode) && shown(useFeature('solo.guard'));
+  const guardNote = useStore((s) => s.guardNote);
+  const fLegend = shown(useFeature('plan.legend')), fHint = shown(useFeature('stage.hint'));
   const idSet = new Set(ids);
   // group handles: several shapes on one panel
   const groupInfo = useMemo(() => {
@@ -659,19 +707,32 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           };
           return o.region.map((r, j) => <polygon key={`${k}.${j}`} points={r.map(at).join(' ')} className="net-overlap" fill="rgba(220, 38, 38, 0.55)" stroke="#b91c1c" strokeWidth={px} pointerEvents="none" data-testid="net-overlap" />);
         })}
-        {tool === 'select' && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (
-          <Handles
-            box={{ minX: primary.detail.cx - primary.detail.w / 2, maxX: primary.detail.cx + primary.detail.w / 2, minY: primary.detail.cy - primary.detail.h / 2, maxY: primary.detail.cy + primary.detail.h / 2 }}
-            rot={primary.detail.shape === 'circle' ? 0 : (primary.detail.rot ?? 0)}
-            toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
-            size={px * 9}
-            onDown={(fixed) => (ev) => {
-              ev.stopPropagation();
-              drag.current = { kind: 'resize', id: primary.detail.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, fixed, circle: primary.detail.shape === 'circle', rot: primary.detail.shape === 'circle' ? 0 : primary.detail.rot };
-            }}
-          />
-        )}
-        {tool === 'select' && ringInfo && placedOf(ringInfo.panelId) && (
+        {tool === 'select' && !edit2d && ids.length === 1 && primary && primary.detail.shape !== 'text' && placedOf(primary.panel.id) && (() => {
+          const dt = primary.detail;
+          const circle = dt.shape === 'circle';
+          const box: FrameBox = { cx: dt.cx, cy: dt.cy, w: dt.w, h: dt.h, rot: circle ? 0 : (dt.rot ?? 0) };
+          // too small on screen for handles: the pills and moving it only (one kind of handle at a time, milestone 103)
+          const small = dt.w / px < 24 && dt.h / px < 24;
+          return (
+            <>
+              {!small && (
+                <Handles
+                  box={{ minX: dt.cx - dt.w / 2, maxX: dt.cx + dt.w / 2, minY: dt.cy - dt.h / 2, maxY: dt.cy + dt.h / 2 }}
+                  rot={box.rot}
+                  side={sides}
+                  toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)}
+                  size={px * 9}
+                  onDown={(_fixed, corner, kind) => (ev) => {
+                    ev.stopPropagation();
+                    drag.current = { kind: 'resize', id: dt.id, placed: placedOf(primary.panel.id)!, panelId: primary.panel.id, start: box, handle: { kind: kind ?? 'corner', at: { x: corner.x - dt.cx, y: corner.y - dt.cy } }, circle };
+                  }}
+                />
+              )}
+              {sides && <FramePills box={box} circle={circle} id={dt.id} toSvg={(p) => toSvg(placedOf(primary.panel.id)!, primary.panel.id, p)} px={px} />}
+            </>
+          );
+        })()}
+        {tool === 'select' && !edit2d && ringInfo && placedOf(ringInfo.panelId) && (
           <RotRing
             centre={toSvg(placedOf(ringInfo.panelId)!, ringInfo.panelId, ringInfo.pivot)}
             r={ringInfo.r + px * 14}
@@ -685,7 +746,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             }}
           />
         )}
-        {tool === 'select' && groupInfo && placedOf(groupInfo.panelId) && (
+        {tool === 'select' && !edit2d && groupInfo && placedOf(groupInfo.panelId) && (
           <Handles
             box={groupInfo.box}
             group
@@ -697,6 +758,10 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             }}
           />
         )}
+        {edit2d && placedOf(edit2d.panelId) && <Edit2DLayer t={edit2d} placed={placedOf(edit2d.panelId)!} toSvg={toSvg} px={px} onPoint={(ptId, ev) => {
+          ev.stopPropagation();
+          drag.current = { kind: 'pt2d', ptId, placed: placedOf(edit2d.panelId)!, panelId: edit2d.panelId, startSvg: svgPoint(ev), moved: false };
+        }} />}
         {guides && (
           <g className="guides" pointerEvents="none">
             {guides.guides.map((g, i) => {
@@ -709,28 +774,37 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             })}
           </g>
         )}
-        {marquee && (
-          <rect
-            x={Math.min(marquee.a.x, marquee.b.x)}
-            y={Math.min(marquee.a.y, marquee.b.y)}
-            width={Math.abs(marquee.b.x - marquee.a.x)}
-            height={Math.abs(marquee.b.y - marquee.a.y)}
-            className="marquee"
-            strokeWidth={px}
-            data-testid="marquee"
-          />
-        )}
+        {marquee && <Marquee a={marquee.a} b={marquee.b} px={px} />}
+        {guardOn && solo && placedOf(solo.id) && (() => {
+          const pl = placedOf(solo.id)!;
+          const busy = ids.some((id) => solo.details.some((x) => x.id === id));
+          const z = busy ? keepOutZones(d, solo.id) : null;
+          const ring = (pts: Vec2[]) => pts.map((q) => toSvg(pl, solo.id, q)).map((q) => `${q.x},${q.y}`).join(' ');
+          const recent = guardNote && Date.now() - guardNote.at < 2500 ? solo.details.find((x) => x.id === guardNote.detailId) : null;
+          const tip = recent && toSvg(pl, solo.id, { x: recent.cx, y: recent.cy + recent.h / 2 + 4 });
+          return (
+            <g className="guard-2d" pointerEvents="none" data-testid="guard-2d">
+              {z && [z.inset, ...z.holes].filter((r) => r.length > 2).map((r, i) => <polygon key={i} points={ring(r)} fill="none" stroke="#d08a1a" strokeOpacity={0.75} strokeDasharray={`${px * 6} ${px * 4}`} strokeWidth={px * 1.2} />)}
+              {tip && guardNote && (
+                <text x={tip.x} y={tip.y} textAnchor="middle" className="guard-tip-2d" fontSize={px * 13} data-testid="guard-tip" data-why={guardNote.why}>
+                  {t(`${isGuided(mode) ? 'g.guard' : 'guard'}.${guardNote.why}`, { mm: fmtNum(guardNote.mm, 1) })}
+                </text>
+              )}
+            </g>
+          );
+        })()}
         {label && (
           <text x={label.x + px * 12} y={label.y - px * 12} className="dim-text" fontSize={px * 13}>
             {label.text} {t('unit.mm')}
           </text>
         )}
       </svg>
+      {edit2d && <Edit2DCard t={edit2d} />}
       {pendingAt && <PendingBarHtml x={pendingAt.x} y={pendingAt.y} />}
       <div className="plan-dock" dir={uiDir()}>
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">
-            {t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
+            {isGuided(mode) ? t('g.deco.back') : t('solo.back', { view: t(useStore.getState().prevView === '3d' ? 'top.view3d' : 'top.view2d') })}
           </button>
         )}
         <div className="cluster">
@@ -743,7 +817,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           <button onClick={() => setVB(fitVB())} aria-label={t('view.fit')} title={t('view.fit')} data-testid="fit-view">
             <Icon name="fit" />
           </button>
-          {!solo && (
+          {!solo && planEdit && (
             <button
               onClick={() => {
                 const st = useStore.getState();
@@ -765,8 +839,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         )}
         {!solo && <YieldBar />}
       </div>
-      {/* milestone 89: what each colour and dash means, always */}
-      <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
+      {/* milestone 89: what each colour and dash means, always (Guided names no layers, milestone 108) */}
+      {fLegend && <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
         {(['cut', 'score', 'engrave', 'guide'] as const).map((op) => (
           <span key={op}>
             <i style={{ background: LAYERS[op].hex }} /> {t(`ann.legend.${op}`)}
@@ -777,58 +851,71 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             <i className="dashed" style={{ borderColor: LAYERS.cut.hex }} /> {t('ann.legend.dashed')}
           </span>
         )}
-      </div>
-      <div className="view-hint" dir={uiDir()}>
+      </div>}
+      {fHint && <div className="view-hint" dir={uiDir()}>
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
-      </div>
+      </div>}
     </div>
   );
 }
 
-function Handles(props: { box: Box; rot?: number; toSvg: (p: Vec2) => Vec2; size: number; group?: boolean; onDown: (fixed: Vec2, corner: Vec2) => (ev: React.PointerEvent) => void }) {
-  const { minX: x0, maxX: x1, minY: y0, maxY: y1 } = props.box;
-  // a turned shape: its corners turn about its centre
-  const a = ((props.rot ?? 0) * Math.PI) / 180, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const T = (p: Vec2): Vec2 => (a ? { x: cx + (p.x - cx) * Math.cos(a) - (p.y - cy) * Math.sin(a), y: cy + (p.x - cx) * Math.sin(a) + (p.y - cy) * Math.cos(a) } : p);
-  const corners: [Vec2, Vec2][] = (
-    [
-      [{ x: x0, y: y0 }, { x: x1, y: y1 }],
-      [{ x: x1, y: y0 }, { x: x0, y: y1 }],
-      [{ x: x1, y: y1 }, { x: x0, y: y0 }],
-      [{ x: x0, y: y1 }, { x: x1, y: y0 }],
-    ] as [Vec2, Vec2][]
-  ).map(([p, q]) => [T(p), T(q)]);
-  const pts = corners.map(([p]) => props.toSvg(p));
-  return (
-    <g className="handles">
-      {props.group && <polygon points={pts.map((p) => `${p.x},${p.y}`).join(' ')} className="group-box" strokeWidth={props.size / 9} />}
-      {corners.map(([p, fixed], i) => {
-        const s = pts[i];
-        return (
-          <rect
-            key={i}
-            x={s.x - props.size / 2}
-            y={s.y - props.size / 2}
-            width={props.size}
-            height={props.size}
-            className="handle"
-            onPointerDown={props.onDown(fixed, p)}
-            data-testid={`${props.group ? 'ghandle' : 'handle'}-${i}`}
-          />
-        );
-      })}
-    </g>
-  );
-}
 
-/** Rotation ring around the selected shapes (cut plan and face-on view): drag it to turn them (15° steps, Shift 1°, Alt free). */
-function RotRing(props: { centre: Vec2; r: number; px: number; onDown: (ev: React.PointerEvent) => void }) {
-  const { centre: c, r, px } = props;
-  return (
-    <g className="rot-ring-g">
-      <circle cx={c.x} cy={c.y} r={r} className="rot-ring" strokeWidth={px * 2} />
-      <circle cx={c.x} cy={c.y} r={r} className="rot-ring-hit" strokeWidth={px * 14} onPointerDown={props.onDown} data-testid="rot-ring" />
-      <circle cx={c.x} cy={c.y - r} r={px * 6} className="rot-knob" onPointerDown={props.onDown} data-testid="rot-knob" />
-    </g>
-  );
+/**
+ * The W and H pills of a selected shape's frame (milestone 103): click one to
+ * type a size, a sum or a percent (`150%`); with *Keep proportions* the other
+ * follows. Drawn at screen size beside the frame's bottom and right sides.
+ */
+function FramePills({ box, circle, id, toSvg, px }: { box: FrameBox; circle: boolean; id: string; toSvg: (p: Vec2) => Vec2; px: number }) {
+  const t = useT();
+  const [edit, setEdit] = useState<'w' | 'h' | null>(null);
+  const [text, setText] = useState('');
+  const keep = useStore((s) => !!s.viewPrefs.keepRatio);
+  const pill = (dir: 'w' | 'h') => {
+    const at = toSvg(fromOwn(box, dir === 'w' ? { x: 0, y: -box.h / 2 } : { x: box.w / 2, y: 0 }));
+    const v = dir === 'w' ? box.w : box.h;
+    const w = px * 64, h = px * 22;
+    const x = at.x + (dir === 'w' ? -w / 2 : px * 10), y = at.y + (dir === 'w' ? px * 12 : -h / 2);
+    const commit = () => {
+      const n = evalNumber(text, v);
+      setEdit(null);
+      if (n === null || n <= 0 || Math.abs(n - v) < 1e-9) return;
+      const r = typedSize(box, dir, n, keep || circle);
+      useStore.getState().apply((d) => void updateDetail(d, id, { w: r.w, h: r.h }));
+    };
+    return (
+      <foreignObject key={dir} x={x} y={y} width={w} height={h} className="frame-pill-fo">
+        {edit === dir ? (
+          <input
+            className="frame-pill"
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') commit();
+              else if (e.key === 'Escape') setEdit(null);
+            }}
+            aria-label={t(dir === 'w' ? 'insp.width' : 'insp.height')}
+            data-testid={`frame-pill-${dir}-input`}
+          />
+        ) : (
+          <button
+            type="button"
+            className="frame-pill"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              setText(fmtNum(v));
+              setEdit(dir);
+            }}
+            title={t('frame.pillHelp')}
+            data-testid={`frame-pill-${dir}`}
+          >
+            {dir === 'w' ? 'W' : 'H'} {fmtNum(v)}
+          </button>
+        )}
+      </foreignObject>
+    );
+  };
+  return <g className="frame-pills">{circle ? pill('w') : [pill('w'), pill('h')]}</g>;
 }

@@ -29,6 +29,8 @@ import { dividerSpan, isDivider, reconcileDividers, setDividerPos } from './divi
 import { constructionSet, dropOrphansToFloor, dropToFloor, FLOOR_FRAME, flatOnHost, hostedOn, netRoot, placeCycle, placeFrame, removePanelRecord } from './place';
 const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x, y);
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
+import { keepingStatedSizes } from './boxSize';
+import { fitShapeSketch } from '../sketch/cutforge';
 import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
@@ -1448,7 +1450,7 @@ export function addPolygonPanel(d: Design, x: number, z: number, pts: P2[]): str
 }
 
 /** Next unused sketch edge id of a polygon. */
-function nextEdgeId(ids: string[]): string {
+export function nextEdgeId(ids: string[]): string {
   let n = 0;
   for (const k of ids) {
     const m = /^e(\d+)$/.exec(k);
@@ -1809,6 +1811,8 @@ export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<De
   if (dt.r !== undefined) dt.r = Math.max(0, Math.min(dt.r, dt.w / 2, dt.h / 2));
   // only a Cut goes through
   if (dt.op !== 'cut' || !dt.through) delete dt.through;
+  // a kept outline graph follows the new size (milestone 104)
+  if (patch.w !== undefined || patch.h !== undefined) fitShapeSketch(dt);
 }
 
 export function deleteDetail(d: Design, detailId: string) {
@@ -1819,13 +1823,16 @@ export function deleteDetail(d: Design, detailId: string) {
 }
 
 export function setMaterial(d: Design, m: MaterialProfile) {
-  const was = d.material.kind;
-  const prev = d.material;
-  d.material = { ...m };
-  // boards naming the old working material keep it
-  normalizeMaterials(d, prev);
-  solve(d);
-  if (m.kind !== was) applyJointChoices(d);
+  // a box stated by its inside (or crease to crease) keeps that size on the new board (milestone 93)
+  keepingStatedSizes(d, () => {
+    const was = d.material.kind;
+    const prev = d.material;
+    d.material = { ...m };
+    // boards naming the old working material keep it
+    normalizeMaterials(d, prev);
+    solve(d);
+    if (m.kind !== was) applyJointChoices(d);
+  });
 }
 
 /**
@@ -1862,13 +1869,12 @@ export function setPanelMaterial(d: Design, ids: string[], m: MaterialProfile | 
 
 /** Change one of the design's other materials (kerf, clearance, …: the drawer lists every material in use). */
 export function editMaterial(d: Design, id: string, patch: Partial<MaterialProfile>) {
-  if (id === d.material.id) Object.assign(d.material, patch);
-  else {
-    const m = d.materials?.[id];
-    if (!m) return;
-    Object.assign(m, patch);
-  }
-  solve(d);
+  if (id !== d.material.id && !d.materials?.[id]) return;
+  keepingStatedSizes(d, () => {
+    if (id === d.material.id) Object.assign(d.material, patch);
+    else Object.assign(d.materials![id], patch);
+    solve(d);
+  });
 }
 
 /** Apply the current material's stored joint choices to every joint (after a change of material kind). */

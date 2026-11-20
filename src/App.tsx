@@ -1,6 +1,6 @@
 import { openFromLibrary } from './ui/Library';
 import { saveLocal } from './store/persist';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useStore, useT } from './store/store';
 import { useAutosave, useKeyboard } from './store/hooks';
 import { TopBar } from './ui/TopBar';
@@ -8,15 +8,24 @@ import { Toolbar } from './ui/Toolbar';
 import { Inspector } from './ui/Inspector';
 import { StartScreen } from './ui/StartScreen';
 import { MaterialDrawer } from './ui/MaterialDrawer';
-import { ExportDialog } from './ui/ExportDialog';
 import { TourNudge } from './tour/TourNudge';
 import { TourOverlay } from './tour/TourOverlay';
 import { Gate } from './easy/Gate';
 import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
+import { useMode } from './easy/features';
 import { View3D } from './views/View3D';
-import { Plan2D } from './views/Plan2D';
-import { TeacherApp } from './teacher/TeacherApp';
+
+// Loaded when first used (code splitting, 20 November): the cut plan and face-on view with the 2D editing, the
+// download dialog with the export and print code, the teacher's view, and the sentence's development page.
+const Plan2D = lazy(() => import('./views/Plan2D').then((m) => ({ default: m.Plan2D })));
+const ExportDialog = lazy(() => import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog })));
+const TeacherApp = lazy(() => import('./teacher/TeacherApp').then((m) => ({ default: m.TeacherApp })));
+// Guided's shell (milestone 105): its own chunk
+const GuidedApp = lazy(() => import('./guided/GuidedApp').then((m) => ({ default: m.GuidedApp })));
+const SentenceDev = lazy(() => import('./sentence/SentenceDev').then((m) => ({ default: m.SentenceDev })));
+/** What shows while a part loads: the same quiet placeholder as the app's own first load. */
+const Loading = () => <div className="loading" aria-busy="true" />;
 import { EditorBoundary } from './ui/ErrorBoundary';
 
 export function App() {
@@ -41,21 +50,56 @@ export function App() {
   }, []);
   const teacher = route.startsWith('#/teacher');
   const otherTab = useStore((s) => s.otherTab);
+  const guided = useMode() === 'guided';
   useAutosave(() => setLoaded(true));
   useKeyboard();
+  // the parts loaded when first used are fetched once the editor is up, so they are there offline too
+  useEffect(() => {
+    if (!loaded) return;
+    const h = setTimeout(() => {
+      void import('./views/Plan2D');
+      void import('./ui/ExportDialog');
+      void import('./guided/GuidedApp');
+    }, 0);
+    return () => clearTimeout(h);
+  }, [loaded]);
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
     document.title = t('app.name');
   }, [lang]);
-  if (teacher) return <TeacherApp />;
+  if (teacher)
+    return (
+      <Suspense fallback={<Loading />}>
+        <TeacherApp />
+      </Suspense>
+    );
+  // the sentence on its own, in development (milestone 97)
+  if (import.meta.env.DEV && location.search.includes('sentence'))
+    return (
+      <Suspense fallback={<Loading />}>
+        <SentenceDev />
+      </Suspense>
+    );
   if (!loaded) return <div className="loading" aria-busy="true" />;
   return (
-    <div className="app">
+    <div className={guided ? 'app guided' : 'app'}>
+      {guided ? (
+        <Suspense fallback={<Loading />}>
+          <GuidedApp />
+        </Suspense>
+      ) : (
+        <>
       <TopBar />
       <div className="main">
         <EditorBoundary>
-          <main className="viewport">{view === '3d' ? <View3D /> : view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</main>
+          <main className="viewport">
+            {view === '3d' ? (
+              <View3D />
+            ) : (
+              <Suspense fallback={<Loading />}>{view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</Suspense>
+            )}
+          </main>
           <Toolbar />
           <Inspector />
           {view === '3d' && <MissionPanel />}
@@ -67,7 +111,9 @@ export function App() {
           </Gate>
         )}
       </div>
-      {needsMaterial && <StartScreen />}
+        </>
+      )}
+      {needsMaterial && !guided && <StartScreen />}
       {otherTab && (
         // milestone 86: two tabs on one design
         <div className="other-tab" role="alert" data-testid="other-tab">
@@ -97,7 +143,11 @@ export function App() {
         </div>
       )}
       {drawerOpen && <MaterialDrawer />}
-      {exportOpen && <ExportDialog />}
+      {exportOpen && (
+        <Suspense fallback={null}>
+          <ExportDialog />
+        </Suspense>
+      )}
       {/* the first-use tour over everything, while it runs (milestone 43) */}
       <TourOverlay />
     </div>

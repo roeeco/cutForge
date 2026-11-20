@@ -1,6 +1,6 @@
 // Visual overhaul: start screen, material drawer, stage widgets (angle dial,
 // flip badge, in-place dimensions), seam pills and the fold slider.
-import { setNum } from './util';
+import { setNum, startTemplate } from './util';
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
@@ -15,9 +15,9 @@ test('start screen, drawer, stage widgets, seam pills and folding', async ({ pag
   // start screen: material first, then a template drawn by the renderer
   await page.getByTestId('mat-corr-1.6').click();
   await expect(page.getByTestId('mat-corr-1.6')).toHaveAttribute('aria-checked', 'true');
-  await page.getByTestId('tpl-organiser').check();
-  await expect(page.getByTestId('tpl-organiser').locator('img')).toHaveAttribute('src', /^data:image\/png/);
-  await page.getByTestId('start-go').click();
+  // milestone 98: the sentence's picture is drawn by the renderer; the organiser starts as its card did
+  await expect(page.getByTestId('sen-picture').locator('img')).toHaveAttribute('src', /^data:image\/png/, { timeout: 15_000 });
+  await startTemplate(page, 'organiser', 'corr-1.6');
   let d = await design(page);
   expect(d.material.id).toBe('corr-1.6');
   expect(d.template.id).toBe('organiser');

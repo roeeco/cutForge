@@ -22,6 +22,10 @@ export const stand: TemplateDef = {
   version: 1,
   name: 'tpl.stand',
   description: 'tpl.stand.desc',
+  // milestone 98: *a card stand* in the welcome screen's sentence (SENTENCE_BUILDER_PLAN.md §3.2)
+  word: 'sen.stand',
+  status: 'stable',
+  sentence: { main: 'sen.s.stand' },
   materials: ['plywood', 'corrugated', 'card'],
   params: [
     { key: 'cardWidth', label: 'tpl.cardWidth', type: 'number', unit: 'mm', min: 20, max: 300, default: 90 },
@@ -59,6 +63,15 @@ export const stand: TemplateDef = {
       role('lip', lip.panelId);
       connectSeams(d, lip.panelId, ply ? undefined : 'glue');
     }
+  },
+  // milestone 94: as many slots as the base's depth holds
+  limits(m, p) {
+    const t = m.thickness;
+    let n = 1;
+    while (n < 8 && standLayout(t, Number(p.cardThickness), Number(p.angle), n + 1).reach <= Number(p.baseDepth) - t) n++;
+    // and the base at least as deep as its slots need (the base comes after the slots in the sentence, so it follows them)
+    const need = standLayout(t, Number(p.cardThickness), Number(p.angle), Math.max(1, Math.round(Number(p.slots)))).reach + t;
+    return { slots: { max: n, why: 'sen.why.standDepth' }, baseDepth: { min: Math.ceil(need * 10) / 10 } };
   },
   check(d, p) {
     const { reach } = standLayout(d.material.thickness, Number(p.cardThickness), Number(p.angle), Math.round(Number(p.slots)));

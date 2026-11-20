@@ -2,12 +2,16 @@
 import { dividerRow } from '../src/model/dividers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { FONTS, registerFont } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { boxLid, setBoxLid } from '../src/easy/lid';
 import { MISSIONS, missionById, missionState, placeContents, startMission } from '../src/easy/missions';
-import { regenerate } from '../src/templates/registry';
+import { defaults, generate, regenerate, templateById } from '../src/templates/registry';
+import { frontWall, mainTray } from '../src/templates/structures/box';
+import { dividerLine } from '../src/easy/recipes';
+import { dividersOn } from '../src/model/dividers';
 import { capacity, compartments, contentFit } from '../src/easy/objects';
 import { stickerRecipe } from '../src/easy/recipes';
 import { STICKERS } from '../src/easy/stickers';
@@ -35,15 +39,17 @@ function engrave(d: Design, panel: string, value: string) {
 /** The reference solution of each mission. */
 const SOLVE: Record<string, (d: Design) => Design> = {
   'pencil-box': (d) => {
-    // widen the pencils' compartment: the second divider moves out
-    // milestone 44: a divider moves along its normal
-    setDividerOffset(d, 't:divY2', dividerRow(d, 't:divY2')!.pos + 12);
-    setDividerOffset(d, 't:divY1', dividerRow(d, 't:divY1')!.pos - 4);
+    // version 2 (milestone 106): widen the pencils' space by sliding the two dividers apart
+    const tray = mainTray(d)!;
+    const base = d.trays[tray].baseId;
+    const [a, b] = [...dividersOn(d, base)].sort((x, y) => dividerRow(d, x)!.pos - dividerRow(d, y)!.pos);
+    setDividerOffset(d, b, dividerRow(d, b)!.pos + 12);
+    setDividerOffset(d, a, dividerRow(d, a)!.pos - 4);
     solve(d);
-    const cells = compartments(d, 't:base');
-    const big = [...cells].sort((a, b) => b.y1 - b.y0 - (a.y1 - a.y0))[0];
+    const cells = compartments(d, base);
+    const big = [...cells].sort((x, y) => y.y1 - y.y0 - (x.y1 - x.y0))[0];
     d.contents![0] = { ...d.contents![0], x: (big.x0 + big.x1) / 2, y: (big.y0 + big.y1) / 2 };
-    engrave(d, 't:wall0', 'Maya');
+    engrave(d, frontWall(d, tray)!, 'Maya');
     return d;
   },
   'dice-tray': (d) => {
@@ -61,10 +67,16 @@ const SOLVE: Record<string, (d: Design) => Design> = {
   },
   'card-stand': (d) => regenerate(d, { ...d.template!.params, cardThickness: 18, angle: 45, slots: 2, baseDepth: 220 }).design,
   'game-organiser': (d) => {
-    const r = regenerate(d, { ...d.template!.params, dividersY: 1, lid: 'liftoff' }).design;
+    // version 2: a divider from side to side makes four spaces; a lid that lifts off
+    const tray = mainTray(d)!;
+    const base = d.trays[tray].baseId;
+    const b = d.panels[base], t = d.material.thickness;
+    dividerLine(d, base, { x: t + 1, y: b.h / 2 }, { x: b.w - t - 1, y: b.h / 2 });
+    setBoxLid(d, tray, 'liftoff');
+    solve(d);
     // the student drags the deck into a compartment again
-    r.contents = placeContents(r, [{ object: 'deck', count: 1 }, { object: 'dice', count: 5 }]);
-    return r;
+    d.contents = placeContents(d, [{ object: 'deck', count: 1 }, { object: 'dice', count: 5 }]);
+    return d;
   },
   // milestone 82: a Flat lid with one hasp, a clue engraved on the front wall
   'escape-box': (d) => {
@@ -91,6 +103,34 @@ describe('missions', () => {
       expect(end.done).toBe(true);
     });
   }
+  it('a saved version-1 Pencil box (the organiser template) still opens and its goals count (milestone 106)', () => {
+    const tp = templateById('organiser')!;
+    const v1 = generate(tp, PLY, { ...defaults(tp), sizeMode: 'inner', width: 186, depth: 60, height: 30, dividersX: 0, dividersY: 2, dividerHeight: 24, lid: 'none' });
+    v1.mission = { id: 'pencil-box', version: 1 };
+    v1.contents = placeContents(v1, [{ object: 'pencil', count: 12 }]);
+    const st = missionState(v1)!;
+    expect(st.goals.filter((g) => g.ok).map((g) => g.goal.id).sort()).toEqual(['compartments-3', 'one-sheet', 'ready']);
+    // and with its dividers moved as version 1 was solved
+    setDividerOffset(v1, 't:divY2', dividerRow(v1, 't:divY2')!.pos + 12);
+    setDividerOffset(v1, 't:divY1', dividerRow(v1, 't:divY1')!.pos - 4);
+    solve(v1);
+    const cells = compartments(v1, 't:base');
+    const big = [...cells].sort((a, b) => b.y1 - b.y0 - (a.y1 - a.y0))[0];
+    v1.contents![0] = { ...v1.contents![0], x: (big.x0 + big.x1) / 2, y: (big.y0 + big.y1) / 2 };
+    expect(ok(v1)['fits-pencil']).toBe(true);
+  });
+
+  it('version 2 of Pencil box and Game organiser are boxes with the goals version 1 started with', () => {
+    for (const m of MATERIALS.slice(0, 4)) {
+      const p = startMission(missionById('pencil-box')!, m);
+      expect(mainTray(p)).not.toBeNull();
+      expect(missionState(p)!.goals.filter((g) => g.ok).map((g) => g.goal.id).sort()).toEqual(['compartments-3', 'one-sheet', 'ready']);
+      const o = startMission(missionById('game-organiser')!, m);
+      expect(mainTray(o)).not.toBeNull();
+      expect(missionState(o)!.goals.filter((g) => g.ok).map((g) => g.goal.id).sort()).toEqual(['fits-deck', 'one-sheet', 'ready']);
+    }
+  });
+
   it('the registry has the four first missions and the Escape box', () => {
     expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box']);
     expect(missionById('pencil-box')?.goals.length).toBeGreaterThan(2);

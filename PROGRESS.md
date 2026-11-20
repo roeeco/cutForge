@@ -1405,6 +1405,335 @@ The owner's report (dividers short, gaps at the side walls, corners not flush, a
 Verified: unit suite 914 pass, 7 skipped; typecheck clean; goldens regenerated for card and corrugated (plywood byte-identical); browser specs 143 passed (`dividers`, `closures`, `foldover`, `joints`, `lids`, `lines`, `split`, `trays`, `wings`, `bands`, `polygon`, `round`, `spec`, `templates` and the rest of the app-only suite). Looked at in the browser: a corrugated tray's corner in 3D, its net, a card box with dividers and its cap lid on the cut plan.
 - Needs the owner: a real fold of card and 4 mm corrugated to confirm the crease rule (calibrate with *Fold allowance* if a material folds larger).
 
+## Milestone 92 — what Quick build left half-done ✅
+
+`GUIDED_MODE.md` G1 (`ROADMAP.md` §5). Each fix came after a test that failed without it.
+- **A draft is never saved.** Autosave writes `designToSave(state)`: while a ghost waits for ✓ (a Box footprint, a shape, a pasted group), the design from before it; when ✓ or ✗ ends the draft, the design then. A reload before ✓ leaves nothing behind.
+- **Template sizes keep the dividers where they were put** (`keepDividerPlaces` in `src/templates/registry.ts`): in a row the student changed (a divider moved from where the template put it, or one the student added), each divider keeps its share of the row through a change of width, depth or height; one more divider goes to the middle of the widest space; a row no one moved keeps the template's even spacing; no space ends smaller than `MIN_COMPARTMENT`, else the row keeps the template's places.
+- **The too-big fix ends clean, or says it did not work.** On a copy: a template's design shrinks through its own sizes in millimetres (`shrinkTemplate`, regenerated, a few passes), so the next size change does not grow it back; any other design as before. The copy is taken only when the piece fits and no new kind of blocking issue appears; otherwise the design is untouched and `fixIssue` returns false. The Quick build fuzzer's known exception (`added`) is gone: it is strict by default now.
+- **Quick build's empty stage** shows no hint (it named the Board tool, which Quick build does not have; the note beside the rail says where to start). Workshop unchanged.
+
+Verified
+- `tests/regress/repro-draft-saved.test.ts` (3): a Box footprint before ✓ saves the empty design and after ✓ the box; a shape waiting for ✓ saves the board without it; the empty-stage hint by mode.
+- `tests/regress/repro-template-dividers.test.ts` (10): in plywood and corrugated, a divider moved 9 mm stays through a height change, keeps its share through a width change, two stay and the third fills the widest space when the count goes up, an unmoved row stays even; the too-big fix on a template on a small sheet shrinks its sizes and a later size change does not bring the issue back; a fix that cannot be made leaves the design object identical.
+- `tests/fuzz/quick.test.ts` with `STRICT=1 FUZZ_N=40`: no failure (it found 7 sessions of new issues after the shrink before).
+- Unit suite 927 pass, 7 skipped; typecheck clean; goldens byte-identical.
+- Browser (dev server, Quick build, plywood): a Box dragged and not confirmed, reloaded: no board; the empty stage has no hint.
+
+## Milestone 93 — size intent ✅
+
+`DIELINE_DNA_PLAN.md` D5a (`ROADMAP.md` §5). `src/model/boxSize.ts`, `src/ui/BoxSizeUI.tsx`; `Design.sizeAs` (optional; absent = outside; no schema change).
+- **`boxSize(d, tray, as)` / `setBoxSize(d, tray, size, as)` / `outsideFor`**: a box's width, depth and height *outside* (the base's outline and the tray's height, as stored), *inside* (less the walls on each side, and less what lies under and over the inside: a cut base, an open base's bottom flaps, a closed top) or *crease to crease* (half of that, since a fold lies where the mid-planes meet). Each wall's own thickness counts. The base grows from its own origin, so dividers keep their distance from the left and front.
+- **The box's card**: *Sizes are: Outside · Inside · Crease to crease* above the base's sizes (crease to crease only on card and corrugated); *Width inside*, *Depth inside* and *Height inside* (or *(creases)*) show and take the sizes so stated. Quick build hides the switch (`size.as`); the fields follow the design's intent in both modes.
+- **A change of board keeps the stated size**: `setMaterial` and `editMaterial` run inside `keepingStatedSizes`, so a box stated by its inside keeps it on a thicker board (its outside grows).
+- **Milestone 88's sizes** read their numbers in the design's intent (`applySize` through `outsideFor`).
+
+Verified
+- `tests/sizeIntent.test.ts` (23): in each of the four materials, the inside equals the measured clear space between the walls (`clearSpans`) and the inside height is the outside less the base; each intent round-trips; card 0.5 → corrugated 4 with *Inside* keeps the inside to 1e-6 while the outside grows by 7 mm; with *Outside* only the thickness changes; *crease to crease* is kept; a carton loses a thickness under (its bottom flaps) and over (its tuck top); a divider keeps its distance from the left side when the box widens; a size row read inside; a bad intent in a file is dropped.
+- `tests/quickTable.test.ts`: `size.as` hidden in Quick build. Unit suite and typecheck green; goldens byte-identical.
+- Browser (dev server, card, Workshop): a 120 × 80 box's card shows *Inside: 119*; typing 100 makes the base 101 outside.
+
+Limitations
+- The stage's W / H labels still show outside sizes. A base that is not a rectangle takes its walls' thickness on both sides. Templates keep their own *Sizes are* parameter (the organiser's); the sentence builder writes `Design.sizeAs` (milestone 95).
+
+## Milestone 94 — the sentence's contract and resolver ✅
+
+`SENTENCE_BUILDER_PLAN.md` S1. No interface. `src/templates/types.ts`, `src/sentence/resolve.ts`; `organiser` and `stand` gain `limits`.
+- **The contract**: a parameter may say `when` (it is in the sentence only then), `allowed` per option (an option that cannot be made is not offered), `why` (the reason one dropped out), `fallback`, `addon: { off }` (a clause added with *+ more*), `affects` (boards to light up). A template may say `limits(m, p)` (each number's range now, and why it ends there), `canMake(m)` (kind and thickness; `materials` still decides when absent, through `makes`), `status`, `fallback(m)` (the structure to become), `sentence` and `word`. Old templates need none of them.
+- **The resolver**: `resolve` (every word's state: shown, the allowed options, the range and its reason), `choose` (one word changed; every later word checked in order, and only those; a word no longer allowed takes its fallback, a number moves to the nearest end of its new range, each a `Change` with its reason; a typed number outside its own range is refused with the range), `chooseStructure` (shared words kept), `chooseMaterial` (the structure's fallback when the material cannot make it, then every word), `largestOk` (bisection for limits with no formula: at most eight builds, cached).
+- **Organiser**: the divider counts end where a space would be under `MIN_COMPARTMENT`, the dividers' height at the walls under a lift-off lid. **Stand**: as many slots as the base's depth holds.
+
+Verified
+- `tests/sentence.resolve.test.ts` (11): on a made-up structure, a change re-checks only the later words; a changed earlier word moves later numbers into range, each reported once; a dropped option's fallback and reason; a refused number with its range; choosing the current value changes nothing and `resolve` agrees; lists hold only allowed options; a material change re-checks every word; a structure the material cannot make becomes its fallback keeping shared words; bisection within its step in eight builds, cached. The organiser's count falls with a narrower box; the stand's slots end at what its base holds.
+- Goldens and template tests unchanged; unit suite and typecheck green.
+
+## Milestone 95 — the sentence's box, tray and spaces ✅
+
+`SENTENCE_BUILDER_PLAN.md` S2. `src/templates/structures/box.ts`, registered as templates `box` and `tray` (kept off the welcome screen's preset grid until milestone 98).
+- **Words** (in sentence order): width, depth, height, *inside · outside · crease to crease* (no creases on plywood), shape (*square corners · rounded corners · round · straight sides*, with the number of sides), and the add-ons: a lid (*lifts off · hinged · arched*; the box only), spaces (*into nx × ny* or *of about sx × sy mm*; a size only on square or rounded corners), a window and a finger notch in the front wall (the box), two handle slots (the tray). The build is `boxRecipe`, `setBoxSize` in the stated intent (milestone 93, so the design remembers it), `dividerLine` at equal steps, `holeRecipe`, `setBoxLid`.
+- **Every list asks the engine** (`cleanWith`): an option is offered when the structure built with it, the later add-ons off, has nothing that stops the cut (`validate`), and for a lid when `lidWhy` allows it and the lid is really made. Cached per material and words; a word's own value is checked first, so a change only builds for the add-ons that are on.
+- **Ranges**: width, depth and height end at the largest size that still cuts clean with square corners and no add-ons, found by bisection over builds (nine at most, cached, worked out only for the number asked about); counts end where a space would be under `MIN_COMPARTMENT`; a wanted space size at the inside. A size inside its range that the engine would still not cut clean (found: a corrugated net that fits only against the grain at some depths) is refused with its reason (`TemplateDef.accepts`).
+- **Spaces** are measured on the built design (`compartments`); the formula only chooses the count: n = max(1, floor((W + t) / (s + t))).
+- **Stable ids for generated designs** (`renameIds` in the registry): every board gets a role (base, each wall by its edge, dividers in order, a lid's parts), trays get stable ids, and every reference follows (a deep rename of exact ids, and of ids built from a tray's). Joints the engine derives (`lidtab:…`, `close:…`, wings) keep their own ids and are made again by `solve`: renaming them left stale copies beside new ones, which broke a plywood Flat lid with dividers.
+
+Verified
+- `tests/sentence.box.test.ts` (15): random walks through the box's and the tray's words in all four materials (any word, back as well as forward, a number past its end refused), each step built and checked: no blocking issue, no word left on a value its list does not offer; spaces measured equal the formula to 0.1 mm (count) and are at least the size asked (size); a narrower box lowers a count with its reason; round and many-sided boxes offer a count only; the inside survives a change of board; every hidden option has a reason; a regenerated box keeps every board's id.
+- The walks found, and this milestone fixed: rounded walls bent too tight on tall boxes (the corner now bends for the walls' full height), a window too close to a finger notch, a box too tall for an arched or hinged lid, round boxes whose wall strip is longer than a sheet, the Flat lid broken by the renaming above.
+- `tests/fuzz/templates.test.ts` keeps free random parameters for the preset templates only (the structures go through their resolver); it found that a rounded box with a hinged lid and free random sizes breaks two export invariants (an oversized piece not reported, contour counts differing): left as a separate task.
+- Goldens byte-identical; unit suite and typecheck green.
+
+Limitations
+- A change that needs the size ranges again (a new width re-checks the depth's and height's ends) can take up to about a second of builds the first time; the sentence (milestone 97) shows the static range until they are ready.
+
+## Milestone 96 — the sentence's carton and sleeve ✅
+
+`SENTENCE_BUILDER_PLAN.md` S3. `src/templates/structures/carton.ts`, registered as `carton` and `sleeve`.
+- **A carton** (card, and corrugated up to 2 mm): sizes in the stated intent, *a top that tucks in · a top of four flaps*, *a bottom that snaps shut · tucks in · of four flaps*, and the add-ons *a thumb notch* and *without dust flaps* (on a tucked top, through `setClosure`) and a window in the front. **A sleeve** (card and corrugated): the tube open at both ends, with a window. Built with `addTray(…, { base: 'open', top, bottom })` and `setBoxSize`.
+- **The carton builder moved into the app**: the golden designs' `cartonDesign` is now `src/templates/structures/carton.ts`'s, and the three carton goldens are byte-identical.
+- **On a board that does not fold**, a carton becomes *a box with a lid that lifts off* (`fallback`, and `fallbackWords` set when it does), a sleeve a box; neither is listed on plywood (`canMake`).
+- **Every change must leave a sentence the engine cuts clean** (`accepts`, the whole sentence built): a choice or a number that does not is refused with its reason. *Inside · outside · crease to crease* is now asked of the engine too. Both found by a longer walk (25 walks × 10 steps): a round box divided 16 × 12 (its dividers collide) and a tall tray whose sizes turned from outside to inside grew past the sheet.
+- `NOTE_KEYS` has its own module (`src/easy/notes.ts`): the structures import the checks, which import the template registry, which lists the structures; the golden designs import the registry first.
+
+Verified
+- `tests/sentence.carton.test.ts` (10): walks through cartons (card, corrugated 1.6) and sleeves (card, both corrugated), every step built clean; plywood lists neither, 4 mm corrugated no carton; box → carton → box keeps the sizes and the window; a carton on card becomes a box with a lid that lifts off on plywood, its width kept and the change reported; a thumb notch and no dust flaps change what is cut; the design remembers *inside*.
+- Goldens byte-identical (the cartons now built by the app); unit suite and typecheck green.
+
+## Milestone 97 — the sentence component ✅
+
+`SENTENCE_BUILDER_PLAN.md` S4. `src/sentence/Sentence.tsx`, `Word.tsx`, `NumberWord.tsx`, `model.ts`, `SentenceDev.tsx`; styles in `styles.css`.
+- **One whole sentence per language with named slots** (`sen.s.box`, `sen.s.carton`, `sen.s.sleeve`) and a clause per add-on (`sen.add.*`), joined by each language's rule; never glued from fragments. Numbers sit in `<bdi dir="ltr">`.
+- **A word** is a button with a dashed underline and ▾, at least 44 px tall, named so it makes sense alone (*Lid: a lid that lifts off. Change.*); its list follows the select-only combobox pattern (Enter or Space opens, arrows and type-ahead move, Enter picks, Esc closes) and is worked out when it opens, with a small picture per option for the structure, the shape, the lid and a carton's ends (`renderThumbnail`, cached).
+- **A number** is a field five characters wide; focusing it opens a slider with − and +, its range and why it ends there (the word's own bounds at once, the engine's when worked out). Enter or leaving commits, Esc puts it back, sums and percents work (`evalNumber(text, base)`: `150%`); a refused number keeps its value and shows *From … to … mm: why*.
+- ***+ more*** lists the add-ons that are off and can be made; each one on is a clause with ×. **The line under the sentence** is measured on the built design (each space, or how many spaces of about the size asked and their exact size, or the range on a round box; the outside; pieces; sheets and use), with the first thing that stops the cut. **Change notes** say what changed and why, and are read out from an `aria-live` region. **The picture** is rebuilt 150 ms after the last change. **Under 600 px** the same words are labelled rows.
+- A development page, `?sentence`, shows the sentence with step 1's materials and a language switch.
+
+Verified
+- `tests/sentence.model.test.ts` (4): every structure's sentence splits into slots that are its words, in both languages; clauses follow the words (a polygon's sides, an add-on on, the rest in *+ more*); the line is measured (each space of a 3 × 2 plywood box, outside 166 × 116 × 48 mm, pieces, one sheet; size mode gives the count and spaces at least as big as asked).
+- `tests/i18n.test.ts`: every slot of an English sentence, clause or line is in the Hebrew one, and the reverse.
+- Browser, `tests/e2e/sentence.spec.ts` (5) in English and Hebrew at 1366 px and in English at 375 px: every word chosen with the keyboard alone (structure, a number, an add-on through *+ more*, its ×); a narrower box lowers the space count, with the note and the live region; a count past its end refused with its range; the narrow layout has the same state and no sideways scroll.
+- Looked at in Hebrew (1366 px) and at 375 px: the sentence reads right to left with its numbers left to right; the slider sits under its field on a phone.
+
+Limitations
+- Focusing a word does not light up the boards it affects in the picture (`affects` is in the contract; the picture is a thumbnail image).
+- A change that needs the engine's ranges again can take up to about a second the first time (milestone 95).
+
+## Milestone 98 — the welcome screen says what to make ✅
+
+`SENTENCE_BUILDER_PLAN.md` S5. `src/ui/StartScreen.tsx`, `src/templates/stand.ts`, `src/main.tsx`.
+- **Step 2 is *Blank design* or the sentence**, the sentence's picture beside it; the template grid's cards are gone. Touching any word of the sentence chooses it; *Start* runs `generate` with its words. Missions stay below in Quick build; *Your designs* stays above step 1.
+- **Step 1's material drives the sentence** (`chooseMaterial`): a word or a structure the material cannot make becomes what it can, and the note under the sentence says so (*a carton on card → a box with a lid that lifts off on plywood*). Nothing is greyed.
+- **The card stand is a structure** (*a card stand for cards … mm wide and … mm thick, leaning at …, with … slots on a base … mm deep*); **the organiser is no longer offered** (a new organiser is *a box … with a lid that lifts off, divided into 3 × 2 spaces*). Saved organisers and the two missions that start from it are unchanged.
+- The test hook gains `startTemplate(id, material)` for browser specs that start a preset the welcome screen no longer lists; `templates`, `overhaul`, `maintenance`, `quick-shots` and `classroom` use it (`startTemplate` in `tests/e2e/util.ts`).
+
+Verified
+- Browser `tests/e2e/start-sentence.spec.ts` (3): *Blank design* gives an empty design in each of the four materials; every structure the sentence lists starts from it in every material that lists it, with no blocking issue (plywood lists no carton); a carton on card filled in, then plywood: a box with a lid that lifts off, the width kept, the note shown, and that is what starts. `templates.spec` (the organiser through the hook; the stand from the sentence), `overhaul.spec`, `maintenance.spec`: passed.
+- A longer walk (25 walks × 10 steps) through the box, the tray, the carton and the sleeve in their materials: no failure.
+- Unit suite and typecheck green; goldens byte-identical.
+
+## Milestone 99 — the preset card after Start ✅
+
+`SENTENCE_BUILDER_PLAN.md` S6. `src/ui/TemplateUI.tsx`, `src/templates/registry.ts` (`changeMaterial`).
+- **The template card follows the sentence's rules**: it shows only the words that apply now (`when`, `only`), each list only the options allowed now (worked out once per set of words), and a change goes through `choose`: later words are checked again and what was dropped or moved is said in notes on the card (*Spaces across: 3, because each space at least 5 mm*); a number past its end, or a change the engine would not cut clean, is refused with its range or reason and the design is untouched. The organiser and the stand get the same checks (their limits from milestone 94).
+- **A change of board in the drawer** runs the sentence's material check for a structure first (`changeMaterial`): a carton changed to plywood becomes a box with a lid that lifts off, its sizes kept, its boards keeping their roles so shapes on them stay.
+
+Verified
+- `tests/sentence.card.test.ts` (5): a narrower box drops spaces it can no longer hold and says so; a count past its end is refused; a name engraved on the front wall after *Start* survives a change of width; a divider moved after *Start* stays through a change of height; a carton changed to plywood becomes a box with a lid that lifts off, keeping its width.
+- Browser `tests/e2e/sentence-card.spec.ts`: a plywood box divided 12 across from the sentence; on its card the words a count does not use are not shown; width 60 lowers the count with a note; 20 across is refused with its range and nothing changes.
+- Unit suite and typecheck green; goldens byte-identical.
+
+## Milestone 100 — verification of the sentence (94–99) ✅
+
+`SENTENCE_BUILDER_PLAN.md` S7.
+- **The random walks at length**: 40 walks of 12 steps through every structure in every material that lists it (the box and the tray in all four, the carton in card and corrugated 1.6, the sleeve in card and both corrugated, the card stand in all four): over 8,000 steps, each built and checked. The box, tray, carton and sleeve passed. The card stand (walked from this milestone) did not at first: its slots could be more than a shallow base holds after a change of the base, and its sizes could pass a sheet. Fixed: the base's depth now starts at what its slots need (a limit that follows the slots), and the stand refuses a change the engine would not cut clean (`accepts`), as the other structures do. Re-walked: no failure.
+- Unit suite and typecheck green; goldens byte-identical; `sentence.spec`, `sentence-card.spec`, `start-sentence.spec`, `templates.spec` pass. `classroom.spec` needs the Worker and was not run (the start of its designs goes through the test hook since milestone 98).
+- In the dev server, in both languages, every structure the sentence lists in card and plywood started from the sentence and was ready to cut (no blocking issue), with no page error.
+- `README.md` describes the sentence and the size intent.
+
+Needs the owner
+- The Hebrew sentences (`sen.*`) read by a native speaker (the owner said they will check them); the word *קרטון* for *a carton* in particular.
+- Whether the welcome screen's default sentence should be the plan's example (a box with a lid that lifts off, 3 × 2 spaces) rather than a plain box.
+
+## Milestone 101 — outline mode ✅
+
+`DIELINE_DNA_PLAN.md` D0 (the owner's request of 19 November). `src/model/outlineWhy.ts`, `src/store/store.ts`, `src/views/View3D.tsx`, `src/views/polyTool.tsx`, `src/ui/Inspector.tsx`.
+- **An *Outlines* switch in the stage's view cluster**, beside *Joints*: while it is on, the board under the pointer shows its points faintly, and grabbing one edits that board in the same press (no selecting, no card). Selecting a board edits its outline; selecting another moves the editing there. The grow, move and turn handles are hidden as in the joints view, and boards stay pickable. Joints and outline mode exclude each other; turning it on picks the Select tool and edits what is selected; off lets go.
+- **One rule for which outlines can be edited** (`outlineWhy`), used by the card's *Edit outline* and the mode: a board drawn as points and a grown wall can; a round board, a curved wall, a divider and a lid the generator made cannot, and the hint says why when one is hovered.
+- **Keys**: only the board being edited answers; in the mode Esc lets go of the point, then of the board, and the mode stays on (the switch leaves it). The card's *Edit outline* reads *Editing (outline mode)* while the mode is on.
+- Quick build hides the switch (`outline.mode`).
+
+Verified
+- `tests/outlineMode.test.ts` (5): selecting edits an editable board, moves to another, not a round one; turning on edits the selection, off lets go; joints and the mode exclude each other; without the mode nothing changes; `outlineWhy` for a base, a wall, a divider, a generated lid and a round board.
+- Browser `tests/e2e/outline-mode.spec.ts` (English and Hebrew): two boards, the switch on, a corner of one dragged after hovering it, then a corner of the other straight away without clicking it first; one undo per drag restores each; Esc, then the switch off.
+- Found on the way: the faint points vanished as the pointer reached a corner (it leaves the board there), so the last board hovered keeps them until another is hovered. `polygon`, `refine`, `wall-outline` and `joints` specs pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- On a touch screen there is no hover: a tap selects the board, which then shows its points (not tried on a device).
+
+## Milestone 102 — the sketch engine and the 2D canvas ✅
+
+`DIELINE_DNA_PLAN.md` D0b-1. Nothing a student sees changes.
+- **`src/sketch/*.ts` ported unchanged from `claude/guided-mode`** (its milestones 56–59): the sketch model as a graph of points and segments (lines, arcs by bulge, cubic Beziers, construction lines, locked points), flattening, regions (holes and islands), the edit operations (split, remove, weld, fillet and chamfer corners, scale and turn a selection, mirror, align, typed lengths and angles, duplicate, stamps), snapping, hit testing, selection and the tools as pure reducers. The types `SkPt`, `SkSeg`, `SketchGraph` are in `src/model/types.ts` (not part of any design yet).
+- **`src/views/canvas2d.tsx`**: the view box (zoom about the pointer, pan, fit, kept per view), selection handles with optional side handles, the turn ring and the marquee, as one module; `Plan2D` uses it (the cut plan and the solo view behave as before).
+- **Adapters** (`src/sketch/cutforge.ts`): a root board's outline as one closed chain whose segment ids are its edge ids, and back (`graphBoard`: refused unless still one closed simple loop; every edge keeps its id where it still exists, a split edge's first piece keeps it, `insertVertex`'s rule); a shape (rectangle, rounded rectangle, circle, polygon, path with holes) as a graph in its own frame, and back as a polygon or path in its unit box, its centre and turn kept.
+- `evalNumber(text, base)` reads a percent of the value it replaces (from milestone 97).
+
+Verified
+- The ported tests: `sketchmodel`, `sketchregions`, `sketchops` (less the cases that load waffle sculptures through the 3D kernel), `sketchdraw`, `sketchedit`: 58 pass on `main`.
+- `tests/sketchAdapters.test.ts` (15): every root board of nine golden designs round-trips with the same points, curves, edge ids and exported cut; a split edge keeps its id on its first piece and the second gets a new one; a graph that is no longer one closed loop is refused with the design untouched; polygons (turned or not) and a path with a hole round-trip to the same outline in the same place; a rectangle, a rounded rectangle and a circle have the right areas.
+- Browser specs over the cut plan and the solo view (`editing`, `shapes`, `text-pack`, `split`, `templates`, `boards`): 23 passed. Unit suite and typecheck green; goldens byte-identical.
+
+## Milestone 103 — the transform frame in 2D ✅
+
+`DIELINE_DNA_PLAN.md` D0c (after `claude/guided-mode`'s scale frame). `src/views/frameScale.ts`, `src/views/Plan2D.tsx`, `src/ui/Inspector.tsx`.
+- **A selected shape on the cut plan or in the solo view** has side handles besides its corners: corners change both directions, sides one; **Shift or *Keep proportions*** scales both alike by the direction moved furthest; **Alt** scales about the middle (and, as before, drops smart snapping). A turned shape scales along its own axes; a circle keeps its proportions. Every move previews from the box at the drag's start and commits once (Esc cancels). Several shapes' box keeps proportions the same way.
+- **W and H pills** beside the frame take a size, a sum (`60+20`) or a percent (`150%`); with *Keep proportions* the other size follows. The card's width and height do the same, and *Keep proportions* is a tick on the shape's card (`viewPrefs.keepRatio`, per browser).
+- **A shape too small on screen** for handles (under 24 px each way) shows only its pills and moves.
+- Quick build keeps its corners and turn knob only (`transform.sides`).
+
+Verified
+- `tests/transformFrame.test.ts` (7): a corner keeps the far corner; with proportions kept both scale by the direction moved furthest; a side changes one direction, centred across, or both with proportions kept; Alt about the middle; a turned shape along its own axes; a circle alike; a typed size with and without proportions.
+- Browser `tests/e2e/transform-2d.spec.ts`: in the solo view a cut-out's right side dragged 20 mm changes only its width; *W* typed `150%` makes it 120 mm; with *Keep proportions* on, *H* typed `60+20` makes the height 80 and doubles the width. `editing`, `shapes`, `text-pack`, `through` pass. Unit suite and typecheck green.
+
+Limitations
+- The 3D gizmo's handles are unchanged (its card's sizes follow *Keep proportions*).
+
+## Milestone 104 — edit outlines in the 2D view ✅
+
+`DIELINE_DNA_PLAN.md` D0b-2 (the owner's request: edit a shape's outline in the 2D view, double-clicked into). `src/sketch/edit2d.ts`, `src/views/Edit2D.tsx`, `src/views/Plan2D.tsx`; `Detail.sketch` (optional).
+- **Double-click into a board** (in 3D or on the cut plan) opens it face-on, as before. There, **a double-click on a shape** (a cut-out, an engraving, a score, an added piece) shows its points; **on one of the board's lines**, the line's points; **on the board away from its shapes**, the board's own outline. On the cut plan's sheets, a double-click on a shape opens the board face-on already editing it.
+- **Editing**: drag a point (it snaps to the outline's own points, middles and crossings, then the grid; Alt frees it); `+` at a segment's middle adds a point; click a point to select it, Delete removes it (never below three on an outline, two on a line); Esc lets go of the point, then of the outline; Enter or *Done* finishes. A small card says what is edited and offers, for a selected point, *Corner: Sharp · Round · Cut* with its size, and for a selected line, *Straight · Curved* and its typed length (the far end moves, alone on a closed outline). Each change is one undo step. The shape's move, scale and turn handles are hidden meanwhile.
+- **Shapes keep their curves**: a shape edited this way keeps its outline as a sketch graph (`Detail.sketch`, in its own frame), so its rounded corners, arcs and curves stay editable; its flattened outline stays in `path` for everything else. A rectangle becomes four points, a rounded rectangle keeps its radius as rounded corners, a circle two half arcs. Resizing the shape (frame, card, a fix) scales its graph with it; a damaged graph in a file is dropped (its outline stays).
+- **Boards** keep every edge's id (joints stay on their edges); a change that would open the outline or make it cross itself is refused. **Walls** (grown boards) move their top corners only, their bottom corners locked. **Lines** keep their type and group.
+- Quick build does not offer it (`edit2d`).
+
+Verified
+- `tests/edit2d.test.ts` (9): a rectangular cut-out's corner dragged (turned 0° and 30°) moves only that corner; a rounded rectangle's corners carry its radius, a circle stays round; a fillet on four corners survives saving, opening and a resize; `+` and Delete, and a triangle's point not deleted; a board's typed edge length moves only its far end and keeps every edge id; an outline left open is refused with the design untouched; a wall's top corner moves, a bottom one does not; a line's point moved keeps its type and group.
+- Browser `tests/e2e/outline-2d.spec.ts` (English and Hebrew, and from the cut plan): a board with a window face-on; double-click into the window, drag a corner out, type a side's length, round a corner (three undo steps); Esc twice; double-click the board away from the window and drag its corner (the window kept); from the cut plan's sheets a double-click on a round window lands face-on editing it.
+- `editing`, `shapes`, `text-pack`, `transform-2d`, `lines`, `polygon`, `outline-mode`, `templates`, `through` specs pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Outline mode (milestone 101) does not yet enter a shape with a single click in the face-on view (a double-click does); *Nets* (milestone 113) is not built.
+- A board's curved edges are shown with the editor's own curve while editing; their exact shape is the board's curve rule.
+- Mirror and align for a shape's several outlines are not on the card yet (the engine has them).
+
+## Code splitting (20 November, before Guided) ✅
+
+The app was one JavaScript file (2.42 MB, 713 KB compressed). Now:
+- **The libraries in files of their own** (`vite.config.ts`, Rolldown's `advancedChunks`): three.js (815 KB), the React 3D renderer (416 KB), React. They change far less often than the app, so a browser keeps them across releases and downloads only the app's own code again.
+- **Loaded when first used** (`React.lazy` in `App.tsx`): the cut plan and face-on view with the 2D editing (36 KB), the download dialog with the export and print code (11 KB, plus its helpers), the teacher's view (12 KB), the sentence's development page.
+- **The font parser (opentype.js, 237 KB) loads with the fonts** (`loadBundledFonts` imports it), not with the app; tests register fonts through `src/text/registerFont.ts`.
+- What the welcome screen loads before it can show: about 2.13 MB (630 KB compressed), down from 2.42 MB (713 KB); the font parser follows in parallel.
+
+Verified
+- Production build served with `vite preview`: the welcome screen loads the app, React, three.js and the 3D renderer; the cut plan's file arrives when *Cut plan* is opened, the download dialog's when it is opened; the teacher view loads; a Hebrew and English text shape is outlined (the fonts parse); no page error apart from the teacher view's call to the class server, which was not running.
+- Unit suite and typecheck green; goldens byte-identical.
+
+## Milestone 105 (Guided G2) — the mode and the shell ✅
+
+`GUIDED_MODE.md` G2, `HANDOFF_105-118.md` §105. `src/easy/features.ts`, `src/easy/mode.ts`, `src/store/store.ts`, `src/store/hooks.ts`, `src/App.tsx`, `src/views/View3D.tsx`, `src/views/Plan2D.tsx`, `src/ui/TopBar.tsx`, `src/ui/openFile.ts` (new, shared), `src/teacher/TeacherApp.tsx`, `worker/index.ts`; new `src/guided/` (`GuidedApp`, `GuidedTopBar`, `SideSheet`, `AddBar`, `ViewButtons`, `GuidedLayer`, `camera.ts`, `thing.ts`).
+- **A third level, Guided**, below Quick build. Until milestone 110 it is reached with `?guided` once (saved in this browser's preferences as `guidedPreview`), which adds it to the level switch; nothing starts in it yet. A class can be set to start in Guided (the teacher's list and the Worker accept it).
+- **Guided's shell** replaces the top bar, the rail, the card and the Workshop dock: a top bar with home, the thing's name, the steps *1 Build · 2 Decorate · 3 Send*, Undo and Redo with their words and a menu (*Start something new*, *Open a saved file*, *Save a copy*, the language, *More tools (Quick build)*, *All tools (Workshop)*, *Teacher view*); a side sheet with the thing's inside size, its spaces and its lid; view buttons *Look around*, *From above*, *Closer*, *Further*; the mission card. The stage shows no grow arrows, gizmos, divider button or slide, dock, view cube, fold bar or hint, and does not pan; the thing opens seen from 50° up in front and is framed again when it changes size. Every button is at least 44 px. In Hebrew the sheet and the bar swap sides; the stage stays left to right.
+- **What a step is**: view state (not saved, not in the history); changing it clears the selection and closes the face-on view; a new design starts at Build. The steps' contents come in 107–109.
+- **Underneath**: a full Guided column in the feature table (`GUIDED`, checked complete by the compiler), 14 new rows for the stage, the keys and the cut plan (each with all three states); `featureState` and `useFeature` pick by mode, so Guided never falls through to Workshop. The guard runs in Guided as in Quick build (`keepsCuttable`). In Guided the letter keys and Ctrl+C/V/D do nothing and Delete removes only a divider. Switching to Guided clears the joints view, outline mode, 2D editing and the face-on view. Workshop and Quick build are unchanged.
+
+Decisions (the handoff's defaults, owner questions 3 and 7)
+- The preview flag is `?guided`, saved in prefs, not a development-build switch (Playwright runs the dev server).
+- The Hebrew name is a placeholder, *מודרך*, to be reviewed with the `sen.*` and `g.*` words.
+- *Start something new* asks nothing (the open design stays in *Your designs* since milestone 86); no `Confirm.tsx`.
+- Eight rows Guided hides by not mounting what holds them (the card, the dock, the fold bar, the 3D gizmos) are listed with where they live in `tests/quickTable.test.ts` (`GUIDED_BY_SHELL`) rather than gated inside components Guided never shows.
+
+Verified
+- `tests/guidedmode.test.ts` (13): three levels and their columns; the switch offers Guided only with the flag; switching to and from Guided leaves the design and its history unchanged; switching clears the joints view, outline mode and the face-on view; a class locked in Guided stays there; the step is view state; a shape pushed into the edge keep-out is moved back in Guided; `b` and `p` do not change the tool and Ctrl+C/V/D do nothing in Guided (Workshop's `p` still does); Delete removes a divider but not a wall; the opening view is 50° up in front of the thing; the side sheet's facts.
+- `tests/guidedwords.test.ts` (4): every key under `src/guided/` is `g.*` or a shared prefix; no English `g.*` string says joint, kerf, tray, panel, edge, SVG and the rest; only `App.tsx` imports `src/guided/`, lazily; Guided imports none of the other levels' cards and bars.
+- `tests/quickTable.test.ts`: the section and use checks run for Guided's column too, and its *show* and *auto* lists are snapshot. `worker/api.test.ts`: a class patched to Guided reads back Guided; an unknown level is ignored.
+- In the browser (screenshots, English 1366 × 768 and Hebrew 1024 × 768): the shell with a box, no sideways scroll, the stage's test ids only Guided's own. Browser specs `topbar`, `quick`, `offline` pass. Unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- The steps are empty (Build, Decorate and Send arrive in 107–109); home and *Start something new* open the welcome screen until the gallery (106).
+- Not tried on a touch screen.
+
+## Milestone 106 (Guided G3) — things and the gallery ✅
+
+`GUIDED_MODE.md` G3, `HANDOFF_105-118.md` §106. New `src/guided/things.ts`, `src/guided/GuidedStart.tsx`, `src/easy/plainThings.ts`; `src/easy/missions.ts`, `src/easy/mode.ts`, `src/teacher/TeacherApp.tsx`, `src/views/thumbnail.ts`.
+- **In Guided, the first screen is a gallery**: *What do you want to make?* with large cards drawn by the real renderer: the missions (Pencil box, Dice tray, Card stand, Game organiser), then *Box*, *Box with a lid*, *Round box*, *Carton*. One tap starts it, named as its card, at Build. Above the cards: the class's board in one line (*Your class cuts in …*), or four board chips (the last choice remembered). A thing that cannot be made in the board is greyed and says why (the carton on plywood or 4 mm corrugated). Under the cards: *Open a saved file* and *Start with more tools* (not in a locked class). Coming back (home or *Start something new*): the newest three designs first as *Keep working on …*, then *All my designs*.
+- **Quick build and Workshop keep their welcome screen with the sentence**, unchanged; the gallery exists only in Guided.
+- **Plain things are the sentence's structures with set words** (box 120 × 80 × 45 inside; with a lid that lifts off; round 100 × 100; the carton's defaults), then detached from the template so nothing rebuilds them from the words (a change of board, the class's profile, a fix).
+- **Pencil box and Game organiser are version 2**: plain boxes with dividers of their own (the box structure's equal spacing), so Guided's arrows and one kind of lid serve them. They start with the same inside sizes, spaces and goals as version 1 in every board (the pencils still need 14.2 mm more on plywood). This also changes how they start in Quick build: a box with the *Lid* section instead of the organiser's form. A saved version-1 design still opens and its goals still count.
+- **A class's board** is kept from its link (`classMaterial` in the preferences) and every thing starts in it. **The class's list** also names the plain things; a list from before names none and offers them all. The teacher's card says *Things offered* with both groups, *Guided* among the levels, and *Students stay in this level*.
+- **Thumbnails** (the welcome screen's too) are drawn as the stage shows the design: bent walls as their bands, folds at rest. A round box's card showed only its base before.
+
+Decisions (the handoff's defaults, owner questions 6, 8, 9, 10, 12, and 4c)
+- Plain things are detached from their template. The Escape box stays with Quick build and Workshop (its padlock needs hasps). The carton is greyed with its reason, not hidden. An older class list offers every plain thing. The round box is 100 × 100 outside, its inside measured. Pencil box and Game organiser rebuilt as boxes (version 2).
+- The owner, 20 November: the gallery is the way in only in Guided; Quick build and Workshop keep the sentence. For milestone 110: Guided goes in the level switch for everyone, **Workshop stays the default for a new browser**, and new classes are unchanged.
+
+Verified
+- `tests/guidedthings.test.ts` (11): every thing starts with no blocking issue in every board it can be made in; plain things are boxes sized by the inside with no template; the carton cannot start on plywood or 4 mm corrugated; the Escape box is not in Guided; class lists (none, one mission from before, one mission and one thing); the class's profile is the board a thing starts in, else the last chosen, else plywood.
+- `tests/missions.test.ts`: reference solutions of the version-2 missions (dividers slid, a divider added, a lid); a saved version-1 Pencil box still opens and its goals count; version 2 starts with version 1's goals on the four boards.
+- Browser: the gallery in English (1366 × 768) and Hebrew (1024 × 768), no sideways scroll; the Pencil box starts with 186 × 60 × 30 inside and 3 spaces; *Keep working on …* after home. The full browser suite (app specs, 162) passes; the sentence’s walks (6 × 20 steps) and the fuzz suite pass; new `tests/e2e/guided-fence.spec.ts`: Workshop and Quick build open on the sentence with no Guided part, and a trip to Guided and back leaves the design and the level as they were. `quick.spec` finds the version-2 dividers and front wall in the design instead of by version 1's names. Goldens byte-identical.
+
+Limitations
+- `classroom.spec.ts` (with the Worker) was updated for the longer class list but not run here.
+- *Keep working on …* shows a design's saved picture, which a design saves only after its first change.
+
+## Milestone 107 (Guided G4) — Build ✅
+
+`GUIDED_MODE.md` G4, `HANDOFF_105-118.md` §107. New `src/guided/box.ts`, `fit.ts`, `apply.ts`, `GuidedLayer.tsx`, `steps/Build.tsx`, `Demo.tsx`, `GuidedNote.tsx`, `pictures.tsx`, `templateControls.ts`; `src/easy/features.ts` (the Build sheet's sections), `src/store/store.ts` (`guidedSpace`, `guidedNote`).
+- **Size by touching it.** Three arrows on the box: *Wide*, *Deep*, *Tall*, on the sides that move. A drag changes the box live and is one undo step; each arrow's label takes a typed number. Sizes are always the inside. A size the sheet cannot take stops at the largest that fits and says *That is as big as the sheet allows*.
+- **Dividers.** Each has a round grip on its top (a third of the way along, clear of the objects' tags). Sliding it snaps to equal spaces near the middle. Tapping a divider offers *Remove*; only a divider can be removed.
+- **Spaces.** Tapping a space selects it: its inside size, *Split it* with two pictures (*Front to back*, *Side to side*; greyed with the reason when a half would be under 20 mm), and what is in it. *Divider* on the add bar splits the selected space, or the largest, across its longer side.
+- **Lid.** *Lid* on the add bar: *None · Lifts off · Hinged*, each greyed with today's reason when it cannot be made; the kind stays automatic, no hasps. A carton also has its *Bottom* pictures.
+- **What goes inside.** Six objects as pictures; a tap puts one in the selected space or the best free one. Each lot shows its count (− +), *fits* in green or *needs {n} mm more* in amber, **Make it fit** and *Take out*. *Make it fit* grows the box by what is missing and gives all of it to that space: every divider beyond the space moves with it, so the other spaces keep their sizes; a box that is not a rectangle grows all round. It says *They cannot all fit on one sheet* when it cannot.
+- **Other things.** The card stand (and a saved version-1 organiser) shows its sizes as sliders with plain names (*How far it leans*). A design that is more than one box says *Made with more tools: you can decorate it and send it*, with a button to Quick build (or Workshop when a part needs it), and has no arrows.
+- **More about this box**, folded shut: how the corners hold (the two joint lists) and *No glue* on card and corrugated.
+- **Pictures of the gestures**: pull an arrow, slide a divider, drag to look around, shown the first time a box is built and again from *How?* on the add bar; still under reduced motion.
+- **Guided's one rule**: a Build action, or the end of a drag, that would leave the thing impossible to cut is not made, and a note says so (`guidedApply`, `guidedCommit`). The fuzz found the cases: a lid on a hexagonal tray in 4 mm corrugated, a divider slid onto a wall's slot, a box shrunk past its dividers.
+
+Decisions
+- No feature rows for Guided-only widgets (the arrows, grips and spaces): `src/guided/` mounts only in Guided. The Build sheet's sections are in `SECTIONS`.
+- Guided's lid picker is built on `PictureChoice` + `lidWhy` + `setBoxLid`, not on `LidSection`, so the style row and hasps never show (no `lid.style`/`lid.locks` rows needed).
+- *More about this box* uses the joint names (*Finger joint*…) inside the fold (owner call 4a); `conn.` is on the words test's shared list.
+
+Verified
+- `tests/guidedbox.test.ts` (11): sizes round-trip in the four boards; a name on the front wall survives a resize; dividers keep their distance from the left and the front; a split goes through the middle of one space, stays in it, adds one space and leaves the others; a split leaving a half under 20 mm is refused; *Divider* splits the largest space across its longer side; move and remove leave the other dividers; each lid choice is what `setBoxLid` makes; a lid follows a resize (Flat on plywood, cap on card); `kindOf` (plain things and mission boxes are boxes, the stand a template, a box with a wall added *more*); the rule refuses a change with a new blocking problem, with no undo step, and keeps a good one.
+- `tests/guidedfit.test.ts` (5): Pencil box, the pencils fit, the box is 14.2 mm deeper, the other spaces within 0.1 mm, a second call changes nothing; every mission lot fits in every board with nothing blocking; the dice tray grows all round; a lot too big for the sheet gives null; a divider across a space beyond the grown one moves with it.
+- `tests/fuzz/guided.test.ts`: random things, boards and Build actions (size, split, move, remove, lid, objects, *Make it fit*) through the guard and the rule: nothing throws, nothing blocking after any step, and fewer than a quarter of actions refused (run at 60 sessions × 10 steps).
+- In the browser (Pencil box, plywood, 1366 × 768): pull deeper, tap a space and split it, *Make it fit* (the goal ticks), a lid on and off, slide a grip, then Undo back to the start, one step per action. The card stand's lean slider meets *Leans back at 45° or less*; the Game organiser in Hebrew at 1024 × 768 with no sideways scroll. Browser specs `guided-fence`, `quick`, `quick-revised`, `dividers`, `lids`, `templates`, `offline`, `start-sentence` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Not tried on a trackpad or touch screen (owner question 2). The arrows are the stage's push-pull handles (14 px cones): big enough with a mouse, to be checked by finger.
+- A drag changes the design live rather than moving an outline; one undo step either way.
+- Objects can be dragged to another space with the existing tag drag (Quick build's), not yet with a Guided-specific grip.
+
+## Milestone 108 (Guided G5) — Decorate ✅
+
+`GUIDED_MODE.md` G5, `HANDOFF_105-118.md` §108. New `src/guided/decorate.ts`, `src/guided/steps/Decorate.tsx`; `src/views/Plan2D.tsx` (the guard face-on, the hint and legend through the table), `src/views/View3D.tsx` (Guided's words in the guard's tip), `src/easy/missions.ts` (*Your name* is a placeholder), `src/easy/features.ts`.
+- **Step 2, Decorate.** The arrows and grips go. One tap on a side opens it face-on (Guided has no double-click); *Back to the box* closes it. A divider, a curved side (a round box's wall) or a part made with all tools says why it cannot be decorated.
+- **Name, Sticker, Window** on the add bar, each placed in the middle of the open side (or the front, which then opens), selected and ready to drag:
+  - *Name* is engraved (never cut), already saying the student's name when the app knows it (from sending), else *Your name*; letters at least as tall as the board allows, at most a third of the side. Its card: what it says, a size slider (from the board's smallest readable size), the three fonts.
+  - *Sticker*: the eight stickers as pictures, a quarter of the side, engraved.
+  - *Window*: circle, rounded or rectangle, a third of the side, cut out; its card has *Cut out · Engrave*.
+  - Every decoration has *Copy* and *Remove*. Each action is one undo step, through Guided's rule (a change that cannot be cut is not made).
+- **The guard face-on** (Guided and Quick build): while a shape on the open side is selected, its keep-out shows as a dashed outline, and the tip *Kept 2 mm from the side* (*from the corner teeth*, *from the next cut-out*) shows by the shape after the guard moves it. The 3D tip uses the same words in Guided.
+- **Nothing of the Workshop face-on view in Guided**: no outline editing, side handles, operation dots, arrays or align (their rows were hidden in 105), and now no layer legend and no hint bar (*Shift-click…*, *Alt to drag*).
+
+Decisions
+- New rows `solo.guard` (Guided and Quick build show; Workshop never guards, so it has no tip to show) and `plan.legend` (Guided hide); the face-on hint follows `stage.hint`.
+- *Your name* does not meet *Your name engraved*.
+
+Verified
+- `tests/guideddecorate.test.ts` (6): a name, a sticker and a window in the middle of every side that can be decorated, of every thing in every board, leave no new blocking problem; the front of a plain box takes all three in every board; a divider, a round box's wall and a side too small say why and make nothing; a real name meets the goal, *Your name* (both languages) and *Text* do not; a name on a lid's top stays when the lid changes kind; the face-on view's Workshop controls are hidden in Guided.
+- In the browser (Pencil box, English and Hebrew, 1366 × 768): Decorate, tap the front (face-on, *Decorating Front wall*), *Name* typed *Maya* / *מאיה* (the goal ticks), a star dragged into the corner stops short with the tip, *Back to the box* (both show on the box). Browser specs `guided-fence`, `editing`, `shapes`, `text-pack`, `transform-2d`, `outline-2d`, `quick`, `spec`, `sizes` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- A box with rounded corners (made with more tools) has bands on its walls' edges, so its walls count as curved and cannot be decorated in Guided.
+- The keep-out outline shows while a shape is selected, not only while it is dragged.
+- Not tried on a touch screen.
+
+## Milestone 109 (Guided G6) — Send ✅
+
+`GUIDED_MODE.md` G6, `HANDOFF_105-118.md` §109. New `src/guided/steps/Send.tsx`, `src/net/submit.ts`, `src/export/files.ts`, `src/ui/printPlan.ts`; `src/ui/SubmitDialog.tsx` and `src/ui/ExportDialog.tsx` use them (no change for Quick build and Workshop); `src/guided/GuidedTopBar.tsx` (the dot), `src/store/store.ts` (Send shows the sheet).
+- **Step 3, Send.** The stage becomes the sheet as the laser will cut it: a picture, nothing dragged, no *Repack*, no layer legend.
+- **The check**: *Ready to cut ✓*, or each problem in plain words (*A decoration goes past the side of Front wall*) with **Fix** for the thirteen the app can fix; anything else says *This needs your teacher*, with *Open with more tools* when the class allows it. A dot on *3 Send* in the top bar turns amber while something needs fixing.
+- *One sheet of board* / *{n} sheets*, and **Use less board** when it takes more than one.
+- **The mission's goals and stars** when there is one.
+- **Watch it go together** plays the assembly on the box and **See it flat** (card and corrugated) unfolds it; *Show the sheet* goes back.
+- **One button, waiting for the check**: with a class code (from the class link or typed after *I have a class code*), **Send to my teacher**, asking the name once; a class in another board asks *Your class cuts in Plywood 3 mm. Switch to it?* and checks again after switching. Without a class, **Download the file**: the SVG at its true size, no dialog. *More download options* opens the full dialog; *Print a plan* prints the A4 plan.
+- **Underneath**: sending moved out of the dialog into `src/net/submit.ts` (the class lookup, the profile check, the switch to the class's board, the upload, the remembered code and name); the printed plan into `src/ui/printPlan.ts` and the file names into `src/export/files.ts`, so Send loads neither dialog.
+
+Decisions
+- Send waits for the check (no *Download anyway* in Guided); *More download options* is the way out (owner call 4b's default).
+- No row for the one-tap download: it is Guided-only code.
+
+Verified
+- `tests/guidedsend.test.ts` (4, the class server mocked): a class in another board is seen and the switch puts the design in it with nothing blocking; a closed class and no network say so; a send carries the design, a picture and the goals, and a second send is sent again; a failed send keeps the download, an SVG named by board and kerf.
+- `tests/e2e/guided.spec.ts` (8: English and Hebrew, 1366 × 768 and 1024 × 768, taps only, no sideways scroll): the gallery, the Pencil box, *Make it fit* (the goal ticks), a name on the front, Send: *Ready to cut ✓*, three stars, the dot clear, the download an SVG; *Box with a lid* changed to *Hinged* and back with Undo; the other levels' controls absent.
+- `tests/e2e/classroom.spec.ts` with the real Worker (5 passed, run here for the first time since milestone 100): a class set to Guided, locked, in plywood: its link opens the gallery with *Your class cuts in Plywood 3 mm* and no chips, no way to the other levels; *Send to my teacher*; the teacher sees *Pencil box · 5 of 5 goals*. The earlier classroom tests (the profile switch, a failed send, a locked Quick build class, a class's missions) pass through the refactored dialog.
+- Browser specs `spec`, `flow`, `offline`, `guided-fence`, `library`, `split` pass; unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Headless Chromium names a download with Hebrew letters *download*; the spec checks the file's contents there (a real browser keeps the name).
+- *Print a plan* is A4 only in Guided.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
@@ -1415,4 +1744,4 @@ Verified: unit suite 914 pass, 7 skipped; typecheck clean; goldens regenerated f
 - Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
-- The production bundle is one ~1.6 MB JavaScript chunk (fonts load separately); code splitting is a later optimisation.
+- The production build is split (20 November): libraries in their own files, the cut plan, download dialog, teacher view and font parser loaded when first used.

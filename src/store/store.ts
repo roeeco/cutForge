@@ -1,9 +1,12 @@
+import { outlineWhy } from '../model/outlineWhy';
+import type { Edit2D } from '../sketch/edit2d';
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
 import { designKind } from '../model/jointDefaults';
 import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
+import { keepsCuttable, type Mode } from '../easy/features';
 import { produce, type Draft } from 'immer';
-import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, WallSketch } from '../model/types';
+import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, MaterialProfile, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -98,6 +101,11 @@ export type CloseAs = 'liftoff' | 'hinged' | 'fixed' | `style:${ClosureStyle}`;
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
 export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
+/** The design autosave writes (milestone 92): while a draft waits for ✓, the design from before it, so a reload never keeps an unconfirmed draft. */
+export function designToSave(s: { design: Design; pending: Pending | null }): Design {
+  return s.pending ? s.pending.base : s.design;
+}
+
 /** Quick build grows at 90° on the whole edge, adapting, with the design's joint (feature 'grow.advanced' is 'auto', milestone 37). */
 const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, kind: undefined, sketch: null, editGhost: false };
 
@@ -106,7 +114,7 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
 function guarded(d: Design, base: Design) {
-  if (useStore.getState().viewPrefs.mode !== 'quick') {
+  if (!keepsCuttable(useStore.getState().viewPrefs.mode)) {
     solve(d);
     autoConnect(d);
     return;
@@ -122,6 +130,10 @@ export type ViewPrefs = {
   quality: Quality;
   dims: boolean;
   joints: boolean;
+  /** Outline mode (milestone 101): every editable board's outline can be edited on the stage straight away. Excludes `joints`. */
+  outlineMode?: boolean;
+  /** Keep proportions when a shape is scaled (milestone 103): the 2D frame, the card's sizes and the 3D gizmo share it. */
+  keepRatio?: boolean;
   /** Smart snapping (to other shapes, edges, panels, rest angles). Alt turns it off for one drag. */
   snap: boolean;
   /** Grid snapping: positions round to the grid step where no smart target is near. Alt turns it off for one drag. */
@@ -132,11 +144,17 @@ export type ViewPrefs = {
   turnStep: number;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
-  /** Quick build or Workshop (milestone 37): a viewer preference, never part of the design. */
-  mode?: 'quick' | 'workshop';
+  /** Guided, Quick build or Workshop (milestones 37, 105): a viewer preference, never part of the design. */
+  mode?: Mode;
+  /** Guided can be chosen from the level switch (milestone 105; set once by `?guided` until Guided is the way in). */
+  guidedPreview?: boolean;
   /** The class chose the mode and does not let it change (milestone 37). */
   modeLocked?: boolean;
-  /** The missions the class offers (milestone 40); absent: all. */
+  /** The class's board (milestone 106): Guided's gallery starts every thing in it and shows no choice. */
+  classMaterial?: MaterialProfile;
+  /** The board last chosen on Guided's gallery (milestone 106; a material id). */
+  guidedMaterial?: string;
+  /** The missions the class offers (milestone 40; from 106 also Guided's plain things); absent: all. */
   missions?: string[];
   /** Quick build's Box: the kind last made (milestone 73); absent: an open box. */
   boxKind?: BoxKind;
@@ -153,17 +171,42 @@ export type ViewPrefs = {
 export type BoxKind = 'open' | 'lid' | 'carton';
 export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping' | 'sizes';
 const PREFS_KEY = 'cutforge.viewPrefs';
-function initialPrefs(): ViewPrefs {
+/**
+ * A browser's view preferences from what it saved (`raw`, or null for a new
+ * browser): Workshop unless this browser (or its class) chose another level.
+ * `search`: the page's query; `?guided` lets Guided be chosen (milestone 105).
+ */
+export function defaultPrefs(raw: string | null, search = ''): ViewPrefs {
   const def: ViewPrefs = { outlines: true, quality: 'auto', dims: true, joints: false, snap: true, grid: true, gridStep: 1, turnStep: 15 };
+  let p: ViewPrefs = { ...def, mode: 'workshop' };
   try {
-    const raw = localStorage.getItem(PREFS_KEY);
-    // Workshop unless this browser (or its class) chose Quick build
-    if (raw) return { ...def, mode: 'workshop', ...JSON.parse(raw) };
+    if (raw) p = { ...p, ...JSON.parse(raw) };
+  } catch {
+    /* a broken save: the defaults */
+  }
+  if (new URLSearchParams(search).has('guided')) p.guidedPreview = true;
+  return p;
+}
+function initialPrefs(): ViewPrefs {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(PREFS_KEY);
   } catch {
     /* storage unavailable */
   }
-  return { ...def, mode: 'workshop' };
+  const p = defaultPrefs(raw, typeof location === 'undefined' ? '' : location.search);
+  if (p.guidedPreview && !raw?.includes('guidedPreview')) {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    } catch {
+      /* ignore */
+    }
+  }
+  return p;
 }
+
+/** Guided's three steps (milestone 105): view state, not saved and not in the history. */
+export type GuidedStep = 'build' | 'decorate' | 'send';
 
 /** The first-use tour (milestone 43): the step shown, and the design when it was entered (what the step compares with). Not saved. */
 export type TourState = { step: number; entry: Design };
@@ -226,6 +269,14 @@ type State = {
   /** Copy on the cut plan the student last clicked or moved (for rotate). */
   sheetCopy: string | null;
   viewPrefs: ViewPrefs;
+  /** Guided's step (milestone 105). */
+  guidedStep: GuidedStep;
+  /** Change Guided's step: the selection clears and the face-on view closes. */
+  setGuidedStep: (s: GuidedStep) => void;
+  /** Guided's selected space (milestone 107): its index in the box's spaces; view state. */
+  guidedSpace: number | null;
+  /** Guided's short note on the stage (a size stopped at the sheet, a split refused), and when it was set. */
+  guidedNote: { key: MsgKey; vars?: Record<string, string | number>; at: number } | null;
   /** Material & sheet drawer open. */
   drawerOpen: boolean;
   /** Part under the pointer (either view), for cross-highlighting. */
@@ -245,6 +296,9 @@ type State = {
   roundCorner: number;
   /** Base whose outline vertices are being edited, and the picked vertex. */
   editOutline: string | null;
+  /** Milestone 104: the outline being edited in the 2D view (a shape, a board, a line), and its selected point. */
+  edit2d: Edit2D | null;
+  sel2d: string | null;
   /** A base vertex index, or on a wall a free corner ('tl' | 'tr') or an inserted point's id. */
   selVertex: number | string | null;
   /** Extrude in progress: the base and the tray height being previewed (a ghost on the stage). */
@@ -304,7 +358,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'edit2d' | 'sel2d' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -387,6 +441,15 @@ export const useStore = create<State>()((set, get) => ({
   exportOpen: false,
   sheetCopy: null,
   viewPrefs: initialPrefs(),
+  guidedStep: 'build',
+  guidedSpace: null,
+  guidedNote: null,
+  setGuidedStep: (g) => {
+    if (get().view === 'solo') get().closeSolo();
+    // Send shows the sheet (milestone 109); Build and Decorate the thing, folded up
+    set({ view: g === 'send' ? '2d' : '3d', foldT: 1, assemble: null });
+    set({ guidedStep: g, guidedSpace: null, selection: null, edit2d: null, sel2d: null, editOutline: null, selVertex: null, tool: 'select' });
+  },
   drawerOpen: false,
   hoverPart: null,
   foldT: 1,
@@ -396,6 +459,8 @@ export const useStore = create<State>()((set, get) => ({
   roundShape: 'circle',
   roundCorner: 15,
   editOutline: null,
+  edit2d: null,
+  sel2d: null,
   selVertex: null,
   extrude: null,
   panelGhost: null,
@@ -411,6 +476,7 @@ export const useStore = create<State>()((set, get) => ({
     const st = get();
     if (st.viewPrefs.mode !== 'workshop') st.setPrefs({ mode: 'workshop' });
     if (st.viewPrefs.joints) st.setPrefs({ joints: false });
+    if (st.viewPrefs.outlineMode) st.setPrefs({ outlineMode: false });
     // a new design, as Start with Blank makes it
     st.replaceDesign(createDesign(), true);
     get().apply((d) => setMaterial(d, MATERIALS.find((m) => m.id === 'ply-3') ?? d.material));
@@ -544,11 +610,11 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, panelGhost: null, pending: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
-    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : { editOutline: null, selVertex: null }) });
+    set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : get().viewPrefs.outlineMode && s?.kind === 'panel' && !s.ids?.length && !outlineWhy(get().design, s.id) ? { editOutline: s.id, selVertex: null } : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
     // another tool drops what the last one made and was not confirmed
@@ -580,7 +646,7 @@ export const useStore = create<State>()((set, get) => ({
     const cur = get().view;
     set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: ONLY_3D.has(get().tool) ? 'select' : get().tool });
   },
-  closeSolo: () => set({ view: get().prevView, soloPanel: null }),
+  closeSolo: () => set({ view: get().prevView, soloPanel: null, edit2d: null, sel2d: null }),
   clickPanel: (id, additive) => {
     const cur = selectedPanelIds(get().selection);
     if (!additive) return get().select({ kind: 'panel', id });
@@ -603,12 +669,20 @@ export const useStore = create<State>()((set, get) => ({
   set: (p) => set(p),
   setPrefs: (p) => {
     const next = { ...get().viewPrefs, ...p };
+    // the joints view and outline mode exclude each other (milestone 101)
+    if (p.outlineMode) next.joints = false;
+    if (p.joints) next.outlineMode = false;
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(next));
     } catch {
       /* ignore */
     }
     set({ viewPrefs: next });
+    if (p.outlineMode === true) {
+      // the mode edits what is selected (or the next board picked) with the Select tool
+      const sel = get().selection;
+      set({ tool: 'select', editOutline: sel?.kind === 'panel' && !sel.ids?.length && !outlineWhy(get().design, sel.id) ? sel.id : null, selVertex: null });
+    } else if (p.outlineMode === false || p.joints) set({ editOutline: null, selVertex: null });
   },
   setBoardPose: (pose) => set({ panelPose: pose }),
   choosePolyTool: (kind) => {

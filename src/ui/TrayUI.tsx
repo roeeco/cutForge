@@ -3,6 +3,7 @@
 // open edges with "Wall it"), and the own-height switch on a tray wall.
 import { newTrayKinds } from '../model/jointDefaults';
 import { useStore, useT } from '../store/store';
+import { statedField } from './BoxSizeUI';
 import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
@@ -84,7 +85,15 @@ export function TraySection({ panelId }: { panelId: string }) {
   return (
     <div className="subsection tray-card" data-testid="tray-card">
       <h4>{t('tray.title')}</h4>
-      <NumField label={t(quickWords ? 'insp.height' : 'tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
+      {(() => {
+        // the height as the design states it (milestone 93)
+        const f = !tray.lidOf ? statedField(d, tray.id, 'h') : null;
+        return f && f.label ? (
+          <NumField label={t(f.label)} value={f.value} unit={mm} min={5} max={1000} onCommit={(v) => apply((x) => f.commit(x, v))} testId="tray-height" />
+        ) : (
+          <NumField label={t(quickWords ? 'insp.height' : 'tray.height')} value={tray.height} unit={mm} min={5 + bm.thickness} max={1000} onCommit={(v) => apply((x) => setTrayHeight(x, tray.id, v))} testId="tray-height" />
+        );
+      })()}
       <FlatNote baseId={panelId} height={tray.height} tray={tray} />
       <Gate f="tray.joints">
       <div className="field">

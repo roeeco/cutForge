@@ -75,6 +75,8 @@ export type Detail = {
   array?: DetailArray;
   /** Rotation in degrees (counter-clockwise) about the shape's centre; an array turns as a group about its centre. Missing = 0. */
   rot?: number;
+  /** Milestone 104: the shape's outline as an editable graph (its own frame, mm about its centre); `path` keeps the outline it flattens to. */
+  sketch?: SketchGraph;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
@@ -420,6 +422,8 @@ export type Design = {
   trays: Record<string, Tray>;
   /** The template this design was generated from, with its parameters. */
   template?: { id: string; version: number; params: Record<string, number | string> };
+  /** How a box's sizes are stated (milestone 93): outside (absent), inside, or crease to crease. Stored geometry stays outside sizes; a change of board keeps the size so stated. */
+  sizeAs?: 'inside' | 'crease';
   /** Sizes of the design (milestone 88): each the master with these numbers applied, worked out on demand, never stored. */
   sizes?: BoxSize[];
   /** The Quick build mission this design was started from (milestone 40), so a submission shows which. */
@@ -515,3 +519,21 @@ export type Tray = {
 export type TrayFix = 'trim' | 'hinge' | 'own';
 
 export const SCHEMA_VERSION = 11;
+
+/**
+ * The 2D sketch model (milestone 102, ported from `claude/guided-mode`'s
+ * SKETCH_OVERHAUL.md §5.1, used by the 2D outline editing): a graph of points
+ * and segments. `SkPt.smooth`: its two curve handles stay in line. `r` / `ch`:
+ * a rounded or chamfered corner (mm), only where exactly two straight lines meet.
+ */
+export type SkPt = { x: number; y: number; smooth?: true; r?: number; ch?: number; lock?: true };
+/** A sketch segment between two points; `cons`: a construction line (never part of what is cut). */
+export type SkSeg = { a: string; b: string; cons?: true } & (
+  | { k: 'line' }
+  /** A circular arc; bulge = tan(sweep / 4), positive = counter-clockwise from a to b (the DXF convention). */
+  | { k: 'arc'; bulge: number }
+  /** A cubic Bezier; handles are offsets from their own end point. */
+  | { k: 'bez'; ha: P2; hb: P2 }
+);
+/** A 2D sketch: a graph of points and segments (a point may carry any number). `order` lists segment ids in drawing order. */
+export type SketchGraph = { pts: Record<string, SkPt>; segs: Record<string, SkSeg>; order: string[] };

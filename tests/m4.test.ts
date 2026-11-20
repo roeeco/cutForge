@@ -2,7 +2,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { addDetail, addRootPanel, createDesign, growPanel } from '../src/model/ops';
-import { registerFont, FONTS } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { outlineText, visualOrder } from '../src/text/outline';
 import { importSvg } from '../src/io/svgImport';
 import { prepareExport } from '../src/export/prepare';

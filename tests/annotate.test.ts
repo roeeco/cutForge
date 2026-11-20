@@ -1,7 +1,8 @@
 // Milestone 89 (LIDS_LINES_PROJECTS_PLAN.md §9): what a piece says about itself on the dieline.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { registerFont, FONTS } from '../src/text/fonts';
+import { FONTS } from '../src/text/fonts';
+import { registerFont } from '../src/text/registerFont';
 import { MATERIALS } from '../src/model/materials';
 import { addRootPanel, addTray, autoConnect, createDesign } from '../src/model/ops';
 import { pieceCopies } from '../src/model/pack';

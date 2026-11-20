@@ -6,12 +6,32 @@ import { isConstruction } from '../model/place';
 import { throughHits } from '../model/through';
 import type { Mode } from './features';
 import { api } from '../net/api';
+import type { MsgKey } from '../i18n';
+
+/** Each level's name and its one-line help (milestone 105). */
+export const MODE_NAME = { guided: 'mode.guided', quick: 'mode.quick', workshop: 'mode.workshop' } as const satisfies Record<Mode, MsgKey>;
+export const MODE_HELP = { guided: 'mode.guidedHelp', quick: 'mode.quickHelp', workshop: 'mode.workshopHelp' } as const satisfies Record<Mode, MsgKey>;
+
+/** The levels the switch offers: Guided only with the preview flag until it becomes the way in (milestone 110). */
+export function levels(p: { guidedPreview?: boolean; mode?: Mode }): Mode[] {
+  return p.guidedPreview || p.mode === 'guided' ? ['guided', 'quick', 'workshop'] : ['quick', 'workshop'];
+}
 
 export function setMode(m: Mode) {
   const st = useStore.getState();
   if (st.viewPrefs.modeLocked && st.viewPrefs.mode && st.viewPrefs.mode !== m) return;
   // a tool of the other mode stops (nothing it made is kept unconfirmed)
   st.setTool('select');
+  if (m === 'guided') {
+    // Workshop's views do not follow into Guided (milestone 105): no joints view, no outline mode, no 2D editing,
+    // no face-on view (setTool above already dropped anything waiting for ✓)
+    if (st.view === 'solo') st.closeSolo();
+    st.set({ editOutline: null, selVertex: null, edit2d: null, sel2d: null });
+    st.setPrefs({ mode: m, joints: false, outlineMode: false });
+    if (useStore.getState().view === '2d') st.setView('3d');
+    useStore.setState({ guidedStep: 'build', selection: null });
+    return;
+  }
   st.setPrefs({ mode: m });
 }
 
@@ -57,7 +77,8 @@ export async function joinClassFromLink(search = location.search) {
   try {
     const cls = await api.classInfo(code);
     applyClassMode(cls.mode ?? null, !!cls.modeLocked);
-    useStore.getState().setPrefs({ missions: cls.missions ?? undefined });
+    // the class's board too (milestone 106): Guided's gallery starts in it
+    useStore.getState().setPrefs({ missions: cls.missions ?? undefined, classMaterial: cls.material ?? undefined });
   } catch {
     /* offline or no such class: the editor works the same */
   }

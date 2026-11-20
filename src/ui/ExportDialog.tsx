@@ -3,7 +3,7 @@ import { projectDesigns, projectOf } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { projectBatches } from '../export/project';
 import { applySize } from '../model/sizes';
-import { specHtml, specPages, type Paper, type SpecText } from '../export/spec';
+import type { Paper } from '../export/spec';
 import type { Design } from '../model/types';
 import { issueSelection, useStore, useT } from '../store/store';
 import { prepareExport, type KerfMode } from '../export/prepare';
@@ -19,10 +19,9 @@ import { downloadText, safeName } from './download';
 import { fmtNum } from '../i18n';
 import type { Prepared } from '../export/prepare';
 
-/** The files an export writes: one per material, named by the material (and its kerf). */
-export function exportFiles(name: string, p: Prepared, mode: KerfMode): { base: string; mat: string; sheets: Prepared['sheets'] }[] {
-  return p.materials.map((m) => ({ base: `${safeName(name)}-${m.mat}-${mode}-kerf${fmtNum(m.profile.kerf, 2)}mm`, mat: m.mat, sheets: m.sheets }));
-}
+import { exportFiles } from '../export/files';
+import { printPlan } from './printPlan';
+export { exportFiles };
 
 export function ExportDialog() {
   const t = useT();
@@ -102,29 +101,7 @@ export function ExportDialog() {
   const specF = shown(useFeature('export.spec'));
   const [paper, setPaper] = useState<Paper>('A4');
   const lang = useStore((s) => s.lang);
-  const specText = (): SpecText => ({
-    title: d.name || t('top.untitled'),
-    date: new Date().toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB'),
-    material: t(d.material.nameKey as 'mat.ply3'),
-    blank: t('spec.blank'),
-    pieces: t('spec.pieces'),
-    glue: t('spec.glue'),
-    kerf: t('spec.kerf', { k: fmtNum(d.material.kerf, 2) }),
-    scale: t('spec.scale'),
-    legend: { cut: t('ann.legend.cut'), score: t('ann.legend.score'), engrave: t('ann.legend.engrave'), guide: t('ann.legend.guide') },
-    glueWord: t('ann.glue'),
-    unit: t('unit.mm'),
-    name: (id) => panelLabel(d, id, t),
-  });
-  const printSpec = () => {
-    const pages = specPages(d, paper, specText());
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(specHtml(pages, paper, d.name || 'CutForge', lang === 'he' ? 'rtl' : 'ltr'));
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
+  const printSpec = () => printPlan(d, paper, t, lang);
   const go = () => {
     if (scope === 'project' && project) return goProject();
     goSizes();
