@@ -2372,6 +2372,13 @@ Verified: typecheck; `npm test`; in the dev server at 1366 × 768, Quick build w
 
 Verified: typecheck; `npm test` (1597 passed; every QA repro now passes); `tests/e2e/library.spec.ts` (rename and move through the new dialog).
 
+## Fix: shapes folded from card reported problems they do not have ✅
+
+The owner's report during the fix round: Quick build lists many errors after folding a shape (a loft of 4 to 8 sides in card), though the dieline looks right.
+- **Cause:** the check for boards that touch without a joint (`contactIssues`) took faces that meet only at a corner of the shape as boards: on a 4-to-8 loft the faces round each top corner overlap by more than 0.5 mm in their thickness there (4 × *run into each other*); on a cone every side meets every other at the tip (24 × *too short to join*). Every other shape tile was already clean.
+- **Fix:** on a model folded from card (`make.as === 'fold'`), two faces of the made shape that share exactly one corner are not reported (`meetAtCorner`): card bends there. A model built from boards keeps the check (boards are thick).
+- `tests/qa/folds.test.ts`: every shape tile, folded from card at 40 mm, has nothing to fix.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

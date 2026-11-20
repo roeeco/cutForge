@@ -511,6 +511,10 @@ function contactIssues(d: Design, already: Issue[]): Issue[] {
   for (const c of panelContacts(d)) {
     const k = pairKey(c.a, c.b);
     if (joined.has(k) || named.has(k)) continue;
+    // faces of a shape folded from card that meet only at a corner of the shape: the card bends there, so they do not
+    // run into each other (the owner's report of 20 November: a 4-to-8 loft folded with four "run into each other"
+    // problems, from the faces' thickness at its sharp top corners). Boards keep the check: they are thick.
+    if (d.make?.as === 'fold' && meetAtCorner(d, c.a, c.b)) continue;
     const key: MsgKey =
       c.depth > TOUCH_EPS
         ? 'val.collide'
@@ -528,4 +532,19 @@ function contactIssues(d: Design, already: Issue[]): Issue[] {
     out.push({ key, vars: { a: name(c.a), b: name(c.b), angle: Math.round(c.angle), len: Math.round(c.extent) }, target: { kind: 'panel', id: c.a }, pair: [c.a, c.b] });
   }
   return out;
+}
+
+/** Two faces of a made model that share a corner of the shape (and no more than that). */
+function meetAtCorner(d: Design, a: string, b: string): boolean {
+  const A = d.panels[a], B = d.panels[b];
+  if (!A?.src || !B?.src) return false;
+  const corners = (p: typeof A) => {
+    const f = p.frame;
+    const pts = p.sketch.kind === 'poly' ? p.sketch.pts : [{ x: 0, y: 0 }, { x: p.w, y: 0 }, { x: p.w, y: p.h }, { x: 0, y: p.h }];
+    return pts.map((q) => [0, 1, 2].map((i) => f.o[i] + f.u[i] * q.x + f.v[i] * q.y));
+  };
+  const tol = Math.max(0.6, 2 * Math.max(tOf(d, a), tOf(d, b)));
+  const pa = corners(A), pb = corners(B);
+  const shared = pa.filter((p) => pb.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < tol)).length;
+  return shared === 1;
 }
