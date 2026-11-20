@@ -697,3 +697,6 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Chamfers are chosen by groups of edges** (top, upright, bottom) with one distance, and stored per edge by its two faces' roles: the plan's storage, a simpler control.
 - **The protractor reads the joint chooser**, so it says what *Build from boards* or *Fold it* would make there.
 - **A lock with no room for its tongue becomes glue** with the flap the net fitted.
+
+## Milestone 133 (Shapes R14): verification
+- **Made boards are numbered** like every other board (their face key stays in `src`), so the cut plan, the joint cards and the steps name them as the Workshop does.

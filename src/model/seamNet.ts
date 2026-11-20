@@ -61,7 +61,7 @@ export function addSeamNet(d: Design, P: Polyhedron, plan: SeamPlan): Record<Fac
   for (const k of order) {
     const f = P.faces[k];
     if (!f || open.has(k)) continue;
-    const id = addFreePanel(d, { id: idOf(k), name: k, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });
+    const id = addFreePanel(d, { id: idOf(k), name: `${d.order.length + 1}`, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });
     if (id) ids[k] = id;
   }
   const edgeRef = (face: FaceKey, r: { ring: number; i: number }) => (r.ring === 0 && ids[face] ? { panelId: ids[face], edge: `e${r.i}` } : null);

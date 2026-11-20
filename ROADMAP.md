@@ -159,7 +159,7 @@ The plans name their milestones by letter; **this table is the only place that n
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-**Status (20 November):** 92–114 and 116 built, C1–C5, 119 (the shapes plan's spike) and 120 (R1) (see `PROGRESS.md`); next: the rest of 121–133, then 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
+**Status (20 November):** 92–114 and 116 built, C1–C5, and **119–133, the shapes plan, built** (see `PROGRESS.md`); next: 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
 
 **Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
 
@@ -190,23 +190,23 @@ The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and
 - **The engine** gains a face graph, seam folds between free boards, an unfolder, a joint chooser and a reassembler.
 - **Levels:** Workshop has the workplane. Guided gets a pyramid and a diamond (rule 4b).
 
-| # | Milestone | Plan |
-| --- | --- | --- |
-| **119** | Spike: face graph and unfolder on fixtures, timed | R0 |
-| **120** | The shape modeller on this branch (port, shapes only) | R1 |
-| **121** | The Tinkercad-style workplane: typed sizes, place on a face, flat-faced shapes, the diamond | R2 |
-| **122** | The face graph with stable keys | R3 |
-| **123** | Free boards and seam folds in the engine | R4 |
-| **124** | The unfolder | R5 |
-| **125** | Joints chosen for the material and its thickness | R6 |
-| **126** | *Fold it*, in one click | R7 |
-| **127** | *Build from boards*, in one click | R8 |
-| **128** | Guided: a pyramid and a diamond | R9 |
-| **129** | Linked to the shape: update, carry-over, detach | R10 |
-| **130** | Openings, and a lid by a cut | R11 |
-| **131** | Assembly: seam numbers, fold order, steps | R12 |
-| **132** | The workplane, second part: align and mirror, snap, edit group, protractor, loft, chamfer | R13 |
-| **133** | Verification of 119–132 | R14 |
+| # | Milestone | Plan | Status |
+| --- | --- | --- | --- |
+| **119** | Spike: face graph and unfolder on fixtures, timed | R0 | ✅ |
+| **120** | The shape modeller on this branch (port, shapes only) | R1 | ✅ |
+| **121** | The Tinkercad-style workplane: typed sizes, place on a face, flat-faced shapes, the diamond | R2 | ✅ (ΔX/ΔZ readouts left) |
+| **122** | The face graph with stable keys | R3 | ✅ |
+| **123** | Free boards and seam folds in the engine | R4 | ✅ |
+| **124** | The unfolder | R5 | ✅ |
+| **125** | Joints chosen for the material and its thickness | R6 | ✅ (sizes unverified on stock) |
+| **126** | *Fold it*, in one click | R7 | ✅ |
+| **127** | *Build from boards*, in one click | R8 | ✅ (*Size is: Inside* left) |
+| **128** | Guided: a pyramid and a diamond | R9 | ✅ |
+| **129** | Linked to the shape: update, carry-over, detach | R10 | ✅ |
+| **130** | Openings, and a lid by a cut | R11 | ✅ (board lids have no lip) |
+| **131** | Assembly: seam numbers, fold order, steps | R12 | ✅ (glue areas not shaded) |
+| **132** | The workplane, second part: align and mirror, snap, edit group, protractor, loft, chamfer | R13 | ✅ |
+| **133** | Verification of 119–132 | R14 | ✅ |
 
 - **The one-click core is 119–127.** 120 and 123 can run side by side (`src/sculpt` against `src/model`).
 - **Nothing here waits for 110–118.** 126 shows its net in the Net view (113) when that is built, and in the Cut plan otherwise. 128 adds two things to Guided's gallery (106).

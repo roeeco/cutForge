@@ -235,7 +235,7 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
   const order = faces.filter((f) => !walls.includes(f.key)).map((f) => f.key).sort((a, b) => (a === last ? 1 : b === last ? -1 : Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1)));
   for (const k of order) {
     const f = P.faces[k];
-    const id = addFreePanel(d, { id: boardId(k), name: k, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });
+    const id = addFreePanel(d, { id: boardId(k), name: `${d.order.length + 1}`, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });
     if (id) ids[k] = id;
   }
   solve(d);

@@ -2234,6 +2234,20 @@ Limitations
 - Line up has no dots on the stage (its buttons are on the card); a mirror is exact for shapes square to the world (a turned shape's own asymmetry is not reflected).
 - Chamfers on a tapered box or prism, and on an extrusion's edges, are not offered.
 
+## Milestone 133 (Shapes R14) — verification of 119–132 ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R14. `README.md` (*From shapes to folds and boards*, Guided's gallery), `ROADMAP.md` (status rows for 119–133); `src/model/seamNet.ts`, `src/model/reassemble.ts` (board names).
+- **Each milestone's checks again**: typecheck clean; **the unit suite, 1,515 tests, green**; the goldens byte-identical except the cases this plan added (123's four seam nets; 125's six made models, two of which, and then four, changed on purpose in 130 and 128 as the unfolder improved).
+- **The browser specs**: `shapes-port` (120), `make-fold` (126), `make-boards` (127), `guided-diamond` (128), and Guided's own `guided` spec (both languages, 1366 and 1024 px): 13 passed.
+- **A hands-on pass in the dev server**: Guided's gallery with *Pyramid* and *Diamond*; the pyramid's three sliders; *Shapes* in card, a box, *Fold it*, *A lid by a cut* (the box and its lid beside it, both open at the cut), the steps selecting each seam's two boards; the cut plan; *Build from boards* in plywood (fingers and angled tabs on a house); a loft and a diamond on the workplane. No page errors anywhere.
+- **Found in the hands-on pass, fixed**: made boards were named by their face keys (`lid/s_…:-x`) on the cut plan and the board card. They are numbered now, as the Workshop numbers boards (*Panel 7*, *Base*).
+
+Remaining limitations (this plan)
+- Flap depths, tab widths, finger sizes and the slit lock's minimum are **unverified on real stock** (the owner's testers: one cube per material).
+- Not built: the ΔX/ΔZ readouts after a move; a shape lying down on the face under the pointer while dragged from its tile; picking faces to leave open and edges to fold or cut on the 3D stage (a board's card has *Leave this face open*); *Size is: Inside* for boards; a lip on board lids; shaded glue areas; a steps view of its own; a guide line while snapping.
+- A dense, saddle-shaped form (a 144-face torus) folds in many pieces; the unfolder runs in a Worker over 40 faces.
+- The two Guided shapes are Guided's; Workshop builds them from the *Pyramid* and *Diamond* tiles.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
