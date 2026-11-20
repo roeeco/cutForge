@@ -18,7 +18,9 @@ export const SLIDER_TEMPLATES = ['stand', 'organiser'];
  * `'template'` (a thing made from a template's sizes: the card stand, a version-1 organiser) or
  * `'more'` (anything else, made with more tools: it is decorated and sent, not resized).
  */
-export function kindOf(d: Design): 'box' | 'template' | 'more' {
+export function kindOf(d: Design): 'box' | 'template' | 'solid' | 'more' {
+  // a ready shape (milestone 128): its few sizes
+  if (d.make?.solid) return 'solid';
   if (d.template && SLIDER_TEMPLATES.includes(d.template.id)) return 'template';
   const boxes = statedBoxes(d);
   if (boxes.length !== 1) return 'more';

@@ -19,6 +19,8 @@ import { fmtNum, type MsgKey } from '../../i18n';
 import { boxTrayOf, canSplit, kindOf, largestSpace, lidOf, lidWhyNot, removeDivider, setLid, spaces, splitDirFor, splitSpace, type SplitDir } from '../box';
 import { fitContent, fitInPlace } from '../fit';
 import { TEMPLATE_CONTROLS } from '../templateControls';
+import { reassemble } from '../../model/reassemble';
+import { solidPoly, SOLID_LIMITS } from '../../model/solids';
 import { ObjectPic } from '../pictures';
 import { SideSheet } from '../SideSheet';
 import { AddBar } from '../AddBar';
@@ -101,6 +103,34 @@ function addLot(object: string, space: number | null) {
   guidedApply((x) => {
     x.contents = [...(x.contents ?? []), { id: newId('o'), object, baseId: base, x: (k.x0 + k.x1) / 2, y: (k.y0 + k.y1) / 2, count: 1 }];
   });
+}
+
+/** A ready shape's sizes (milestone 128): width, height and sides; it is made again, its decorations kept by face. */
+function SolidSliders({ d }: { d: Design }) {
+  const t = useT();
+  const so = d.make?.solid;
+  if (!so) return null;
+  const lim = SOLID_LIMITS[so.kind];
+  const set = (k: 'w' | 'h' | 'n', v: number) => {
+    const next = { ...so, [k]: v };
+    guidedApply((x) => void reassemble(x as Design, solidPoly(next), { ...x.make!, as: 'fold', solid: next }));
+  };
+  const rows: { k: 'w' | 'h' | 'n'; label: MsgKey; min: number; max: number; step: number }[] = [
+    { k: 'w', label: 'g.solid.width', min: lim.w[0], max: lim.w[1], step: 5 },
+    { k: 'h', label: 'g.solid.height', min: lim.h[0], max: lim.h[1], step: 5 },
+    { k: 'n', label: 'g.solid.sides', min: lim.n[0], max: lim.n[1], step: 1 },
+  ];
+  return (
+    <div className="subsection" data-testid="g-solid">
+      {rows.map((r) => (
+        <label key={r.k} className="g-slider">
+          <span>{t(r.label)}</span>
+          <input type="range" min={r.min} max={r.max} step={r.step} value={so[r.k]} onChange={(e) => set(r.k, Number(e.target.value))} data-testid={`g-solid-${r.k}`} />
+          <b dir="ltr">{r.k === 'n' ? so.n : `${so[r.k]} ${t('unit.mm')}`}</b>
+        </label>
+      ))}
+    </div>
+  );
 }
 
 function TemplateSliders({ d }: { d: Design }) {
@@ -221,6 +251,12 @@ export function Build() {
     return (
       <SideSheet>
         <TemplateSliders d={d} />
+      </SideSheet>
+    );
+  if (kind === 'solid')
+    return (
+      <SideSheet>
+        <SolidSliders d={d} />
       </SideSheet>
     );
 

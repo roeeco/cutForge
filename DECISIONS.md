@@ -681,3 +681,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Steps are seams, numbered once each**, the face that closes last at the end; folds are not steps (they are all creased first).
 - **Seam numbers are annotations** (milestone 89's), so they show on the cut plan with *Dimensions* and go to the GUIDE layer only when the export is asked for annotations: files and goldens do not change.
 - **The steps live on the Make card** and select the seam's two boards in the Workshop's 3D view, rather than a separate steps layer.
+
+## Milestone 128 (Shapes R9): Guided's ready shapes
+- **Written as face graphs in the engine, not built by the kernel**: Guided starts a thing at once and offline; the keys match the modeller's, so the shape is the same thing to the reassembler.
+- **Always card, whatever the student chose**: the plan's *always folded from card in Guided*.
+- **The unfolder now models the engine's crease overlap and fits nets square to their first board**; a corner sliver under 3t² is allowed (the export check's 4t² less a margin). These were found by sweeping every size Guided's sliders offer: the guard refuses any new net overlap, so a slider must never make one.
+- **A slit lock's flap is fitted with its tongue** (5 mm on card, t + 4 on corrugated), the flap made that much shallower.

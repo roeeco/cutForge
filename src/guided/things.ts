@@ -1,7 +1,10 @@
 // Guided's gallery (milestone 106, GUIDED_MODE.md §3.1): the things a student can start from. The missions,
 // then the plain things, each one of the sentence's structures with set words (ROADMAP §5.2 #3): this file
 // holds only words, never a recipe.
-import { foldsAsCarton } from '../model/materials';
+import { CARD_FOLD_MAX, foldsAsCarton, MATERIALS } from '../model/materials';
+import { createDesign } from '../model/ops';
+import { reassemble } from '../model/reassemble';
+import { solidPoly } from '../model/solids';
 import type { Design, MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { defaults, generate, templateById } from '../templates/registry';
@@ -46,6 +49,21 @@ export const PLAIN: Thing[] = [
   { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m) && foldsAsCarton(m, 2), why: 'g.thing.cartonNo', start: plain('carton', {}) },
 ];
 
+/** A ready shape (milestone 128, SHAPES_TO_DIELINES_PLAN.md R9): always folded from card, its net made at once (no kernel). */
+export function startSolid(kind: 'pyramid' | 'diamond', m: MaterialProfile): Design {
+  const card = m.kind === 'card' && m.thickness <= CARD_FOLD_MAX ? m : MATERIALS[0];
+  const d = createDesign(card);
+  const solid = kind === 'pyramid' ? { kind, w: 100, h: 80, n: 4 } : { kind, w: 100, h: 80, n: 8 };
+  reassemble(d, solidPoly(solid), { as: 'fold', solid });
+  return d;
+}
+
+/** The ready shapes (R9): a pyramid and a diamond. */
+export const SHAPE_THINGS: Thing[] = [
+  { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', can: () => true, start: (m) => startSolid('pyramid', m) },
+  { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', can: () => true, start: (m) => startSolid('diamond', m) },
+];
+
 /** The missions Guided offers (the Escape box needs hasps, which Guided does not have: owner question 8). */
 export const GUIDED_MISSIONS: Thing[] = MISSIONS.filter((ms) => !ms.levels || ms.levels.includes('guided')).map((ms) => ({
   id: ms.id,
@@ -62,5 +80,5 @@ export const GUIDED_MISSIONS: Thing[] = MISSIONS.filter((ms) => !ms.levels || ms
  * offers every plain thing).
  */
 export function thingsFor(list?: string[] | null): Thing[] {
-  return [...GUIDED_MISSIONS, ...PLAIN].filter((x) => offered(list, x.id));
+  return [...GUIDED_MISSIONS, ...PLAIN, ...SHAPE_THINGS].filter((x) => offered(list, x.id));
 }

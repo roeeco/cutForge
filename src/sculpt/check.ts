@@ -93,7 +93,11 @@ export function checkSculpt(d: Design) {
   d.sculpt = sc;
   // a file from the waffle's branch keeps its `waffle` field untouched, for when the waffle joins
   if (d.outcome !== undefined && !OUTCOMES.includes(d.outcome)) delete d.outcome;
-  // how it was made (milestone 126): a bad spec is dropped, a bad entry in it too
+  checkMake(d);
+}
+
+/** A design's Make spec (milestone 126; any design: Guided's ready shapes have one without shapes): a bad spec is dropped, a bad entry in it too. */
+export function checkMake(d: Design) {
   const mk = (d as any).make;
   if (mk !== undefined) {
     if (!isObj(mk) || (mk.as !== 'fold' && mk.as !== 'boards')) delete (d as any).make;
@@ -110,5 +114,10 @@ export function checkSculpt(d: Design) {
         else for (const k of ['card', 'boards'] as const) if (mk.facets[k] !== undefined && !(finite(mk.facets[k]) && mk.facets[k] >= 3 && mk.facets[k] <= 64)) delete mk.facets[k];
       }
     }
+  }
+  const mk2 = (d as any).make;
+  if (mk2?.solid !== undefined) {
+    const so = mk2.solid;
+    if (!isObj(so) || (so.kind !== 'pyramid' && so.kind !== 'diamond') || !['w', 'h', 'n'].every((k) => finite(so[k]) && so[k] > 0)) delete mk2.solid;
   }
 }

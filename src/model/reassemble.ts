@@ -59,6 +59,21 @@ export const sheetOf = (d: Pick<Design, 'sheetMargin'>, m: MaterialProfile) => (
 /** How far a face reaches back from one of its edges, on average: its area over the edge's length. */
 const span = (P: Polyhedron, f: FaceKey, e: PEdge) => Math.abs(P.faces[f].area) / Math.max(1e-6, e.len);
 
+/** The depth the unfolder fits each cut edge's flap to (a slit lock's with its tongue), for a Worker that cannot take a function. */
+export function unfoldFlaps(P: Polyhedron, mat: MaterialProfile, spec: MakeSpec): Record<EdgeKey, number> {
+  const open = new Set(spec.open ?? []);
+  const last = closingFace(Object.values(P.faces).filter((f) => !open.has(f.key)).map((f) => ({ key: f.key, n: f.n, area: f.area })));
+  const out: Record<EdgeKey, number> = {};
+  for (const e of Object.values(P.edges)) {
+    const ch = seamChoice(P, e, mat, last, spec.seams);
+    out[e.key] = ch.kind === 'glue' || ch.kind === 'lock' ? (ch.params.flap ?? 0) + (ch.kind === 'lock' ? lockTongue(mat) : 0) : 0;
+  }
+  return out;
+}
+
+/** How far a slit lock's tongue reaches past its flap's far edge (as `slitLock` cuts it). */
+export const lockTongue = (m: MaterialProfile) => (m.kind === 'card' ? 5 : m.thickness + 4);
+
 /** The chooser's choice for a cut seam in a net, with the Make card's *Seams* setting over it where the seam allows. */
 function seamChoice(P: Polyhedron, e: PEdge, mat: MaterialProfile, last: FaceKey | null, seams: MakeSpec['seams']) {
   const ch = chooseJoint(seamCtx(P, e, mat, 'seam', last));
@@ -155,9 +170,11 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
   const faces = Object.values(P.faces).filter((f) => !open.has(f.key));
   const last = closingFace(faces.map((f) => ({ key: f.key, n: f.n, area: f.area })));
   if (spec.as === 'fold') {
+    // a slit lock's tongues reach past its flap (as slitLock lays them): the unfolder fits the flap and its tongue
+    const tongue = lockTongue(mat);
     const flapOf = (e: PEdge) => {
       const ch = seamChoice(P, e, mat, last, spec.seams);
-      return ch.kind === 'glue' || ch.kind === 'lock' ? (ch.params.flap ?? 0) : 0;
+      return ch.kind === 'glue' || ch.kind === 'lock' ? (ch.params.flap ?? 0) + (ch.kind === 'lock' ? tongue : 0) : 0;
     };
     const u = unfolding ?? unfold(P, { sheet: sheetOf(d, mat), flap: flapOf, prefer: spec.prefer, fixed: spec.edges, open: spec.open, seed: d.id, clearance: mat.thickness });
     for (const issue of u.issues) issues.push({ kind: 'unfold', issue });
@@ -175,8 +192,9 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       if (!c) continue;
       const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
       const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
-      // the unfolder's flap size (it fitted the net with it) wins over the chooser's
-      const params = { ...ch.params, ...(c.flap !== null ? { flap: c.flap } : {}) };
+      // the unfolder's flap size (it fitted the net with it) wins over the chooser's; a lock's less its tongue
+      const fitted = c.flap !== null ? (ch.kind === 'lock' && !spec.joints?.[e.key] ? Math.max(3, c.flap - tongue) : c.flap) : null;
+      const params = { ...ch.params, ...(fitted !== null ? { flap: fitted } : {}) };
       if (role === 'fold') applyChoice(c, ch.kind === 'fold' ? 'fold' : 'fold', ch.kind === 'fold' ? params : {}, ch.why);
       else {
         const picked = spec.joints?.[e.key];

@@ -1961,6 +1961,14 @@ export const en = {
   'steps.back': "Back",
   'steps.start': "Start",
   'steps.next': "Next",
+  // milestone 128: Guided's ready shapes
+  'g.thing.pyramid': "Pyramid",
+  'g.thing.pyramid.blurb': "A pyramid folded from one piece of card",
+  'g.thing.diamond': "Diamond",
+  'g.thing.diamond.blurb': "A gem with a flat top, folded from card",
+  'g.solid.width': "Width",
+  'g.solid.height': "Height",
+  'g.solid.sides': "Sides",
 } as const;
 
 export type MsgKey = keyof typeof en;

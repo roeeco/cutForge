@@ -1963,4 +1963,12 @@ export const he: Record<MsgKey, string> = {
   'steps.back': "אחורה",
   'steps.start': "להתחיל",
   'steps.next': "הבא",
+  // milestone 128: Guided's ready shapes
+  'g.thing.pyramid': "פירמידה",
+  'g.thing.pyramid.blurb': "פירמידה מקופלת מחתיכת קרטון אחת",
+  'g.thing.diamond': "יהלום",
+  'g.thing.diamond.blurb': "אבן חן עם צד עליון שטוח, מקופלת מקרטון",
+  'g.solid.width': "רוחב",
+  'g.solid.height': "גובה",
+  'g.solid.sides': "צלעות",
 };

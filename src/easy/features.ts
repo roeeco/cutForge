@@ -314,6 +314,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'g-inside': null,
   'g-more': 'settings.joints',
   'g-template': null,
+  // milestone 128: a ready shape's sizes
+  'g-solid': null,
   'g-made-more': null,
   // Guided's Decorate sheet (milestone 108)
   'g-deco': null,

@@ -151,10 +151,21 @@ export function ringsOverlap(a: P2[], b: P2[], tol = 1e-3): boolean {
   return true;
 }
 
+/** The area two outlines share (0 when polygon-clipping cannot tell: the caller has found them overlapping by then). */
+export function overlapArea(a: P2[], b: P2[]): number {
+  const ring = (r: P2[]) => [...r.map((p) => [p.x, p.y] as [number, number]), [r[0].x, r[0].y] as [number, number]];
+  try {
+    return mpArea(polygonClipping.intersection([ring(a)], [ring(b)]));
+  } catch {
+    return Infinity;
+  }
+}
+
 /** Does a set of outlines fit a W × H sheet in one of 8 turns? */
-export function fitsSheet(rings: P2[][], W: number, H: number): boolean {
+export function fitsSheet(rings: P2[][], W: number, H: number, turns = 8): boolean {
   const pts = rings.flat();
-  for (let k = 0; k < 8; k++) {
+  // the cut plan lays a piece square to its first board (0° or 90°): `turns` 2 tests only those
+  for (let k = 0; k < 8; k += 8 / turns) {
     const a = (k * Math.PI) / 8, c = Math.cos(a), s = Math.sin(a);
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const p of pts) {
@@ -211,8 +222,9 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
       // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
       const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear), clear) : ring;
       const bb = bbox(tb);
-      if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05))) continue;
-      if (!fitsSheet([...others, ring], W, H)) continue;
+      // as faces, a flap may meet another at a corner by up to a thickness (the export check allows 4t² there)
+      if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05) && !(clear > 0 && overlapArea(r, tb) <= 3 * clear * clear))) continue;
+      if (!fitsSheet([...others, ring], W, H, 2)) continue;
       return { edge: e.key, on, depth, taper, ring };
     }
   return null;
@@ -237,20 +249,34 @@ function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: num
     const xa = IA.xf.get(A.key)!, xb = IB.xf.get(B.key)!;
     const pA = ap(xa, to2(A, e.p)), qA = ap(xa, to2(A, e.q));
     const pB = ap(xb, to2(B, e.p)), qB = ap(xb, to2(B, e.q));
-    const M = match(pB, qB, pA, qA);
+    let M = match(pB, qB, pA, qA);
+    // the crease (the overhaul's rule): folded, B lies across A's edge by t / tan(α / 2), as the engine lays it
+    if (clear > 0 && e.dihedral < 180) {
+      const ov = clear / Math.tan(((e.dihedral * Math.PI) / 180) / 2);
+      const L = Math.hypot(qA.x - pA.x, qA.y - pA.y) || 1;
+      // into A: to the left of A's counter-clockwise edge p → q
+      const ix = -(qA.y - pA.y) / L, iy = (qA.x - pA.x) / L;
+      M = { ...M, tx: M.tx + ix * ov, ty: M.ty + iy * ov };
+    }
     const moved = new Map([...IB.xf].map(([k, t]) => [k, comp(M, t)] as [FaceKey, X]));
     const ringsA = IA.faces.map((k) => P.faces[k].outer.map((p) => ap(IA.xf.get(k)!, p)));
     const ringsB = IB.faces.map((k) => P.faces[k].outer.map((p) => ap(moved.get(k)!, p)));
     const flapsB = IB.flaps.map((f) => ({ ...f, ring: f.ring.map((p) => ap(M, p)) }));
     const allA = [...ringsA, ...IA.flaps.map((f) => f.ring)], allB = [...ringsB, ...flapsB.map((f) => f.ring)];
-    if (!fitsSheet([...allA, ...allB], W, H)) return void why.add('sheet'), false;
+    if (!fitsSheet([...allA, ...allB], W, H, 2)) return void why.add('sheet'), false;
     const boxesA = allA.map(bbox);
-    for (const rb of allB) {
+    const ia = IA.faces.indexOf(e.a), ib = IB.faces.indexOf(e.b);
+    for (let jb = 0; jb < allB.length; jb++) {
+      const rb = allB[jb];
       const bb = bbox(rb);
       for (let i = 0; i < allA.length; i++) {
+        // the two faces of the fold share the crease's strip: one board, not an overlap
+        if (i === ia && jb === ib) continue;
         if (boxApart(boxesA[i], bb, 1e-3)) continue;
+        // two faces may meet at a corner by up to a thickness (the creases shift them, as the engine lays them);
         // a face may touch a flap along the edge it hangs from; anything more is an overlap
-        if (ringsOverlap(allA[i], rb, i < ringsA.length && rb.length === 4 ? 0.05 : 1e-3)) return void why.add('overlap'), false;
+        const faces = i < ringsA.length && jb < ringsB.length;
+        if (ringsOverlap(allA[i], rb, faces ? 1e-3 : 0.05) && !(clear > 0 && overlapArea(allA[i], rb) <= 3 * clear * clear)) return void why.add('overlap'), false;
       }
     }
     const J: Island = { faces: [...IA.faces, ...IB.faces], xf: new Map([...IA.xf, ...moved]), flaps: [...IA.flaps, ...flapsB] };
@@ -370,7 +396,7 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
   const free = live.filter((e) => !fixed[e.key]);
   const issues: UnfoldIssue[] = [];
   const { w: W, h: H } = spec.sheet;
-  for (const k of faces) if (!fitsSheet([P.faces[k].outer], W, H)) issues.push({ kind: 'faceTooBig', face: k });
+  for (const k of faces) if (!fitsSheet([P.faces[k].outer], W, H, 2)) issues.push({ kind: 'faceTooBig', face: k });
   const avg = live.reduce((s, e) => s + e.len, 0) / Math.max(1, live.length);
   const lenW = spec.prefer === 'cuts' ? 0.3 : 0.05;
   const weight = (e: PEdge, j: number) => {
@@ -410,11 +436,13 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
 }
 
 /** The faces of each island in the order a net is walked: the island's first face, then by breadth along its folds. */
-export function islandOrder(P: Polyhedron, u: Pick<Unfolding, 'islands' | 'folds'>): FaceKey[] {
+export function islandOrder(P: Polyhedron, u: Pick<Unfolding, 'islands' | 'folds'> & Partial<Pick<Unfolding, 'place'>>): FaceKey[] {
   const out: FaceKey[] = [];
   for (const I of u.islands) {
-    // the largest face roots the island (it is laid down first and the others fold off it)
-    const root = I.slice().sort((a, b) => Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1))[0];
+    // the face the island's layout is measured in roots it (the cut plan lays the piece square to it, as the
+    // unfolder fitted it to the sheet); else the largest face
+    const base = u.place ? I.find((k) => { const x = u.place![k]; return x && Math.abs(x.rot) < 1e-12 && Math.abs(x.tx) < 1e-9 && Math.abs(x.ty) < 1e-9; }) : undefined;
+    const root = base ?? I.slice().sort((a, b) => Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1))[0];
     out.push(root, ...I.filter((k) => k !== root));
   }
   return out;

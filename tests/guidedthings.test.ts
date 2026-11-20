@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
 import { validate } from '../src/model/validate';
 import { blocking } from '../src/easy/fix';
-import { GUIDED_MISSIONS, PLAIN, thingsFor } from '../src/guided/things';
+import { GUIDED_MISSIONS, PLAIN, thingsFor, SHAPE_THINGS } from '../src/guided/things';
 import { guidedMaterial } from '../src/guided/GuidedStart';
 import { offered, PLAIN_IDS, PLAIN_THINGS } from '../src/easy/plainThings';
 import { mainTray } from '../src/templates/structures/box';
@@ -68,7 +68,8 @@ describe('things', () => {
 
 describe("a class's list", () => {
   it('no list: every thing', () => {
-    expect(thingsFor(undefined).length).toBe(GUIDED_MISSIONS.length + PLAIN.length);
+    // milestone 128: and the two ready shapes
+    expect(thingsFor(undefined).length).toBe(GUIDED_MISSIONS.length + PLAIN.length + SHAPE_THINGS.length);
   });
   it('one mission (a list from before 106): that mission and every plain thing', () => {
     expect(thingsFor(['pencil-box']).map((x) => x.id)).toEqual(['pencil-box', ...PLAIN_IDS]);

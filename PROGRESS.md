@@ -2133,6 +2133,23 @@ Limitations
 - *Square this corner* (the protractor, 132) is not among the fixes yet; *Merge into neighbour* is not built.
 - The boards' assembly animation is the Workshop's (pieces drop in from above in order), not a path per board.
 
+## Milestone 128 (Shapes R9) — Guided: a pyramid and a diamond ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R9. New `src/model/solids.ts` (`solidPoly`, `SOLID_LIMITS`); `src/guided/things.ts` (`SHAPE_THINGS`, `startSolid`), `src/guided/box.ts` (`kindOf` → `'solid'`), `src/guided/steps/Build.tsx` (`SolidSliders`); `MakeSpec.solid` (checked on load, any design: `checkMake`).
+- **Two things in Guided's gallery**: *Pyramid* (width, height, sides 3–8, default 4) and *Diamond* (width, height, sides 6–10, default 8; the crown 27% of the height and the table 55% of the width, fixed). **Always folded from card**, whatever material the student chose.
+- **No kernel**: Guided starts a thing at once, so the two are face graphs written in the engine, keyed exactly as the shape modeller keys a pyramid and a diamond, and made with the same reassembler (*Fold it*, the chooser's joints, the unfolder seeded by the design's id).
+- **Build** shows only their three sliders; a change makes the model again as one undo step through Guided's guard, keeping every decoration by face (129's carry-over). No workplane, no stage bar, no Make card. **Decorate and Send** work on the made boards unchanged; Send's printed plan lists the seams in order (131).
+- **Found on the way, in the unfolder** (`src/model/unfold.ts`): it now lays a folded face across its parent's edge by the crease's overlap (t / tan(α/2)), as the engine does; it allows faces and flaps a corner sliver under 3t² by area (the export check allows 4t²); it fits a net to the sheet only square to its first board (0° or 90°, as the cut plan lays a piece) and roots each piece at that board; and it fits a slit lock's flap with its tongue. Before, a few sizes made nets the export check (and so Guided's guard) refused, or the cut plan cut again.
+- Feature rows: shown in Guided; the gallery is Guided's own (Quick build and Workshop have no gallery of these).
+
+Verified
+- `tests/guidedShapes.test.ts` (6): the gallery offers both; each is folded from card even when started in plywood, with nothing to fix, its folded preview closed, its seams numbered; a diamond made 10-sided and 140 wide keeps an engraving on its table; the spec survives a save and load; **a sweep of every size the sliders offer** (both shapes, every side count, the smallest, middle and largest width and height: 108 models) folds with no net overlap, so the guard never refuses a slider.
+- `tests/e2e/guided-diamond.spec.ts`: Guided, the gallery's *Diamond*, its sides slider to 10 (21 boards), no workplane or Make card, Send, an SVG downloaded; no page errors. `make-fold`, `make-boards` and `shapes-port` pass again.
+- **Four goldens changed on purpose** (125's `make-cube-card-0.5`, `make-cube-corr-1.6`, `make-cube-corr-4`, `make-house-card`): the unfolder's crease overlap and square sheet fit give different nets. Every older golden byte-identical. Unit suite (1,505) and typecheck green.
+
+Limitations
+- The two are not offered in Workshop's welcome screen (the plan's *Workshop's library*); a Workshop student builds them from the *Diamond* and *Pyramid* tiles under *Shapes*.
+
 ## Milestone 129 (Shapes R10) — linked to the shape ✅
 
 `SHAPES_TO_DIELINES_PLAN.md` R10, decision 3. `src/model/reassemble.ts` (`gather`, `applyCarry`, `detach`, `Lost`), `src/make/run.ts` (`shapesChanged`), `src/make/MakeCard.tsx`; `MakeSpec.shapeKey`.
