@@ -2379,6 +2379,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Fix:** on a model folded from card (`make.as === 'fold'`), two faces of the made shape that share exactly one corner are not reported (`meetAtCorner`): card bends there. A model built from boards keeps the check (boards are thick).
 - `tests/qa/folds.test.ts`: every shape tile, folded from card at 40 mm, has nothing to fix.
 
+## Milestone 144 (QA fix round Q10) — accessibility ✅
+
+- The welcome screen's material radios are named by their material (three card boards shared the name of their description).
+- Each row of *Your designs* opens with a name: *Open Pencil box*.
+- Behind the welcome screen the editor and its bar are `inert`: not read out or reached with Tab.
+- Correction to `REPORT.md` §11: the lid buttons do say which is chosen (`aria-checked` on radios); the first check looked for `aria-pressed`. Guided's sliders are named by the label round them.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

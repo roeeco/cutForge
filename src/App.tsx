@@ -117,7 +117,8 @@ export function App() {
       ) : (
         <>
       <TopBar />
-      <div className="main">
+      {/* behind the welcome screen the editor is inert: not read out or tabbed into (milestone 144) */}
+      <div className="main" inert={needsMaterial || undefined}>
         <EditorBoundary>
           <main className="viewport">
             {view === 'sketch' && sketching ? (

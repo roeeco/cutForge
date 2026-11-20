@@ -237,7 +237,7 @@ comes before 115, 117 and 118.**
 | **141** | Gizmos | Q7 | ✅ (ring colours, position fields; the rest left to 145) |
 | **142** | Guided specifics | Q8 | ✅ |
 | **143** | Quick build and Shapes specifics | Q9 | ✅ |
-| **144** | Accessibility | Q10 | |
+| **144** | Accessibility | Q10 | ✅ |
 | **145** | Verification of 134–144 | Q11 | |
 
 - **Order:** 134 first; 135 and 136 next (lying controls and lost data). 137–139 can run side by side after 134

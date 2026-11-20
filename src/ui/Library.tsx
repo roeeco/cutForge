@@ -40,7 +40,7 @@ export function Library() {
     const mat = profileById(m.material);
     return (
       <div className="lib-card" key={m.id} data-testid={`lib-card-${i}`} data-id={m.id}>
-        <button className="lib-open" onClick={() => void openFromLibrary(m.id)} data-testid={`lib-open-${i}`}>
+        <button className="lib-open" aria-label={t('lib.openNamed', { name: m.name || t('top.untitled') })} onClick={() => void openFromLibrary(m.id)} data-testid={`lib-open-${i}`}>
           <span className="art">{mat && <MaterialArt kind={mat.kind} thickness={mat.thickness} />}</span>
           <span className="cap">
             <strong dir="auto">{m.name || t('top.untitled')}</strong>

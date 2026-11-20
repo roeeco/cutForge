@@ -144,7 +144,7 @@ export function StartScreen() {
       </p>
       <div className="mat-grid" role="radiogroup" aria-label={t('start.material')}>
         {MATERIALS.map((m) => (
-          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} onClick={() => pickMaterial(m.id)} onDoubleClick={start} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
+          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} aria-label={t(m.nameKey as 'mat.ply3')} onClick={() => pickMaterial(m.id)} onDoubleClick={start} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
             <span className="art">
               <MaterialArt kind={m.kind} thickness={m.thickness} />
             </span>

@@ -1163,6 +1163,7 @@ export const en = {
   'lib.title': "Your designs",
   'lib.duplicate': "Duplicate",
   'lib.rename': "Rename",
+  'lib.openNamed': 'Open {name}',
   'lib.delete': "Delete",
   'lib.restore': "Restore",
   'lib.deleted': "Recently deleted ({n})",

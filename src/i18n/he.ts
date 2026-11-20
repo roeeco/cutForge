@@ -1165,6 +1165,7 @@ export const he: Record<MsgKey, string> = {
   'lib.title': "העיצובים שלך",
   'lib.duplicate': "שכפול",
   'lib.rename': "שינוי שם",
+  'lib.openNamed': 'פתיחת {name}',
   'lib.delete': "מחיקה",
   'lib.restore': "שחזור",
   'lib.deleted': "נמחקו לאחרונה ({n})",
