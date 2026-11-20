@@ -1703,6 +1703,8 @@ export const en = {
   'sculpt.corner': "Corner {n}",
   'sculpt.roundAll': "Round all corners",
   'sculpt.lift': "Lift",
+  'sculpt.posX': "Across",
+  'sculpt.posZ': "Front to back",
   'sculpt.resetTurn': "Reset turn",
   'sculpt.duplicate': "Duplicate",
   'sculpt.groupBtn': "Group",

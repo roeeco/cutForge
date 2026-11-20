@@ -112,6 +112,7 @@ function ShapeGizmo({ d, ids, mode }: { d: Design; ids: string[]; mode: 'move' |
         }}
         onEnd={end}
         testId="shape-gizmo"
+        ringColor="#3a9a4a"
       />
       <Gizmo
         at={at}
@@ -132,6 +133,7 @@ function ShapeGizmo({ d, ids, mode }: { d: Design; ids: string[]; mode: 'move' |
         }}
         onEnd={end}
         testId="shape-lift"
+        ringColor="#d4543c"
       />
       {mode === 'turn' && <Gizmo
         at={at}
@@ -145,6 +147,7 @@ function ShapeGizmo({ d, ids, mode }: { d: Design; ids: string[]; mode: 'move' |
         }}
         onEnd={end}
         testId="shape-turn-z"
+        ringColor="#2f6feb"
       />}
     </>
   );

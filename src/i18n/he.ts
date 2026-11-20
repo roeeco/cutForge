@@ -1705,6 +1705,8 @@ export const he: Record<MsgKey, string> = {
   'sculpt.corner': "פינה {n}",
   'sculpt.roundAll': "לעגל את כל הפינות",
   'sculpt.lift': "הרמה",
+  'sculpt.posX': "לרוחב",
+  'sculpt.posZ': "מלפנים לאחור",
   'sculpt.resetTurn': "ביטול הסיבוב",
   'sculpt.duplicate': "שכפול",
   'sculpt.groupBtn': "קיבוץ",

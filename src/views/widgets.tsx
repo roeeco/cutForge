@@ -590,6 +590,8 @@ export function Gizmo(props: {
   onRotate?: (deg: number) => void;
   onEnd: (cancel: boolean) => void;
   testId?: string;
+  /** The turn ring's colour: the axis it turns about (milestone 141, REPORT.md #4: three rings in one yellow). */
+  ringColor?: string;
 }) {
   const { camera, gl } = useThree();
   const [hover, setHover] = useState<GizmoMode | null>(null);
@@ -782,7 +784,7 @@ export function Gizmo(props: {
             <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined, proxy: true }}>
               <mesh renderOrder={22} raycast={() => null}>
                 <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
-                <meshBasicMaterial color={col('ring', '#f1c867')} {...onTop} />
+                <meshBasicMaterial color={col('ring', props.ringColor ?? '#f1c867')} {...onTop} />
               </mesh>
               <mesh renderOrder={21} raycast={priorityRaycast}>
                 <torusGeometry args={[R, 9, 6, 48]} />
@@ -797,14 +799,14 @@ export function Gizmo(props: {
           // the turn's axis through the centre, so a screen-facing ring still says what it turns about
           <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={22} raycast={() => null} userData={{ testId: props.testId ? `${props.testId}-axis` : undefined }}>
             <cylinderGeometry args={[1.2, 1.2, 44, 6]} />
-            <meshBasicMaterial color="#e0a21b" opacity={0.8} {...onTop} />
+            <meshBasicMaterial color={props.ringColor ?? '#e0a21b'} opacity={0.8} {...onTop} />
           </mesh>
         )}
         {modes.includes('ring') && !grazing && (
           <group {...handlers('ring')} userData={{ testId: props.testId ? `${props.testId}-ring` : undefined }}>
             <mesh renderOrder={22} raycast={() => null}>
               <torusGeometry args={[R, lit('ring') ? 3.2 : 2.2, 6, 64]} />
-              <meshBasicMaterial color={col('ring', '#e0a21b')} {...onTop} />
+              <meshBasicMaterial color={col('ring', props.ringColor ?? '#e0a21b')} {...onTop} />
             </mesh>
             <mesh renderOrder={21} raycast={priorityRaycast}>
               <torusGeometry args={[R, 9, 6, 48]} />

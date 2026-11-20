@@ -313,6 +313,9 @@ function ShapeCard({ id }: { id: string }) {
           </div>
         </div>
       )}
+      {/* where it stands, to read and correct a drag (milestone 141, REPORT.md #5: the card had no position) */}
+      <NumField label={t('sculpt.posX')} value={Math.round(pose.at[0] * 10) / 10} unit={t('unit.mm')} onCommit={(v) => edit((x) => moveShapes(x, [id], [v - pose.at[0], 0, 0]))} testId="shape-x-field" />
+      <NumField label={t('sculpt.posZ')} value={Math.round(-pose.at[2] * 10) / 10} unit={t('unit.mm')} onCommit={(v) => edit((x) => moveShapes(x, [id], [0, 0, -v - pose.at[2]]))} testId="shape-z-field" />
       <NumField label={t('sculpt.lift')} value={Math.round(pose.at[1] * 10) / 10} unit={t('unit.mm')} onCommit={(v) => edit((x) => moveShapes(x, [id], [0, v - pose.at[1], 0]))} testId="shape-lift-field" />
       {turned && (
         <button onClick={() => edit((x) => resetTurn(x, [id]))} data-testid="shape-reset-turn">

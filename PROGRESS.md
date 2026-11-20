@@ -2357,6 +2357,12 @@ The owner's report during the fix round: an open box with rounded corners built 
 
 Verified: typecheck; `npm test`; in the dev server at 1366 × 768, Quick build with a box shows the level switch and the badge together, and the card's row.
 
+## Milestone 141 (QA fix round Q7) — gizmos ✅
+
+- **Turn rings by axis** (`REPORT.md` #4): on the Shapes stage the three rings were one yellow and could not be told apart; each now has its axis's colour (red about across, green about up, blue about front to back), as the move arrows do (`ringColor` on `Gizmo`).
+- **A place to read and correct a drag** (#5): the shape card has *Across* and *Front to back* beside *Lift* (it had only *Lift*). The gizmos' live readout was already there.
+- Not done: arrows that grow with zoom, a visible turn snap, and moving the Workshop board ring off its arrows and labels (left for the browser pass, milestone 145).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
