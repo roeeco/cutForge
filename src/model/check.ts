@@ -315,6 +315,7 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.why !== undefined && typeof x.why !== 'string') delete x.why;
   if (x.picked !== undefined && x.picked !== true) delete x.picked;
   if (x.flapTaper !== undefined && !(typeof x.flapTaper === 'number' && Number.isFinite(x.flapTaper) && x.flapTaper >= 0 && x.flapTaper < 1000)) delete x.flapTaper;
+  if (x.flapTaperB !== undefined && !(typeof x.flapTaperB === 'number' && Number.isFinite(x.flapTaperB) && x.flapTaperB >= 0 && x.flapTaperB < 1000)) delete x.flapTaperB;
   if (x.src !== undefined && typeof x.src !== 'string') delete x.src;
   if (x.seam && x.hingeOf !== undefined && x.hingeOf !== x.a.panelId && x.hingeOf !== x.b.panelId) delete x.hingeOf;
   if (x.cut !== undefined && x.cut !== 'cut' && x.cut !== 'keep') delete x.cut;

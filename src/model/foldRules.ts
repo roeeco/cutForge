@@ -29,3 +29,9 @@ export function creaseSum(tP: number, tC: number, dihedral: number): number {
   const r = (tP / 2 + (tC / 2) * c) / s;
   return r + (r * c + (tC / 2) * s);
 }
+
+/**
+ * A flap sized for the board it is glued to may narrow by up to this much of its seam at each
+ * end (a long wedge on a sliver of a face); the engine lays it so when both its tapers are stored.
+ */
+export const TAPER_MAX = 0.45;

@@ -10,7 +10,7 @@ import { edgeInwardLocal, edgeLocal, edgeWorld, matDir, toWorld } from './frame'
 import { findEdge, type EdgeArg } from './edges';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { matOf, tOf } from './materials';
-import { seamFoldable } from './foldRules';
+import { seamFoldable, TAPER_MAX } from './foldRules';
 
 export { SEAM_MIN, SEAM_MAX } from './foldRules';
 const TOL = 0.05; // mm: edges this close are the same line
@@ -83,8 +83,10 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
   const t = mO.thickness, tR = tOf(d, R.id);
   const L = f.s1 - f.s0;
   const fh = Math.max(1, c.flap ?? d.joints?.[mO.kind]?.flap ?? seamFlapDepth(mO.thickness, L));
-  // the taper the unfolder fitted (at most a third of the seam), else 45°
-  const ta = Math.max(0, Math.min(c.flapTaper ?? fh, L / 3)), tb = ta;
+  // the tapers the unfolder fitted, else 45°: at most a third of the seam each, or with both stored (a flap
+  // sized for the board it is glued to, which may be a long wedge on a sliver) up to TAPER_MAX of it
+  const cap = c.flapTaperB !== undefined ? TAPER_MAX * L : L / 3;
+  const ta = Math.max(0, Math.min(c.flapTaper ?? fh, cap)), tb = Math.max(0, Math.min(c.flapTaperB ?? c.flapTaper ?? fh, cap));
   const [a, b] = edgeLocal(O, c.a.edge);
   const la = Math.hypot(b.x - a.x, b.y - a.y);
   const dir = { x: (b.x - a.x) / la, y: (b.y - a.y) / la };

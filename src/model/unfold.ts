@@ -8,7 +8,9 @@
 //   3. seeded restarts with jittered weights, keeping the fewest islands, then the shortest cut;
 //   4. flap sides: the face with the smaller area-to-perimeter ratio carries the flap,
 //      alternating along chains; a flap that does not fit is shrunk, then moved to the
-//      other side, then dropped with an issue;
+//      other side, then dropped with an issue. Each flap is sized for the face it is glued
+//      to (papercraft's way, behaviour only): each end narrows at no more than that face's
+//      corner there allows, and it is no deeper than lies inside that face, folded;
 //   5. a student's fixed edges first: a fixed cut is never folded;
 //   6. the engine's rules (foldRules.ts): no fold it cannot lay (sharper than 5°, past 355°),
 //      and each fold laid with the engine's crease shift, so the net checked here is the net
@@ -21,7 +23,7 @@ import type { Xform2 } from '../geom/types';
 import type { EdgeKey, FaceKey, PEdge, PFace, Polyhedron } from './polyhedron';
 import { ringOf } from './polyhedron';
 import { v3dot, v3sub } from '../geom/v3';
-import { creaseSum, seamFoldable } from './foldRules';
+import { creaseSum, seamFoldable, TAPER_MAX } from './foldRules';
 
 export type UnfoldSpec = {
   /** The sheet less its margins (mm). */
@@ -60,8 +62,10 @@ export type Unfolding = {
   /** Each cut edge's flap: the face that carries it, and its depth (shrunk where needed). */
   flapOn: Record<EdgeKey, FaceKey>;
   flapDepth: Record<EdgeKey, number>;
-  /** How far each flap narrows at its ends (mm along the edge; its depth for 45°). */
+  /** How far each flap narrows at the start of its edge on the face carrying it (mm along the edge; its depth for 45°). */
   flapTaper: Record<EdgeKey, number>;
+  /** How far it narrows at the edge's other end. */
+  flapTaperB: Record<EdgeKey, number>;
   /** Where each face lies in its island's flat layout. */
   place: Record<FaceKey, Xform2>;
   issues: UnfoldIssue[];
@@ -204,36 +208,159 @@ function growTop(r: P2[], c: number): P2[] {
 }
 
 /** A flap placed in an island's flat layout. */
-type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; ring: P2[] };
+type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; taperB: number; ring: P2[] };
 type Island = { faces: FaceKey[]; xf: Map<FaceKey, X>; flaps: PlacedFlap[] };
 type Pass = { islands: Island[]; folds: Set<EdgeKey>; refusedFixed: EdgeKey[]; why: Set<'sheet' | 'overlap'> };
 
 const boxApart = (a: Box, b: Box, tol: number) => a.x1 <= b.x0 + tol || b.x1 <= a.x0 + tol || a.y1 <= b.y0 + tol || b.y1 <= a.y0 + tol;
 
 /**
+ * The face a flap on edge e (carried by `on`) is glued to, as the flap lies on it folded:
+ * the steepest each end may rise from the edge (radians, a little less than the face's
+ * corner there, at most 85°), and whether a flap of a depth and two tapers lies
+ * inside it, `clear` short of its other edges (where the boards round it stand).
+ */
+function receiver(P: Polyhedron, e: PEdge, on: FaceKey, clear: number) {
+  const O = P.faces[on], R = P.faces[on === e.a ? e.b : e.a];
+  const refO = on === e.a ? e.ea : e.eb, refR = on === e.a ? e.eb : e.ea;
+  const ro = ringOf(O, refO.ring), rr = ringOf(R, refR.ring);
+  // the carrying face's edge starts at e.p or e.q: the same corner on the receiver is the flap's start there
+  const o0 = faceWorldPt(O, ro[refO.i]);
+  const startP = Math.hypot(o0[0] - e.p[0], o0[1] - e.p[1], o0[2] - e.p[2]) <= Math.hypot(o0[0] - e.q[0], o0[1] - e.q[1], o0[2] - e.q[2]);
+  const n = rr.length, i = refR.i;
+  const r0 = rr[i], r1 = rr[(i + 1) % n];
+  const near = (p: P2) => (Math.hypot(p.x - r0.x, p.y - r0.y) <= Math.hypot(p.x - r1.x, p.y - r1.y) ? 0 : 1);
+  const startAt0 = near(to2(R, startP ? e.p : e.q)) === 0;
+  const R0 = startAt0 ? r0 : r1, R1 = startAt0 ? r1 : r0;
+  const L = Math.hypot(R1.x - R0.x, R1.y - R0.y) || 1;
+  const u = { x: (R1.x - R0.x) / L, y: (R1.y - R0.y) / L };
+  // inside the receiver: to the left of its counter-clockwise edge r0 → r1
+  const lr = Math.hypot(r1.x - r0.x, r1.y - r0.y) || 1;
+  const nv = { x: -(r1.y - r0.y) / lr, y: (r1.x - r0.x) / lr };
+  // the receiver's corner at each end: between this edge and the next one round it
+  const corner = (v: P2, along: P2, nb: P2) => {
+    const bx = along.x - v.x, by = along.y - v.y, cx = nb.x - v.x, cy = nb.y - v.y;
+    const a = Math.acos(Math.max(-1, Math.min(1, (bx * cx + by * cy) / ((Math.hypot(bx, by) || 1) * (Math.hypot(cx, cy) || 1)))));
+    return cx * nv.x + cy * nv.y >= 0 ? a : 2 * Math.PI - a;
+  };
+  const at0 = corner(r0, r1, rr[(i - 1 + n) % n]), at1 = corner(r1, r0, rr[(i + 2) % n]);
+  const [c0, c1] = startAt0 ? [at0, at1] : [at1, at0];
+  const MARGIN = (2 * Math.PI) / 180;
+  const theta = (c: number) => Math.max(0, Math.min((85 * Math.PI) / 180, c - MARGIN));
+  const convexR = R.holes.length === 0 && convex(R.outer);
+  const area = Math.abs(R.area);
+  const inside = (depth: number, ta: number, tb: number): boolean => {
+    // tested `clear` deeper, its ends at the same angles (so its far edge keeps clear of the receiver's other edges)
+    const d = depth + clear, k = depth > 0 ? d / depth : 1;
+    if ((ta + tb) * k >= L) return false;
+    const q = (s: number, w: number): P2 => ({ x: R0.x + u.x * s + nv.x * w, y: R0.y + u.y * s + nv.y * w });
+    const trap = [R0, q(ta * k, d), q(L - tb * k, d), R1];
+    if (convexR) {
+      const r = R.outer;
+      for (const t of trap)
+        for (let k = 0; k < r.length; k++) {
+          const p = r[k], p2 = r[(k + 1) % r.length];
+          const el = Math.hypot(p2.x - p.x, p2.y - p.y) || 1;
+          // left of each counter-clockwise edge (a hair outside is the shared edge itself)
+          if (((p2.x - p.x) * (t.y - p.y) - (p2.y - p.y) * (t.x - p.x)) / el < -1e-4) return false;
+        }
+      return true;
+    }
+    const ring = (rg: P2[]) => [...rg.map((p) => [p.x, p.y] as [number, number]), [rg[0].x, rg[0].y] as [number, number]];
+    try {
+      const out = polygonClipping.difference([ring(trap)], [ring(R.outer), ...R.holes.map(ring)]);
+      return mpArea(out) <= Math.max(0.02, 1e-5 * area);
+    } catch {
+      return false;
+    }
+  };
+  return { L, thA: theta(c0), thB: theta(c1), inside };
+}
+
+/** A face-local point in 3D. */
+const faceWorldPt = (f: PFace, p: P2): [number, number, number] => [f.frame.o[0] + f.frame.u[0] * p.x + f.frame.v[0] * p.y, f.frame.o[1] + f.frame.u[1] * p.x + f.frame.v[1] * p.y, f.frame.o[2] + f.frame.u[2] * p.x + f.frame.v[2] * p.y];
+
+/**
+ * The deepest flap on one side that lies inside the face it is glued to (by halving), with
+ * the sizes to try at a fraction of that depth: the ends at the receiver's corners' angles,
+ * then narrowing more steeply. Null when no useful flap fits there.
+ */
+function sizesFor(P: Polyhedron, e: PEdge, on: FaceKey, want: number, clear: number): ((level: number) => [number, number, number][]) | null {
+  const R = receiver(P, e, on, clear);
+  const { L, thA, thB } = R;
+  if (thA <= 1e-3 || thB <= 1e-3) return null;
+  // the least each end must narrow by at a depth (its end at the receiver's corner's angle)
+  const tA = (d: number) => d / Math.tan(thA), tB = (d: number) => d / Math.tan(thB);
+  // each end narrows by at most TAPER_MAX of the edge, leaving a top at least a tenth of it (a long wedge on a
+  // sliver of a face, papercraft's way): deeper would make an end steeper than the corner allows
+  const mt = TAPER_MAX * L;
+  // an end narrows at 45° (`k` times steeper or shallower), at most a third of the edge as before, more only
+  // where the corner needs it
+  const taper = (k: number, d: number, tmin: number) => Math.min(Math.max(k * d, tmin), Math.max(L / 3, tmin), mt);
+  const cap = Math.min(want, mt * Math.tan(thA), mt * Math.tan(thB), (0.9 * L) / (1 / Math.tan(thA) + 1 / Math.tan(thB)));
+  const fits = (d: number) => R.inside(d, taper(1, d, tA(d)), taper(1, d, tB(d)));
+  let dmax = 0;
+  if (fits(cap)) dmax = cap;
+  else {
+    let lo = 0, hi = cap;
+    for (let k = 0; k < 12; k++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid;
+      else hi = mid;
+    }
+    dmax = lo;
+  }
+  // too shallow to glue: the caller falls back to a flap sized by the net alone
+  if (dmax < Math.min(want, Math.max(2, 0.3 * want))) return null;
+  return (level) => {
+    const d = dmax * level;
+    const out: [number, number, number][] = [];
+    for (const k of [1, 2.5, 5]) {
+      const ta = taper(k, d, tA(d)), tb = taper(k, d, tB(d));
+      if (ta + tb <= 0.9 * L && R.inside(d, ta, tb)) out.push([d, ta, tb]);
+    }
+    return out;
+  };
+}
+
+/**
  * A flap for cut edge e inside an island (faces and flaps it must miss): the face with the
- * smaller area-to-perimeter ratio first (the one carrying fewer flaps on a near tie), full
- * depth at 45°, then narrowing more steeply at its ends, then shallower; or null.
+ * smaller area-to-perimeter ratio first (the one carrying fewer flaps on a near tie), sized
+ * for the face it is glued to (`sizesFor`) on either side; failing that, as before, full depth
+ * at 45°, then narrowing more steeply at its ends, then shallower; or null.
  */
 function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][], W: number, H: number, carried: Map<FaceKey, number>, clear = 0): PlacedFlap | null {
   const ra = ratio(P.faces[e.a]), rb = ratio(P.faces[e.b]);
   const ca = carried.get(e.a) ?? 0, cb = carried.get(e.b) ?? 0;
   const first = Math.abs(ra - rb) < 0.05 * Math.max(ra, rb) ? (ca <= cb ? e.a : e.b) : ra <= rb ? e.a : e.b;
   const sides = [first, first === e.a ? e.b : e.a].filter((k) => I.xf.has(k));
-  const tries = [want, want * 0.6, want * 0.35].flatMap((depth) => [[depth, depth], [depth, depth * 2.5], [depth, depth * 5]]);
   const others = [...rings, ...I.flaps.map((f) => f.ring)];
   const boxes = others.map(bbox);
+  const tryOne = (on: FaceKey, depth: number, taper: number, taperB: number): PlacedFlap | null => {
+    const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper, taperB);
+    // tested deeper by the clearance, its far corners further along the edge; its base stays on the
+    // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
+    const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear, taperB + clear), clear) : ring;
+    const bb = bbox(tb);
+    // as faces, a flap may meet another at a corner by up to a thickness (the export check allows 4t² there)
+    if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05) && !(clear > 0 && overlapArea(r, tb) <= 3 * clear * clear))) return null;
+    if (!fitsSheet([...others, ring], W, H, 2)) return null;
+    return { edge: e.key, on, depth, taper, taperB, ring };
+  };
+  // deepest first, either side, as below
+  const sized = sides.map((on) => [on, sizesFor(P, e, on, want, clear)] as const);
+  for (const level of [1, 0.6, 0.35])
+    for (const [on, sizes] of sized)
+      for (const [depth, ta, tb] of sizes?.(level) ?? []) {
+        const f = tryOne(on, depth, ta, tb);
+        if (f) return f;
+      }
+  const tries = [want, want * 0.6, want * 0.35].flatMap((depth) => [[depth, depth], [depth, depth * 2.5], [depth, depth * 5]]);
   for (const [depth, taper] of tries)
     for (const on of sides) {
-      const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper);
-      // tested deeper by the clearance, its far corners further along the edge; its base stays on the
-      // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
-      const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear), clear) : ring;
-      const bb = bbox(tb);
-      // as faces, a flap may meet another at a corner by up to a thickness (the export check allows 4t² there)
-      if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05) && !(clear > 0 && overlapArea(r, tb) <= 3 * clear * clear))) continue;
-      if (!fitsSheet([...others, ring], W, H, 2)) continue;
-      return { edge: e.key, on, depth, taper, ring };
+      const t = flapTaperLen(e.len, depth, taper);
+      const f = tryOne(on, depth, t, t);
+      if (f) return f;
     }
   return null;
 }
@@ -325,8 +452,9 @@ function ratio(f: PFace): number {
 /** How far a flap narrows at each end along its edge: the taper asked (its depth for 45°), at most a third of the edge. */
 export const flapTaperLen = (L: number, depth: number, taper = depth) => Math.max(0, Math.min(taper, L / 3));
 
-/** The flap on edge e as placed on face `on` (a trapezoid outward from the edge, tapered at 45°). */
-function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, taper = depth): P2[] {
+
+/** The flap on edge e as placed on face `on` (a trapezoid outward from the edge, narrowing by `taper` and `taperB` at its ends, as given). */
+function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, taper = depth, taperB = taper): P2[] {
   const f = P.faces[on];
   const ref = on === e.a ? e.ea : e.eb;
   const ring = ringOf(f, ref.ring);
@@ -335,12 +463,12 @@ function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, ta
   const dx = (b.x - a.x) / L, dy = (b.y - a.y) / L;
   // outward: to the right of a counter-clockwise outline's edge
   const ox = dy, oy = -dx;
-  const tp = flapTaperLen(L, depth, taper);
+  const tp = Math.max(0, Math.min(taper, TAPER_MAX * L)), tq = Math.max(0, Math.min(taperB, TAPER_MAX * L));
   const q = (s: number, u: number): P2 => ap(xf, { x: a.x + dx * s + ox * u, y: a.y + dy * s + oy * u });
-  return [q(0, 0), q(tp, depth), q(L - tp, depth), q(L, 0)];
+  return [q(0, 0), q(tp, depth), q(L - tq, depth), q(L, 0)];
 }
 
-type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; dropped: EdgeKey[] };
+type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; flapTaperB: Record<EdgeKey, number>; dropped: EdgeKey[] };
 
 /** Flaps on a pass's cut edges: those placed while joining, then the edges between islands (each on its own island's side). */
 function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number, clear = 0): Flaps {
@@ -349,6 +477,7 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
   const flapOn: Record<EdgeKey, FaceKey> = {};
   const flapDepth: Record<EdgeKey, number> = {};
   const flapTaper: Record<EdgeKey, number> = {};
+  const flapTaperB: Record<EdgeKey, number> = {};
   const dropped: EdgeKey[] = [];
   const carried = new Map<FaceKey, number>();
   const extra = new Map<Island, PlacedFlap[]>();
@@ -357,6 +486,7 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
       flapOn[f.edge] = f.on;
       flapDepth[f.edge] = f.depth;
       flapTaper[f.edge] = f.taper;
+      flapTaperB[f.edge] = f.taperB;
       carried.set(f.on, (carried.get(f.on) ?? 0) + 1);
     }
   const rings = new Map<Island, P2[][]>();
@@ -388,9 +518,10 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
     flapOn[e.key] = got.on;
     flapDepth[e.key] = got.depth;
     flapTaper[e.key] = got.taper;
+    flapTaperB[e.key] = got.taperB;
     carried.set(got.on, (carried.get(got.on) ?? 0) + 1);
   }
-  return { flapOn, flapDepth, flapTaper, dropped };
+  return { flapOn, flapDepth, flapTaper, flapTaperB, dropped };
 }
 
 /** Unfold a solid (see the file's head). */
@@ -442,10 +573,10 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
   const islands = b.islands.map((I) => I.faces.slice().sort()).sort((x, y) => y.length - x.length || (x[0] < y[0] ? -1 : 1));
   if (islands.length > 1) issues.push({ kind: 'split', n: islands.length, why: Object.values(fixed).includes('cut') && b.why.size === 0 ? 'fixed' : b.why.has('sheet') ? 'sheet' : 'overlap' });
   for (const k of b.flaps.dropped) issues.push({ kind: 'flapDropped', edge: k });
-  const { flapOn, flapDepth, flapTaper } = b.flaps;
+  const { flapOn, flapDepth, flapTaper, flapTaperB } = b.flaps;
   const place: Record<FaceKey, Xform2> = {};
   for (const I of b.islands) for (const [k, t] of I.xf) place[k] = { tx: t.tx, ty: t.ty, rot: Math.atan2(t.s, t.c) };
-  return { folds: b.folds, islands, flapOn, flapDepth, flapTaper, place, issues, restarts, firstPassMs };
+  return { folds: b.folds, islands, flapOn, flapDepth, flapTaper, flapTaperB, place, issues, restarts, firstPassMs };
 }
 
 /** The faces of each island in the order a net is walked: the island's first face, then by breadth along its folds. */

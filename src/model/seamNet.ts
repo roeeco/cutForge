@@ -6,6 +6,9 @@
 import type { Connection, ConnectionKind, Design } from './types';
 import type { EdgeKey, FaceKey, PEdge, Polyhedron } from './polyhedron';
 import { addFreePanel } from './ops';
+import { edgeWorld } from './frame';
+import { faceWorld, ringOf } from './polyhedron';
+import { v3len, v3sub } from '../geom/v3';
 
 export type SeamPlan = {
   /** Edges kept folded. */
@@ -14,7 +17,9 @@ export type SeamPlan = {
   flapOn?: Record<EdgeKey, FaceKey>;
   /** A flap's depth and taper as the unfolder fitted them (mm); absent: the material's. */
   flapDepth?: Record<EdgeKey, number>;
+  /** Its taper at the start of the carrying face's edge (as the face's ring runs), and at its end. */
   flapTaper?: Record<EdgeKey, number>;
+  flapTaperB?: Record<EdgeKey, number>;
   /** The kind on a cut edge (default glue); 'butt' leaves it unjoined. */
   seam?: (e: PEdge) => ConnectionKind;
   /** Faces left out (openings). */
@@ -101,7 +106,20 @@ export function addSeamNet(d: Design, P: Polyhedron, plan: SeamPlan): Record<Fac
     const onB = plan.flapOn?.[e.key] === e.b;
     const c = conn(seamId(e.key), kind, onB ? rb : ra, onB ? ra : rb, e);
     if (plan.flapDepth?.[e.key] !== undefined) c.flap = Math.round(plan.flapDepth[e.key] * 1000) / 1000;
-    if (plan.flapTaper?.[e.key] !== undefined) c.flapTaper = Math.round(plan.flapTaper[e.key] * 1000) / 1000;
+    const r3 = (x: number) => Math.round(x * 1000) / 1000;
+    let ta = plan.flapTaper?.[e.key], tb = plan.flapTaperB?.[e.key] ?? ta;
+    // a board runs its edge from either end (made boards are mirrored, material side up):
+    // the taper fitted at the face's edge start goes to whichever end of the board's edge lies there
+    if (ta !== undefined && tb !== undefined && ta !== tb) {
+      const face = onB ? e.b : e.a, ref = onB ? e.eb : e.ea;
+      const ring = ringOf(P.faces[face], ref.ring);
+      const start = faceWorld(P.faces[face], ring[ref.i]);
+      const [w0, w1] = edgeWorld(d.panels[c.a.panelId], c.a.edge);
+      if (v3len(v3sub(w1, start)) < v3len(v3sub(w0, start))) [ta, tb] = [tb, ta];
+    }
+    if (ta !== undefined) c.flapTaper = r3(ta);
+    // both stored: the engine lays it as fitted (each end up to TAPER_MAX of the seam)
+    if (tb !== undefined && plan.flapTaperB) c.flapTaperB = r3(tb);
     d.connections[seamId(e.key)] = c;
   }
   return ids;

@@ -24,9 +24,9 @@ function check(P: Polyhedron, u: Unfolding, sheet = A4) {
       const ref = on === e.a ? e.ea : e.eb;
       const ring = ringOf(P.faces[on], ref.ring);
       const a = ring[ref.i], b = ring[(ref.i + 1) % ring.length];
-      const L = Math.hypot(b.x - a.x, b.y - a.y), dx = (b.x - a.x) / L, dy = (b.y - a.y) / L, D = u.flapDepth[ek], tp = Math.min(u.flapTaper[ek], L / 3);
+      const L = Math.hypot(b.x - a.x, b.y - a.y), dx = (b.x - a.x) / L, dy = (b.y - a.y) / L, D = u.flapDepth[ek], tp = Math.min(u.flapTaper[ek], 0.45 * L), tq = Math.min(u.flapTaperB[ek] ?? u.flapTaper[ek], 0.45 * L);
       const q = (s: number, w: number) => applyX(u.place[on], { x: a.x + dx * s + dy * w, y: a.y + dy * s - dx * w });
-      rings.push([q(0, 0), q(tp, D), q(L - tp, D), q(L, 0)]);
+      rings.push([q(0, 0), q(tp, D), q(L - tq, D), q(L, 0)]);
     }
     expect(fitsSheet(rings, sheet.w, sheet.h)).toBe(true);
     for (let i = 0; i < rings.length; i++) for (let j = i + 1; j < rings.length; j++) expect(ringsOverlap(rings[i], rings[j], 0.05), `${I.join(',')} ${i} × ${j}`).toBe(false);
@@ -114,7 +114,7 @@ describe('the unfolder through the engine', () => {
     const P = make();
     const u = unfold(P, { sheet: A4, flap: flap10, seed: 'e' });
     const d = createDesign({ ...MATERIALS[0], sheetW: 297, sheetH: 210 });
-    addSeamNet(d, P, { folds: u.folds, flapOn: u.flapOn, flapDepth: u.flapDepth, flapTaper: u.flapTaper, order: islandOrder(P, u) });
+    addSeamNet(d, P, { folds: u.folds, flapOn: u.flapOn, flapDepth: u.flapDepth, flapTaper: u.flapTaper, flapTaperB: u.flapTaperB, order: islandOrder(P, u) });
     solve(d);
     expect(Object.values(d.connections).every((c) => !c.broken)).toBe(true);
     expect(buildPieces(d).length).toBe(u.islands.length);

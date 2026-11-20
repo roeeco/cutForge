@@ -349,6 +349,12 @@ export type Connection = {
   seam?: true;
   /** Milestone 124: a seam flap's taper, how far it narrows at each end along its edge (mm). Absent: its depth (45°). */
   flapTaper?: number;
+  /**
+   * Its taper at the edge's far end (sized for the corner of the board it is glued to there). Stored by
+   * every Make since flaps were sized for their receiver; with it, each end may narrow by up to 0.45 of
+   * the seam instead of a third. Absent: `flapTaper`, a third at most (older designs keep their flaps).
+   */
+  flapTaperB?: number;
   /** Milestone 125: why the chooser picked this joint (an i18n key), shown on the joint card. */
   why?: string;
   /** Milestone 125: the student picked this joint's kind; a change of material keeps it. */

@@ -2256,6 +2256,15 @@ Found with a probe over 222 solids, materials and facet counts (now `tests/foldN
 - The unfolder never folds what the engine cannot lay, and lays each fold with the engine's crease shift at every dihedral (inside corners and the fold allowance included; before, only under 180° and without the allowance). New spec fields `foldAllowance` and `avoid`; `unfoldSpecOf` builds the same spec here and in the Worker.
 - Make checks the net as laid (`netProblems`): a broken seam fold, or two boards of one piece overlapping, gets its fold cut (for an overlap, the fold between the two that frees the fewest boards), and it unfolds again, up to 6 times. The split it reports counts the pieces as laid.
 
+## Flaps sized for the board they are glued to ✅
+
+A glue flap or slit lock was sized only against the flat net, so folded it could lie past the board it is glued to: up to 44 mm² past a cone's sliver of a face, 41 mm² past a tall pyramid's. Papercraft's approach (behaviour only, `THIRD_PARTY.md`), written fresh in `src/model/unfold.ts`:
+- **Each end narrows at the receiver's corner there** (`receiver`): no steeper than its corner less 2° (at most 85°); 45° where the corner allows, as before. The two ends are sized apart: `Unfolding.flapTaperB`, `Connection.flapTaperB`, mapped onto the board's edge by position (made boards are mirrored, so their edges run the other way).
+- **No deeper than lies inside the receiver, folded** (`sizesFor`), its far edge a thickness clear of the receiver's other edges; the deepest found by halving, then 60% and 35% of it, either side, deepest first.
+- **A long wedge on a sliver**: such a flap may narrow by up to `TAPER_MAX` (0.45) of its seam at each end, keeping a top a tenth of it; other flaps keep the third as before. The engine reads `flapTaperB` as the mark of a flap sized this way, so designs saved earlier keep their flaps.
+- Where no flap of a useful depth fits the receiver on either side, the flap is fitted to the net alone, as before.
+- Over 670 flaps on 11 solids in card and corrugated: the overhang went from 170 mm² (5 flaps over 1 mm², the worst 44 mm²) to none, with no flap dropped; the flap area changed by −2% (only flaps that overhung shrank). `tests/foldNet.test.ts` checks it. The goldens: `make-house-card` changes by 1e-4 mm (tapers now stored at both ends).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
