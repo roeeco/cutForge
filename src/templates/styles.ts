@@ -31,6 +31,7 @@ export const STYLES: StyleDef[] = [
   // boxes and trays
   { id: 'openTray', structure: 'tray', words: {}, group: 'boxes', uses: ['food', 'gift'], code: 'ECMA C10', status: 'stable' },
   { id: 'hingedTray', structure: 'box', words: { lid: 'hinged' }, group: 'boxes', uses: ['gift'], code: 'ECMA C30', status: 'stable' },
+  { id: 'hexBox', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'hinged' }, group: 'boxes', uses: ['gift'], code: 'ECMA E50', status: 'stable' },
   { id: 'hexLid', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'liftoff' }, group: 'boxes', uses: ['gift'], status: 'stable' },
   { id: 'trayLid', structure: 'box', words: { lid: 'liftoff' }, group: 'boxes', uses: ['gift'], code: 'ECMA C20 / FEFCO 0301', status: 'stable' },
   { id: 'drawerBox', structure: 'drawer', words: {}, group: 'boxes', uses: ['gift', 'jewelry'], status: 'stable' },
@@ -39,6 +40,7 @@ export const STYLES: StyleDef[] = [
   { id: 'rte', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'opposite' }, group: 'cartons', uses: ['cosmetics', 'pharma'], code: 'ECMA A55', status: 'stable' },
   { id: 'tuckSnap', structure: 'carton', words: { top: 'tuck', bottom: 'snap' }, group: 'cartons', uses: ['retail'], code: 'ECMA A60', status: 'stable' },
   { id: 'autoBottom', structure: 'carton', words: { top: 'tuck', bottom: 'crash' }, group: 'cartons', uses: ['retail', 'cosmetics'], code: 'ECMA A65 / B40', status: 'stable' },
+  { id: 'gable', structure: 'carton', words: { top: 'gable' }, group: 'cartons', uses: ['gift', 'food'], status: 'stable' },
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
   // shipping
   { id: 'rsc', structure: 'carton', words: { top: 'rsc', bottom: 'rsc' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0201', status: 'stable' },
@@ -66,7 +68,13 @@ export function chooseStyle(s: StyleDef, m: MaterialProfile, params: Params, byI
   const to = byId(s.structure);
   if (!to || !makes(to, m)) return null;
   const r = chooseStructure(to, m, { ...params, ...s.words });
-  return { id: to.id, params: r.params, changes: r.changes };
+  if (styleOf(to.id, r.params)?.id === s.id) return { id: to.id, params: r.params, changes: r.changes };
+  // not at these sizes (a gable top on a shallow box): the structure's own sizes, and a note for each size that changed
+  const own: Params = {};
+  for (const p of to.params) if (p.type === 'number' && p.unit === 'mm') own[p.key] = p.default;
+  const r2 = chooseStructure(to, m, { ...params, ...own, ...s.words });
+  const sizes: Change[] = Object.keys(own).filter((k) => k in params && String(params[k]) !== String(r2.params[k])).map((k) => ({ key: k, from: params[k], to: r2.params[k], why: 'sen.why.styleSize' as MsgKey }));
+  return { id: to.id, params: r2.params, changes: [...sizes, ...r2.changes] };
 }
 
 const listedCache = new Map<string, boolean>();

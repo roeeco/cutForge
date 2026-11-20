@@ -563,3 +563,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **One auto-bottom style, not two**: the two differ only in the wall the top tuck folds from, which CutForge does not offer.
 - **Card only**, as the plan says: corrugated's flaps are too thick to glue flat and spring.
 - **`ConnGeom.glueAt`** names glue on parts that are not glue flaps of their own; the annotations read it, and the exports are unchanged (annotations are an option of the plan, not of the file).
+
+## Milestone C4: the gable top and the hexagon box (SENTENCE_STYLES_PLAN.md)
+- **The gable's roofs stop short of the ridge** (3t + 1 mm): meeting edge to edge they collide, and no joint kind fits two edges at a mitre.
+- **Glued to the peaks, not locked**: tab-and-slot roofs left slots too close to the peaks' sloped edges; lock ears would need slits the engine does not place on a sloped edge yet.
+- **A gable top needs 50 mm of depth** (`GABLE_MIN_DEPTH`, a limit's `min`): below it the short roofs' glue flaps are clamped and overlap the peaks in the flat. The size limits' bisection assumes the small end works, so the floor is given to it.
+- **The hexagon box is a box with a hinged lid**, not carton ends on a six-sided tube: already one piece and clean on card, it does what the style is for; n-sided carton ends stay unbuilt (`DIELINE_DNA_PLAN.md` §9).
+- **A style starts at its structure's own sizes** when it cannot be made at the sentence's, with a note per size, rather than being hidden from the card grid.

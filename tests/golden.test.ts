@@ -97,6 +97,9 @@ CASES.push({ name: 'carton-corr4-rsc', make: () => styleCarton(MATERIALS[2], 'rs
 CASES.push({ name: 'drawer-card', make: () => templateDesign('drawer', MATERIALS[0]) });
 // milestone C3: a crash-lock (auto) bottom
 CASES.push({ name: 'carton-card-crash', make: () => styleCarton(MATERIALS[0], 'tuck', 'crash') });
+// milestone C4: a gable top box, a one-piece hexagon box
+CASES.push({ name: 'gable-card', make: () => templateDesign('carton', MATERIALS[0], { top: 'gable', bottom: 'tuck' }) });
+CASES.push({ name: 'hex-box-card', make: () => templateDesign('box', MATERIALS[0], { shape: 'poly', sides: 6, lid: 'hinged', width: 120, depth: 120, height: 60 }) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

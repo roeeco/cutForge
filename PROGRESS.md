@@ -1860,6 +1860,24 @@ Limitations
 - Die Cut Studio's two auto-bottom cards differ in which wall the top tuck folds from; CutForge's top tuck always folds off the back, so they are one style here.
 - The sizes are starting values until cut and tried.
 
+## Milestone C4 (Styles) — the gable top box and the one-piece hexagon box ✅
+
+`SENTENCE_STYLES_PLAN.md` C4. `src/templates/structures/carton.ts` (a `gable` top, `GABLE_MIN_DEPTH`), `src/templates/styles.ts` (`hexBox`, `gable`, styles that start at their own sizes).
+- **Spike first** (as the plan asked): side walls peaked with a wall insert, roofs grown from the front and back walls' tops at 135°, glued to the peaks by `autoConnect`, solve and check clean, as long as the roofs stop short of the ridge (two roofs meeting edge to edge at 90° collide, and no joint fits there).
+- **A gable top** for a carton (card): the side walls peaked to a ridge half the depth above their tops (45° roofs); a roof off the front and the back walls' tops, glued to the peaks, stopping 3 thicknesses and a millimetre short of the ridge; a handle slot in each roof near the ridge, the two in line when folded. In the sentence: *with a gable top with a handle*; it is offered from 50 mm deep (a shallower box's short roofs would overlap the peaks in the flat).
+- **A one-piece hexagon box**: a box of six sides with a hinged lid, already one piece on card (the base, six walls and the lid on one net). The *Hexagon box* style is these words; no new geometry.
+- **A style that cannot be made at the sentence's sizes starts at its structure's own**, with a note per size changed (*this style is not made at the sizes you had…*), so the card grid lists it whatever the sentence held.
+- **Two more styles**: *Gable top box*, *Hexagon box*.
+
+Verified
+- `tests/c4.test.ts` (7): a gable top box builds clean in one piece with a handle slot in each roof; the slots line up in 3D within 0.5 mm; wherever the sentence offers a gable top it builds clean, and a shallow box is not offered one; the gable style is listed from the sentence's first words; a shallow box chosen as a gable starts deeper and says so; card only; the one-piece hexagon box builds clean in one piece on card and is not listed in corrugated.
+- New goldens `gable-card`, `hex-box-card`; every older golden byte-identical. Looked at in 3D. Unit suite and typecheck green.
+
+Limitations
+- The roofs are glued to the peaks: the gable box opens at its bottom (a tuck), not at the top. Die Cut Studio's lock ears into slits near the apex (glue-free, openable) are not built: tabs into the sloped peaks left slots too close to their edge.
+- The ridge stays open by about 2.5 mm on card (the roofs stop short).
+- Carton ends on tubes of more than four sides are not built: the hexagon box is a box with a hinged lid instead (same use, one piece).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

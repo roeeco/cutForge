@@ -6,9 +6,10 @@
 import type { Design, MaterialProfile, TrayBottom, TrayTop } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { Limit, ParamDef, Params, TemplateDef } from '../types';
-import { addRootPanel, addTray, autoConnect, createDesign, setClosure } from '../../model/ops';
+import { addRootPanel, addTray, addWallInsert, autoConnect, createDesign, growPanel, setClosure } from '../../model/ops';
+import { trayRing } from '../../model/cartons';
 import { topLidId } from '../../model/cartons';
-import { setBoxSize, type SizeAs } from '../../model/boxSize';
+import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { holeRecipe } from '../../easy/recipes';
 import { cleanAll, cleanWith, frontWall, mainTray, nameRoles } from './box';
 import { largestOk } from '../../sentence/resolve';
@@ -23,7 +24,7 @@ export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBotto
 }
 
 /** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
-const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' ? m.kind === 'card' : folds(m, 2));
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' || v === 'gable' ? m.kind === 'card' : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
 const folds = (m: MaterialProfile, most: number) => m.kind === 'card' || (m.kind === 'corrugated' && m.thickness <= most);
@@ -60,12 +61,40 @@ function sizeLimits(def: TemplateDef) {
         enumerable: true,
         get: () => {
           const ck = JSON.stringify([def.id, m, { ...p, [key]: null }, key]);
-          const v = largestOk(ck, 20, Math.min(m.sheetW, m.sheetH) - 10, (x) => cleanWith(def, m, { ...p, [key]: x }, key, x), 9, 0.5);
-          return { max: Math.max(20, v), why: 'sen.why.sheet' as MsgKey };
+          // a gable top (C4) needs some depth: its roofs' glue flaps would overlap the peaks in the flat on a shallow box
+          const lo = key === 'depth' && p.top === 'gable' ? GABLE_MIN_DEPTH : 20;
+          const v = largestOk(ck, lo, Math.min(m.sheetW, m.sheetH) - 10, (x) => cleanWith(def, m, { ...p, [key]: x }, key, x), 9, 0.5);
+          return { ...(lo > 20 ? { min: lo } : {}), max: Math.max(lo, v), why: 'sen.why.sheet' as MsgKey };
         },
       });
     return out;
   };
+}
+
+/** The shallowest box a gable top is offered on (mm, inside). */
+export const GABLE_MIN_DEPTH = 50;
+
+/**
+ * A gable top (milestone C4): the side walls peaked to a ridge half the
+ * depth above their tops (45° roofs), a roof folded off the front and the back
+ * walls' tops, glued to the peaks and stopping just short of the ridge (the
+ * two would collide where they meet), each with a handle slot near it.
+ */
+function gableTop(d: Design, tray: string) {
+  const t = d.trays[tray];
+  const ring = trayRing(d, t);
+  const o = boxSize(d, tray, 'outside');
+  if (!o) return;
+  const run = o.d / 2, th = d.material.thickness;
+  for (const r of ring.filter((x) => x.edge === 'e1' || x.edge === 'e3')) addWallInsert(d, r.wall, 'e2', 0.5, run);
+  autoConnect(d);
+  const S = Math.hypot(run, run) - 3 * th - 1;
+  for (const r of ring.filter((x) => x.edge === 'e0' || x.edge === 'e2')) {
+    const g = growPanel(d, r.wall, 'e2', { height: S, angle: 135, dir: 'up', kind: 'fold' });
+    const P = g && d.panels[g.panelId];
+    if (P) holeRecipe(d, P.id, 'roundrect', P.w / 2, P.h - 12, Math.min(40, P.w * 0.4), 10);
+  }
+  autoConnect(d);
 }
 
 function generateTube(d: Design, p: Params, ends: { top?: TrayTop; bottom?: TrayBottom }, role: (name: string, id: string) => void) {
@@ -80,6 +109,7 @@ function generateTube(d: Design, p: Params, ends: { top?: TrayTop; bottom?: Tray
   const t = d.trays[tray];
   const top = t.top === 'tuck' ? topLidId(t) : null;
   if (top && d.panels[top] && (p.thumb === 'notch' || p.dust === 'without')) setClosure(d, top, { style: 'tuck', ...(p.thumb === 'notch' ? { thumb: true } : {}), ...(p.dust === 'without' ? { dust: false } : {}) });
+  if (p.top === 'gable') gableTop(d, tray);
   const front = frontWall(d, tray);
   const fw = front ? d.panels[front] : null;
   if (fw && p.window && p.window !== 'none') {
@@ -105,7 +135,7 @@ export const carton: TemplateDef = {
     ...sizeParams(100),
     {
       key: 'top', label: 'sen.top', type: 'choice', default: 'tuck',
-      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }, { value: 'rsc', label: 'sen.top.rsc' }],
+      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }, { value: 'rsc', label: 'sen.top.rsc' }, { value: 'gable', label: 'sen.top.gable' }],
       allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'top', v),
       why: () => 'sen.why.engine',
       affects: ['lid'],
@@ -144,7 +174,7 @@ export const carton: TemplateDef = {
     },
     window,
   ],
-  generate: (d, p, role) => generateTube(d, p, { top: p.top as TrayTop, bottom: (p.bottom === 'tuck' && p.tuckFrom === 'same' ? 'tuckBack' : p.bottom) as TrayBottom }, role),
+  generate: (d, p, role) => generateTube(d, p, { top: p.top === 'gable' ? undefined : (p.top as TrayTop), bottom: (p.bottom === 'tuck' && p.tuckFrom === 'same' ? 'tuckBack' : p.bottom) as TrayBottom }, role),
   sentence: { main: 'sen.s.carton' },
 };
 carton.limits = sizeLimits(carton);
