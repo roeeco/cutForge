@@ -1,6 +1,6 @@
 // The fuzzer's promise checks (milestone 134, QA_FIX_PLAN.md O1) as a gate: random op sequences, and after every
 // joint change the joints asked for are the joints made, and each joint list shows what its joints are.
-// Fails today (REPORT.md §10); milestone 135 (Q1) flips it to `it`.
+// Holds since milestone 135 (Q1).
 import { expect, it } from 'vitest';
 import { genOp, mulberry32, runSeq } from '../fuzz/fuzz';
 
@@ -11,7 +11,7 @@ function seqFor(seed: number, steps: number) {
   return { seq: Array.from({ length: steps }, () => genOp(r)), mat };
 }
 
-it.fails('joint promises hold over seeded op sequences', () => {
+it('joint promises hold over seeded op sequences', () => {
   const broken: string[] = [];
   for (let seed = 1; seed <= 8; seed++) {
     const { seq, mat } = seqFor(seed, 20);
@@ -19,4 +19,5 @@ it.fails('joint promises hold over seeded op sequences', () => {
     for (const f of r.failures) broken.push(`seed ${seed} step ${f.step}: ${f.cls}: ${f.msg}`);
   }
   expect(broken).toEqual([]);
-});
+  // about 2.5 s alone; more under the full parallel run
+}, 60_000);

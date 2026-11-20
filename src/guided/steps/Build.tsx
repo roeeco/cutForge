@@ -189,7 +189,12 @@ function MoreAboutBox({ d }: { d: Design }) {
     return (
       <label className="field">
         <span>{label}</span>
-        <select value={cur ?? ''} onChange={(e) => guidedApply((x) => void setAllJoints(x as Design, group, e.target.value as never))} data-testid={`g-joints-${group}`}>
+        <select value={cur ?? ''} onChange={(e) => e.target.value && guidedApply((x) => void setAllJoints(x as Design, group, e.target.value as never))} data-testid={`g-joints-${group}`}>
+          {cur === undefined && (
+            <option value="" disabled>
+              {t('g.joints.mixed')}
+            </option>
+          )}
           {kinds.map((k) => (
             <option key={k} value={k}>
               {t(`conn.${k}` as 'conn.fold')}

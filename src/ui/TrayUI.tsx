@@ -78,8 +78,23 @@ export function TraySection({ panelId }: { panelId: string }) {
   if (!tray || tray.baseId !== panelId) return null;
   const mm = t('unit.mm');
   const bm = matOf(d, panelId);
-  const wallKinds = connectionsFor(bm, 90).filter((k) => k !== 'butt');
-  const cornerKinds = seamKinds(bm, 'corner');
+  // what the tray's joints are, not only what it was last given (milestone 135): one kind, or mixed
+  const now = (walls: boolean) => {
+    const n = new Map<ConnectionKind, number>();
+    for (const c of Object.values(d.connections)) if (c.trayId === tray.id && !c.wing && c.kind !== 'closure' && (walls ? c.grown && c.a.panelId === tray.baseId : !c.grown)) n.set(c.kind, (n.get(c.kind) ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1]);
+  };
+  const wallNow = now(true), cornerNow = now(false);
+  // a kind the tray's joints have is always listed (an open carton's walls stand edge to edge)
+  const wallKinds = [...new Set([...connectionsFor(bm, 90).filter((k) => k !== 'butt'), ...wallNow.map(([k]) => k)])];
+  const cornerKinds = [...new Set([...seamKinds(bm, 'corner'), ...cornerNow.map(([k]) => k)])];
+  const value = (n: [ConnectionKind, number][], stored: ConnectionKind) => (n.length > 1 ? '' : (n[0]?.[0] ?? stored));
+  const mixed = (n: [ConnectionKind, number][]) =>
+    n.length > 1 && (
+      <option value="" disabled>
+        {t('settings.mixed', { mix: n.map(([k, c]) => `${c} ${t(`conn.short.${k}` as 'conn.short.fold')}`).join(', ') })}
+      </option>
+    );
   const short = shortEdges(d, tray);
   const open = tray.openEdges.filter((k) => panelEdges(d.panels[panelId]).some((e) => e.key === k));
   return (
@@ -98,7 +113,8 @@ export function TraySection({ panelId }: { panelId: string }) {
       <Gate f="tray.joints">
       <div className="field">
         <label htmlFor="tray-wall-kind">{t('tray.wallJoint')}</label>
-        <select id="tray-wall-kind" value={tray.wallKind} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { wallKind: e.target.value as ConnectionKind }))} data-testid="tray-wall-kind">
+        <select id="tray-wall-kind" value={value(wallNow, tray.wallKind)} onChange={(e) => e.target.value && apply((x) => setTrayKinds(x, tray.id, { wallKind: e.target.value as ConnectionKind }))} data-testid="tray-wall-kind">
+          {mixed(wallNow)}
           {wallKinds.map((k) => (
             <option key={k} value={k}>
               {t(`conn.${k}` as 'conn.fold')}
@@ -108,7 +124,8 @@ export function TraySection({ panelId }: { panelId: string }) {
       </div>
       <div className="field">
         <label htmlFor="tray-corner-kind">{t('tray.cornerJoint')}</label>
-        <select id="tray-corner-kind" value={tray.cornerKind} onChange={(e) => apply((x) => setTrayKinds(x, tray.id, { cornerKind: e.target.value as ConnectionKind }))} data-testid="tray-corner-kind">
+        <select id="tray-corner-kind" value={value(cornerNow, tray.cornerKind)} onChange={(e) => e.target.value && apply((x) => setTrayKinds(x, tray.id, { cornerKind: e.target.value as ConnectionKind }))} data-testid="tray-corner-kind">
+          {mixed(cornerNow)}
           {cornerKinds.map((k) => (
             <option key={k} value={k}>
               {t(`conn.${k}` as 'conn.fold')}

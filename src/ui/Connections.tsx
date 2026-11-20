@@ -18,15 +18,19 @@ import { fmtNum } from '../i18n';
 import { BendSection } from './BendUI';
 import { CutChoice } from './SplitUI';
 import { connKindKey } from './connLabel';
-import { pairKinds } from '../model/jointDefaults';
+import { allowedKinds, pairKinds } from '../model/jointDefaults';
 import { shown, useFeature } from '../easy/features';
 import { bandOf } from '../model/bands';
 
+/**
+ * The kinds a joint's card offers: what the joint itself can take, by its angle or seam and both boards' materials
+ * (milestone 135: the same rule as the design card and the 3D label, so nothing offered is then ignored; before, the
+ * working material's kinds were offered, and a kind its boards' pair cannot take changed nothing).
+ */
 function kindsFor(d: Design, c: Connection): ConnectionKind[] {
   // a tray's rounded corner (milestone 64)
   if (c.wing) return pairKinds(d, c);
-  if (c.grown) return connectionsFor(d.material, c.angle);
-  return seamKinds(d.material, seamTypeOf(c));
+  return allowedKinds(d, c);
 }
 
 /** Corner angle of a closing corner seam (degrees), or null. */

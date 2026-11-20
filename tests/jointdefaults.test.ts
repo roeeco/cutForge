@@ -59,7 +59,7 @@ describe('setAllJoints', () => {
   it('plywood box, wall to base → tabs and slots: every wall changes, stands in, no overlap', () => {
     const { d } = box();
     const r = setAllJoints(d, 'base', 'tabslot');
-    expect(r).toEqual({ changed: 4, kept: 0 });
+    expect(r).toMatchObject({ changed: 4, kept: 0 });
     expect(grown(d).every((c) => c.kind === 'tabslot' && c.pref === 'tabslot' && c.offset >= 3)).toBe(true);
     expect(d.joints).toEqual({ plywood: { base: 'tabslot' } });
     autoConnect(d);
@@ -74,7 +74,7 @@ describe('setAllJoints', () => {
     setConnection(d, c0.id, { kind: 'butt' });
     expect(d.connections[c0.id].auto).toBe(false);
     const r = setAllJoints(d, 'corner', 'tabslot');
-    expect(r).toEqual({ changed: 4, kept: 0 });
+    expect(r).toMatchObject({ changed: 4, kept: 0 });
     expect(corners(d).every((c) => c.kind === 'tabslot')).toBe(true);
     expect(d.connections[c0.id].auto).toBe(false);
     expect(validate(d)).toEqual([]);
@@ -86,7 +86,7 @@ describe('setAllJoints', () => {
     const lean = growPanel(d, b, 0, { height: 30, angle: 60, dir: 'up', kind: 'fold' })!;
     growPanel(d, b, 2, { height: 30, angle: 90, dir: 'up', kind: 'fold' });
     const r = setAllJoints(d, 'base', 'tabslot');
-    expect(r).toEqual({ changed: 1, kept: 1 });
+    expect(r).toMatchObject({ changed: 1, kept: 1 });
     expect(d.connections[lean.connectionId].kind).toBe('fold');
   });
 

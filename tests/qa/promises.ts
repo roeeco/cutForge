@@ -1,7 +1,7 @@
 // Promise checks (milestone 134, QA_FIX_PLAN.md O1): what the user was promised, not only that the design holds
 // together. Shared by the QA repros (tests/qa) and the model fuzzer (tests/fuzz/fuzz.ts).
 import * as ops from '../../src/model/ops';
-import { allowedKinds, groupShown, jointGroup, ownerMaterial, type JointGroup } from '../../src/model/jointDefaults';
+import { allowedKinds, groupMix, groupOf, groupShown, ownerMaterial, type JointGroup } from '../../src/model/jointDefaults';
 import { validate } from '../../src/model/validate';
 import { blocking } from '../../src/easy/fix';
 import type { Design } from '../../src/model/types';
@@ -27,17 +27,17 @@ const byKey = (d: Design) => new Map(Object.values(d.connections).map((c) => [jo
 /** The joints `setAllJoints(d, group, kind)` promises to change (keys): in the group, of the working material, and allowed that kind. */
 export function promisedJoints(d: Design, group: JointGroup, kind: Kind): string[] {
   return Object.values(d.connections)
-    .filter((c) => jointGroup(c) === group && ownerMaterial(d, c).kind === d.material.kind && allowedKinds(d, c).includes(kind))
+    .filter((c) => groupOf(d, c) === group && ownerMaterial(d, c).kind === d.material.kind && allowedKinds(d, c).includes(kind))
     .map(jointKey);
 }
 
 /** The keys of a group's joints of the working material. */
 export function groupKeys(d: Design, group: JointGroup): string[] {
-  return Object.values(d.connections).filter((c) => jointGroup(c) === group && ownerMaterial(d, c).kind === d.material.kind).map(jointKey);
+  return Object.values(d.connections).filter((c) => groupOf(d, c) === group && ownerMaterial(d, c).kind === d.material.kind).map(jointKey);
 }
 
 export type JointOutcome = {
-  result: { changed: number; kept: number };
+  result: ops.JointChange;
   /** Joints the change promised. */
   promised: string[];
   /** Promised joints that ended with another kind, as `id=kind`. */
@@ -79,6 +79,8 @@ export function kindsOf(d: Design, keys: string[]): (Kind | undefined)[] {
  */
 export function shownLies(d: Design, group: JointGroup, also: string[] = []): string[] {
   const shown = groupShown(d, group);
+  // a list that says *Mixed* (milestone 135) is true when its joints do differ
+  if (shown === undefined) return groupMix(d, group).length > 1 ? [] : ['(no kind shown)'];
   const now = byKey(d);
   const out: string[] = [];
   for (const k of new Set([...groupKeys(d, group), ...also])) {

@@ -121,23 +121,49 @@ function groupDefaults(d: Design, group: JointGroup): ConnectionKind[] {
   return group === 'corner' ? seamKinds(m, 'corner') : [...connectionsFor(m, 90), ...seamKinds(m, 'face')];
 }
 
+/**
+ * The group a joint belongs to in a design (milestone 135): as `jointGroup`, except that a board grown off a board
+ * that is itself grown (a lid's hinge off a wall, a carton's tuck top) is not *wall to base*: its lid's own controls
+ * set it (REPORT.md §10.1 #6: *Wall to base → Glue* turned a tuck top's fold into a glue flap).
+ */
+export function groupOf(d: Design, c: Connection): JointGroup | null {
+  const g = jointGroup(c);
+  if (g !== 'base' || !c.grown) return g;
+  const onGrown = Object.values(d.connections).some((x) => x.grown && x.b.panelId === c.a.panelId);
+  return onGrown ? null : 'base';
+}
+
 /** Connections in a group. */
 export function groupConnections(d: Design, group: JointGroup): Connection[] {
-  return Object.values(d.connections).filter((c) => jointGroup(c) === group);
+  return Object.values(d.connections).filter((c) => groupOf(d, c) === group);
+}
+
+/** A group's joints carried by boards of the working material: the ones its list sets (milestone 135). */
+export function ownGroupJoints(d: Design, group: JointGroup): Connection[] {
+  return groupConnections(d, group).filter((c) => ownerMaterial(d, c).kind === d.material.kind);
 }
 
 /**
  * The kinds offered for a group: those allowed for at least one of its joints
- * (all a new joint could take while the group is empty), without repeats, in
- * the material's order.
+ * of the working material (all a new joint could take while there are none),
+ * without repeats, in the material's order. A kind only another material's
+ * boards could take is not offered: choosing it would change nothing
+ * (milestone 135, REPORT.md §10.1 #2).
  */
 export function groupKinds(d: Design, group: JointGroup): ConnectionKind[] {
-  const cs = groupConnections(d, group);
+  const cs = ownGroupJoints(d, group);
   const order = [...groupDefaults(d, group), ...cs.flatMap((c) => allowedKinds(d, c))];
   const ok = new Set(cs.length ? cs.flatMap((c) => allowedKinds(d, c)) : order);
   // a plywood living hinge is chosen joint by joint, never for every wall at once (milestone 63)
   const perJoint = (k: ConnectionKind) => k === 'fold' && d.material.kind === 'plywood';
   return [...new Set(order)].filter((k) => ok.has(k) && !perJoint(k));
+}
+
+/** How many of a group's joints (of the working material) have each kind, most first: more than one entry is a mixed group. */
+export function groupMix(d: Design, group: JointGroup): { kind: ConnectionKind; n: number }[] {
+  const n = new Map<ConnectionKind, number>();
+  for (const c of ownGroupJoints(d, group)) n.set(c.kind, (n.get(c.kind) ?? 0) + 1);
+  return [...n].map(([kind, k]) => ({ kind, n: k })).sort((a, b) => b.n - a.n);
 }
 
 /** The design's default kind for a group (the choices of `kind`, a material kind; default the working material's), if set and among `allowed`. */
@@ -146,16 +172,17 @@ export function designKind(d: Design, group: JointGroup, allowed: ConnectionKind
   return k && allowed.includes(k) ? k : undefined;
 }
 
-/** What a group's list shows: the design's choice, or the kind most of its joints have (ties: the material's order). */
+/**
+ * What a group's list shows: the kind its joints have (milestone 135: what they are, not what was last chosen).
+ * Undefined when they differ (the list shows *Mixed*, so choosing any kind applies it). A group with no joints shows
+ * the design's choice, else the first kind a new joint would take.
+ */
 export function groupShown(d: Design, group: JointGroup): ConnectionKind | undefined {
+  const mix = groupMix(d, group);
+  if (mix.length > 1) return undefined;
+  if (mix.length === 1) return mix[0].kind;
   const kinds = groupKinds(d, group);
-  const set = designKind(d, group, kinds);
-  if (set) return set;
-  const n = new Map<ConnectionKind, number>();
-  for (const c of groupConnections(d, group)) n.set(c.kind, (n.get(c.kind) ?? 0) + 1);
-  let best: ConnectionKind | undefined, most = 0;
-  for (const k of kinds) if ((n.get(k) ?? 0) > most) [best, most] = [k, n.get(k)!];
-  return best ?? kinds[0];
+  return designKind(d, group, kinds) ?? kinds[0];
 }
 
 /** Glue flap width for a joint: its own, else the design's, else the material's. */

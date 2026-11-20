@@ -7,7 +7,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useStore, useT, type SettingsSection } from '../store/store';
 import { NumField } from './NumField';
 import { setAllJoints, setDefaultFlap } from '../model/ops';
-import { groupKinds, groupShown, inactiveChoice, jointsOf, type JointGroup } from '../model/jointDefaults';
+import { groupKinds, groupMix, groupShown, inactiveChoice, jointsOf, type JointGroup } from '../model/jointDefaults';
+import type { JointChange } from '../model/ops';
 import { autoFlap } from '../model/seams';
 import type { ConnectionKind } from '../model/types';
 import { fmtNum } from '../i18n';
@@ -30,7 +31,7 @@ export function DesignSettings() {
   const prefs = useStore((s) => s.viewPrefs);
   const setPrefs = useStore((s) => s.setPrefs);
   const setM = useMaterialEdit();
-  const [result, setResult] = useState<{ group: JointGroup; changed: number; kept: number } | null>(null);
+  const [result, setResult] = useState<({ group: JointGroup; design: unknown } & JointChange) | null>(null);
   // Until the viewer opens or closes one, the template's sizes start open, and Joints too as long as
   // the card fits without scrolling (a short stage, under SHORT_STAGE px, starts with it closed).
   // A long template keeps its sizes open even when the card then scrolls: they are what it is for.
@@ -77,15 +78,18 @@ export function DesignSettings() {
     </div>
   );
   const tplSum = templateSummary(t, d);
-  const short_ = (k: ConnectionKind | undefined) => (k ? t(`conn.short.${k}` as 'conn.short.fold') : '–');
+  const short_ = (k: ConnectionKind | undefined) => (k ? t(`conn.short.${k}` as 'conn.short.fold') : t('settings.mixedShort'));
   const m = d.material;
   const mm = t('unit.mm');
   const paper = m.kind !== 'plywood';
   const choose = (group: JointGroup, kind: ConnectionKind) => {
-    let r = { changed: 0, kept: 0 };
+    let r: JointChange = { changed: 0, kept: 0, held: 0, dividers: 0, other: 0 };
     apply((x) => void (r = setAllJoints(x, group, kind)));
-    setResult({ group, ...r });
+    // the note belongs to this design as it now is: any later edit clears it (milestone 135)
+    setResult({ group, design: useStore.getState().design, ...r });
   };
+  // what a group's joints are, for the list: one kind, or *Mixed (3 Tabs, 1 Fingers)* (milestone 135)
+  const mixLabel = (group: JointGroup) => groupMix(d, group).map((x) => `${x.n} ${short_(x.kind)}`).join(', ');
   const list = (group: JointGroup, label: string) => {
     const kinds = groupKinds(d, group);
     const shown = groupShown(d, group);
@@ -93,7 +97,12 @@ export function DesignSettings() {
       <>
         <div className="field">
           <label htmlFor={`joints-${group}`}>{label}</label>
-          <select id={`joints-${group}`} value={shown ?? ''} onChange={(e) => choose(group, e.target.value as ConnectionKind)} data-testid={`joints-${group}`}>
+          <select id={`joints-${group}`} value={shown ?? ''} onChange={(e) => e.target.value && choose(group, e.target.value as ConnectionKind)} data-testid={`joints-${group}`} data-mixed={shown === undefined || undefined}>
+            {shown === undefined && (
+              <option value="" disabled>
+                {t('settings.mixed', { mix: mixLabel(group) })}
+              </option>
+            )}
             {kinds.map((k) => (
               <option key={k} value={k}>
                 {t(`conn.${k}` as 'conn.fold')}
@@ -114,9 +123,17 @@ export function DesignSettings() {
             </p>
           );
         })()}
-        {result?.group === group && (
-          <p className="note" data-testid={`joints-${group}-result`} data-changed={result.changed} data-kept={result.kept}>
-            {result.kept ? t('settings.kept', { n: result.changed, k: result.kept }) : t('settings.changed', { n: result.changed })}
+        {result?.group === group && result.design === d && (
+          <p className="note" data-testid={`joints-${group}-result`} data-changed={result.changed} data-kept={result.kept} data-held={result.held} data-dividers={result.dividers} data-other={result.other}>
+            {[
+              result.changed === 1 ? t('settings.changedOne') : t('settings.changed', { n: result.changed }),
+              result.dividers ? t('settings.dividersN', { n: result.dividers }) : '',
+              result.kept ? t('settings.keptN', { k: result.kept }) : '',
+              result.held ? t('settings.heldN', { h: result.held }) : '',
+              result.other ? t('settings.otherN', { o: result.other }) : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           </p>
         )}
       </>

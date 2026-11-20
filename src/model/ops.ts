@@ -32,7 +32,7 @@ const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x,
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
 import { keepingStatedSizes } from './boxSize';
 import { fitShapeSketch } from '../sketch/cutforge';
-import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg } from './edges';
+import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg, type EdgeSeg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
 const plain = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -140,6 +140,40 @@ function fitTrayKinds(d: Design) {
 }
 
 /** What a pass reads before it re-fits it: every joint's kind, the trays' kinds and their plans. */
+/**
+ * The part of a base's edge a tray wall standing `offset` in from it covers: the edge of the ring inset by `offset`.
+ * At an outside corner where the next edge also carries a wall of the tray standing in, the wall ends where the two
+ * inset lines meet (`offset / tan(θ/2)` from the corner, θ the base's inside angle there); elsewhere (an inside
+ * corner, an open side, a wall at the edge) it runs to the corner as before.
+ * Null: the whole edge (a wall at the edge, or nothing to shorten).
+ */
+function insetSpan(d: Design, parent: Panel, edge: string, offset: number, trayId: string): [number, number] | null {
+  if (offset <= 1e-6) return null;
+  const e = findEdge(parent, edge), nb = edgeNeighbours(parent, edge);
+  if (!e || !nb || isCurveKey(e.key)) return null;
+  const L = segLength(e);
+  const walled = (k: string) => Object.values(d.connections).some((x) => x.grown && x.trayId === trayId && x.a.panelId === parent.id && x.offset > 1e-6 && (x.a.edge === k || findEdge(parent, x.a.edge)?.key === k));
+  const dir = (s: EdgeSeg) => {
+    const dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, n = Math.hypot(dx, dy) || 1;
+    return { x: dx / n, y: dy / n };
+  };
+  const u = dir(e);
+  // the outline's turning direction (counter-clockwise: +1), so a turn reads as an inside angle either way
+  const orient = Math.sign(panelEdgesOf(parent).reduce((a, x) => a + x.a.x * x.b.y - x.b.x * x.a.y, 0)) || 1;
+  // the inset at one end: from the turn between the edge and its neighbour there
+  const cut = (other: EdgeSeg, before: boolean) => {
+    if (isCurveKey(other.key) || !walled(other.key)) return 0;
+    const v = dir(other);
+    const [p, q] = before ? [v, u] : [u, v];
+    const turn = Math.atan2(p.x * q.y - p.y * q.x, p.x * q.x + p.y * q.y);
+    const inside = Math.PI - turn * orient;
+    if (inside >= Math.PI - 1e-6 || inside <= 1e-6) return 0;
+    return offset / Math.tan(inside / 2);
+  };
+  const s0 = cut(nb[0], true), s1 = L - cut(nb[1], false);
+  return s1 - s0 > MIN_PANEL && (Math.abs(s0) > 1e-6 || Math.abs(L - s1) > 1e-6) ? [s0, s1] : null;
+}
+
 function extensionInputs(d: Design): string {
   // every joint's kind (tray walls are sized for theirs before the pass re-fits it), the trays' kinds and plans
   const kinds = Object.values(d.connections)
@@ -230,8 +264,10 @@ function solveOnce(d: Design) {
       // a fold cut so the net fits its sheet, or where the student asked (milestone 69)
       applyCut(d, c);
       if (c.trayId) c.offset = defaultOffset(d, c.kind, parent.id);
-      // part of the edge (a partial width), except for tray walls
-      const span = c.trayId ? null : c.span;
+      // part of the edge (a partial width); a tray wall standing in from the edge spans the inset ring's edge, so
+      // its ends meet its neighbours' instead of running past them (QA 2026-11-20 J-a: with tabs and slots into
+      // the base, the walls stood 3 mm in at full length, crossed at the corners and became half-laps)
+      const span = c.trayId ? insetSpan(d, parent, c.a.edge, c.offset, c.trayId) : c.span;
       child.frame = spanFrame(parent, c.a.edge, c.angle, c.dir, tOf(d, parent.id), seatingOf(c.kind), c.offset, span, tOf(d, child.id));
       const [s0, s1] = spanOf(parent, c.a.edge, span);
       child.w = s1 - s0;
@@ -1886,7 +1922,8 @@ export function applyJointChoices(d: Design) {
   const j = jointsOf(d);
   for (const g of ['base', 'corner'] as const) {
     const k = j?.[g];
-    if (k) setAllJoints(d, g, k);
+    // a joint the student set by hand keeps its kind (milestone 135, REPORT.md §10.1 #7)
+    if (k) setAllJoints(d, g, k, { keepPicked: true });
   }
 }
 
@@ -1909,6 +1946,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
     if (allowed.includes(patch.kind)) {
       applyKind(d, c, patch.kind, patch.offset !== undefined);
       c.auto = false;
+      // set by hand: a change of material keeps it (milestone 135)
+      c.picked = true;
     }
   }
   if (patch.fingers !== undefined) c.fingers = patch.fingers === null ? null : Math.max(3, Math.round(patch.fingers) | 1);
@@ -1952,24 +1991,40 @@ function applyKind(d: Design, c: Connection, kind: ConnectionKind, keepOffset = 
 }
 
 /**
+ * What a design-wide joint change did (milestone 135), counted after the design is solved, so it is what the boards
+ * now have: `changed` joints took the kind (`dividers` of them are dividers' joints, which *Wall to base* also sets);
+ * `kept` could not take it (angle, seam type); `held` took it and were set back by the box itself (a wall made to
+ * fold flat beside its neighbour, an open carton); `other` are on boards of another material, which keep that
+ * material's choices.
+ */
+export type JointChange = { changed: number; kept: number; held: number; dividers: number; other: number };
+
+/**
  * Design-wide joint kind for a group (*Wall to base* or *Corners*): every
  * joint of the group that may take `kind` takes it, including joints set by
- * hand (they stay hand-set or automatic as they were); trays take it for their
- * walls or corners where a tray allows it; and it becomes the default for new
- * joints of the group. Returns how many joints changed and how many kept
- * their kind because `kind` is not allowed for them (angle, seam type).
+ * hand (the choice is for all of them, so a hand pick is cleared); trays take
+ * it for their walls or corners where a tray allows it; and it becomes the
+ * default for new joints of the group. `keepPicked` (a change of material
+ * re-applying the stored choices) leaves joints set by hand as they are.
  */
-export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind): { changed: number; kept: number } {
-  let changed = 0, kept = 0;
+export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind, o: { keepPicked?: boolean } = {}): JointChange {
+  let kept = 0, other = 0;
+  // the joints asked to change, by the boards they join (the solve may make a joint again under a new id)
+  const asked = new Map<string, ConnectionKind>();
   for (const c of groupConnections(d, group)) {
     // the working material's choice: joints carried by boards of another material kind keep that kind's choices
-    if (ownerMaterial(d, c).kind !== d.material.kind) continue;
+    if (ownerMaterial(d, c).kind !== d.material.kind) {
+      if (c.kind !== kind) other++;
+      continue;
+    }
+    if (o.keepPicked && c.picked) continue;
     if (!allowedKinds(d, c).includes(kind)) {
       if (c.kind !== kind) kept++;
       continue;
     }
-    if (c.kind !== kind) changed++;
+    asked.set(pairKey(c.a.panelId, c.b.panelId), c.kind);
     applyKind(d, c, kind);
+    if (!o.keepPicked) delete c.picked;
   }
   for (const tray of Object.values(d.trays ?? {})) {
     const tm = matOf(d, tray.baseId);
@@ -1979,7 +2034,17 @@ export function setAllJoints(d: Design, group: JointGroup, kind: ConnectionKind)
   }
   patchJoints(d, { [group]: kind });
   solve(d);
-  return { changed, kept };
+  const now = new Map(Object.values(d.connections).map((c) => [pairKey(c.a.panelId, c.b.panelId), c]));
+  let changed = 0, held = 0, dividers = 0;
+  for (const [k, was] of asked) {
+    const c = now.get(k);
+    if (c?.kind !== kind) held++;
+    else if (was !== kind) {
+      changed++;
+      if (d.panels[c.a.panelId]?.divider || d.panels[c.b.panelId]?.divider) dividers++;
+    }
+  }
+  return { changed, kept, held, dividers, other };
 }
 
 /** The design's glue flap width (mm), replacing the automatic width on joints without their own; null: automatic. */

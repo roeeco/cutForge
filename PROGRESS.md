@@ -2283,6 +2283,20 @@ A glue flap or slit lock was sized only against the flat net, so folded it could
 
 Verified: typecheck; `npm test` (1572 passed, 18 expected fail; `wings.test.ts`'s timing test failed once under the full parallel run and passes alone, three times out of three).
 
+## Milestone 135 (QA fix round Q1) — joint changes made rigid ✅
+
+The owner's report: "when I change joint types, usually not all of them change, and sometimes nothing changes" (`REPORT.md` §10).
+- **The root cause (J-a, J-b, J-e, J-f):** a tray's walls with *Tabs and slots* into the base stand 3 mm in from its edge (room for the slots) but kept the base's full length, so their ends crossed; the join step then made the corners half-laps, out of every corner group. Every corner choice after that changed nothing, and the list kept showing the old one. Now a tray wall standing in spans the inset ring's edge (`insetSpan` in `ops.ts`): it ends where the inset lines meet at each outside corner whose next edge also has an inset wall (`offset / tan(θ/2)`). A 120 × 80 plywood tray's walls stand at 114 × 74 and keep their finger corners. Inside corners and open sides are as before.
+- **Lists show what the joints are:** `groupShown` is the kind the group's joints have; when they differ it is undefined and the list shows a disabled *Mixed (3 Glue flap, 1 Slit lock)*, so choosing any kind applies it. Same on the tray's own card (`TrayUI.tsx`, which also lists a kind its joints have that it would not offer, such as an open carton's edge-to-edge walls) and in Guided's *More about this box*.
+- **Only kinds that do something:** a list offers kinds the working material's joints can take (`ownGroupJoints`); a kind only another material's boards take is no longer offered. The part card offers `allowedKinds`, the same rule as the 3D joint label, so a kind it offers is never ignored by `setConnection`.
+- **What *Wall to base* covers:** `groupOf(d, c)`: a board grown off a grown board (a tuck top, a hinged lid) is not *wall to base*; its lid's controls set it. Dividers stay in it (milestone 23), and the note says how many of the changed joints were theirs.
+- **An honest note:** `setAllJoints` returns `JointChange` (`changed`, `kept`, `held`, `dividers`, `other`), counted after the solve by the boards each joint joins. The note says each part (*N joints changed. 9 of them are dividers' joints. 3 were set back by the box itself…*), and is cleared by the next edit.
+- **A joint set by hand is kept:** `setConnection` marks it `picked`; a change of material re-applies the design's choices to every other joint (`keepPicked`), and a design-wide choice still applies to all (it clears the mark).
+- New strings: `settings.changedOne`, `keptN`, `heldN`, `dividersN`, `otherN`, `mixed`, `mixedShort`, `g.joints.mixed`, and the short names `conn.short.lock`, `key`, `closure`.
+- Tests: 10 joint repros and the promise gate in `tests/qa` flipped to `it`; `jointdefaults.test.ts` reads the richer result. Over 120 fuzz seeds no promise is broken (the classes left, `idem:solve` and `roundtrip` on seed 6 and `flat:autoTrayOverlapsOther` on seed 82, were there before 135). The copy ratchet lost `settings.changed`.
+
+Verified: typecheck; `npm test` (1583 passed, 7 expected fail; `foldNet.test.ts`'s sphere test timed out once under the full parallel run and passes alone); in the dev server, the report's sequence on a card tray (*Corners → Slit lock*, *Wall to base → Tabs and slots*, *Corners → Glue flap*) changes 4 joints each time with true lists, and a hand-set corner shows *Mixed (3 Glue flap, 1 Slit lock)* until *Glue flap* changes the one left.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

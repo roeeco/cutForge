@@ -29,8 +29,10 @@ const ofGroup = (d: Design, g: 'base' | 'corner') => Object.values(d.connections
 const keysOf = groupKeys;
 
 describe('J-a / J-e: walls standing on the base change the corners behind the list', () => {
+  // fixed by milestone 135: a tray wall standing in from the base's edge spans the inset ring (ops.ts, insetSpan),
+  // so its corners still meet instead of crossing and turning into half-laps
   for (const [m, corner] of [[CARD, 'lock'], [PLY, 'tabslot']] as const)
-    it.fails(`${m.id}: after Wall to base → Tabs and slots, the Corners list shows what the corners are`, () => {
+    it(`${m.id}: after Wall to base → Tabs and slots, the Corners list shows what the corners are`, () => {
       const { d } = tray(m);
       changeGroup(d, 'corner', corner);
       const corners = keysOf(d, 'corner');
@@ -41,8 +43,8 @@ describe('J-a / J-e: walls standing on the base change the corners behind the li
 });
 
 describe('J-b / J-f: a corner choice is applied, or the list does not claim it', () => {
-  for (const [m, pick] of [[CARD, 'glue'], [PLY, 'butt']] as const)
-    it.fails(`${m.id}: Corners → ${pick} after the walls stand on the base`, () => {
+  for (const [m, pick] of [[CARD, 'lock'], [PLY, 'butt']] as const)
+    it(`${m.id}: Corners → ${pick} after the walls stand on the base`, () => {
       const { d } = tray(m);
       const corners = keysOf(d, 'corner');
       changeGroup(d, 'base', 'tabslot');
@@ -53,7 +55,7 @@ describe('J-b / J-f: a corner choice is applied, or the list does not claim it',
 });
 
 describe('§10.1 #1: a mixed group is shown as mixed', () => {
-  it.fails('one corner set by hand: the Corners list does not show a single kind', () => {
+  it('one corner set by hand: the Corners list does not show a single kind', () => {
     const { d } = grownBox();
     changeGroup(d, 'corner', 'tabslot');
     const one = ofGroup(d, 'corner')[0];
@@ -65,7 +67,7 @@ describe('§10.1 #1: a mixed group is shown as mixed', () => {
 });
 
 describe('§10.1 #2: a kind is offered only where the working material can take it', () => {
-  it.fails('plywood box with one card wall: Corners → Glue is not offered, or it changes the plywood corners', () => {
+  it('plywood box with one card wall: Corners → Glue is not offered, or it changes the plywood corners', () => {
     const { d, walls } = grownBox();
     ops.setPanelMaterial(d, [walls[0]], { ...CARD, id: 'card-x' });
     settle(d);
@@ -77,19 +79,21 @@ describe('§10.1 #2: a kind is offered only where the working material can take 
   });
 });
 
-describe('J-d / §10.1 #6: Wall to base covers walls only', () => {
-  it.fails('dividers keep their joints when Wall to base changes', () => {
+describe('J-d / §10.1 #6: what Wall to base covers', () => {
+  // milestone 135: dividers stay in *Wall to base* (milestone 23's rule, kept), and the note names them
+  it('the note says how many of the joints changed are dividers\' joints', () => {
     const { d, base } = tray(PLY, 160, 110, 45);
     const div = ops.addDivider(d, base, 0, 50, 40)!;
     settle(d);
     const joints = Object.values(d.connections).filter((c) => c.a.panelId === div || c.b.panelId === div).map(jointKey);
     expect(joints.length).toBeGreaterThan(0);
-    const before = kindsOf(d, joints);
-    changeGroup(d, 'base', 'butt');
-    // today: the divider's joints follow Wall to base (REPORT.md J-d: "13 joints changed")
-    expect(kindsOf(d, joints)).toEqual(before);
+    const r = changeGroup(d, 'base', 'butt');
+    const changedDiv = kindsOf(d, joints).filter((k) => k === 'butt').length;
+    expect(changedDiv).toBeGreaterThan(0);
+    expect(r.result.dividers).toBe(changedDiv);
+    expect(r.result.changed).toBe(r.promised.length - r.wrong.length - r.gone.length);
   });
-  it.fails("a carton's tuck lid still folds after Wall to base → Glue", () => {
+  it("a carton's tuck lid still folds after Wall to base → Glue", () => {
     const { d, t } = tray(CARD, 80, 60, 50);
     ops.setTrayEnds(d, t, { top: 'tuck' });
     settle(d);
@@ -101,7 +105,7 @@ describe('J-d / §10.1 #6: Wall to base covers walls only', () => {
 });
 
 describe('§10.1 #4: the count is what happened', () => {
-  it.fails('open-base carton: Wall to base → Glue changes what it says it changed', () => {
+  it('open-base carton: Wall to base → Glue changes what it says it changed', () => {
     const { d, t } = tray(CARD, 80, 60, 50);
     ops.setTrayEnds(d, t, { base: 'open' });
     settle(d);
@@ -111,7 +115,7 @@ describe('§10.1 #4: the count is what happened', () => {
 });
 
 describe('§10.1 #7: a joint set by hand is kept', () => {
-  it.fails('plywood → card → plywood keeps a corner set by hand', () => {
+  it('plywood → card → plywood keeps a corner set by hand', () => {
     const { d } = grownBox();
     changeGroup(d, 'corner', 'finger');
     const one = ofGroup(d, 'corner')[0];
