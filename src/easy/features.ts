@@ -100,6 +100,8 @@ export const FEATURES = {
   'flap.shape': 'hide',
   /** The welcome screen's *Sentence · Cards* switch and its card grid of named styles (C1). */
   'start.cards': 'show',
+  /** The material drawer's *More boards…* and its board grades (116). */
+  'drawer.grades': 'hide',
   /** The cut plan's *Sheets · Nets* switch, the Net view and its edge picking (113). */
   'plan.nets': 'hide',
   /** Building in *Nets*: the ghost, its height handle and ✓, the flap and board handles (114). */
@@ -205,6 +207,7 @@ export const GUIDED = {
   edgeFlap: 'hide',
   'flap.shape': 'hide',
   'start.cards': 'hide',
+  'drawer.grades': 'hide',
   'plan.nets': 'hide',
   'net.build': 'hide',
   match: 'hide',
@@ -280,6 +283,7 @@ export const SECTIONS: Record<string, Feature | null> = {
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
   'flap-shape': 'flap.shape',
+  'drawer-grades': 'drawer.grades',
   // milestone 104: the outline being edited in the 2D view
   'edit2d-section': 'edit2d',
   // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)

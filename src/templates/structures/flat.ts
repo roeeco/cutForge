@@ -14,8 +14,10 @@ import { toWorld } from '../../model/frame';
 import { FLAP_MIN_FAR } from '../../model/edgeFeatures';
 import { cleanAll, cleanWith } from './box';
 import { largestOk } from '../../sentence/resolve';
+import { foldsAsCarton } from '../../model/materials';
 
-const cardOnly = (m: MaterialProfile) => m.kind === 'card';
+// card that folds flat (milestone 116: not greyboard)
+const cardOnly = (m: MaterialProfile) => m.kind === 'card' && foldsAsCarton(m, 0);
 
 /** The slope (degrees) that leaves a flap's far edge `far` mm wide on an edge `L` long, `len` out. */
 function pointTaper(L: number, len: number, far = FLAP_MIN_FAR + 2): number {

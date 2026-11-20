@@ -1,6 +1,7 @@
 // Teacher view (#/teacher): sign in, classes and codes, submissions with
 // previews, downloads regenerated from the submitted project files (never a
 // submitted SVG), batching onto shared sheets with name labels, mark as cut.
+import { BOARD_GRADES, profileById } from '../model/boards';
 import { offered, PLAIN_IDS, PLAIN_THINGS } from '../easy/plainThings';
 import type { Mode } from '../easy/features';
 import { useEffect, useMemo, useState } from 'react';
@@ -174,7 +175,7 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                   id={`prof-${c.id}`}
                   value={c.material?.id ?? ''}
                   onChange={async (e) => {
-                    const m = MATERIALS.find((x) => x.id === e.target.value) ?? null;
+                    const m = profileById(e.target.value) ?? null;
                     await api.patchClass(c.id, { material: m });
                     reload();
                   }}
@@ -186,7 +187,15 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
                       {t(m.nameKey as MsgKey)}
                     </option>
                   ))}
-                  {c.material && !MATERIALS.some((m) => m.id === c.material!.id) && <option value={c.material.id}>{c.material.id}</option>}
+                  {/* milestone 116: a class can cut in a board grade */}
+                  <optgroup label={t('mat.grades')}>
+                    {BOARD_GRADES.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {t(m.nameKey as MsgKey)}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {c.material && !profileById(c.material.id) && <option value={c.material.id}>{c.material.id}</option>}
                 </select>
               </div>
             )}

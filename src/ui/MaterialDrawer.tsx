@@ -1,6 +1,7 @@
 // Material & sheet drawer: the material, its calibration values and the sheet
 // settings. This is the only place these appear, so the inspector stays about
 // the thing that is selected.
+import { ALL_PROFILES, BOARD_GRADES, FAMILIES } from '../model/boards';
 import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { NumField } from './NumField';
@@ -9,14 +10,14 @@ import { materialName } from './materialName';
 import { editMaterial, setMaterial, solve } from '../model/ops';
 import { changeMaterial } from '../templates/registry';
 import type { Design, MaterialProfile, PatternId } from '../model/types';
-import { fmtNum } from '../i18n';
+import { fmtNum, type MsgKey } from '../i18n';
 import { Icon } from './icons';
 import { MaterialArt } from './MaterialArt';
 import { downloadText, safeName } from './download';
 import { sheetToSvg } from '../export/svg';
 import { bendTestSheet, testPattern } from '../export/bendTest';
 import { patternsFor } from '../model/bendPatterns';
-import { useFeature } from '../easy/features';
+import { shown, useFeature } from '../easy/features';
 import { SplitSetting } from './SplitUI';
 
 /** Edit the material's values (thickness, kerf, clearance, …): the drawer and the settings card share it. */
@@ -47,8 +48,10 @@ export function MaterialDrawer() {
   }, []);
   const m = d.material;
   const [testWith, setTestWith] = useState<PatternId | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const gradesOk = shown(useFeature('drawer.grades'));
   const mm = t('unit.mm');
-  const base = MATERIALS.find((x) => x.id === m.id || `${x.id}-custom` === m.id);
+  const base = ALL_PROFILES.find((x) => x.id === m.id || `${x.id}-custom` === m.id);
   const choose = (mat: MaterialProfile) => {
     if (d.template) {
       const r = changeMaterial(d, mat);
@@ -78,6 +81,32 @@ export function MaterialDrawer() {
             </button>
           ))}
         </div>
+        {/* milestone 116: more boards, by family, behind a disclosure */}
+        {gradesOk && (
+          <>
+            <button className="link" aria-expanded={moreOpen} onClick={() => setMoreOpen((x) => !x)} data-testid="drawer-more">
+              {t('mat.more')}
+            </button>
+            {moreOpen && (
+              <div className="subsection drawer-grades" data-testid="drawer-grades">
+                {FAMILIES.map((f) => (
+                  <div key={f.family} className="grade-family">
+                    <h4>{t(`mat.family.${f.family}` as MsgKey)}</h4>
+                    <div className="mats">
+                      {[...f.builtIns.map((id) => ALL_PROFILES.find((x) => x.id === id)!), ...BOARD_GRADES.filter((g) => g.family === f.family)].map((x) => (
+                        <button key={x.id} className={`mat-mini ${base?.id === x.id ? 'on' : ''}`} aria-pressed={base?.id === x.id} onClick={() => base?.id !== x.id && choose(x)} data-testid={`drawer-grade-${x.id}`}>
+                          <MaterialArt kind={x.kind} thickness={x.thickness} />
+                          <span>{materialName(t, x)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="note">{t('mat.gradeNote')}</p>
+              </div>
+            )}
+          </>
+        )}
         <p className="note">{m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}</p>
         <div className="subsection" data-testid="drawer-calibration">
           <h4>{t('drawer.calibration')}</h4>

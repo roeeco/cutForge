@@ -1,10 +1,10 @@
 import { projectDesigns, projectOf, storeDesign } from '../store/persist';
+import { profileById } from '../model/boards';
 import { openProjectFile } from './openFile';
 import { migrateDesign } from '../model/serialize';
 import { useEffect, useRef, useState } from 'react';
 import { SubmitDialog } from './SubmitDialog';
 import { useStore, useT } from '../store/store';
-import { MATERIALS } from '../model/materials';
 import { duplicateDesign, createDesign } from '../model/ops';
 import { serializeProject, serializeProjectGroup } from '../model/serialize';
 import { downloadText, safeName } from './download';
@@ -39,7 +39,7 @@ export function TopBar() {
     };
   }, [more]);
   const d = s.design;
-  const builtIn = MATERIALS.find((m) => m.id === d.material.id);
+  const builtIn = profileById(d.material.id);
   useEffect(() => {
     if (!menu) return;
     const close = (e: PointerEvent) => !menuRef.current?.contains(e.target as Node) && setMenu(false);

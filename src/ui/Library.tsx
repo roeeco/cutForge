@@ -1,12 +1,12 @@
 // Your designs (milestone 86, LIDS_LINES_PROJECTS_PLAN.md §8): the library on
 // the start screen, newest first, from the cards alone (no design is loaded
 // to list it). Open, Duplicate, Rename, Delete; Recently deleted for 30 days.
+import { profileById } from '../model/boards';
 import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { listDesigns, listProjects, loadDesign, projectNamed, renameDesign, setDeleted, setProject, storeDesign, type DesignMeta, type ProjectMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { duplicateDesign } from '../model/ops';
-import { MATERIALS } from '../model/materials';
 import { MaterialArt } from './MaterialArt';
 import { Icon } from './icons';
 
@@ -36,7 +36,7 @@ export function Library() {
   if (!list || (!list.live.length && !list.deleted.length)) return null;
   const date = (ms: number) => new Date(ms).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const card = (m: DesignMeta, i: number) => {
-    const mat = MATERIALS.find((x) => x.id === m.material);
+    const mat = profileById(m.material);
     return (
       <div className="lib-card" key={m.id} data-testid={`lib-card-${i}`} data-id={m.id}>
         <button className="lib-open" onClick={() => void openFromLibrary(m.id)} data-testid={`lib-open-${i}`}>

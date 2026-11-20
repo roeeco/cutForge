@@ -1141,3 +1141,7 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .net-ghost text { fill: var(--ink-muted); }
 .net-handle { fill: #fff; stroke: #1fb8ac; stroke-width: 2px; vector-effect: non-scaling-stroke; cursor: grab; }
 .net-handle.grow-h { fill: #1fb8ac; }
+
+/* milestone 116: the drawer's board grades */
+.drawer-grades .grade-family h4 { margin: 8px 0 4px; }
+.drawer-grades .mats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }

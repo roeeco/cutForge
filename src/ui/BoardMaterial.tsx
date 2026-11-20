@@ -1,6 +1,7 @@
 // A board's own material (milestone 36): the card's material list. Choosing a
 // material sets the board's colour, thickness and joints; the note says which
 // joints changed kind because of it.
+import { BOARD_GRADES, profileById } from '../model/boards';
 import { useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { MATERIALS, matIdOf, matOf, materialsInUse } from '../model/materials';
@@ -43,7 +44,7 @@ export function BoardMaterial({ ids }: { ids: string[] }) {
     if (v === CUSTOM) return setCustom({ kind: m.kind, thickness: m.thickness });
     setCustom(null);
     if (v === SAME) return choose(null);
-    const prof = inUse.find((u) => u.id === v)?.profile ?? MATERIALS.find((x) => x.id === v);
+    const prof = inUse.find((u) => u.id === v)?.profile ?? profileById(v);
     if (prof) choose(prof);
   };
   const makeCustom = () => {
@@ -75,6 +76,14 @@ export function BoardMaterial({ ids }: { ids: string[] }) {
           )}
           <optgroup label={t('board.builtIn')}>
             {builtIns.map((x) => (
+              <option key={x.id} value={x.id}>
+                {materialName(t, x)}
+              </option>
+            ))}
+          </optgroup>
+          {/* milestone 116: the board grades */}
+          <optgroup label={t('mat.grades')}>
+            {BOARD_GRADES.filter((x) => x.id !== d.material.id && !inUse.some((u) => u.id === x.id)).map((x) => (
               <option key={x.id} value={x.id}>
                 {materialName(t, x)}
               </option>

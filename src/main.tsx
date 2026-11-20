@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { profileById } from './model/boards';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles.css';
@@ -6,7 +7,6 @@ import { useStore } from './store/store';
 import * as ops from './model/ops';
 import { validate } from './model/validate';
 import { defaults, generate, templateById } from './templates/registry';
-import { MATERIALS } from './model/materials';
 import { loadBundledFonts, onFontsChange } from './text/fonts';
 
 // Fonts load in the background; when they arrive, panels with text are
@@ -29,7 +29,7 @@ if (import.meta.env.DEV || location.search.includes('test'))
     issues: () => validate(useStore.getState().design).map((i) => i.key),
     // a preset the welcome screen no longer lists (the organiser, milestone 98), started as the old card did
     startTemplate: (id: string, matId: string) => {
-      const t = templateById(id), m = MATERIALS.find((x) => x.id === matId);
+      const t = templateById(id), m = profileById(matId);
       if (t && m) useStore.getState().replaceDesign(generate(t, m, defaults(t)), false);
     },
   };

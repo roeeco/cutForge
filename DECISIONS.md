@@ -599,3 +599,10 @@ Defaults chosen where the brief left room. Each is reversible.
 ## The batch's kiss-score note (20 November)
 - **In English, the export's own words**: a teacher's batch mixes students and has no student language; the note is the same as a student's English export.
 - **Note above, owner below** on a kiss-scored piece, so the two never overlap.
+
+## Milestone 116: board grades (DIELINE_DNA_PLAN.md D5b)
+- **Greyboard is card with a folding ceiling** (`CARD_FOLD_MAX = 1` mm, `foldsAsCarton`), one rule for the sentence's structures, Guided's carton and Quick build's *Carton*: no new material kind and no `folds` field.
+- **The built-in corrugated boards are not repeated as grades**: the drawer's corrugated family shows corr-1.6 and corr-4 themselves.
+- **Kerf by √(t / t₀)** from the nearest classroom board, rounded to 0.05 mm; clearance as that board's (plywood 0.1); fold allowance 0. Greyboard's bend: smooth radius 20t, pattern radius 6t (starting values, unverified).
+- **Hidden in Quick build and Guided** (`'drawer.grades'`); the welcome screen's step 1 keeps the four classroom materials.
+- **B flute 3 mm makes cartons with shipping flaps** (C2's rule for corrugated up to 4 mm), not none as the handoff's test list assumed.

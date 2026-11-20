@@ -7,7 +7,7 @@ import type { Design, DetailOp, DetailShape, DividerRec, MaterialProfile, P2, V3
 import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
 import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
-import { tOf } from '../model/materials';
+import { foldsAsCarton, tOf } from '../model/materials';
 import { effectiveGrow, growWith } from '../views/ghost';
 import { heightTargets } from '../model/adapt';
 import { boxLid, setBoxLid, wallClosesBox } from './lid';
@@ -85,7 +85,8 @@ export function boxTray(d: Design, baseId: string, height: number, kind: BoxKind
 export function boxRecipe(d: Design, f: Footprint, height: number, kind: BoxKind = 'open'): { baseId: string } | null {
   const baseId = addBoxBase(d, f);
   if (!baseId) return null;
-  boxTray(d, baseId, height, kind === 'carton' && (d.material.kind === 'plywood' || f.kind !== 'rect') ? 'open' : kind);
+  // a carton needs a board that folds (milestone 116: card up to 1 mm, corrugated up to 4 as before) and a rectangle
+  boxTray(d, baseId, height, kind === 'carton' && (!foldsAsCarton(d.material, 4) || f.kind !== 'rect') ? 'open' : kind);
   return { baseId };
 }
 

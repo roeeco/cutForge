@@ -13,6 +13,7 @@ import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { holeRecipe } from '../../easy/recipes';
 import { cleanAll, cleanWith, frontWall, mainTray, nameRoles } from './box';
 import { largestOk } from '../../sentence/resolve';
+import { foldsAsCarton } from '../../model/materials';
 
 /** A carton (milestone 68): an open base, its walls one strip glued at one corner, its ends closed. The golden designs are made with this. */
 export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBottom, w = 80, d0 = 55, h = 100): Design {
@@ -24,10 +25,11 @@ export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBotto
 }
 
 /** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
-const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' || v === 'gable' ? m.kind === 'card' : folds(m, 2));
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' || v === 'gable' ? m.kind === 'card' && foldsAsCarton(m, 0) : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
-const folds = (m: MaterialProfile, most: number) => m.kind === 'card' || (m.kind === 'corrugated' && m.thickness <= most);
+// (milestone 116: card up to 1 mm; greyboard is card, and does not fold into a carton)
+const folds = (m: MaterialProfile, most: number) => foldsAsCarton(m, most);
 
 function sizeParams(h: number): ParamDef[] {
   return [

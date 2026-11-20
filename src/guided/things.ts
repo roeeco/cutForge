@@ -1,6 +1,7 @@
 // Guided's gallery (milestone 106, GUIDED_MODE.md §3.1): the things a student can start from. The missions,
 // then the plain things, each one of the sentence's structures with set words (ROADMAP §5.2 #3): this file
 // holds only words, never a recipe.
+import { foldsAsCarton } from '../model/materials';
 import type { Design, MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { defaults, generate, templateById } from '../templates/registry';
@@ -42,7 +43,7 @@ export const PLAIN: Thing[] = [
   { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside' }) },
   { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside', lid: 'liftoff' }) },
   { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' }) },
-  { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m) && (m.kind === 'card' || m.thickness <= 2), why: 'g.thing.cartonNo', start: plain('carton', {}) },
+  { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m) && foldsAsCarton(m, 2), why: 'g.thing.cartonNo', start: plain('carton', {}) },
 ];
 
 /** The missions Guided offers (the Escape box needs hasps, which Guided does not have: owner question 8). */

@@ -13,8 +13,9 @@ import { trayRing } from '../../model/cartons';
 import { cleanAll, cleanWith, drawerShell, frontWall, mainTray } from './box';
 export { drawerShell };
 import { largestOk } from '../../sentence/resolve';
+import { foldsAsCarton } from '../../model/materials';
 
-const folds = (m: MaterialProfile) => m.kind === 'card' || (m.kind === 'corrugated' && m.thickness <= 4);
+const folds = (m: MaterialProfile) => foldsAsCarton(m, 4);
 
 
 const params: ParamDef[] = [

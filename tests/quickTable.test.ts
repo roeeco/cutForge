@@ -133,6 +133,7 @@ describe('the feature table (rule 3)', () => {
       'boardMaterial',
       'construction',
       'curves',
+      'drawer.grades',
       'edgeFlap',
       'edit2d',
       'exportCheck',

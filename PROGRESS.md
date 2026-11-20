@@ -1964,6 +1964,23 @@ Limitations
 Verified
 - `tests/regress/repro-batch-kiss-mirror.test.ts`: a one-design batch of a kiss-scored corrugated tray gives exactly the student's export's scores and cuts, with more guide text (the note and the name). It failed before the fix. The batch tests (`batch.test.ts`, `fuzz/batch.test.ts`, the batch regressions) pass; unit suite and typecheck green; goldens byte-identical.
 
+## Milestone 116 (Dieline D5b) — board grades ✅
+
+`DIELINE_DNA_PLAN.md` D5b; `HANDOFF_105-118.md` §116. New `src/model/boards.ts` (`BOARD_GRADES`, `FAMILIES`, `ALL_PROFILES`, `profileById`); `src/model/materials.ts` (`CARD_FOLD_MAX`, `foldsAsCarton`); `src/ui/MaterialDrawer.tsx`, `src/ui/BoardMaterial.tsx`, `src/teacher/TeacherApp.tsx`, `src/ui/materialName.ts`, `src/ui/TopBar.tsx`, `src/ui/Library.tsx`, `src/main.tsx`; the structures and Quick build's carton recipe; `src/easy/features.ts` (`'drawer.grades'`).
+- **Ten more boards** beside the four classroom materials: folding boxboard 0.3, 0.4 and 0.6 mm; greyboard 1, 1.5 and 2 mm (card, bending far less tightly); corrugated B flute 3 mm and double wall 7 mm; plywood 4 and 6 mm. Kerf scaled from the nearest classroom board by the square root of the thickness, its clearance (plywood 0.1), no fold allowance. Starting values, said so under the list.
+- **The material drawer's *More boards…*** (Workshop) lists them by family, each family's classroom board first; choosing one changes the material as the four buttons do (a stated inside size is kept). A board's own material and a teacher's class material offer the grades too.
+- **Card folds up to 1 mm**: greyboard over 1 mm makes no carton, sleeve, drawer or flat piece in the sentence and Quick build's *Carton* makes it an open box (it was offered folding cartons before, `HANDOFF_105-118.md` finding 3). Corrugated keeps its rules (cartons with shipping flaps up to 4 mm, sleeves up to 4 mm), so double wall 7 mm makes neither.
+- The welcome screen's step 1 keeps the four classroom materials.
+
+Verified
+- `tests/boardGrades.test.ts` (4): ten grades, none clashing with a built-in id, each found and named; every grade survives a save and load, cuts a tray (and the organiser where offered) with nothing blocking, and exports; greyboard over 1 mm folds into nothing, double wall makes no carton or sleeve, B flute a carton with shipping flaps only, thin boxboard folds as card; with the inside stated, card 0.5 → greyboard 2 mm keeps the inside to 1e-6 while the outside grows by 3 mm. The existing carton, size-intent, board-material and template tests unchanged.
+- `tests/e2e/grades.spec.ts` (2): Workshop's *More boards…* → *Greyboard 2 mm*, the pill names it and the box keeps its inside; no *More boards…* in Quick build.
+- Unit suite and typecheck green; goldens byte-identical (the grades are data).
+
+Limitations
+- Every grade's kerf, clearance and greyboard's bend are starting values, unverified on stock (D10's real-cut list).
+- Greyboard 1 mm folds (the ceiling is 1 mm inclusive).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

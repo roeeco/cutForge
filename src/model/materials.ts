@@ -15,6 +15,11 @@ export function materialById(id: string): MaterialProfile | undefined {
   return MATERIALS.find((m) => m.id === id);
 }
 
+/** The thickest card that folds into a carton (milestone 116: greyboard is card, and does not). */
+export const CARD_FOLD_MAX = 1;
+/** Does this board fold into a carton, a sleeve or a flat piece: card up to `CARD_FOLD_MAX`, corrugated up to `corrMax`? */
+export const foldsAsCarton = (m: Pick<MaterialProfile, 'kind' | 'thickness'>, corrMax: number) => (m.kind === 'card' && m.thickness <= CARD_FOLD_MAX + 1e-9) || (m.kind === 'corrugated' && m.thickness <= corrMax + 1e-9);
+
 export const ANGLES = [90, 60, 45, 30, 15] as const;
 
 /**
