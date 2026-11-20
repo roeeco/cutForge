@@ -33,10 +33,14 @@ export const STYLES: StyleDef[] = [
   { id: 'hingedTray', structure: 'box', words: { lid: 'hinged' }, group: 'boxes', uses: ['gift'], code: 'ECMA C30', status: 'stable' },
   { id: 'hexLid', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'liftoff' }, group: 'boxes', uses: ['gift'], status: 'stable' },
   { id: 'trayLid', structure: 'box', words: { lid: 'liftoff' }, group: 'boxes', uses: ['gift'], code: 'ECMA C20 / FEFCO 0301', status: 'stable' },
+  { id: 'drawerBox', structure: 'drawer', words: {}, group: 'boxes', uses: ['gift', 'jewelry'], status: 'stable' },
   // cartons
-  { id: 'rte', structure: 'carton', words: { top: 'tuck', bottom: 'tuck' }, group: 'cartons', uses: ['cosmetics', 'pharma'], code: 'ECMA A55', status: 'stable' },
+  { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },
+  { id: 'rte', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'opposite' }, group: 'cartons', uses: ['cosmetics', 'pharma'], code: 'ECMA A55', status: 'stable' },
   { id: 'tuckSnap', structure: 'carton', words: { top: 'tuck', bottom: 'snap' }, group: 'cartons', uses: ['retail'], code: 'ECMA A60', status: 'stable' },
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
+  // shipping
+  { id: 'rsc', structure: 'carton', words: { top: 'rsc', bottom: 'rsc' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0201', status: 'stable' },
   { id: 'openSleeve', structure: 'sleeve', words: {}, group: 'cartons', uses: ['cosmetics'], code: 'ECMA D10', status: 'stable' },
 ];
 
@@ -84,6 +88,6 @@ export const styleWord = (s: StyleDef) => `style.${s.id}.word` as MsgKey;
 export const styleDesc = (s: StyleDef) => `style.${s.id}.desc` as MsgKey;
 export const GROUPS: (StyleGroup | 'more')[] = ['boxes', 'cartons', 'shipping', 'flat', 'more'];
 /** Where each structure sits in the first word's list (a structure not named here goes last). */
-export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', carton: 'cartons', sleeve: 'cartons', stand: 'more' };
+export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', stand: 'more' };
 /** A style whose words are all its structure's own (no word fixed): the structure's entry stands for it. */
 export const isAlias = (s: StyleDef) => Object.keys(s.words).length === 0;

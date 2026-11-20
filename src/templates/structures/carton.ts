@@ -3,7 +3,7 @@
 // tuck, a snap-lock or four flaps underneath) and *a sleeve* (the tube with
 // both ends open). Card and thin corrugated only; on a board that does not
 // fold, a carton becomes a box with a lid that lifts off.
-import type { Design, MaterialProfile } from '../../model/types';
+import type { Design, MaterialProfile, TrayBottom, TrayTop } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { Limit, ParamDef, Params, TemplateDef } from '../types';
 import { addRootPanel, addTray, autoConnect, createDesign, setClosure } from '../../model/ops';
@@ -14,13 +14,16 @@ import { cleanAll, cleanWith, frontWall, mainTray, nameRoles } from './box';
 import { largestOk } from '../../sentence/resolve';
 
 /** A carton (milestone 68): an open base, its walls one strip glued at one corner, its ends closed. The golden designs are made with this. */
-export function cartonDesign(m: MaterialProfile, top: 'tuck' | 'seal', bottom: 'snap' | 'tuck' | 'seal', w = 80, d0 = 55, h = 100): Design {
+export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBottom, w = 80, d0 = 55, h = 100): Design {
   const d = createDesign(m);
   const base = addRootPanel(d, 0, 0, w, d0);
   addTray(d, base, h, { base: 'open', top, bottom });
   autoConnect(d);
   return d;
 }
+
+/** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
 const folds = (m: MaterialProfile, most: number) => m.kind === 'card' || (m.kind === 'corrugated' && m.thickness <= most);
@@ -65,7 +68,7 @@ function sizeLimits(def: TemplateDef) {
   };
 }
 
-function generateTube(d: Design, p: Params, ends: { top?: 'tuck' | 'seal'; bottom?: 'snap' | 'tuck' | 'seal' }, role: (name: string, id: string) => void) {
+function generateTube(d: Design, p: Params, ends: { top?: TrayTop; bottom?: TrayBottom }, role: (name: string, id: string) => void) {
   const as = (p.sizeAs as SizeAs) ?? 'inside';
   const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
   const base = addRootPanel(d, -W / 2, D / 2, W, D);
@@ -94,22 +97,32 @@ export const carton: TemplateDef = {
   word: 'sen.carton',
   status: 'stable',
   materials: ['card', 'corrugated'],
-  canMake: (m) => folds(m, 2),
+  // milestone C2: 4 mm corrugated makes a carton with shipping (RSC) flaps only; tucks, snap-locks and four-flap ends stay on thinner board
+  canMake: (m) => folds(m, 4),
   fallback: () => 'box',
   fallbackWords: { lid: 'liftoff' },
   params: [
     ...sizeParams(100),
     {
       key: 'top', label: 'sen.top', type: 'choice', default: 'tuck',
-      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }],
-      allowed: (v, p, m) => cleanWith(carton, m, p, 'top', v),
+      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }, { value: 'rsc', label: 'sen.top.rsc' }],
+      allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'top', v),
       why: () => 'sen.why.engine',
       affects: ['lid'],
     },
     {
       key: 'bottom', label: 'sen.bottom', type: 'choice', default: 'snap',
-      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }],
-      allowed: (v, p, m) => cleanWith(carton, m, p, 'bottom', v),
+      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }, { value: 'rsc', label: 'sen.bottom.rsc' }],
+      allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'bottom', v),
+      why: () => 'sen.why.engine',
+      affects: ['base'],
+    },
+    {
+      // milestone C2: a straight tuck end (both tucks off the back wall), said as a clause; absent, a reverse tuck
+      key: 'tuckFrom', label: 'sen.tuckFrom', type: 'choice', default: 'opposite', addon: { off: 'opposite' },
+      options: [{ value: 'opposite', label: 'sen.tuckFrom.opposite' }, { value: 'same', label: 'sen.tuckFrom.same' }],
+      when: (p) => p.top === 'tuck' && p.bottom === 'tuck',
+      allowed: (v, p, m) => v === 'opposite' || cleanWith(carton, m, p, 'tuckFrom', v),
       why: () => 'sen.why.engine',
       affects: ['base'],
     },
@@ -131,7 +144,7 @@ export const carton: TemplateDef = {
     },
     window,
   ],
-  generate: (d, p, role) => generateTube(d, p, { top: p.top as 'tuck' | 'seal', bottom: p.bottom as 'snap' | 'tuck' | 'seal' }, role),
+  generate: (d, p, role) => generateTube(d, p, { top: p.top as TrayTop, bottom: (p.bottom === 'tuck' && p.tuckFrom === 'same' ? 'tuckBack' : p.bottom) as TrayBottom }, role),
   sentence: { main: 'sen.s.carton' },
 };
 carton.limits = sizeLimits(carton);

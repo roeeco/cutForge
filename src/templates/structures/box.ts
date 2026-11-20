@@ -25,6 +25,12 @@ export function mainTray(d: Design): string | null {
   return Object.values(d.trays ?? {}).find((t) => !t.lidOf)?.id ?? null;
 }
 
+/** The sleeve's tray in a drawer's design (the second tray, not a lid). */
+export function drawerShell(d: Design): string | null {
+  const main = mainTray(d);
+  return Object.values(d.trays ?? {}).find((t) => !t.lidOf && t.id !== main)?.id ?? null;
+}
+
 /** The wall at the front of a box (on its base's first edge), if it is a flat board. */
 export function frontWall(d: Design, trayId: string): string | null {
   const t = d.trays?.[trayId];

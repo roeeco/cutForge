@@ -527,10 +527,10 @@ export type Tray = {
    * corner (the back left): a tube. Absent: a base that is cut.
    */
   base?: 'open';
-  /** Milestone 68: how the top closes: a tuck lid folded off the back wall (`tuck`), or four flaps (`seal`); absent: open. */
-  top?: 'tuck' | 'seal';
-  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`); absent: open (a sleeve). */
-  bottom?: 'seal' | 'snap' | 'tuck';
+  /** Milestone 68: how the top closes: a tuck lid folded off the back wall (`tuck`), or four flaps (`seal`); C2: a regular slotted container's flaps (`rsc`); absent: open. */
+  top?: TrayTop;
+  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`, off the front wall); C2: a straight tuck (`tuckBack`, off the back wall, as the top's) or RSC flaps (`rsc`); absent: open (a sleeve). */
+  bottom?: TrayBottom;
   /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
   curveKind?: 'teeth' | 'tabslot' | 'none';
   /** Milestone 71: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
@@ -538,6 +538,13 @@ export type Tray = {
   /** A lid of its own moved by the student (milestone 76): where it lies beside its box, the corner of its outline nearest the box's front left, in the box base's coordinates. Absent: at the box's front right, 20 mm clear. */
   lidAt?: { x: number; y: number };
 };
+
+/** How a carton's top closes (milestones 68, C2). */
+export type TrayTop = 'tuck' | 'seal' | 'rsc';
+/** How a carton's open base closes (milestones 68, C2). */
+export type TrayBottom = 'seal' | 'snap' | 'tuck' | 'tuckBack' | 'rsc';
+export const TRAY_TOPS: TrayTop[] = ['tuck', 'seal', 'rsc'];
+export const TRAY_BOTTOMS: TrayBottom[] = ['seal', 'snap', 'tuck', 'tuckBack', 'rsc'];
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';

@@ -537,3 +537,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A style with no words of its own** (Open tray, Open sleeve) is not a second entry in the sentence's list: its structure's entry carries its name. It is a card of its own in the grid.
 - **Trade codes are kept but not shown** until the owner checks each (the sentence plan's decision).
 - **These milestones keep letters (C1–C5)**: ROADMAP §5.3 gives 119–133 to the shapes-to-dielines plan.
+
+## Milestone C2: straight tuck, RSC, drawer (SENTENCE_STYLES_PLAN.md)
+- **4 mm corrugated makes a carton with shipping (RSC) flaps only**; tucks, snap-locks and four-flap ends stay on card and corrugated up to 2 mm. Shipping boxes are what 4 mm board is for. (Guided's plain *Carton* keeps the old rule: its carton tucks.)
+- **The straight tuck is a clause, not a third bottom option** in the sentence: *with a top that tucks in and a bottom that tucks in, both tucking in from the back*. The tray card lists it as a bottom kind of its own (`tuckBack`).
+- **The four-flap end stays FEFCO 0204** (all flaps meet); the RSC is a new end, so no golden changed.
+- **The drawer's sleeve is measured, not calculated**: it is sized from the tray as built, so the sleeve follows whatever the tray's walls and joints make its outside.
+- **Tests import the template registry first** (as `goldenDesigns.ts` does): the structures import each other through it.

@@ -1,7 +1,7 @@
 // Milestone 96 (SENTENCE_BUILDER_PLAN.md S3): the carton and the sleeve.
 import { describe, expect, it } from 'vitest';
 import { MATERIALS } from '../src/model/materials';
-import { chooseMaterial, chooseStructure } from '../src/sentence/resolve';
+import { chooseMaterial, chooseStructure, listOf } from '../src/sentence/resolve';
 import { defaults, generate, STRUCTURES, templateById } from '../src/templates/registry';
 import { makes } from '../src/templates/types';
 import { prepareExport } from '../src/export/prepare';
@@ -23,11 +23,15 @@ describe('every carton and sleeve the lists allow builds clean', () => {
 });
 
 describe('structures and materials', () => {
-  it('plywood lists neither a carton nor a sleeve; thick corrugated no carton', () => {
+  it('plywood lists neither a carton nor a sleeve; thick corrugated a carton with shipping flaps only (C2)', () => {
     expect(STRUCTURES().filter((t) => makes(t, PLY)).map((t) => t.id)).not.toEqual(expect.arrayContaining(['carton']));
     expect(STRUCTURES().filter((t) => makes(t, PLY)).map((t) => t.id)).not.toContain('sleeve');
-    expect(makes(carton, CORR4)).toBe(false);
+    expect(makes(carton, CORR4)).toBe(true);
     expect(makes(sleeve, CORR4)).toBe(true);
+    const p = chooseStructure(carton, CORR4, defaults(box)).params;
+    expect([p.top, p.bottom]).toEqual(['rsc', 'rsc']);
+    expect(listOf(carton, CORR4, p, 'top')).toEqual(['rsc']);
+    expect(listOf(carton, CORR4, p, 'bottom')).toEqual(['rsc']);
   });
 
   it('box → carton → box keeps the sizes and the window', () => {

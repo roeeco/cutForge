@@ -42,7 +42,7 @@ export const PLAIN: Thing[] = [
   { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside' }) },
   { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside', lid: 'liftoff' }) },
   { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' }) },
-  { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m), why: 'g.thing.cartonNo', start: plain('carton', {}) },
+  { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m) && (m.kind === 'card' || m.thickness <= 2), why: 'g.thing.cartonNo', start: plain('carton', {}) },
 ];
 
 /** The missions Guided offers (the Escape box needs hasps, which Guided does not have: owner question 8). */

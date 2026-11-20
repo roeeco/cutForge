@@ -1786,6 +1786,24 @@ Limitations
 - Trade codes are stored but not shown until the owner checks them.
 - Guided's gallery does not show the styles yet (its things are still the plain structures).
 
+## Milestone C2 (Styles) — straight tuck end, the regular slotted container, the drawer box ✅
+
+`SENTENCE_STYLES_PLAN.md` C2. `src/model/types.ts` (`TrayTop`, `TrayBottom`), `src/model/cartons.ts` (`tuckBack`, `rsc` ends), `src/model/check.ts`, `src/model/ops.ts`, `src/ui/CornersUI.tsx`, `src/templates/structures/carton.ts`, new `src/templates/structures/drawer.ts`, `src/templates/structures/box.ts` (`drawerShell`), `src/templates/styles.ts`, `src/guided/things.ts`.
+- **Straight tuck end**: a carton's bottom tuck can fold off the back wall, like its top (`Tray.bottom: 'tuckBack'`), its lip turning up inside the front. In the sentence it is a clause, *both tucking in from the back* (`tuckFrom`), offered when the top and the bottom both tuck; without it the carton is a reverse tuck. The tray card's *Bottom* list has *Tuck flap off the back (straight)*.
+- **Regular slotted container** (FEFCO 0201): an `rsc` end for a carton's top and bottom. Every flap half the box's smaller side deep, straight slots between flaps; the long sides' flaps meet in the middle and the short sides' leave a gap. The four-flap end made before is FEFCO 0204 (all flaps meet) and stays as it was. Corrugated only; **4 mm corrugated now makes a carton**, with these ends only.
+- **The drawer box**: a new structure, *a drawer box whose drawer is … wide, … deep and … mm tall*. An open tray, and a sleeve sized from the tray as built (its outside, plus the board's clearance twice across and once over the top), cut beside it as a tube with a thumb notch at each open end. Changing a size re-sizes the sleeve. Card and corrugated; on plywood it becomes a box with a lid that lifts off.
+- **Three more styles**: *Straight tuck end*, *Shipping box (RSC)* (a group of its own, *Shipping*), *Drawer box*.
+- Guided's plain *Carton* keeps its own rule (card and thin corrugated): its carton tucks.
+
+Verified
+- `tests/c2.test.ts` (4): the reverse tuck's big bottom flap is on the front wall and the straight tuck's on the back; an RSC of 300 × 200 × 200 in 4 mm corrugated has four flaps per end, each just under 100 mm deep; the drawer's sleeve inside is the tray's outside plus the clearance (and follows a change of width), with two thumb notches on one face; no drawer on plywood. `tests/sentence.carton.test.ts`: thick corrugated now offers a carton with shipping flaps top and bottom only.
+- New goldens `carton-card-straight-tuck`, `carton-corr4-rsc`, `drawer-card` (looked at); every older golden byte-identical.
+- `start-sentence.spec.ts`: every structure and style the sentence lists starts clean in every material (the drawer, the straight tuck and the RSC on 4 mm included). Unit suite and typecheck green.
+
+Limitations
+- The RSC's slot width (the walls' gap at the corners) is the four-flap end's; real slotted containers use about one thickness, to check on stock.
+- The drawer's sleeve is cut standing on end beside the tray; in the model it does not hold the drawer.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

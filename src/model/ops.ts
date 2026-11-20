@@ -8,7 +8,7 @@ import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape, TrayBottom, TrayTop } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
@@ -2254,7 +2254,7 @@ export function setEdgeFlap(d: Design, panelId: string, edge: string, patch: num
  * fold off each other, glued at one corner), and how its top and an open
  * bottom close. An open base's walls are not joined to it.
  */
-export function setTrayEnds(d: Design, trayId: string, patch: { base?: 'cut' | 'open'; top?: 'open' | 'tuck' | 'seal'; bottom?: 'open' | 'seal' | 'snap' | 'tuck' }) {
+export function setTrayEnds(d: Design, trayId: string, patch: { base?: 'cut' | 'open'; top?: 'open' | TrayTop; bottom?: 'open' | TrayBottom }) {
   const t = d.trays[trayId];
   if (!t) return;
   if (patch.base === 'open') {

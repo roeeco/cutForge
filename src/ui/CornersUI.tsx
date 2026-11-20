@@ -8,7 +8,7 @@ import { closingCorner, curveKindOf, curveKinds, trayCorners, wingId, wingKinds 
 import { matOf } from '../model/materials';
 import { panelLabel } from '../model/names';
 import { connKindKey } from './connLabel';
-import type { ConnectionKind, Tray } from '../model/types';
+import type { ConnectionKind, Tray, TrayBottom, TrayTop } from '../model/types';
 import { shown, useFeature } from '../easy/features';
 
 export function TrayCorners({ tray }: { tray: Tray }) {
@@ -87,20 +87,23 @@ export function TrayEnds({ tray }: { tray: Tray }) {
       </div>
       <div className="field">
         <label htmlFor={`tt-${tray.id}`}>{t('carton.top')}</label>
-        <select id={`tt-${tray.id}`} value={tray.top ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { top: e.target.value as 'open' | 'tuck' | 'seal' }))} data-testid="tray-top">
+        <select id={`tt-${tray.id}`} value={tray.top ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { top: e.target.value as 'open' | TrayTop }))} data-testid="tray-top">
           <option value="open">{t('carton.open')}</option>
           <option value="tuck">{t('carton.tuck')}</option>
           {four && <option value="seal">{t('carton.seal')}</option>}
+          {four && <option value="rsc">{t('carton.rsc')}</option>}
         </select>
       </div>
       {tray.base === 'open' && (
         <div className="field">
           <label htmlFor={`tbo-${tray.id}`}>{t('carton.bottom')}</label>
-          <select id={`tbo-${tray.id}`} value={tray.bottom ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { bottom: e.target.value as 'open' | 'seal' | 'snap' | 'tuck' }))} data-testid="tray-bottom" disabled={!four}>
+          <select id={`tbo-${tray.id}`} value={tray.bottom ?? 'open'} onChange={(e) => apply((x) => setTrayEnds(x, tray.id, { bottom: e.target.value as 'open' | TrayBottom }))} data-testid="tray-bottom" disabled={!four}>
             <option value="open">{t('carton.open')}</option>
             <option value="snap">{t('carton.snap')}</option>
             <option value="tuck">{t('carton.tuck')}</option>
+            <option value="tuckBack">{t('carton.tuckBack')}</option>
             <option value="seal">{t('carton.seal')}</option>
+            <option value="rsc">{t('carton.rsc')}</option>
           </select>
         </div>
       )}

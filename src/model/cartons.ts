@@ -65,7 +65,7 @@ export function planOpenTrays(d: Design) {
 }
 
 /** The tray's back wall (its edge's middle furthest back) and front wall (furthest forward). */
-function backAndFront(d: Design, t: Tray): { back?: { wall: string; edge: string }; front?: { wall: string; edge: string } } {
+export function backAndFront(d: Design, t: Tray): { back?: { wall: string; edge: string }; front?: { wall: string; edge: string } } {
   const base = d.panels[t.baseId];
   const ring = trayRing(d, t);
   if (!base || !ring.length) return {};
@@ -129,7 +129,7 @@ export function wantedEnds(d: Design): { id: string; tray: Tray; end: 'top' | 'b
   const out: { id: string; tray: Tray; end: 'top' | 'bottom' }[] = [];
   for (const t of Object.values(d.trays ?? {})) {
     if (trayRing(d, t).length !== 4) continue;
-    if (t.top === 'seal') out.push({ id: endId(t, 'top'), tray: t, end: 'top' });
+    if (t.top === 'seal' || t.top === 'rsc') out.push({ id: endId(t, 'top'), tray: t, end: 'top' });
     if (t.base === 'open' && t.bottom) out.push({ id: endId(t, 'bottom'), tray: t, end: 'bottom' });
   }
   return out;
@@ -175,7 +175,7 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
   const B = d.panels[back.wall], F = d.panels[front.wall];
   if (!B || !F || sides.length !== 2) return null;
   const top = w.end === 'top';
-  const style = top ? 'seal' : (t.bottom ?? 'seal');
+  const style = top ? (t.top === 'rsc' ? 'rsc' : 'seal') : (t.bottom ?? 'seal');
   const g = empty();
   const m = matOf(d, B.id), tW = m.thickness;
   // the box's inside: width (along the front) and depth (front to back)
@@ -238,29 +238,37 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
     // 4: the front flap, with a tongue that locks under the back flap's notch
     const hf = depth * 0.5, tw = notch - 2;
     flap(F, [{ x: tW, y: -0.01 }, { x: LF - tW, y: -0.01 }, { x: LF - tW, y: hf }, { x: LF / 2 + tw / 2, y: hf }, { x: LF / 2 + tw / 2 - 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2 + 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2, y: hf }, { x: tW, y: hf }]);
-  } else if (style === 'tuck') {
+  } else if (style === 'rsc') {
+    // a regular slotted container (FEFCO 0201, C2): every flap half the box's smaller side deep, straight slots between them;
+    // the long sides' flaps meet in the middle, the short sides' leave a gap
+    const f = Math.max(8, Math.min(width, depth) / 2 - 0.5);
+    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 0.5, tW + 0.5, f));
+    for (const P of [B, F]) flap(P, rect(along(P), 0.5, 0.5, f));
+  } else if (style === 'tuck' || style === 'tuckBack') {
+    // a reverse tuck folds off the front wall and its lip turns up inside the back; a straight tuck (C2) off the back, up inside the front
+    const [P, Q] = style === 'tuckBack' ? [B, F] : [F, B];
     // a reverse tuck bottom: dust flaps on the sides, the front wall's flap the whole depth with a lip
     for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 1, tW + 1, Math.max(8, 0.45 * width), 4));
-    const LF = along(F), lip = Math.min(22, Math.max(12, 0.3 * depth));
+    const LF = along(P), lip = Math.min(22, Math.max(12, 0.3 * depth));
     const r = 4;
     const lipShape: P2[] = [{ x: LF - tW - 0.5, y: depth }, { x: LF - tW - 0.5, y: depth + lip - r }, { x: LF - tW - 0.5 - r, y: depth + lip }, { x: tW + 0.5 + r, y: depth + lip }, { x: tW + 0.5, y: depth + lip - r }, { x: tW + 0.5, y: depth }];
     // in 3D the flap folds flat across the bottom and its lip turns up inside the back wall
     // (folded flat with the flap it ran on out past the back wall)
-    flap(F, [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, ...lipShape, { x: 0.5, y: depth }], [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, { x: 0.5, y: depth }]);
-    const eF = findEdge(F, 'e0');
+    flap(P, [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, ...lipShape, { x: 0.5, y: depth }], [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, { x: 0.5, y: depth }]);
+    const eF = findEdge(P, 'e0');
     if (eF) {
       const L = segLength(eF), sx = (eF.b.x - eF.a.x) / L, sy = (eF.b.y - eF.a.y) / L;
-      const mF = matDir(F.frame), upB = B.frame.v;
+      const mF = matDir(P.frame), upB = Q.frame.v;
       const lipOnBack = lipShape.map((q) => {
         // across the bottom to the back wall's inside, then up it
-        const w = toWorld(F.frame, eF.a.x + sx * q.x, eF.a.y + sy * q.x, 0);
+        const w = toWorld(P.frame, eF.a.x + sx * q.x, eF.a.y + sy * q.x, 0);
         const up = q.y - depth;
-        return toLocal(B.frame, [w[0] + mF[0] * depth + upB[0] * up, w[1] + mF[1] * depth + upB[1] * up, w[2] + mF[2] * depth + upB[2] * up]);
+        return toLocal(Q.frame, [w[0] + mF[0] * depth + upB[0] * up, w[1] + mF[1] * depth + upB[1] * up, w[2] + mF[2] * depth + upB[2] * up]);
       });
-      g.flaps3d.push({ panelId: B.id, poly: lipOnBack, z0: tW, z1: 2 * tW, owner: F.id });
+      g.flaps3d.push({ panelId: Q.id, poly: lipOnBack, z0: tW, z1: 2 * tW, owner: P.id });
     }
-    g.scores.push({ panelId: F.id, ...(() => {
-      const e = findEdge(F, 'e0')!;
+    g.scores.push({ panelId: P.id, ...(() => {
+      const e = findEdge(P, 'e0')!;
       const L = segLength(e), sx = (e.b.x - e.a.x) / L, sy = (e.b.y - e.a.y) / L;
       const p = (x: number, y: number) => ({ x: e.a.x + sx * x, y: e.a.y + sy * x - y });
       return { a: p(tW + 0.5, depth), b: p(LF - tW - 0.5, depth) };

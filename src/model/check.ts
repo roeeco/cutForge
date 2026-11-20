@@ -6,6 +6,7 @@ import { sketchOk } from '../sketch/cutforge';
 // connection naming a board that is not there) is dropped; anything else
 // throws, and the loader turns that into a "damaged file" error.
 import type { Design } from './types';
+import { TRAY_BOTTOMS, TRAY_TOPS } from './types';
 
 /** No coordinate or size in a design is anywhere near this (mm). */
 export const COORD_LIMIT = 100_000;
@@ -344,8 +345,8 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.closeAt !== undefined && typeof x.closeAt !== 'string') delete x.closeAt;
   // cartons (milestone 68)
   if (x.base !== undefined && x.base !== 'open') delete x.base;
-  if (x.top !== undefined && !['tuck', 'seal'].includes(x.top)) delete x.top;
-  if (x.bottom !== undefined && !['seal', 'snap', 'tuck'].includes(x.bottom)) delete x.bottom;
+  if (x.top !== undefined && !(TRAY_TOPS as string[]).includes(x.top)) delete x.top;
+  if (x.bottom !== undefined && !(TRAY_BOTTOMS as string[]).includes(x.bottom)) delete x.bottom;
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
   if (x.lidAt !== undefined && !(isObj(x.lidAt) && Number.isFinite(x.lidAt.x) && Number.isFinite(x.lidAt.y) && Math.abs(x.lidAt.x) <= COORD_LIMIT && Math.abs(x.lidAt.y) <= COORD_LIMIT)) delete x.lidAt;

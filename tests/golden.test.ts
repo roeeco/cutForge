@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tuckDustBoard, hangTabBoard, plainFlapBoard, linesBoard, haspBox, dropinBox, lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
+import { cartonDesign as styleCarton } from '../src/templates/structures/carton';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
 import { sheetsToSvg } from '../src/export/svg';
@@ -90,6 +91,10 @@ CASES.push({ name: 'flap-card-plain', make: plainFlapBoard });
 // milestone 112: shaped flaps
 CASES.push({ name: 'flap-card-tuck-dust', make: tuckDustBoard });
 CASES.push({ name: 'flap-card-hang', make: hangTabBoard });
+// milestone C2: a straight tuck end, a regular slotted container, a drawer box
+CASES.push({ name: 'carton-card-straight-tuck', make: () => styleCarton(MATERIALS[0], 'tuck', 'tuckBack') });
+CASES.push({ name: 'carton-corr4-rsc', make: () => styleCarton(MATERIALS[2], 'rsc', 'rsc', 150, 100, 100) });
+CASES.push({ name: 'drawer-card', make: () => templateDesign('drawer', MATERIALS[0]) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);
