@@ -9,7 +9,10 @@
 //   4. flap sides: the face with the smaller area-to-perimeter ratio carries the flap,
 //      alternating along chains; a flap that does not fit is shrunk, then moved to the
 //      other side, then dropped with an issue;
-//   5. a student's fixed edges first: a fixed cut is never folded.
+//   5. a student's fixed edges first: a fixed cut is never folded;
+//   6. the engine's rules (foldRules.ts): no fold it cannot lay (sharper than 5°, past 355°),
+//      and each fold laid with the engine's crease shift, so the net checked here is the net
+//      it lays. Make then checks that net and cuts what it could not lay (`avoid`).
 // Pure and deterministic: restarts are counted, not timed (a time cap only guards against
 // a runaway), so the same seed gives the same net on any machine.
 import polygonClipping from 'polygon-clipping';
@@ -18,6 +21,7 @@ import type { Xform2 } from '../geom/types';
 import type { EdgeKey, FaceKey, PEdge, PFace, Polyhedron } from './polyhedron';
 import { ringOf } from './polyhedron';
 import { v3dot, v3sub } from '../geom/v3';
+import { creaseSum, seamFoldable } from './foldRules';
 
 export type UnfoldSpec = {
   /** The sheet less its margins (mm). */
@@ -38,6 +42,10 @@ export type UnfoldSpec = {
   clearance?: number;
   /** A safety cap on the time spent (ms, default 2000). */
   capMs?: number;
+  /** The material's fold allowance (mm, as `foldLay` adds it): how far out a folded face lies beyond the crease's place. */
+  foldAllowance?: number;
+  /** Edges never folded: the ones Make found the engine could not lay in an earlier try (not the student's choices). */
+  avoid?: EdgeKey[];
 };
 
 export type UnfoldIssue =
@@ -230,7 +238,7 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   return null;
 }
 
-function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[], clear = 0): Pass {
+function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[], clear = 0, fa = 0): Pass {
   const of = new Map<FaceKey, Island>();
   for (const k of faces) of.set(k, { faces: [k], xf: new Map([[k, ID]]), flaps: [] });
   const folds = new Set<EdgeKey>();
@@ -250,9 +258,10 @@ function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: num
     const pA = ap(xa, to2(A, e.p)), qA = ap(xa, to2(A, e.q));
     const pB = ap(xb, to2(B, e.p)), qB = ap(xb, to2(B, e.q));
     let M = match(pB, qB, pA, qA);
-    // the crease (the overhaul's rule): folded, B lies across A's edge by t / tan(α / 2), as the engine lays it
-    if (clear > 0 && e.dihedral < 180) {
-      const ov = clear / Math.tan(((e.dihedral * Math.PI) / 180) / 2);
+    // the crease (the overhaul's rule), as the engine lays it (`foldLay`): B lies across A's edge by the
+    // crease's depths less the fold allowance; past 180° the crease lies outside, so B lies further out
+    const ov = creaseSum(clear, clear, e.dihedral) - fa;
+    if (Math.abs(ov) > 1e-12) {
       const L = Math.hypot(qA.x - pA.x, qA.y - pA.y) || 1;
       // into A: to the left of A's counter-clockwise edge p → q
       const ix = -(qA.y - pA.y) / L, iy = (qA.x - pA.x) / L;
@@ -392,9 +401,13 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
   const faces = Object.keys(P.faces).filter((k) => !open.has(k));
   const live = Object.values(P.edges).filter((e) => !open.has(e.a) && !open.has(e.b) && e.ea.ring === 0 && e.eb.ring === 0);
   const fixed = spec.fixed ?? {};
-  const fixedFolds = live.filter((e) => fixed[e.key] === 'fold');
-  const free = live.filter((e) => !fixed[e.key]);
+  const avoid = new Set(spec.avoid ?? []);
+  // what the engine can lay as a fold (a fixed fold it cannot is refused, as one that would overlap)
+  const foldable = (e: PEdge) => seamFoldable(e.dihedral) && !avoid.has(e.key);
+  const fixedFolds = live.filter((e) => fixed[e.key] === 'fold' && foldable(e));
+  const free = live.filter((e) => !fixed[e.key] && foldable(e));
   const issues: UnfoldIssue[] = [];
+  for (const e of live) if (fixed[e.key] === 'fold' && !foldable(e)) issues.push({ kind: 'fixedFoldRefused', edge: e.key });
   const { w: W, h: H } = spec.sheet;
   for (const k of faces) if (!fitsSheet([P.faces[k].outer], W, H, 2)) issues.push({ kind: 'faceTooBig', face: k });
   const avg = live.reduce((s, e) => s + e.len, 0) / Math.max(1, live.length);
@@ -413,7 +426,7 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
     const jitter = restarts === 0 ? 0 : 0.35;
     // a stable order: weight, then key (ties broken the same way everywhere)
     const order = free.map((e) => ({ e, w: weight(e, (rand() - 0.5) * jitter) })).sort((a, b) => a.w - b.w || (a.e.key < b.e.key ? -1 : 1)).map((x) => x.e);
-    const r = pass(P, faces, order, W, H, fixedFolds, spec.flap, live, spec.clearance ?? 0);
+    const r = pass(P, faces, order, W, H, fixedFolds, spec.flap, live, spec.clearance ?? 0, spec.foldAllowance ?? 0);
     const cut = live.filter((e) => !r.folds.has(e.key)).reduce((s, e) => s + e.len, 0);
     const flaps = placeFlaps(P, r, live, spec.flap, W, H, spec.clearance ?? 0);
     if (restarts === 0) firstPassMs = now() - t0;

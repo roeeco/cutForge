@@ -2248,6 +2248,14 @@ Remaining limitations (this plan)
 - A dense, saddle-shaped form (a 144-face torus) folds in many pieces; the unfolder runs in a Worker over 40 faces.
 - The two Guided shapes are Guided's; Workshop builds them from the *Pyramid* and *Diamond* tiles.
 
+## Fix: the net Make reports is the net it lays ✅
+
+Found with a probe over 222 solids, materials and facet counts (now `tests/foldNet.test.ts`). The unfolder folded seams within 5° of flat, which `seamFit` refused to lay, so each became a broken fold and its face a loose piece at its own place: a 40-facet sphere in corrugated was reported as **1 piece** and cut as 241; a half sphere 1 → 121, a torus 1 → 24–40, a shallow 40-facet cone 2 → 41, a flat 24-sided pyramid 2 → 25. Ideas from papercraft (behaviour only, `THIRD_PARTY.md`).
+- `src/model/foldRules.ts` (new, pure): the seam-fold limits (5°–355°), `SOFT_FOLD` (3°) and `creaseSum`, the closed form of `creaseDepths` for a made seam. Shared by the unfolder and the engine.
+- `seamFit` lays folds near flat (the 5°-from-flat refusal is gone); `foldBand` draws no score on a seam fold within 3° of flat (the board bends there by itself).
+- The unfolder never folds what the engine cannot lay, and lays each fold with the engine's crease shift at every dihedral (inside corners and the fold allowance included; before, only under 180° and without the allowance). New spec fields `foldAllowance` and `avoid`; `unfoldSpecOf` builds the same spec here and in the Worker.
+- Make checks the net as laid (`netProblems`): a broken seam fold, or two boards of one piece overlapping, gets its fold cut (for an overlap, the fold between the two that frees the fewest boards), and it unfolds again, up to 6 times. The split it reports counts the pieces as laid.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

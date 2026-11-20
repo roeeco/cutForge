@@ -1,7 +1,8 @@
 // Seams between free boards (milestone 123, SHAPES_TO_DIELINES_PLAN.md §4.3): two
 // boards made from neighbouring faces of a shape share an edge in 3D, at any angle.
 // A seam fold keeps them one piece (the child laid flat off its parent in the net,
-// as a tray corner made a fold is, at any dihedral from 5° to 355°); a cut seam is
+// as a tray corner made a fold is, at any dihedral from 5° to 355°, nearly flat ones
+// included: a faceted sphere's facets meet at 175–180°); a cut seam is
 // closed with a glue flap or a slit lock on one board, folded onto the other's
 // inside face.
 import type { ConnGeom, Connection, Design, Flap3d, P2, Panel, V3 } from './types';
@@ -9,9 +10,9 @@ import { edgeInwardLocal, edgeLocal, edgeWorld, matDir, toWorld } from './frame'
 import { findEdge, type EdgeArg } from './edges';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { matOf, tOf } from './materials';
+import { seamFoldable } from './foldRules';
 
-/** Dihedrals a seam is laid out for (degrees inside the solid); 175–185 are faces in one plane. */
-export const SEAM_MIN = 5, SEAM_MAX = 355, SEAM_FLAT = 5;
+export { SEAM_MIN, SEAM_MAX } from './foldRules';
 const TOL = 0.05; // mm: edges this close are the same line
 
 export type SeamFit = {
@@ -55,7 +56,9 @@ export function seamFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1
   let ang = (Math.acos(c) * 180) / Math.PI;
   // B turns away from A's material: an inside (reflex) corner
   if (v3dot(iB, matDir(A.frame)) < -1e-9) ang = 360 - ang;
-  if (ang < SEAM_MIN || ang > SEAM_MAX || Math.abs(ang - 180) < SEAM_FLAT) return null;
+  // nearly flat is laid out too (it used to be refused within 5° of flat, while the unfolder
+  // folded it: a faceted sphere then came out as hundreds of loose faces reported as one piece)
+  if (!seamFoldable(ang)) return null;
   const dirB = v3norm(v3sub(b1, b0));
   const r = (ang * Math.PI) / 180;
   return { s0, s1, mapB: (s) => v3dot(v3sub(v3add(a0, v3mul(dirA, s)), b0), dirB), dihedral: ang, sin: Math.sin(r), cos: Math.cos(r) };

@@ -14,7 +14,8 @@ import { v3dot, v3sub } from '../geom/v3';
 import { findEdge, segInward } from './edges';
 import { foldLay } from './crease';
 import { cornerDepths, cornerFit } from './seams';
-import { seamFit } from './seamFold';
+import { seamFit, type SeamFit } from './seamFold';
+import { SOFT_FOLD } from './foldRules';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
@@ -246,6 +247,8 @@ function bandStrip(P: Panel, pe: string, A0: P2, B0: P2, b: Band): FoldStrip {
 
 export function foldBand(d: Design, c: Connection): FoldStrip | null {
   let parentId: string, child: string, pe: string, A: P2, B: P2, ov: number;
+  // a made seam folded within SOFT_FOLD of flat bends by itself: kept one piece, not scored
+  let soft = false;
   if (c.wing) return wingStrip(d, c);
   if (!c.grown) {
     // a tray corner made a fold (milestone 35): the strip runs along the stay-put wall's side edge, where the two meet
@@ -256,6 +259,7 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
     const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
     const fit = P && C ? (c.seam ? seamFit(P, pe, C, ce) : cornerFit(P, pe, C, ce, 1e-6)) : null;
     if (!P || !fit) return null;
+    soft = !!c.seam && Math.abs((fit as SeamFit).dihedral - 180) < SOFT_FOLD;
     const [A0, B0] = edgeLocal(P, pe);
     const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
     A = { x: A0.x + ux * fit.s0, y: A0.y + uy * fit.s0 };
@@ -292,7 +296,7 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
   if (c.grown && C) [A, B] = childStretch(d, P, pe, C, ce, A, B);
   // no allowance on a sloped edge: still a hairline strip, so the union joins the two despite float noise
   const strip = start > 1e-9 || (ov > 0 && start > -1e-9) ? [off(A, -ov), off(B, -ov), off(B, Math.max(0, start) + ov), off(A, Math.max(0, start) + ov)] : null;
-  return { parent: parentId, child, strip, scores: [{ a: off(A, -lay.score), b: off(B, -lay.score) }] };
+  return { parent: parentId, child, strip, scores: soft ? [] : [{ a: off(A, -lay.score), b: off(B, -lay.score) }] };
 }
 
 /**

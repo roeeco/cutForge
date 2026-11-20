@@ -9,7 +9,8 @@ import type { EdgeKey, FaceKey, PEdge, Polyhedron } from './polyhedron';
 import { polyIssues, type PolyIssue } from './polyhedron';
 import { addFreePanel, autoConnect, solve } from './ops';
 import { addSeamNet, boardId, seamId } from './seamNet';
-import { islandOrder, unfold, type Unfolding, type UnfoldIssue } from './unfold';
+import { islandOrder, unfold, type Unfolding, type UnfoldIssue, type UnfoldSpec } from './unfold';
+import { netGroups, netOverlaps } from './pieces';
 import { chooseJoint, closingFace, type SeamCtx, type SeamRole } from './jointChoice';
 import { cornerFit } from './seams';
 import { findEdge } from './edges';
@@ -58,6 +59,61 @@ export const sheetOf = (d: Pick<Design, 'sheetMargin'>, m: MaterialProfile) => (
 
 /** How far a face reaches back from one of its edges, on average: its area over the edge's length. */
 const span = (P: Polyhedron, f: FaceKey, e: PEdge) => Math.abs(P.faces[f].area) / Math.max(1e-6, e.len);
+
+/** The unfolder's spec for a Make (all but the flap depths, which `unfoldFlaps` gives): the same here and in the Worker. */
+export function unfoldSpecOf(d: Pick<Design, 'id' | 'sheetMargin'>, mat: MaterialProfile, spec: MakeSpec): Omit<UnfoldSpec, 'flap'> {
+  return { sheet: sheetOf(d, mat), prefer: spec.prefer, fixed: spec.edges, open: spec.open, seed: d.id, clearance: mat.thickness, foldAllowance: mat.foldAllowance };
+}
+
+/** How many times Make re-unfolds after finding folds the engine could not lay (each try cuts them). */
+const REPAIRS = 6;
+
+/**
+ * The net as the engine laid it, checked (papercraft's lesson: the pieces are what the laid
+ * net is, not what the unfolder planned): seam folds it could not lay, and boards of one
+ * piece that overlap. Returns the folds to cut so each problem goes: a fold that could not
+ * be laid, and for an overlap the fold between the two boards whose cut frees the fewest boards.
+ */
+function netProblems(d: Design): EdgeKey[] {
+  const out = new Set<EdgeKey>();
+  const folds = Object.values(d.connections).filter((c) => c.seam && c.kind === 'fold' && c.src && d.panels[c.a.panelId]?.src && d.panels[c.b.panelId]?.src);
+  for (const c of folds) if (c.broken) out.add(c.src!);
+  if (out.size) return [...out];
+  const adj = new Map<string, { to: string; edge: EdgeKey }[]>();
+  for (const c of folds) {
+    adj.set(c.a.panelId, [...(adj.get(c.a.panelId) ?? []), { to: c.b.panelId, edge: c.src! }]);
+    adj.set(c.b.panelId, [...(adj.get(c.b.panelId) ?? []), { to: c.a.panelId, edge: c.src! }]);
+  }
+  // the boards reached from `from` without crossing `cut`
+  const reach = (from: string, cut?: EdgeKey) => {
+    const seen = new Set([from]);
+    const q = [from];
+    while (q.length) for (const n of adj.get(q.shift()!) ?? []) if (n.edge !== cut && !seen.has(n.to)) seen.add(n.to), q.push(n.to);
+    return seen;
+  };
+  for (const o of netOverlaps(d, 0.5, (g) => g.some((n) => d.panels[n.panelId]?.src))) {
+    // the folds on the way from one board to the other
+    const back = new Map<string, { from: string; edge: EdgeKey }>([[o.a, { from: '', edge: '' }]]);
+    const q = [o.a];
+    while (q.length && !back.has(o.b)) {
+      const f = q.shift()!;
+      for (const n of adj.get(f) ?? []) if (!back.has(n.to)) back.set(n.to, { from: f, edge: n.edge }), q.push(n.to);
+    }
+    if (!back.has(o.b)) continue;
+    const path: EdgeKey[] = [];
+    for (let at = o.b; at !== o.a; at = back.get(at)!.from) path.push(back.get(at)!.edge);
+    if ([...path].some((e) => out.has(e))) continue;
+    const all = reach(o.a).size;
+    let best: EdgeKey | null = null, bestN = Infinity;
+    for (const e of path.sort()) {
+      const side = reach(o.a, e).size;
+      const n = Math.min(side, all - side);
+      if (n < bestN) (bestN = n), (best = e);
+    }
+    if (best) out.add(best);
+  }
+  return [...out].sort();
+}
 
 /** The depth the unfolder fits each cut edge's flap to (a slit lock's with its tongue), for a Worker that cannot take a function. */
 export function unfoldFlaps(P: Polyhedron, mat: MaterialProfile, spec: MakeSpec): Record<EdgeKey, number> {
@@ -176,53 +232,81 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       const ch = seamChoice(P, e, mat, last, spec.seams);
       return ch.kind === 'glue' || ch.kind === 'lock' ? (ch.params.flap ?? 0) + (ch.kind === 'lock' ? tongue : 0) : 0;
     };
-    const u = unfolding ?? unfold(P, { sheet: sheetOf(d, mat), flap: flapOf, prefer: spec.prefer, fixed: spec.edges, open: spec.open, seed: d.id, clearance: mat.thickness });
-    for (const issue of u.issues) issues.push({ kind: 'unfold', issue });
-    addSeamNet(d, P, {
-      folds: u.folds,
-      flapOn: u.flapOn,
-      flapDepth: u.flapDepth,
-      flapTaper: u.flapTaper,
-      open,
-      order: islandOrder(P, u),
-      seam: (e) => seamChoice(P, e, mat, last, spec.seams).kind,
-    });
-    for (const e of Object.values(P.edges)) {
-      const c = d.connections[seamId(e.key)];
-      if (!c) continue;
-      const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
-      const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
-      // the unfolder's flap size (it fitted the net with it) wins over the chooser's; a lock's less its tongue
-      // a lock squeezed below the room its tongue needs is glued with the flap the net has room for
-      const squeezed = ch.kind === 'lock' && !spec.joints?.[e.key] && c.flap !== null && c.flap - tongue < 3;
-      const fitted = c.flap !== null ? (ch.kind === 'lock' && !spec.joints?.[e.key] && !squeezed ? c.flap - tongue : c.flap) : null;
-      const params = { ...ch.params, ...(fitted !== null ? { flap: fitted } : {}) };
-      if (squeezed) {
-        applyChoice(c, 'glue', params, 'joint.why.short');
-        continue;
-      }
-      if (role === 'fold') applyChoice(c, ch.kind === 'fold' ? 'fold' : 'fold', ch.kind === 'fold' ? params : {}, ch.why);
-      else {
-        const picked = spec.joints?.[e.key];
-        applyChoice(c, picked ?? ch.kind, picked ? {} : params, ch.why);
-        if (picked) c.picked = true;
-      }
-      // a flap that found no room in the net: the seam is left plain and listed
-      if (role === 'seam' && (c.kind === 'glue' || c.kind === 'lock') && u.issues.some((i) => i.kind === 'flapDropped' && i.edge === e.key)) c.kind = 'butt';
+    const base = unfoldSpecOf(d, mat, spec);
+    let u = unfolding ?? unfold(P, { ...base, flap: flapOf });
+    // lay the net, check it as laid, and cut what the engine could not lay (then unfold again)
+    const avoid: EdgeKey[] = [];
+    for (let k = 0; ; k++) {
+      if (k) clearMade(d);
+      layFold(d, P, spec, u, mat, last, tongue, open);
+      solve(d);
+      const bad = k < REPAIRS ? netProblems(d).filter((e) => !avoid.includes(e)) : [];
+      if (!bad.length) break;
+      avoid.push(...bad);
+      u = unfold(P, { ...base, flap: flapOf, avoid: [...avoid] });
     }
-    // a lid by a cut on card (milestone 130): a hem round the lid's rim, so it keeps its shape
-    if (mat.kind === 'card')
-      for (const e of Object.values(P.edges)) {
-        const rim = e.a === 'lid/cut' ? e.b : e.b === 'lid/cut' ? e.a : null;
-        if (!rim || !open.has('lid/cut')) continue;
-        const p = d.panels[boardId(rim)];
-        const ref = e.a === rim ? e.ea : e.eb;
-        if (!p || ref.ring !== 0) continue;
-        (p.edgeFlaps ??= []).push({ id: `hem-${ref.i}`, edge: `e${ref.i}`, len: Math.min(10, Math.max(6, e.len / 6)), angle: 180, dir: 'in' });
-      }
-    solve(d);
+    // the pieces are the net as laid: a split is told by its real count
+    const pieces = netGroups(d).filter((g) => d.panels[g[0].panelId]?.src).length;
+    for (const issue of u.issues) {
+      if (issue.kind === 'split') continue;
+      issues.push({ kind: 'unfold', issue });
+    }
+    const split = u.issues.find((i) => i.kind === 'split');
+    if (pieces > 1) issues.push({ kind: 'unfold', issue: { kind: 'split', n: pieces, why: split?.kind === 'split' ? split.why : 'overlap' } });
     return { unfolding: u, issues };
   }
+  return buildBoards(d, P, spec, mat, faces, last, issues);
+}
+
+/** Lay a fold net: its boards, folds and seams from an unfolding, each joint chosen (the design is not solved). */
+function layFold(d: Design, P: Polyhedron, spec: MakeSpec, u: Unfolding, mat: MaterialProfile, last: FaceKey | null, tongue: number, open: Set<FaceKey>) {
+  addSeamNet(d, P, {
+    folds: u.folds,
+    flapOn: u.flapOn,
+    flapDepth: u.flapDepth,
+    flapTaper: u.flapTaper,
+    open,
+    order: islandOrder(P, u),
+    seam: (e) => seamChoice(P, e, mat, last, spec.seams).kind,
+  });
+  for (const e of Object.values(P.edges)) {
+    const c = d.connections[seamId(e.key)];
+    if (!c) continue;
+    const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
+    const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
+    // the unfolder's flap size (it fitted the net with it) wins over the chooser's; a lock's less its tongue
+    // a lock squeezed below the room its tongue needs is glued with the flap the net has room for
+    const squeezed = ch.kind === 'lock' && !spec.joints?.[e.key] && c.flap !== null && c.flap - tongue < 3;
+    const fitted = c.flap !== null ? (ch.kind === 'lock' && !spec.joints?.[e.key] && !squeezed ? c.flap - tongue : c.flap) : null;
+    const params = { ...ch.params, ...(fitted !== null ? { flap: fitted } : {}) };
+    if (squeezed) {
+      applyChoice(c, 'glue', params, 'joint.why.short');
+      continue;
+    }
+    if (role === 'fold') applyChoice(c, ch.kind === 'fold' ? 'fold' : 'fold', ch.kind === 'fold' ? params : {}, ch.why);
+    else {
+      const picked = spec.joints?.[e.key];
+      applyChoice(c, picked ?? ch.kind, picked ? {} : params, ch.why);
+      if (picked) c.picked = true;
+    }
+    // a flap that found no room in the net: the seam is left plain and listed
+    if (role === 'seam' && (c.kind === 'glue' || c.kind === 'lock') && u.issues.some((i) => i.kind === 'flapDropped' && i.edge === e.key)) c.kind = 'butt';
+  }
+  // a lid by a cut on card (milestone 130): a hem round the lid's rim, so it keeps its shape
+  if (mat.kind === 'card')
+    for (const e of Object.values(P.edges)) {
+      const rim = e.a === 'lid/cut' ? e.b : e.b === 'lid/cut' ? e.a : null;
+      if (!rim || !open.has('lid/cut')) continue;
+      const p = d.panels[boardId(rim)];
+      const ref = e.a === rim ? e.ea : e.eb;
+      if (!p || ref.ring !== 0) continue;
+      (p.edgeFlaps ??= []).push({ id: `hem-${ref.i}`, edge: `e${ref.i}`, len: Math.min(10, Math.max(6, e.len / 6)), angle: 180, dir: 'in' });
+    }
+
+}
+
+/** Build from boards: a board on each face, corners joined and chosen. */
+function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProfile, faces: Polyhedron['faces'][string][], last: FaceKey | null, issues: MakeIssue[]): MakeResult {
   // boards: one on each face, material inward; corners joined as for any box, then chosen.
   // A through-hole's walls meet the boards round it along their holes' rims, where no
   // corner joint can be cut: they are left out and listed (the hole stays a cut-out).

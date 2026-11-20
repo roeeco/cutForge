@@ -6,7 +6,7 @@ import { useStore } from '../store/store';
 import type { Design, MakeSpec, MaterialProfile } from '../model/types';
 import { kernelNow } from '../sculpt/kernel';
 import { DEFAULT_FACETS, shapePolyhedron, splitPolyhedra } from '../sculpt/polyhedron';
-import { reassemble, sheetOf, unfoldFlaps, type Lost, type MakeIssue } from '../model/reassemble';
+import { reassemble, unfoldFlaps, unfoldSpecOf, type Lost, type MakeIssue } from '../model/reassemble';
 import { solidKey } from '../sculpt/build';
 import { unfold, type Unfolding, type UnfoldSpec } from '../model/unfold';
 import { MATERIALS, CARD_FOLD_MAX } from '../model/materials';
@@ -64,7 +64,7 @@ export const LID_OPEN = ['cut', 'lid/cut'];
 const WORKER_FACES = 40;
 
 function unfoldSpec(d: Design, P: Polyhedron, spec: MakeSpec): { spec: Omit<UnfoldSpec, 'flap'>; flaps: Record<string, number> } {
-  return { spec: { sheet: sheetOf(d, d.material), prefer: spec.prefer, fixed: spec.edges, open: spec.open, seed: d.id, clearance: d.material.thickness }, flaps: unfoldFlaps(P, d.material, spec) };
+  return { spec: unfoldSpecOf(d, d.material, spec), flaps: unfoldFlaps(P, d.material, spec) };
 }
 
 /** Unfold off the main thread when the form is large and Workers exist; else here. */
