@@ -349,6 +349,10 @@ export type Connection = {
   seam?: true;
   /** Milestone 124: a seam flap's taper, how far it narrows at each end along its edge (mm). Absent: its depth (45°). */
   flapTaper?: number;
+  /** Milestone 125: why the chooser picked this joint (an i18n key), shown on the joint card. */
+  why?: string;
+  /** Milestone 125: the student picked this joint's kind; a change of material keeps it. */
+  picked?: true;
   /** Milestone 123: the edge of the face graph this seam was made from (`EdgeKey`). */
   src?: string;
 };
@@ -497,6 +501,23 @@ export type Design = {
    * boards, or later the waffle's slices). Absent: not made yet (SHAPES_TO_DIELINES_PLAN.md decision 11).
    */
   outcome?: OutcomeKind;
+  /** Milestone 126: how the shapes were made into boards (the Make card's settings and the student's choices by key). Absent: not made. */
+  make?: MakeSpec;
+};
+
+/** How a sculpture is made (SHAPES_TO_DIELINES_PLAN.md §4.5). Keys are the face graph's (`FaceKey`, `EdgeKey`). */
+export type MakeSpec = {
+  as: 'fold' | 'boards';
+  /** Faces around a curve: the default for card or boards, and per shape. */
+  facets?: { card?: number; boards?: number; byShape?: Record<string, number> };
+  /** Fewest pieces, or fewer cuts. */
+  prefer?: 'pieces' | 'cuts';
+  /** Faces left out (openings). */
+  open?: string[];
+  /** Card: the student's fold or cut by edge. */
+  edges?: Record<string, 'fold' | 'cut'>;
+  /** A joint kind the student picked, by edge. */
+  joints?: Record<string, ConnectionKind>;
 };
 
 /** What a sculpture's shapes become (SHAPES_TO_DIELINES_PLAN.md decision 1). */

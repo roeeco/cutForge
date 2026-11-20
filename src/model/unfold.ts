@@ -34,6 +34,8 @@ export type UnfoldSpec = {
   seed: string;
   /** Restarts after the first pass (default 40); 0 for the first pass only. */
   restarts?: number;
+  /** How far a flap keeps clear of the faces and flaps round it (mm): a crease moves a board by up to its thickness. */
+  clearance?: number;
   /** A safety cap on the time spent (ms, default 2000). */
   capMs?: number;
 };
@@ -168,6 +170,14 @@ export function fitsSheet(rings: P2[][], W: number, H: number): boolean {
   return false;
 }
 
+/** A flap's ring pushed out along its edge by `c` at both ends (its base stays on the edge's line). */
+function grow(r: P2[], c: number): P2[] {
+  const [a, b, cc, dd] = r;
+  const L = Math.hypot(dd.x - a.x, dd.y - a.y) || 1;
+  const ux = (dd.x - a.x) / L, uy = (dd.y - a.y) / L;
+  return [{ x: a.x - ux * c, y: a.y - uy * c }, { x: b.x - ux * c, y: b.y - uy * c }, { x: cc.x + ux * c, y: cc.y + uy * c }, { x: dd.x + ux * c, y: dd.y + uy * c }];
+}
+
 /** A flap placed in an island's flat layout. */
 type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; ring: P2[] };
 type Island = { faces: FaceKey[]; xf: Map<FaceKey, X>; flaps: PlacedFlap[] };
@@ -180,7 +190,7 @@ const boxApart = (a: Box, b: Box, tol: number) => a.x1 <= b.x0 + tol || b.x1 <= 
  * smaller area-to-perimeter ratio first (the one carrying fewer flaps on a near tie), full
  * depth at 45°, then narrowing more steeply at its ends, then shallower; or null.
  */
-function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][], W: number, H: number, carried: Map<FaceKey, number>): PlacedFlap | null {
+function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][], W: number, H: number, carried: Map<FaceKey, number>, clear = 0): PlacedFlap | null {
   const ra = ratio(P.faces[e.a]), rb = ratio(P.faces[e.b]);
   const ca = carried.get(e.a) ?? 0, cb = carried.get(e.b) ?? 0;
   const first = Math.abs(ra - rb) < 0.05 * Math.max(ra, rb) ? (ca <= cb ? e.a : e.b) : ra <= rb ? e.a : e.b;
@@ -191,15 +201,18 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   for (const [depth, taper] of tries)
     for (const on of sides) {
       const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper);
-      const bb = bbox(ring);
-      if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, ring, 0.05))) continue;
+      // tested grown by the clearance, away from its own edge (it may touch the face it hangs from)
+      const test = clear > 0 ? flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear).map((p, i, r) => (i === 0 || i === r.length - 1 ? p : p)) : ring;
+      const tb = clear > 0 ? grow(test, clear) : test;
+      const bb = bbox(tb);
+      if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05))) continue;
       if (!fitsSheet([...others, ring], W, H)) continue;
       return { edge: e.key, on, depth, taper, ring };
     }
   return null;
 }
 
-function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[]): Pass {
+function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[], clear = 0): Pass {
   const of = new Map<FaceKey, Island>();
   for (const k of faces) of.set(k, { faces: [k], xf: new Map([[k, ID]]), flaps: [] });
   const folds = new Set<EdgeKey>();
@@ -243,7 +256,7 @@ function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: num
     for (const x of closed) {
       const want = flap(x);
       if (!(want > 0)) continue;
-      const f = fitFlap(P, x, want, J, rings, W, H, carried);
+      const f = fitFlap(P, x, want, J, rings, W, H, carried, clear);
       // a fold the student fixed is made even so: the flap is then dropped at the end
       if (!f) {
         if (fixedFold) continue;
@@ -289,7 +302,7 @@ function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, ta
 type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; dropped: EdgeKey[] };
 
 /** Flaps on a pass's cut edges: those placed while joining, then the edges between islands (each on its own island's side). */
-function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number): Flaps {
+function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number, clear = 0): Flaps {
   const islandOf = new Map<FaceKey, Island>();
   for (const I of b.islands) for (const k of I.faces) islandOf.set(k, I);
   const flapOn: Record<EdgeKey, FaceKey> = {};
@@ -320,7 +333,7 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
     for (const side of [islandOf.get(e.a)!, islandOf.get(e.b)!]) {
       const view: Island = { ...side, flaps: [...side.flaps, ...(extra.get(side) ?? [])] };
       const only: PEdge = { ...e };
-      const f = fitFlap(P, only, want, view, ringsOf(side), W, H, carried);
+      const f = fitFlap(P, only, want, view, ringsOf(side), W, H, carried, clear);
       if (f) {
         extra.set(side, [...(extra.get(side) ?? []), f]);
         got = f;
@@ -368,9 +381,9 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
     const jitter = restarts === 0 ? 0 : 0.35;
     // a stable order: weight, then key (ties broken the same way everywhere)
     const order = free.map((e) => ({ e, w: weight(e, (rand() - 0.5) * jitter) })).sort((a, b) => a.w - b.w || (a.e.key < b.e.key ? -1 : 1)).map((x) => x.e);
-    const r = pass(P, faces, order, W, H, fixedFolds, spec.flap, live);
+    const r = pass(P, faces, order, W, H, fixedFolds, spec.flap, live, spec.clearance ?? 0);
     const cut = live.filter((e) => !r.folds.has(e.key)).reduce((s, e) => s + e.len, 0);
-    const flaps = placeFlaps(P, r, live, spec.flap, W, H);
+    const flaps = placeFlaps(P, r, live, spec.flap, W, H, spec.clearance ?? 0);
     if (restarts === 0) firstPassMs = now() - t0;
     // a dropped flap costs a piece: a seam that cannot be glued is as bad as another piece to glue on
     const score = r.islands.length + flaps.dropped.length;

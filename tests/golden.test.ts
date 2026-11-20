@@ -10,7 +10,20 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tuckDustBoard, hangTabBoard, plainFlapBoard, linesBoard, haspBox, dropinBox, lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
-import { boxSolid, foldedSolid, prismSolid, pyramidSolid } from './solids';
+import { boxSolid, foldedSolid, houseSolid, prismSolid, pyramidSolid } from './solids';
+import { reassemble } from '../src/model/reassemble';
+import { createDesign } from '../src/model/ops';
+import type { Polyhedron } from '../src/model/polyhedron';
+
+/** A solid made as a sculpture would be (a fixed id: the unfolder's seed). */
+function made(P: Polyhedron, m: MaterialProfile, as: 'fold' | 'boards'): Design {
+  const d = createDesign(m);
+  d.id = 'golden';
+  d.kind = 'waffle';
+  d.sculpt = { shapes: {}, order: [] };
+  reassemble(d, P, { as });
+  return d;
+}
 import { cartonDesign as styleCarton } from '../src/templates/structures/carton';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -111,6 +124,11 @@ CASES.push({ name: 'seam-cube-card', make: () => foldedSolid(boxSolid(60, 60, 60
 CASES.push({ name: 'seam-hexprism-card', make: () => foldedSolid(prismSolid(6, 40, 60)) });
 CASES.push({ name: 'seam-pyramid-card', make: () => foldedSolid(pyramidSolid(4, 40 * Math.SQRT2, 60)) });
 CASES.push({ name: 'seam-tube12-card', make: () => foldedSolid(prismSolid(12, 40, 60)) });
+// milestones 125–127: a cube made in four materials (folded card and corrugated, plywood boards), a house folded and built
+for (const m of [CARD, CORR16, CORR4]) CASES.push({ name: `make-cube-${m.id}`, make: () => made(boxSolid(70, 70, 70), m, 'fold') });
+CASES.push({ name: 'make-cube-ply-3', make: () => made(boxSolid(70, 70, 70), PLY, 'boards') });
+CASES.push({ name: 'make-house-card', make: () => made(houseSolid(), CARD, 'fold') });
+CASES.push({ name: 'make-house-ply-3', make: () => made(houseSolid(), PLY, 'boards') });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

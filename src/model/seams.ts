@@ -1035,7 +1035,9 @@ function seamGeom(d: Design, c: Connection): ConnGeom | null {
   if (!f) return null;
   if (c.kind === 'glue') return seamGlue(d, c, f);
   // a seam fold is one creased board: nothing is cut back (the crease's place takes up the thickness)
-  return empty();
+  if (c.kind === 'fold' || c.kind === 'butt') return empty();
+  // tabs and slots, fingers: an ordinary corner between the two boards (30–150°)
+  return connectionGeomOne(d, { ...c, seam: undefined });
 }
 
 /** Local coords of a world point (x, y on the plane, z into the material). */

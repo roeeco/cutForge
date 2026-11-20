@@ -525,7 +525,9 @@ function seamStrip(d: Design, a: string, b: string): number {
     if (!c.seam || c.kind !== 'fold' || !((c.a.panelId === a && c.b.panelId === b) || (c.a.panelId === b && c.b.panelId === a))) continue;
     const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
     const f = seamFit(P, c.a.edge, C, c.b.edge);
-    if (f) s += (f.s1 - f.s0) * (Math.abs(foldLay(d, P, c.a.edge, C, c.b.edge).a) + 0.01);
+    // along the crease, and past each end where neighbours meet at a corner
+    const w = Math.abs(foldLay(d, P, c.a.edge, C, c.b.edge).a) + 0.01;
+    if (f) s += (f.s1 - f.s0 + 4 * w) * w;
   }
   return s;
 }

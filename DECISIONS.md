@@ -637,3 +637,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A flap may narrow steeply at its ends** (its taper stored on the seam, `flapTaper`) before it is made shallower: a steep taper keeps the glue area, a shallow flap loses it.
 - **The largest face roots each piece** (`islandOrder`), so the net is laid out from it.
 - **Weights**: bend × (0.5 convex, 1 concave) − 0.05 × length / average length (0.3 with *Fewer cuts*); jitter ±0.175 after the first pass.
+
+## Milestone 125 (Shapes R6): the joint chooser
+- **The rules of R6's table, as written, are the starting values**, and every flap depth, tab width, finger count and the lock's 25 mm minimum is **unverified on real stock** (as the pin hinge's, 81). They are tuned against the goldens only.
+- **The face that closes last is the largest facing up** (outward normal at least 0.5 up); its seams get a slit lock on card and its board carries the tabs on plywood (`a` is the tab owner, so it drops in from outside).
+- **A seam's tabs and slots are the ordinary corner tabs** (`cornerTabs`): corrugated nets get them without a new joint.
+- **The unfolder's flap size wins** over the chooser's: it fitted the net with it.
+- **A change of material keeps folds as folds** (the net is not re-cut) and keeps every joint the student picked (`picked`, set whenever the joint card changes a made joint's kind).
+- **Flaps keep a board's thickness clear** of the faces round them in the unfolder, since a crease moves a board by up to that much.

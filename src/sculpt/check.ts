@@ -90,4 +90,19 @@ export function checkSculpt(d: Design) {
   d.sculpt = sc;
   // a file from the waffle's branch keeps its `waffle` field untouched, for when the waffle joins
   if (d.outcome !== undefined && !OUTCOMES.includes(d.outcome)) delete d.outcome;
+  // how it was made (milestone 126): a bad spec is dropped, a bad entry in it too
+  const mk = (d as any).make;
+  if (mk !== undefined) {
+    if (!isObj(mk) || (mk.as !== 'fold' && mk.as !== 'boards')) delete (d as any).make;
+    else {
+      if (mk.prefer !== undefined && mk.prefer !== 'pieces' && mk.prefer !== 'cuts') delete mk.prefer;
+      if (mk.open !== undefined && !(Array.isArray(mk.open) && mk.open.every((x: unknown) => typeof x === 'string'))) delete mk.open;
+      for (const f of ['edges', 'joints'] as const) if (mk[f] !== undefined && !(isObj(mk[f]) && Object.values(mk[f]).every((v) => typeof v === 'string'))) delete mk[f];
+      if (isObj(mk.edges)) for (const [k, v] of Object.entries(mk.edges)) if (v !== 'fold' && v !== 'cut') delete mk.edges[k];
+      if (mk.facets !== undefined) {
+        if (!isObj(mk.facets)) delete mk.facets;
+        else for (const k of ['card', 'boards'] as const) if (mk.facets[k] !== undefined && !(finite(mk.facets[k]) && mk.facets[k] >= 3 && mk.facets[k] <= 64)) delete mk.facets[k];
+      }
+    }
+  }
 }

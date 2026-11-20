@@ -1868,6 +1868,21 @@ export const en = {
   'make.boardsHelp': "Turn the shape into boards with joints chosen for the material",
   'make.hint': "What the shape was made into. Back to 1 Shape changes the shape.",
   'sculpt.makeNote': "When the shape is ready: Fold it, or Build from boards, at the top.",
+  // milestone 125: why each joint was chosen
+  'joint.why.cardFold': "Folded: one piece of card bends here",
+  'joint.why.lockLast': "Slit lock: this face closes last, so there is no room to press glue",
+  'joint.why.cardGlue': "Glue flap, sized to the smaller face",
+  'joint.why.noFold': "This board does not fold: the seam is cut",
+  'joint.why.greyGlue': "Glue flap: greyboard this thick does not fold",
+  'joint.why.cutCrease': "Cut-crease: thick board folding this sharply needs part of it cut",
+  'joint.why.corrFold': "Folded on a crease",
+  'joint.why.tabsLast': "Tabs and slots: this board goes in last, from outside",
+  'joint.why.corrTabs': "Tabs and slots: corrugated holds without glue on a seam this long",
+  'joint.why.outsideAngle': "Glued edge to edge: tabs and fingers are cut only for corners between 30° and 150°",
+  'joint.why.short': "Glue: the seam is too short for tabs",
+  'joint.why.corrGlue': "Glue flap",
+  'joint.why.fingers': "Finger joint, sized to the board's thickness",
+  'joint.why.angledTabs': "Tabs and slots: fingers fit corners between 60° and 120°",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -1945,6 +1945,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
 function applyKind(d: Design, c: Connection, kind: ConnectionKind, keepOffset = false) {
   c.kind = kind;
   c.pref = kind;
+  // a made model's joint picked by the student (milestone 125): kept through a change of material
+  if (c.src) c.picked = true;
   if (c.grown && c.kind !== 'tabslot' && !keepOffset && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
   if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot', c.a.panelId);
 }

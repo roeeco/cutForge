@@ -2053,6 +2053,28 @@ Limitations
 - Edges on a face's holes are not joined or flapped (openings, 130); a through-hole's walls come out as a tube of their own.
 - No merge pass after the restarts: a greedy pass already tries every edge, so it would find none.
 
+## Milestone 125 (Shapes R6) — joints chosen for the material and its thickness ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R6 and decision 12. New `src/model/jointChoice.ts` (`chooseJoint`, `closingFace`, `flapDepthFor`, `tabsFor`, `fingersFor`); `src/model/reassemble.ts` (`reassemble`, `rechooseJoints`, `clearMade`; the engine half of 126 and 127); `Design.make` (`MakeSpec`), `Connection.why` and `Connection.picked` (optional, checked on load, no schema bump); 14 *why* strings in English and Hebrew.
+- **One pure chooser** for every seam: a fold kept in a net, a cut seam in a net, or a corner between boards, by material, thickness, length, angle, the faces' spans and whether the seam is on the face that closes last. Each choice says why (`joint.why.*`).
+  - **Card up to 1 mm**: folds folded; cut seams a glue flap, 8–15 mm by thickness and never deeper than a third of the smaller face; a **slit lock** on the face that closes last when the seam is 25 mm or more. Greyboard over 1 mm: nothing folds; seams glued.
+  - **Corrugated**: folds creased, a **cut-crease** on 4 mm board folding under 30°; seams of 30 mm or more (3 tabs' worth on 4 mm) **tabs and slots**, tabs max(8, 5t) wide; shorter ones glued (12–20 mm on 1.6, 18–25 mm on 4); board corners outside 30–150° glued.
+  - **Plywood**: **fingers** at 60–120°, an odd count about max(3t, 10 mm) wide; **tabs and slots** at 30–60° and 120–150°; **butt and glue** under 4t or outside 30–150°; **the board that closes last** (the largest facing up) carries tabs into the others, so it drops in from outside.
+- **A seam's tabs and slots** use the ordinary corner geometry (`cornerTabs`), so corrugated nets get them with no new joint code.
+- **A change of material or thickness** (`rechooseJoints`) chooses again every made joint the student did not pick (a kind set on the joint card marks it `picked`) and says how many changed; a fold stays a fold.
+- **The reassembler** (§4.5): clears what the last Make made (hand-made boards stay), then *Fold it* (the unfolder with the chooser's flap depths and the material's thickness as the flaps' clearance, `addSeamNet`, the chooser's kind and sizes on each seam, the unfolder's flap size kept) or *Build from boards* (a board on each face, material inward, corners found by `autoConnect`, each given the chooser's joint and its edge's key; corners it could not join listed). Ids from keys; the design's id seeds the unfolder.
+
+Verified
+- `tests/jointChoice.test.ts` (16): one test per rule above, the board that closes last, and a change of material that re-chooses every joint but the one the student picked (a pyramid from card to corrugated; a plywood box 3 to 6 mm).
+- `tests/reassemble.test.ts` (11): a cube, a hexagonal prism, a pyramid, a diamond, an L-prism and a house folded from card cut as many pieces as the unfolder made, with no overlap, nothing broken, ids from keys, every joint with a *why*; the same shapes give the same design twice; Make again replaces only what it made; a corrugated cube folds with tabs on its long seams; the spec survives a save and load; a plywood box is six boards, eight finger corners and a lid on four tab corners it carries; a diamond's corners outside 30–150° are listed in plywood; a corrugated 4 mm house has tabs where the corners allow.
+- **Six new goldens**: `make-cube-card-0.5`, `make-cube-corr-1.6`, `make-cube-corr-4`, `make-cube-ply-3`, `make-house-card`, `make-house-ply-3`. Every old golden byte-identical. Unit suite and typecheck green.
+- `netOverlaps` now leaves out the corners where creased neighbours meet (four times the crease's width), as the export check runs it at 0.5 mm².
+
+Limitations
+- **Every flap depth, tab width, finger size and the slit lock's minimum are starting values, unverified on real stock** (the owner's testers check one cube per material before 133).
+- The house folds in two pieces on the card sheet: the unfolder's flap rule is strict.
+- Board corners outside 30–150° are left unjoined and listed; their one-click fixes come with 127's Make card.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
