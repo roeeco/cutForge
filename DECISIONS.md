@@ -622,3 +622,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A seam's kind belongs to its maker**: `solve` does not re-fit it and `autoConnect` leaves it alone (`auto: false`). R6's chooser sets it.
 - **The face graph's builders came forward from R3** (`src/model/polyhedron.ts`): pairing by vertex index, runs of collinear edges with one neighbour joined (their middle points dropped from both faces), no T-junction splitting (a manifold mesh has none).
 - **Face keys numbered with `*`** when one name covers two faces (never `~`, which marks a wall set's member in a board id).
+
+## Milestone 122 (Shapes R3): face keys
+- **Roles are read from directions in the shape's own frame** (its normal, and for facets its centre), never from manifold's `faceID`, which is per run and not stable across a resize.
+- **A box's sides are named `+x`, `-x`, `+z`, `-z`** by its footprint edges (front, right, back, left in its own frame), so a turned box keeps them.
+- **Curved shapes are cut into facets on a copy**; the shape stage keeps its smooth look and the student's *Faces* count, when set, wins.
+- **The shape cache includes the shape's id**: provenance needs one body per shape, and the lost sharing (two identical shapes) is rare.
+- **The sliver check uses twice the area over the outline's length** as a face's width (exact for a strip) at 1.5t, so a strip 3t wide is not listed.

@@ -2000,6 +2000,22 @@ Limitations
 - `sculptscale`'s percent test was cut to this branch's `evalNumber` (milestone 97 reads a percent only as the whole entry; `50%+5` is not read).
 - The shape stage's cards and the sketch view keep the waffle branch's look; R2 and R13 change the workplane.
 
+## Milestone 122 (Shapes R3) — the face graph with stable keys ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R3 (§4.2). New `src/sculpt/polyhedron.ts` (the bridge: `shapePolyhedron`, `facetedCopy`, `DEFAULT_FACETS`); `polyIssues` and `MAX_FACES` in `src/model/polyhedron.ts` (its builders came with 123).
+- **The bridge**: the solid is built with Make's facet counts on a copy (12 per full turn for card, 8 for boards; a shape's own *Faces* or a per-shape count wins; an extrusion's curves get a quarter of it), its mesh merged, each triangle named by the shape its run came from and its **role in that shape's own frame**, and the face graph made from them. Adjacent coplanar triangles are one face, across shapes too (keys joined with `+`).
+- **Roles** (§4.2's table): a box's `top`, `bottom`, `+x`, `-x`, `+z`, `-z`; a prism's and a pyramid's `side<k>` by the footprint edge whose outward normal is nearest (a rounded corner's facets `corner<k>/a<deg>`); a cylinder's and a cone's `cap0`, `cap1` and `f<i>` by angle round; a sphere's `f<i>.<j>`, a torus's `f<i>.<j>` round and across the tube; an extrusion's `top`, `bottom`, `seg:<segment id>` over a straight line and `seg:<id>/f<k>` along a curve. A Hole's faces are `hole:<shape>:<role>`. Facets of curves are marked `ruled` or `curved`.
+- **Checks** (`polyIssues(P, t)`): faces narrower than about 1.5t across (twice their area over their outline), faces under 4t², more than 200 faces (119's limit), and the graph's own (an open or non-manifold edge).
+- **Fix found on the way** (`src/sculpt/build.ts`): the shape cache was keyed by geometry only, so two shapes alike shared one body and its faces were credited to the first one built. The key now includes the shape's id.
+
+Verified
+- `tests/sculptpolyhedron.test.ts` (8, with the kernel): a box gives 6 faces keyed by role and 12 edges at 90°; an L-extrusion 8 faces, 6 of them `seg:` walls, one edge at 270°; two boxes flush merge their top, bottom and two long sides (keyed by both); a box with a through-hole has a top and a bottom with one hole each and 12 `hole:` walls, its rim 24 edges at 90°; a cylinder at 12 facets 14 faces, 12 edges at 150°, the shape's own `facets` untouched; resizing and moving a box, and moving an extrusion's sketch points, keep every key; 8 and 12 facets keep every key but the facets'; a 1 mm slab is a sliver at 3 mm, a 32-facet sphere is too many faces.
+- The ported sculpt tests and `outcomes` still pass; typecheck green.
+
+Limitations
+- A diamond's roles (`table`, `crown<i>`, `pavilion<i>`) come with its primitive (121).
+- A revolve's facets are keyed by direction (`f<i>.<j>`), not by its profile's segments.
+
 ## Milestone 123 (Shapes R4) — free boards and seam folds in the engine ✅
 
 `SHAPES_TO_DIELINES_PLAN.md` R4 (§4.3). New `src/model/seamFold.ts` (`seamFit`, `seamGlue`), `src/model/seamNet.ts` (`addSeamNet`), `src/model/polyhedron.ts` (the face graph's types and builders, written now because R4's solids need them; R3 adds the kernel bridge); `addFreePanel` in `src/model/ops.ts`; `Panel.src`, `Connection.seam` and `Connection.src` (optional, checked on load, no schema bump).

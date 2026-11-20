@@ -240,7 +240,8 @@ export function shapeKey(sc: Sculpt, id: string, seen = new Set<string>()): stri
   const g: Record<string, unknown> = {};
   for (const f of GEOM_FIELDS) if (s[f] !== undefined) g[f] = s[f];
   const kids = s.kind === 'group' ? (s.children ?? []).map((c) => `${sc.shapes[c]?.hole ? 'H' : 'S'}${shapeKey(sc, c, seen)}`) : [];
-  return JSON.stringify([g, s.at, s.q, kids]);
+  // the id too (milestone 122): a body remembers which shape it came from, so two shapes alike never share one
+  return JSON.stringify([id, g, s.at, s.q, kids]);
 }
 
 /** One shape (a group with its members) built in its parent's frame. */
