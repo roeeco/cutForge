@@ -514,3 +514,15 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Libraries bundled, not from a public CDN**: browsers keep a separate cache per site, so a CDN's copy is not shared with other sites; bundling keeps only the parts used; a school network that blocks a CDN, an outage, the offline mode and the students' privacy all argue for one origin; Cloudflare already serves the files from its edge.
 - **Rolldown's `advancedChunks`** (Vite 8), not `manualChunks`, which merged three.js's core into the 3D renderer's file.
 - **The 3D view is not deferred**: the welcome screen draws its pictures with three.js and the editor opens on the 3D view.
+
+## Guided (milestones 105–110, GUIDED_MODE.md)
+- **Three levels: Guided · Quick build · Workshop.** A third mode value, `'guided'`, a viewer preference like the other two; a file opens the same in all three. Quick build keeps its name.
+- **Every feature row states all three levels** (ROADMAP §5 rule 4b): `GUIDED` in `src/easy/features.ts` is a full column the compiler checks, so nothing of Quick build or Workshop shows in Guided by accident. Rows Guided hides by not mounting what holds them are listed, with where they live, in `tests/quickTable.test.ts`.
+- **Guided's interface is its own** (`src/guided/`, its own lazily loaded file); one stage and one sheet view, which ask the table. Nothing outside `src/guided/` imports it except `App.tsx`; the stage draws Guided's handles through a slot.
+- **No ghost and ✓ in Guided**: every action applies at once as one undo step. A change that would leave the thing impossible to cut is not made, and a note says so.
+- **Guided changes a thing; it does not build from nothing.** No Box, Wall or Standing board; those are Quick build's. A design that is more than one box can be decorated and sent, with a button back to the tools that made it.
+- **Sizes are always the inside**, through `boxSize` / `setBoxSize` (milestone 93). Plain things are the sentence's structures with set words, detached from the template so nothing rebuilds them from stale words.
+- **Pencil box and Game organiser are boxes** (mission version 2); saved version-1 designs still open and count.
+- **Send waits for the check**; *More download options* is the way out. A name is engraved, never cut. The Escape box (hasps) stays with Quick build and Workshop.
+- **Guided is in the level switch for everyone; a new browser and a new class still start in Workshop** (the owner, 20 November). This replaces the plan's *a new browser and a new class start in Guided*.
+

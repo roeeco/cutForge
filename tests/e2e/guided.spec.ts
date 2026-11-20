@@ -81,3 +81,23 @@ for (const lang of ['en', 'he'] as const)
         await noOtherLevels(page);
       });
     });
+
+test.describe('between levels', () => {
+  test.use({ storageState: GUIDED('en') });
+  test('Guided → Quick build → Guided on one design: the design is unchanged', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('g-thing-box').click();
+    await page.getByTestId('g-demo-ok').click();
+    const design = () => page.evaluate(() => JSON.stringify((window as any).__cutforge.store.getState().design));
+    const before = await design();
+    await page.getByTestId('g-menu').click();
+    await page.getByTestId('g-menu-quick').click();
+    await expect(page.getByTestId('quick-rail')).toBeVisible();
+    await expect(page.getByTestId('mode-quick')).toHaveAttribute('aria-checked', 'true');
+    expect(await design()).toBe(before);
+    await page.getByTestId('mode-guided').click();
+    await expect(page.getByTestId('g-topbar')).toBeVisible();
+    await expect(page.getByTestId('g-sheet-inside')).toBeVisible();
+    expect(await design()).toBe(before);
+  });
+});

@@ -39,11 +39,12 @@ describe('three levels', () => {
     expect(keepsCuttable('workshop')).toBe(false);
   });
 
-  it('the switch offers Guided only with the preview flag (or when already in it)', () => {
-    expect(levels({})).toEqual(['quick', 'workshop']);
-    expect(levels({ guidedPreview: true })).toEqual(['guided', 'quick', 'workshop']);
-    expect(levels({ mode: 'guided' })).toEqual(['guided', 'quick', 'workshop']);
+  it('the switch offers all three levels (milestone 110); a new browser still starts in Workshop (the owner, 20 November)', () => {
+    expect(levels({})).toEqual(['guided', 'quick', 'workshop']);
+    expect(levels({ mode: 'quick' })).toEqual(['guided', 'quick', 'workshop']);
     expect(defaultPrefs(null).mode).toBe('workshop');
+    // an existing browser with prefs but no level keeps Workshop
+    expect(defaultPrefs(JSON.stringify({ dims: false })).mode).toBe('workshop');
     expect(defaultPrefs(null, '?guided').guidedPreview).toBe(true);
     expect(defaultPrefs(JSON.stringify({ mode: 'quick' }), '').mode).toBe('quick');
     expect(defaultPrefs('{broken', '').mode).toBe('workshop');
@@ -185,4 +186,23 @@ describe('the opening view and the side sheet', () => {
 it('an empty tray-less design is fine too', () => {
   s().apply((d) => void addTray(d, addRootPanel(d, 0, 0, 50, 50), 20));
   expect(thingFacts(s().design).inside).not.toBeNull();
+});
+
+describe('between levels (milestone 110)', () => {
+  it('a box with a wall added in Quick build is "more" in Guided, and the trip there and back changes nothing', async () => {
+    const { PLAIN } = await import('../src/guided/things');
+    const { kindOf } = await import('../src/guided/box');
+    const { growPanel } = await import('../src/model/ops');
+    const { frontWall, mainTray } = await import('../src/templates/structures/box');
+    const d = PLAIN[0].start(PLY);
+    s().replaceDesign(d);
+    setMode('quick');
+    s().apply((x) => void growPanel(x as never, frontWall(x as never, mainTray(x as never)!)!, 2, { height: 30, angle: 90, dir: 'up', kind: 'finger' }));
+    const before = JSON.stringify(s().design);
+    expect(kindOf(s().design)).toBe('more');
+    setMode('guided');
+    expect(kindOf(s().design)).toBe('more');
+    setMode('quick');
+    expect(JSON.stringify(s().design)).toBe(before);
+  });
 });

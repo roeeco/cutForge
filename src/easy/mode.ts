@@ -12,9 +12,12 @@ import type { MsgKey } from '../i18n';
 export const MODE_NAME = { guided: 'mode.guided', quick: 'mode.quick', workshop: 'mode.workshop' } as const satisfies Record<Mode, MsgKey>;
 export const MODE_HELP = { guided: 'mode.guidedHelp', quick: 'mode.quickHelp', workshop: 'mode.workshopHelp' } as const satisfies Record<Mode, MsgKey>;
 
-/** The levels the switch offers: Guided only with the preview flag until it becomes the way in (milestone 110). */
-export function levels(p: { guidedPreview?: boolean; mode?: Mode }): Mode[] {
-  return p.guidedPreview || p.mode === 'guided' ? ['guided', 'quick', 'workshop'] : ['quick', 'workshop'];
+/**
+ * The levels the switch offers: all three for everyone since milestone 110 (the owner, 20 November: Guided is
+ * in the switch, Workshop stays a new browser's default). The preview flag of 105 no longer matters.
+ */
+export function levels(_p?: { guidedPreview?: boolean; mode?: Mode }): Mode[] {
+  return ['guided', 'quick', 'workshop'];
 }
 
 export function setMode(m: Mode) {

@@ -66,3 +66,18 @@ for (const [mode, state] of [['workshop', WORKSHOP_STATE], ['quick', QUICK_STATE
           for (const id of ['open-export', 'undo', 'redo']) await expect(page.getByTestId(id)).toBeVisible();
         });
     });
+
+// Guided's own bar (milestone 110): its steps are never folded into a menu, and Undo, Redo and the menu are on it
+for (const lang of ['en', 'he'] as const)
+  test.describe(`guided ${lang}`, () => {
+    test.use({ storageState: { cookies: [], origins: [{ origin: 'http://localhost:5199', localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'guided' }) }, { name: 'cutforge.lang', value: lang }, { name: 'cutforge.guidedDemo', value: '1' }] }] } });
+    for (const size of SIZES)
+      test(`${size.width} x ${size.height}`, async ({ page }) => {
+        await page.setViewportSize(size);
+        await page.goto('/');
+        await page.getByTestId('g-thing-pencil-box').click();
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        expect(await fits(page)).toEqual([]);
+        for (const id of ['g-step-build', 'g-step-decorate', 'g-step-send', 'g-undo', 'g-redo', 'g-menu']) await expect(page.getByTestId(id)).toBeVisible();
+      });
+  });

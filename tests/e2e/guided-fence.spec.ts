@@ -14,18 +14,19 @@ for (const [name, state] of [['Workshop', WORKSHOP_STATE], ['Quick build', QUICK
       await expect(page.getByTestId('sentence')).toBeVisible();
       await expect(page.getByTestId('g-start')).toHaveCount(0);
       await expect(page.getByTestId('g-topbar')).toHaveCount(0);
-      // without the preview flag the switch offers the two levels it always had
+      // the switch offers the three levels (milestone 110); this one stays chosen
       await page.getByTestId('mat-ply-3').click();
       await page.getByTestId('tpl-sentence').click();
       await page.getByTestId('start-go').click();
       await expect(page.getByTestId('view3d')).toBeVisible();
-      await expect(page.getByTestId('mode-guided')).toHaveCount(0);
+      await expect(page.getByTestId('mode-guided')).toBeVisible();
+      await expect(page.getByTestId(name === 'Workshop' ? 'mode-workshop' : 'mode-quick')).toHaveAttribute('aria-checked', 'true');
       await expect(page.getByTestId('view-cluster')).toBeVisible();
       expect(errors).toEqual([]);
     });
 
     test('to Guided and back: the same design, and this level looks as it did', async ({ page }) => {
-      await page.goto('/?guided');
+      await page.goto('/');
       await page.getByTestId('mat-ply-3').click();
       await page.getByTestId('tpl-sentence').click();
       await page.getByTestId('start-go').click();

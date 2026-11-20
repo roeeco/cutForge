@@ -1,5 +1,8 @@
 # CutForge: Quick build, an easy mode on the same engine: brief
 
+> **Since milestones 105–110** Quick build is the middle of three levels, *Guided · Quick build · Workshop*. Guided, the first level, is planned in `GUIDED_MODE.md` and described in `README.md`.
+
+
 Planning notes from 2026-11-09, made after milestones 25–27 and the plan for milestones 28–36 (`PANELS_AND_DIVIDERS.md`). This brief starts at 37. It depends on milestone 30 (one floating ✓) and on milestone 35's engine (nets that lie flat); see *Order and size*.
 
 ## 1. What changes for a student
