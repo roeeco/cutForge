@@ -1944,4 +1944,10 @@ export const he: Record<MsgKey, string> = {
   'make.update': "לעדכן מהצורה",
   'make.detach': "לנתק מהצורות",
   'make.detachAsk': "ניתוק: הלוחות נשארים כמו שהם, והצורות נלקחות. ביטול מחזיר אותן. להמשיך?",
+  // milestone 130: openings and a lid by a cut
+  'make.leaveOpen': "להשאיר את הפאה הזו פתוחה",
+  'make.openFaces': "{n} פאות פתוחות",
+  'make.closeAll': "לסגור את כולן",
+  'make.lid': "מכסה בחיתוך",
+  'make.lidDepth': "מכסה, מלמעלה",
 };

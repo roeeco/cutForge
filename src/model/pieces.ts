@@ -556,6 +556,8 @@ export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => bool
         let area = multiArea(r);
         // two boards of a seam fold share the crease's strip, as wide as the fold takes up: that is one board, not an overlap
         area -= seamStrip(d, flats[i].id, flats[j].id);
+        // made boards meet at their corners where creases shift them by up to a thickness: a sliver under 4t² is that, not an overlap
+        if (d.panels[flats[i].id]?.src && d.panels[flats[j].id]?.src) area -= 4 * Math.max(tOf(d, flats[i].id), tOf(d, flats[j].id)) ** 2;
         if (area >= min) out.push({ a: flats[i].id, b: flats[j].id, area, region: r.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y }))), net: g[0].panelId });
       }
   }

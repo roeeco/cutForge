@@ -5,14 +5,14 @@
 import { useStore } from '../store/store';
 import type { Design, MakeSpec, MaterialProfile } from '../model/types';
 import { kernelNow } from '../sculpt/kernel';
-import { DEFAULT_FACETS, shapePolyhedron } from '../sculpt/polyhedron';
+import { DEFAULT_FACETS, shapePolyhedron, splitPolyhedra } from '../sculpt/polyhedron';
 import { reassemble, sheetOf, seamCtx, type Lost, type MakeIssue } from '../model/reassemble';
 import { solidKey } from '../sculpt/build';
 import { unfold, type Unfolding, type UnfoldSpec } from '../model/unfold';
 import { chooseJoint, closingFace } from '../model/jointChoice';
 import { MATERIALS, CARD_FOLD_MAX } from '../model/materials';
 import { setMaterial } from '../model/ops';
-import type { Polyhedron } from '../model/polyhedron';
+import { mergePoly, movePoly, polyBounds, type Polyhedron } from '../model/polyhedron';
 import { create } from 'zustand';
 import { playAssembly } from '../easy/assemble';
 
@@ -43,13 +43,23 @@ export function facetsFor(spec: Pick<MakeSpec, 'as' | 'facets'>): { n: number; b
   return { n, byShape: spec.facets?.byShape ?? {} };
 }
 
-/** The face graph of the design's shapes for a Make spec (null before the kernel loads). */
-export function polyOf(d: Design, spec: Pick<MakeSpec, 'as' | 'facets'>): Polyhedron | null {
+/** The face graph of the design's shapes for a Make spec (null before the kernel loads). With a lid by a cut, the box and the lid beside it, both open at the cut. */
+export function polyOf(d: Design, spec: Pick<MakeSpec, 'as' | 'facets' | 'lid'>): Polyhedron | null {
   const k = kernelNow();
   if (!k || !d.sculpt) return null;
   const f = facetsFor(spec);
-  return shapePolyhedron(k, d.sculpt, f.n, f.byShape);
+  const whole = shapePolyhedron(k, d.sculpt, f.n, f.byShape);
+  if (!spec.lid) return whole;
+  const b = polyBounds(whole);
+  const cut = b.max[1] - spec.lid;
+  if (!(cut > b.min[1] + 1)) return whole;
+  const parts = splitPolyhedra(k, d.sculpt, cut, f.n, f.byShape);
+  if (!parts) return whole;
+  // the lid set down beside the box, 20 mm clear (ROADMAP.md §2 decision 1), its cut on the floor
+  return mergePoly(parts.box, movePoly(parts.lid, [b.max[0] - b.min[0] + 20, -cut, 0]));
 }
+/** The faces a lid by a cut leaves open. */
+export const LID_OPEN = ['cut', 'lid/cut'];
 
 /** Forms with more faces than this unfold in a Worker. */
 const WORKER_FACES = 40;
@@ -105,6 +115,10 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   const prev = d0.make?.as === as ? d0.make : undefined;
   // the shapes' key when made (milestone 129): Update from shape shows when it changes
   const spec: MakeSpec = { ...(prev ?? {}), ...over, as, shapeKey: solidKey(d0.sculpt) };
+  // a lid by a cut leaves both cut faces open
+  const open = new Set([...(spec.open ?? []).filter((k) => !LID_OPEN.includes(k)), ...(spec.lid ? LID_OPEN : [])]);
+  if (open.size) spec.open = [...open];
+  else delete spec.open;
   // the material: the design's when it can make this, else card or plywood 3 mm (decision 0)
   const swap = materialFor(as, d0.material);
   const d1: Design = swap ? { ...JSON.parse(JSON.stringify(d0)), material: { ...swap } } : d0;

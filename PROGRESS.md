@@ -2150,6 +2150,24 @@ Limitations
 - A shape moved so that a face's role changes (a box turned on its side keeps its roles; a prism given more sides renames its sides past the old count) loses the work on the faces that changed name.
 - Hand-added boards (not made from a face) are kept but not checked for whether they still touch anything.
 
+## Milestone 130 (Shapes R11) — openings, and a lid by a cut ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R11. `src/sculpt/polyhedron.ts` (`splitPolyhedra`, the cut keyed `cut`), `src/model/polyhedron.ts` (`movePoly`, `mergePoly`, `prefixPoly`, `polyBounds`), `src/model/reassemble.ts` (the lid's hem), `src/make/run.ts` (`polyOf` with a lid, `LID_OPEN`), `src/make/MakeCard.tsx`, `src/make/MadeFace.tsx` (new), `src/model/unfold.ts`, `src/model/pieces.ts`; `MakeSpec.lid`.
+- **Leave open**: a made board's own card has *Leave this face open*; the model is made again without it. On card the edges round an open face are cut and get no flap; on boards its corners go. The Make card says how many faces are open, with *Close them all*.
+- **A lid by a cut**: *A lid by a cut* on the Make card, *Lid, from the top* (20 mm by default). The kernel splits the solid with a level plane (`splitByPlane`); each half becomes its own face graph with the cut face keyed `cut` and left open, the lid's keys prefixed `lid/`, and the lid is set down beside the box, 20 mm clear, its cut on the floor. Both halves are made as one model (two nets, or two sets of boards).
+- **On card, the lid gets a hem** round its rim (a scored edge flap folded in at 180°, 6–10 mm), so it keeps its shape. The lid and the box have the same outline at the cut, so the lid sits on the box flush.
+- **The unfolder's flap clearance** (from 125) now grows a flap deeper and its far corners further along its edge, but keeps its base on the edge's ends: past them is the corner the neighbouring faces share. Before, almost every closing flap at a corner was refused, and an open box came out in two pieces. **The house now folds in one piece.**
+- **`netOverlaps` allows made boards a corner sliver under 4t²** (1 mm² on card), where the creases shift neighbours by up to a thickness.
+
+Verified
+- `tests/openings.test.ts` (5, with the kernel): a cube with its top open folds as one piece of five boards with four flaps and no overlap; in plywood it is five boards and eight corners; a cube split 20 mm below its top gives a box and a lid, each with five faces and the cut; on card the box is 40 mm and the lid 20 mm tall, the same width within 0.5 mm, four hems round the lid, two pieces; in plywood ten boards and sixteen corners, none broken.
+- **Two goldens changed on purpose** (125's `make-cube-card-0.5` and `make-house-card`): the unfolder's new clearance gives a different net, the house in one piece. Every older golden byte-identical. The engine tests of 123–129 pass.
+
+Limitations
+- **Board lids have no lip**: a plywood lid sits on its box flush (the plan's lip sized by the clearance is left for later).
+- The card lid's hem strengthens its rim; it does not plug into the box.
+- Faces are left open from a board's card, not by clicking faces in the shape stage.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

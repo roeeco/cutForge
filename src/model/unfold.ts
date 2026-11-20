@@ -178,6 +178,12 @@ function grow(r: P2[], c: number): P2[] {
   return [{ x: a.x - ux * c, y: a.y - uy * c }, { x: b.x - ux * c, y: b.y - uy * c }, { x: cc.x + ux * c, y: cc.y + uy * c }, { x: dd.x + ux * c, y: dd.y + uy * c }];
 }
 
+/** A flap's ring with its far corners pushed out along its edge by `c` (its base corners kept). */
+function growTop(r: P2[], c: number): P2[] {
+  const g = grow(r, c);
+  return [r[0], g[1], g[2], r[3]];
+}
+
 /** A flap placed in an island's flat layout. */
 type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; ring: P2[] };
 type Island = { faces: FaceKey[]; xf: Map<FaceKey, X>; flaps: PlacedFlap[] };
@@ -201,9 +207,9 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   for (const [depth, taper] of tries)
     for (const on of sides) {
       const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper);
-      // tested grown by the clearance, away from its own edge (it may touch the face it hangs from)
-      const test = clear > 0 ? flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear).map((p, i, r) => (i === 0 || i === r.length - 1 ? p : p)) : ring;
-      const tb = clear > 0 ? grow(test, clear) : test;
+      // tested deeper by the clearance, its far corners further along the edge; its base stays on the
+      // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
+      const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear), clear) : ring;
       const bb = bbox(tb);
       if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05))) continue;
       if (!fitsSheet([...others, ring], W, H)) continue;

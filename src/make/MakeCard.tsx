@@ -9,7 +9,7 @@ import type { Design, MakeSpec } from '../model/types';
 import { Segmented, NumField } from '../ui/NumField';
 import { Icon } from '../ui/icons';
 import { buildPieces } from '../model/pieces';
-import { canMake, facetsFor, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
+import { canMake, facetsFor, LID_OPEN, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
 import { detach, rechooseJoints, type MakeIssue } from '../model/reassemble';
 import { MATERIALS } from '../model/materials';
 import { kernelNow } from '../sculpt/kernel';
@@ -177,6 +177,19 @@ export function MakeCard() {
           testId="make-facets"
         />
       )}
+      {/* milestone 130: openings and a lid by a cut */}
+      {(spec.open ?? []).filter((k) => !LID_OPEN.includes(k)).length > 0 && (
+        <div className="make-open" data-testid="make-open">
+          <p className="note">{t('make.openFaces', { n: (spec.open ?? []).filter((k) => !LID_OPEN.includes(k)).length })}</p>
+          <button className="link" onClick={() => redo({ open: (spec.open ?? []).filter((k) => LID_OPEN.includes(k)) })} data-testid="make-close-all">
+            {t('make.closeAll')}
+          </button>
+        </div>
+      )}
+      <label className="check">
+        <input type="checkbox" checked={!!spec.lid} onChange={(e) => redo({ lid: e.target.checked ? 20 : undefined })} data-testid="make-lid" /> {t('make.lid')}
+      </label>
+      {!!spec.lid && <NumField label={t('make.lidDepth')} value={spec.lid} unit={t('unit.mm')} min={2} onCommit={(v) => redo({ lid: v })} testId="make-lid-depth" />}
       {busy && <p className="note">{t('make.working')}</p>}
       {/* how the net was split is said, not listed as a problem: it cuts and folds as it is */}
       {issues.map((i, k) =>

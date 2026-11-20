@@ -40,6 +40,8 @@ function gather(d: Design): Carry {
   for (const x of Object.values(d.connections)) {
     if (!x.src) continue;
     if (x.picked) c.joints[x.src] = x.kind;
+    // a seam kind the student picked keeps its edge cut, whatever net a remake finds
+    if (x.picked && x.kind !== 'fold' && d.make?.as === 'fold') c.cuts[x.src] = 'cut';
     // a fold the student cut (or kept) in the cut plan (milestone 69)
     if (x.seam && x.cut) c.cuts[x.src] = x.cut === 'cut' ? 'cut' : 'fold';
     if (x.picked) {
@@ -184,6 +186,16 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       // a flap that found no room in the net: the seam is left plain and listed
       if (role === 'seam' && (c.kind === 'glue' || c.kind === 'lock') && u.issues.some((i) => i.kind === 'flapDropped' && i.edge === e.key)) c.kind = 'butt';
     }
+    // a lid by a cut on card (milestone 130): a hem round the lid's rim, so it keeps its shape
+    if (mat.kind === 'card')
+      for (const e of Object.values(P.edges)) {
+        const rim = e.a === 'lid/cut' ? e.b : e.b === 'lid/cut' ? e.a : null;
+        if (!rim || !open.has('lid/cut')) continue;
+        const p = d.panels[boardId(rim)];
+        const ref = e.a === rim ? e.ea : e.eb;
+        if (!p || ref.ring !== 0) continue;
+        (p.edgeFlaps ??= []).push({ id: `hem-${ref.i}`, edge: `e${ref.i}`, len: Math.min(10, Math.max(6, e.len / 6)), angle: 180, dir: 'in' });
+      }
     solve(d);
     return { unfolding: u, issues };
   }

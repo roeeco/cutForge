@@ -1942,6 +1942,12 @@ export const en = {
   'make.update': "Update from shape",
   'make.detach': "Detach from the shapes",
   'make.detachAsk': "Detach: the boards stay as they are, and the shapes are taken away. Undo brings them back. Go on?",
+  // milestone 130: openings and a lid by a cut
+  'make.leaveOpen': "Leave this face open",
+  'make.openFaces': "{n} faces left open",
+  'make.closeAll': "Close them all",
+  'make.lid': "A lid by a cut",
+  'make.lidDepth': "Lid, from the top",
 } as const;
 
 export type MsgKey = keyof typeof en;

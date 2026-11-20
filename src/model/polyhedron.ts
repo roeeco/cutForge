@@ -270,3 +270,39 @@ export function polyIssues(P: Polyhedron, t: number): PolyIssue[] {
   }
   return out;
 }
+
+/** The face graph moved by `off` (milestone 130: a lid set down beside its box). */
+export function movePoly(P: Polyhedron, off: V3): Polyhedron {
+  const mv = (p: V3): V3 => [p[0] + off[0], p[1] + off[1], p[2] + off[2]];
+  const faces: Record<FaceKey, PFace> = {};
+  for (const [k, f] of Object.entries(P.faces)) faces[k] = { ...f, frame: { ...f.frame, o: mv(f.frame.o) } };
+  const edges: Record<EdgeKey, PEdge> = {};
+  for (const [k, e] of Object.entries(P.edges)) edges[k] = { ...e, p: mv(e.p), q: mv(e.q) };
+  return { faces, edges, issues: P.issues };
+}
+
+/** Two face graphs as one (their keys must not clash: a lid's are prefixed). */
+export function mergePoly(a: Polyhedron, b: Polyhedron): Polyhedron {
+  return { faces: { ...a.faces, ...b.faces }, edges: { ...a.edges, ...b.edges }, issues: [...a.issues, ...b.issues] };
+}
+
+/** A face graph with every key prefixed (its sources keep their own). */
+export function prefixPoly(P: Polyhedron, pre: string): Polyhedron {
+  const faces: Record<FaceKey, PFace> = {};
+  for (const [k, f] of Object.entries(P.faces)) faces[pre + k] = { ...f, key: pre + k };
+  const edges: Record<EdgeKey, PEdge> = {};
+  for (const [k, e] of Object.entries(P.edges)) edges[pre + k] = { ...e, key: pre + k, a: pre + e.a, b: pre + e.b };
+  return { faces, edges, issues: P.issues };
+}
+
+/** The bounds of a face graph's points (x, y, z). */
+export function polyBounds(P: Polyhedron): { min: V3; max: V3 } {
+  const min: V3 = [Infinity, Infinity, Infinity], max: V3 = [-Infinity, -Infinity, -Infinity];
+  for (const e of Object.values(P.edges))
+    for (const p of [e.p, e.q])
+      for (let i = 0; i < 3; i++) {
+        min[i] = Math.min(min[i], p[i]);
+        max[i] = Math.max(max[i], p[i]);
+      }
+  return { min, max };
+}

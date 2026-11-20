@@ -670,3 +670,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The student's joint picks and fold cuts are folded into the spec on every remake** (`joints`, `edges` by key), so they survive any number of remakes and a save; work on boards (shapes, text, lines, flaps) is carried board by board.
 - ***Update from shape* compares the shapes' solid key** (geometry and ids, with the cache's key), stored in the spec when made.
 - **Detach keeps `seam` on the joints**: a detached model still lays out its folds and flaps as made; only the keys, the spec and the shapes go.
+
+## Milestone 130 (Shapes R11): openings and the lid
+- **The lid is cut by the kernel** (`splitByPlane`), and each half keyed as before, the lid's keys prefixed `lid/`: the student's work on the lid carries across remakes as on any face.
+- **Leave open is on a made board's card**, the Workshop's place for a board's choices, rather than a face picker on the shape stage.
+- **A flap's clearance keeps its base on its edge's ends**: corners are where neighbours meet and creases shift them anyway; the export check allows made boards a 4t² corner sliver for the same reason.
+- **A seam kind the student picked keeps its edge cut** across remakes (milestone 129's carry-over, found while changing the unfolder): a slit lock never turns into a fold.

@@ -39,6 +39,7 @@ import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
 import { LazySculptCard } from '../sculpt/ui/lazy';
+import { MadeFaceSection } from '../make/MadeFace';
 import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
 import { outlineWhy } from '../model/outlineWhy';
 
@@ -306,6 +307,8 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <PlacedSection panelId={id} />
           </Gate>
           <ExtrudeSection panelId={id} />
+          {/* milestone 130: a board made from a shape's face */}
+          <MadeFaceSection panelId={id} />
           <TraySection panelId={id} />
           <LidSection panelId={id} />
           <LinesSection panelId={id} />

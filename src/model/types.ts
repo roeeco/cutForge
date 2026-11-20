@@ -520,6 +520,8 @@ export type MakeSpec = {
   edges?: Record<string, 'fold' | 'cut'>;
   /** A joint kind the student picked, by edge. */
   joints?: Record<string, ConnectionKind>;
+  /** Milestone 130: a lid by a cut, this far below the top (mm); the lid is made beside the box, both open at the cut. */
+  lid?: number;
   /** Milestone 129: the shapes' key when this was made (*Update from shape* shows when it differs). */
   shapeKey?: string;
 };

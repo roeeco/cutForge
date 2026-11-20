@@ -6,7 +6,7 @@
 // from them. Roles are read from directions in the shape's frame, so a resize or a
 // moved sketch point keeps every key; a new facet count changes only the facets'.
 import type { P2, Sculpt, Shape3, V3 } from '../model/types';
-import { polyFromTriangles, type PFace, type Polyhedron } from '../model/polyhedron';
+import { polyFromTriangles, prefixPoly, type PFace, type Polyhedron } from '../model/polyhedron';
 import { buildSolid, footprint, shapeMatrix, shapeOfOriginal } from './build';
 import { scope, type Kernel } from './kernel';
 import { parentMatrix } from './tree';
@@ -157,50 +157,68 @@ function roleOf(s: Shape3, n: V, c: V, N: number, segPts: { id: string; pts: P2[
  */
 export function shapePolyhedron(k: Kernel, sc: Sculpt, facets: number = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): Polyhedron {
   const fsc = facetedCopy(sc, facets, byShape);
+  return scope(() => meshPoly(buildSolid(k, fsc), fsc, facets));
+}
+
+/** A lid by a cut (milestone 130): the solid split by a level plane `cutY` (world y); each half with the cut face keyed `cut`, the lid's keys prefixed `lid/`. */
+export function splitPolyhedra(k: Kernel, sc: Sculpt, cutY: number, facets: number = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): { box: Polyhedron; lid: Polyhedron } | null {
+  const fsc = facetedCopy(sc, facets, byShape);
   return scope(() => {
     const m = buildSolid(k, fsc);
-    if (m.isEmpty()) return { faces: {}, edges: {}, issues: [] };
-    const mesh = m.getMesh();
-    mesh.merge();
-    const np = mesh.numProp, vp = mesh.vertProperties, tv = mesh.triVerts;
-    const V: V3[] = [];
-    for (let i = 0; i < vp.length / np; i++) V.push([vp[i * np], vp[i * np + 1], vp[i * np + 2]]);
-    const T: [number, number, number][] = [];
-    for (let i = 0; i < tv.length; i += 3) T.push([tv[i], tv[i + 1], tv[i + 2]]);
-    // each triangle's shape, from its run
-    const shapeOfTri: (string | undefined)[] = new Array(T.length);
-    for (let r = 0; r < mesh.runOriginalID.length; r++) {
-      const id = shapeOfOriginal(mesh.runOriginalID[r]);
-      for (let t = mesh.runIndex[r] / 3; t < mesh.runIndex[r + 1] / 3; t++) shapeOfTri[t] = id;
+    if (m.isEmpty()) return null;
+    const [below, above] = m.splitByPlane([0, -1, 0], -cutY) as unknown as [typeof m, typeof m];
+    if (below.isEmpty() || above.isEmpty()) return null;
+    const box = meshPoly(below, fsc, facets, cutY);
+    const lid = meshPoly(above, fsc, facets, cutY);
+    return { box, lid: prefixPoly(lid, 'lid/') };
+  });
+}
+
+/** A built solid's face graph, its triangles named by shape and role; with `cutY`, triangles on that level plane are the cut (`cut`). */
+function meshPoly(m: ReturnType<typeof buildSolid>, fsc: Sculpt, facets: number, cutY?: number): Polyhedron {
+  if (m.isEmpty()) return { faces: {}, edges: {}, issues: [] };
+  const mesh = m.getMesh();
+  mesh.merge();
+  const np = mesh.numProp, vp = mesh.vertProperties, tv = mesh.triVerts;
+  const V: V3[] = [];
+  for (let i = 0; i < vp.length / np; i++) V.push([vp[i * np], vp[i * np + 1], vp[i * np + 2]]);
+  const T: [number, number, number][] = [];
+  for (let i = 0; i < tv.length; i += 3) T.push([tv[i], tv[i + 1], tv[i + 2]]);
+  // each triangle's shape, from its run
+  const shapeOfTri: (string | undefined)[] = new Array(T.length);
+  for (let r = 0; r < mesh.runOriginalID.length; r++) {
+    const id = shapeOfOriginal(mesh.runOriginalID[r]);
+    for (let t = mesh.runIndex[r] / 3; t < mesh.runIndex[r + 1] / 3; t++) shapeOfTri[t] = id;
+  }
+  const frames = new Map<string, { inv: number[]; N: number; seg: { id: string; pts: P2[] }[] | null; facets: number }>();
+  const frameOf = (id: string) => {
+    let f = frames.get(id);
+    if (f) return f;
+    const s = fsc.shapes[id];
+    const M = m4Mul(parentMatrix(fsc, id), shapeMatrix(s));
+    const fc = s.facets ?? facets;
+    let seg: { id: string; pts: P2[] }[] | null = null;
+    if (s.kind === 'extrude' && s.sketch) {
+      const cuts = allCuts(s.sketch);
+      seg = s.sketch.order.filter((g) => s.sketch!.segs[g] && !s.sketch!.segs[g].cons).map((g) => ({ id: g, pts: s.sketch!.segs[g].k === 'line' ? (() => { const p = trimmedSegPoints(s.sketch!, g, cuts); return [p[0], p[p.length - 1]]; })() : trimmedSegPoints(s.sketch!, g, cuts) }));
     }
-    const frames = new Map<string, { inv: number[]; N: number; seg: { id: string; pts: P2[] }[] | null; facets: number }>();
-    const frameOf = (id: string) => {
-      let f = frames.get(id);
-      if (f) return f;
-      const s = fsc.shapes[id];
-      const M = m4Mul(parentMatrix(fsc, id), shapeMatrix(s));
-      const fc = s.facets ?? facets;
-      let seg: { id: string; pts: P2[] }[] | null = null;
-      if (s.kind === 'extrude' && s.sketch) {
-        const cuts = allCuts(s.sketch);
-        seg = s.sketch.order.filter((g) => s.sketch!.segs[g] && !s.sketch!.segs[g].cons).map((g) => ({ id: g, pts: s.sketch!.segs[g].k === 'line' ? (() => { const p = trimmedSegPoints(s.sketch!, g, cuts); return [p[0], p[p.length - 1]]; })() : trimmedSegPoints(s.sketch!, g, cuts) }));
-      }
-      f = { inv: m4InvAffine(M), N: CURVED.has(s.kind) ? fc : facets, seg, facets: fc };
-      frames.set(id, f);
-      return f;
-    };
-    return polyFromTriangles(V, T, (t) => {
-      const id = shapeOfTri[t];
-      const s = id ? fsc.shapes[id] : undefined;
-      if (!id || !s) return { key: `?:t${t}`, src: [] };
-      const f = frameOf(id);
-      const [a, b, c] = T[t].map((i) => m4Apply(f.inv as never, V[i]) as V);
-      const n = norm(cross(sub(b, a), sub(c, a)));
-      const cen: V = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
-      const r = roleOf(s, n, cen, f.N, f.seg, f.facets);
-      // a face a Hole left in the solid
-      const key = `${s.hole ? 'hole:' : ''}${id}:${r.role}`;
-      return { key, src: [{ shapeId: id, role: r.role }], ...(r.facetOf ? { facetOf: r.facetOf } : {}) };
-    });
+    f = { inv: m4InvAffine(M), N: CURVED.has(s.kind) ? fc : facets, seg, facets: fc };
+    frames.set(id, f);
+    return f;
+  };
+  return polyFromTriangles(V, T, (t) => {
+    // the cut of a lid by a cut: a triangle lying on the level plane, facing up or down
+    if (cutY !== undefined && T[t].every((i) => Math.abs(V[i][1] - cutY) < 1e-4)) return { key: 'cut', src: [] };
+    const id = shapeOfTri[t];
+    const s = id ? fsc.shapes[id] : undefined;
+    if (!id || !s) return { key: `?:t${t}`, src: [] };
+    const f = frameOf(id);
+    const [a, b, c] = T[t].map((i) => m4Apply(f.inv as never, V[i]) as V);
+    const n = norm(cross(sub(b, a), sub(c, a)));
+    const cen: V = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
+    const r = roleOf(s, n, cen, f.N, f.seg, f.facets);
+    // a face a Hole left in the solid
+    const key = `${s.hole ? 'hole:' : ''}${id}:${r.role}`;
+    return { key, src: [{ shapeId: id, role: r.role }], ...(r.facetOf ? { facetOf: r.facetOf } : {}) };
   });
 }

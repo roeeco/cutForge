@@ -292,6 +292,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'sketch-plane-section': null,
   'sketch-bar': null,
   'sketch-tool-help': null,
+  // milestone 130: a made board's face left open (Workshop only: made models come from Shapes)
+  'made-face-section': null,
   // milestone 104: the outline being edited in the 2D view
   'edit2d-section': 'edit2d',
   // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)
