@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="500mm" height="300mm" viewBox="0 0 500 300">
+  <g id="SCORE" fill="none" stroke="#0000FF" stroke-width="0.1">
+    <path d="M100.643 69 L100.643 5"/>
+  </g>
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M5 69 L197 69 L197 5 L5 5 Z"/>
+    <path d="M106 56 L114 64"/>
+    <path d="M106 18 L114 10"/>
+    <path d="M192 18 L184 10"/>
+    <path d="M192 56 L184 64"/>
+  </g>
+</svg>

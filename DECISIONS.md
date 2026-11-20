@@ -570,3 +570,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A gable top needs 50 mm of depth** (`GABLE_MIN_DEPTH`, a limit's `min`): below it the short roofs' glue flaps are clamped and overlap the peaks in the flat. The size limits' bisection assumes the small end works, so the floor is given to it.
 - **The hexagon box is a box with a hinged lid**, not carton ends on a six-sided tube: already one piece and clean on card, it does what the style is for; n-sided carton ends stay unbuilt (`DIELINE_DNA_PLAN.md` §9).
 - **A style starts at its structure's own sizes** when it cannot be made at the sentence's, with a note per size, rather than being hidden from the card grid.
+
+## Milestone C5: flat pieces (SENTENCE_STYLES_PLAN.md)
+- **Envelopes are one board with shaped flaps** (112), not a new kind of geometry: the pointed flaps' slopes are worked out from the edge and the length so their tip is 6 mm before rounding, which keeps them clear of the narrow-flap check.
+- **The folder is shown open flat**: half open, its right cover meets the left pocket at the spine.
+- **The folder's pockets stop 6 mm short of the spine** and are glued on their outer side only; full-width pockets with glue flaps on both sides overlap each other in the flat at the spine.
+- **The flat pieces are card only** (thicker boards do not fold flat cleanly).
+- **D7's first question is answered** (a grown board at 180° or folded almost shut solves, exports and checks clean); D7 itself (fold along a drawn line) stays with the owner.

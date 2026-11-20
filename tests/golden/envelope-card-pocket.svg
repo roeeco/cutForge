@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="500mm" height="300mm" viewBox="0 0 500 300">
+  <g id="SCORE" fill="none" stroke="#0000FF" stroke-width="0.1">
+    <path d="M215.75 123 L215.75 19"/>
+    <path d="M216 19.25 L52 19.25"/>
+    <path d="M52 122.75 L216 122.75"/>
+    <path d="M52.25 20 L52.25 122"/>
+  </g>
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M331.3136 110.88 A3 3 0 0 0 334 107.8965 L334 34.1035 A3 3 0 0 0 331.3136 31.12 L216 19.0011 L216 19 L215.9942 19 L207.9171 5 L60.0829 5 L52.0058 19 L52 19 L52 20 L13 20 A8 8 0 0 0 5 28 L5 114 A8 8 0 0 0 13 122 L52 122 L52 123 L52.0058 123 L60.0829 137 L207.9171 137 L215.9942 123 L216 123 L216 122.9989 Z"/>
+  </g>
+</svg>

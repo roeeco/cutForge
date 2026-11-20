@@ -99,6 +99,11 @@ CASES.push({ name: 'drawer-card', make: () => templateDesign('drawer', MATERIALS
 CASES.push({ name: 'carton-card-crash', make: () => styleCarton(MATERIALS[0], 'tuck', 'crash') });
 // milestone C4: a gable top box, a one-piece hexagon box
 CASES.push({ name: 'gable-card', make: () => templateDesign('carton', MATERIALS[0], { top: 'gable', bottom: 'tuck' }) });
+// milestone C5: flat pieces
+CASES.push({ name: 'envelope-card-pointed', make: () => templateDesign('envelope', MATERIALS[0], { flaps: 'pointed' }) });
+CASES.push({ name: 'envelope-card-pocket', make: () => templateDesign('envelope', MATERIALS[0], { flaps: 'pocket', width: 100, height: 160 }) });
+CASES.push({ name: 'folder-card', make: () => templateDesign('folder', MATERIALS[0]) });
+CASES.push({ name: 'card-holder-card', make: () => templateDesign('cardHolder', MATERIALS[0]) });
 CASES.push({ name: 'hex-box-card', make: () => templateDesign('box', MATERIALS[0], { shape: 'poly', sides: 6, lid: 'hinged', width: 120, depth: 120, height: 60 }) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {

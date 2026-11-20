@@ -17,7 +17,8 @@ describe('template registry', () => {
       for (const m of [PLY, CORR16, CORR4, CARD]) {
         if (!t.materials.includes(m.kind)) continue;
         const d = generate(t, m, defaults(t));
-        expect(d.order.length, `${t.id} ${m.id}`).toBeGreaterThan(3);
+        // (milestone C5's flat pieces are one board with flaps, or two or four boards)
+        expect(d.order.length, `${t.id} ${m.id}`).toBeGreaterThan(['envelope', 'cardHolder', 'folder'].includes(t.id) ? 0 : 3);
         expect(d.order.every((id) => id.startsWith('t:')), `${t.id} ${m.id}`).toBe(true);
         expect(Object.values(d.connections).some((c) => c.broken), `${t.id} ${m.id}`).toBe(false);
         expect(validate(d).map((i) => i.key), `${t.id} ${m.id}`).toEqual([]);

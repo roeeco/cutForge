@@ -150,11 +150,16 @@ The plans name their milestones by letter; **this table is the only place that n
 | **117** | **Production**: nicks, fill the sheet, cost | Dieline D9 | |
 | **118** | **Verification of 92–117** | all three (D10, G7's final check; S7 already done at 100) | |
 | — | Closures anywhere; fold along a line | Dieline D4, D7 | Wait for the owner (`DIELINE_DNA_PLAN.md` §7, question 8) and D7's spike |
-| — | The sentence's later items (a mailer, a drawer, an envelope, sized by contents, a sentence bar in the design, Guided's gallery opening with the sentence) | Sentence §8 | Registered as `planned`, not shown |
+| — | The sentence's later items (a mailer, sized by contents, a sentence bar in the design, Guided's gallery opening with the sentence; the drawer and the envelope came with C2 and C5) | Sentence §8 | Registered as `planned`, not shown |
+| C1 | **Named styles in the sentence, and a card grid of them** (*Sentence · Cards* on the welcome screen) | `SENTENCE_STYLES_PLAN.md` | Built beside 111–114 (20 November); letters, not numbers: §5.3 numbers 119–133 |
+| C2 | **Straight tuck end, the regular slotted container, the drawer box** | `SENTENCE_STYLES_PLAN.md` | |
+| C3 | **The crash-lock (auto) bottom** | `SENTENCE_STYLES_PLAN.md` | The owner confirms the patent question (§0 there) before it ships |
+| C4 | **The gable top box and the one-piece hexagon box** | `SENTENCE_STYLES_PLAN.md` | Carton ends on tubes of more than four sides not built (the hexagon box is a box with a hinged lid) |
+| C5 | **Flat pieces: two envelopes, a presentation folder, a gift-card holder** | `SENTENCE_STYLES_PLAN.md` | Uses 112's shaped flaps; answers D7's first question (a grown board folds flat and exports at any angle) |
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-**Status:** 92–109 built (see `PROGRESS.md`); Guided 110 in progress.
+**Status:** 92–109 and 111–114 built, and C1–C5 (see `PROGRESS.md`); Guided 110 on `claude/bold-archimedes-aib4wy`. The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
 
 **Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
 

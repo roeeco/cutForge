@@ -1,6 +1,6 @@
 # CutForge: named styles in the sentence builder (milestones C1–C5)
 
-Status: plan, 2026-11-19. Nothing here is built. It extends `SENTENCE_BUILDER_PLAN.md` (S1–S7, milestones 94–100 in `ROADMAP.md` §5, on `origin/claude/bold-archimedes-aib4wy`). Its own milestones are named C1–C5 here; §6 proposes their numbers.
+Status: plan, 2026-11-19; **built 2026-11-20 as C1–C5** (see `PROGRESS.md`; what changed from this plan is in `DECISIONS.md`). The card grid is a switch beside the sentence (the owner, 20 November): §3's decisions 1–2 are superseded. It extends `SENTENCE_BUILDER_PLAN.md` (S1–S7, milestones 94–100 in `ROADMAP.md` §5, on `origin/claude/bold-archimedes-aib4wy`). Its own milestones are named C1–C5 here; §6 proposes their numbers.
 
 **In one paragraph.** The sentence's first word, *[a box ▾]*, today lists a handful of structures. This plan turns that list into a catalogue of named packaging styles: the twenty styles of Die Cut Studio's gallery (2026-11-19), less the pillow box. Each one is a style the packaging trade already names (*Reverse tuck end*, *Tuck-top snap-lock*, *Regular slotted container*). Picking one fills in several words at once. A style is not a new template: it is **a name for a set of words**, and the sentence shows the name whenever its words match one. Eight styles need nothing but words, three need small additions to the engine, and the rest need new geometry (crash-lock bottoms, a gable top, n-sided carton ends, flaps folded flat).
 

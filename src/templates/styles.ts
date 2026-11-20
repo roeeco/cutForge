@@ -44,6 +44,11 @@ export const STYLES: StyleDef[] = [
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
   // shipping
   { id: 'rsc', structure: 'carton', words: { top: 'rsc', bottom: 'rsc' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0201', status: 'stable' },
+  // flat pieces
+  { id: 'diamondEnvelope', structure: 'envelope', words: { flaps: 'pointed' }, group: 'flat', uses: ['gift', 'stationery'], status: 'stable' },
+  { id: 'pocketEnvelope', structure: 'envelope', words: { flaps: 'pocket' }, group: 'flat', uses: ['cards', 'stationery'], status: 'stable' },
+  { id: 'presFolder', structure: 'folder', words: {}, group: 'flat', uses: ['stationery'], status: 'stable' },
+  { id: 'giftCardHolder', structure: 'cardHolder', words: {}, group: 'flat', uses: ['gift', 'cards'], status: 'stable' },
   { id: 'openSleeve', structure: 'sleeve', words: {}, group: 'cartons', uses: ['cosmetics'], code: 'ECMA D10', status: 'stable' },
 ];
 
@@ -97,6 +102,6 @@ export const styleWord = (s: StyleDef) => `style.${s.id}.word` as MsgKey;
 export const styleDesc = (s: StyleDef) => `style.${s.id}.desc` as MsgKey;
 export const GROUPS: (StyleGroup | 'more')[] = ['boxes', 'cartons', 'shipping', 'flat', 'more'];
 /** Where each structure sits in the first word's list (a structure not named here goes last). */
-export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', stand: 'more' };
+export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more' };
 /** A style whose words are all its structure's own (no word fixed): the structure's entry stands for it. */
 export const isAlias = (s: StyleDef) => Object.keys(s.words).length === 0;

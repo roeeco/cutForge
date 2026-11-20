@@ -1878,6 +1878,25 @@ Limitations
 - The ridge stays open by about 2.5 mm on card (the roofs stop short).
 - Carton ends on tubes of more than four sides are not built: the hexagon box is a box with a hinged lid instead (same use, one piece).
 
+## Milestone C5 (Styles) — flat pieces: two envelopes, a presentation folder, a gift-card holder ✅
+
+`SENTENCE_STYLES_PLAN.md` C5. New `src/templates/structures/flat.ts` (`envelope`, `folder`, `cardHolder`); `src/templates/registry.ts`, `src/templates/styles.ts`.
+- **Spike first**: a board grown at any angle from 180° (flat) to 3° (folded almost shut) solves, exports as one piece and checks clean — `DIELINE_DNA_PLAN.md` D7's first question, answered.
+- **An envelope** for a card of a given size (2 mm round it), *with pointed flaps* (a diamond or wedding envelope: four pointed flaps with rounded tips, their slopes worked out to leave a 6 mm tip, folded over the board in order — sides, bottom, then the closing flap on top) or *with a pocket and a closing flap* (a portrait wallet: a pocket folded up over three quarters of it and glued at its sides, a closing flap with rounded corners). All 112's shaped flaps.
+- **A presentation folder**: two covers joined by a fold, open flat; a pocket folded up on each, stopping short of the spine (the pockets would meet there in the flat) and glued at its outer side; slits for a business card (90 × 50) on the right pocket.
+- **A gift-card holder** for a card of a given size (86 × 54 by default): two faces folded open, four corner slits on one for the card.
+- Card only. **Four more styles** in the *Flat pieces* group: *Diamond envelope*, *Pocket envelope*, *Presentation folder*, *Gift-card holder*. With C1–C4, nineteen of Die Cut Studio's twenty styles; the pillow box needs curved creases.
+
+Verified
+- `tests/c5.test.ts` (5): the diamond envelope is one piece with four folded flaps, the closing flap folding last; the pocket envelope's pocket covers over 60 % of it; the folder is one piece, each pocket glued on one side, two slits on the right pocket; the holder is one piece with four slits; the four styles are listed on card and each builds clean from the sentence's first words, and none is made in corrugated or plywood. `tests/templates.test.ts` takes flat pieces of one to four boards.
+- New goldens `envelope-card-pointed`, `envelope-card-pocket`, `folder-card`, `card-holder-card` (looked at); every older golden byte-identical.
+- `start-sentence.spec.ts` (every structure and style the sentence lists starts clean in every material) and `styles.spec.ts` pass. Unit suite and typecheck green.
+
+Limitations
+- Folded flaps that turn 176–179° lie in the board's own plane in 3D, with only a slight tilt between layers; the model does not stack them a thickness apart.
+- The folder's pockets are glued on their outer side only; the spine side is left open.
+- The envelope is sized by the card inside; a letter folded in thirds is not a word.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

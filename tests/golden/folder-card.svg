@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="500mm" height="300mm" viewBox="0 0 500 300">
+  <g id="SCORE" fill="none" stroke="#0000FF" stroke-width="0.1">
+    <path d="M17.25 294.0681 L17.25 224.0681"/>
+    <path d="M296.75 294.0681 L296.75 224.0681"/>
+    <path d="M157 205 L157 5"/>
+    <path d="M17 214.5209 L151 214.5209"/>
+    <path d="M297 214.5209 L163 214.5209"/>
+  </g>
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M5 287.1399 L17 294.0623 L17 294.0681 L151 294.0681 L151 205 L163 205 L163 294.0681 L297 294.0681 L297 294.0623 L309 287.1399 L309 230.9963 L297 224.0738 L297 5 L17 5 L17 224.0738 L5 230.9963 Z"/>
+    <path d="M268 237.5681 L275 244.5681"/>
+    <path d="M192 237.5681 L185 244.5681"/>
+  </g>
+</svg>
