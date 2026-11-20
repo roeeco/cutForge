@@ -544,3 +544,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The four-flap end stays FEFCO 0204** (all flaps meet); the RSC is a new end, so no golden changed.
 - **The drawer's sleeve is measured, not calculated**: it is sized from the tray as built, so the sleeve follows whatever the tray's walls and joints make its outside.
 - **Tests import the template registry first** (as `goldenDesigns.ts` does): the structures import each other through it.
+
+## Milestone 113: the Net view (DIELINE_DNA_PLAN.md D1)
+- **A switch in the cut plan's dock, not a third top tab** (the plan's decision 2; the owner asked for a quieter interface).
+- **The preview is the stage with its controls hidden by a context** (`StagePreview`, read by `useFeature`), not a second renderer: the same scene, the same fold slider.
+- **The preview keeps the grow ghost and its ✓ in 113**, so an edge picked in the flat can already be grown; 114 moves the ✓ to the flat and hides it here (never both).
+- **Hidden in Quick build and Guided** (the plan's §7 question 1; ROADMAP §5.2 row 10), and a stored *Nets* falls back to the sheets there.

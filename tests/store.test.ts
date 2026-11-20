@@ -83,3 +83,23 @@ describe('copy and paste shapes (milestone 33), ghosts waiting for ✓ (mileston
     expect(s().design.panels[b].details).toHaveLength(0);
   });
 });
+
+describe('the cut plan as nets (milestone 113)', () => {
+  it('the choice is a viewer preference: written to this browser, kept across views', () => {
+    const mem = new Map<string, string>();
+    const prev = (globalThis as { localStorage?: unknown }).localStorage;
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    try {
+      const s = () => useStore.getState();
+      s().setPrefs({ planMode: 'nets' });
+      expect(JSON.parse(mem.get('cutforge.viewPrefs')!).planMode).toBe('nets');
+      s().setView('3d');
+      s().setView('2d');
+      expect(s().viewPrefs.planMode).toBe('nets');
+      s().setPrefs({ planMode: undefined });
+      expect(JSON.parse(mem.get('cutforge.viewPrefs')!).planMode).toBeUndefined();
+    } finally {
+      (globalThis as { localStorage?: unknown }).localStorage = prev;
+    }
+  });
+});

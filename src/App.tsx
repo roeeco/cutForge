@@ -13,12 +13,14 @@ import { TourOverlay } from './tour/TourOverlay';
 import { Gate } from './easy/Gate';
 import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
-import { useMode } from './easy/features';
+import { shown, useFeature, useMode } from './easy/features';
 import { View3D } from './views/View3D';
 
 // Loaded when first used (code splitting, 20 November): the cut plan and face-on view with the 2D editing, the
 // download dialog with the export and print code, the teacher's view, and the sentence's development page.
 const Plan2D = lazy(() => import('./views/Plan2D').then((m) => ({ default: m.Plan2D })));
+// milestone 113: the Net view (the cut plan's nets with a folded preview)
+const NetView = lazy(() => import('./views/NetView').then((m) => ({ default: m.NetView })));
 const ExportDialog = lazy(() => import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog })));
 const TeacherApp = lazy(() => import('./teacher/TeacherApp').then((m) => ({ default: m.TeacherApp })));
 // Guided's shell (milestone 105): its own chunk
@@ -51,6 +53,9 @@ export function App() {
   const teacher = route.startsWith('#/teacher');
   const otherTab = useStore((s) => s.otherTab);
   const guided = useMode() === 'guided';
+  // milestone 113: the cut plan as nets (never in a level that hides them: a stored choice falls back to the sheets)
+  const netsShown = shown(useFeature('plan.nets'));
+  const planNets = useStore((s) => s.viewPrefs.planMode === 'nets') && netsShown;
   useAutosave(() => setLoaded(true));
   useKeyboard();
   // the parts loaded when first used are fetched once the editor is up, so they are there offline too
@@ -58,6 +63,7 @@ export function App() {
     if (!loaded) return;
     const h = setTimeout(() => {
       void import('./views/Plan2D');
+      void import('./views/NetView');
       void import('./ui/ExportDialog');
       void import('./guided/GuidedApp');
     }, 0);
@@ -97,7 +103,7 @@ export function App() {
             {view === '3d' ? (
               <View3D />
             ) : (
-              <Suspense fallback={<Loading />}>{view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : <Plan2D />}</Suspense>
+              <Suspense fallback={<Loading />}>{view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : view === '2d' && planNets ? <NetView /> : <Plan2D />}</Suspense>
             )}
           </main>
           <Toolbar />

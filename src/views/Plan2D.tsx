@@ -1,7 +1,9 @@
 // The 2D editor, used for the cut plan (every piece flat on its sheets) and
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { foldChips, netEdges, type NetEdge } from './netPick';
+import type { Selection as StoreSelection } from '../store/store';
 import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
 import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
 import { evalNumber } from '../ui/NumField';
@@ -56,7 +58,7 @@ type Drag =
   | { kind: 'pt2d'; ptId: string; placed: Placed; panelId: string; startSvg: Vec2; moved: boolean };
 
 
-export function Plan2D({ soloPanel }: { soloPanel?: string }) {
+export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { soloPanel?: string; mode?: 'sheets' | 'net'; dockExtra?: ReactNode }) {
   const t = useT();
   const d = useStore((s) => s.design);
   const sel = useStore((s) => s.selection);
@@ -67,13 +69,28 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   const solo = soloPanel ? d.panels[soloPanel] : undefined;
   const dims = useStore((s) => !!s.viewPrefs.planDims);
   const dashedUsed = useMemo(() => d.order.some((id) => d.panels[id]?.lines?.some((l) => l.type === 'perf' || l.type === 'cutcrease')) || Object.values(d.connections).some((c) => c.crease && c.crease !== 'score') || Object.values(d.trays ?? {}).some((x) => x.lidOf), [d]);
-  const modeKey = solo ? `solo:${solo.id}` : 'sheets';
+  // milestone 113: the nets one beside another, picked edge by edge (no sheets)
+  const net = !solo && planMode === 'net';
+  const netsOk = shown(useFeature('plan.nets'));
+  const modeKey = solo ? `solo:${solo.id}` : net ? 'nets' : 'sheets';
 
   const layout = useMemo(() => {
     if (solo) {
       const piece = panelPiece(d, solo.id);
       const copy: PieceCopy = { key: `${solo.id}#solo`, pieceKey: solo.id, copy: 0, contours: piece.contours, w: solo.w, h: solo.h, origin: { x: 0, y: 0 }, panels: piece.panels, mat: d.material.id };
       return { placed: [{ copy, sheet: 0, xf: IDENTITY, ox: 0, H: solo.h }] as Placed[], slots: [] as Slot[], placements: {} as Record<string, SheetPlacement>, mixed: false };
+    }
+    if (net) {
+      // each net once, in a row, top-aligned; nothing to drag
+      let x = 0;
+      const placed: Placed[] = pieceCopies(d)
+        .filter((c) => c.copy === 0)
+        .map((c) => {
+          const pl = { copy: c, sheet: 0, xf: IDENTITY, ox: x, H: c.h };
+          x += c.w + GAP;
+          return pl;
+        });
+      return { placed, slots: [] as Slot[], placements: {} as Record<string, SheetPlacement>, mixed: false };
     }
     const copies = pieceCopies(d);
     const placements = pack(d, copies);
@@ -95,14 +112,14 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         return { copy: c, sheet: pl.sheet, xf: placementXform(pl, c.h, c.w), ox: k.ox, H: k.H };
       });
     return { placed, slots, placements, mixed: groups.length > 1 };
-  }, [d, solo]);
+  }, [d, solo, net]);
   // nets that would not lie flat (milestone 35): the overlap regions, in red on the piece
   const netBad = useMemo(() => (solo ? [] : netOverlaps(d)), [d, solo]);
   // pieces flagged by validation (overlapping or off the sheet) are drawn in red
   const badPieces = useMemo(() => {
-    if (solo) return new Set<string>();
+    if (solo || net) return new Set<string>();
     return new Set(validate(d).filter((i) => i.key === 'val.piecesOverlap' || i.key === 'val.offSheet').map((i) => i.target.id));
-  }, [d, solo]);
+  }, [d, solo, net]);
 
   const fitVB = (): VB => {
     if (solo) {
@@ -110,8 +127,9 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return { x: -m, y: -m, w: solo.w + 2 * m, h: solo.h + 2 * m };
     }
     const last = layout.slots[layout.slots.length - 1];
-    const totalW = last ? last.ox + last.W : d.material.sheetW;
-    const H = Math.max(1, ...layout.slots.map((k) => k.H));
+    const lastNet = layout.placed[layout.placed.length - 1];
+    const totalW = net ? (lastNet ? lastNet.ox + lastNet.copy.w : 100) : last ? last.ox + last.W : d.material.sheetW;
+    const H = net ? Math.max(1, ...layout.placed.map((k) => k.H)) : Math.max(1, ...layout.slots.map((k) => k.H));
     // frame the sheets in the area the floating rail and card leave free
     // (rail at the inline start, card at the inline end)
     const el = svgRef.current;
@@ -153,6 +171,15 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
   };
   /** First placed copy showing a panel (where its shapes are edited). */
   const placedOf = (panelId: string) => layout.placed.find((p) => p.copy.copy === 0 && p.copy.panels.some((n) => n.panelId === panelId));
+  /** A fold picked in Nets (milestone 113): the board folded by it, its joint open on the card. */
+  const pickFold = (foldId: string) => (ev: React.PointerEvent) => {
+    if (ev.button !== 0) return;
+    ev.stopPropagation();
+    const c = useStore.getState().design.connections[foldId];
+    if (!c) return;
+    useStore.getState().select({ kind: 'panel', id: c.b.panelId });
+    useStore.getState().set({ openJoint: foldId });
+  };
 
   useEffect(() => {
     const move = (ev: PointerEvent) => {
@@ -401,6 +428,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       return;
     }
     useStore.getState().select({ kind: 'panel', id: panelId });
+    if (net) return;
     useStore.getState().set({ sheetCopy: pl.copy.key });
     const start = layout.placements[pl.copy.key];
     if (start && planEdit) drag.current = { kind: 'piece', key: pl.copy.key, start, startSvg: svgPoint(ev), moved: false };
@@ -438,12 +466,13 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
     // milestone 104: double-clicked into a shape, a line or (in the face-on view) the board, its outline is edited here
     const target = edit2dOk ? edit2dAt(pl, panelId, at, ev.target as Element) : null;
     if (target) {
-      if (!solo) st.openSolo(target.panelId);
+      // in Nets (milestone 113) outlines are edited where they are
+      if (!solo && !net) st.openSolo(target.panelId);
       st.set({ edit2d: target, sel2d: null });
       if (target.kind === 'shape') st.select(detailSel([target.id]));
       return;
     }
-    if (!solo) st.openSolo(panelId);
+    if (!solo && !net) st.openSolo(panelId);
   };
   /** What a double-click at a point would edit: the shape under it, a line near it, or (face-on) the board itself. */
   const edit2dAt = (pl: Placed, panelId: string, at: Vec2, el: Element | null): Edit2D | null => {
@@ -472,7 +501,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
       const pts = linePolyline(ln);
       for (let i = 0; i + 1 < pts.length; i++) if (distToSegment(l, pts[i], pts[i + 1]) <= tol) return { kind: 'line', id: ln.id, panelId };
     }
-    if (solo) {
+    if (solo || net) {
       const t2: Edit2D = { kind: 'board', id: panelId, panelId };
       if (canEdit(d, t2)) return t2;
     }
@@ -631,8 +660,8 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
                     className={`detail ${dsel ? 'sel' : ''} op-${c.op} ${fold ? 'fold-line' : ''}`}
                     stroke={dsel ? '#1fb8ac' : LAYERS[c.op].hex}
                     strokeWidth={px * (dsel ? 2.5 : 1)}
-                    onPointerDown={dt && owner ? onDetailDown(pl, dt, owner.id) : undefined}
-                    pointerEvents={dt ? undefined : 'none'}
+                    onPointerDown={dt && owner ? onDetailDown(pl, dt, owner.id) : net && fold && pl.copy.copy === 0 ? pickFold(c.ref!.foldId!) : undefined}
+                    pointerEvents={dt || (net && fold) ? undefined : 'none'}
                     data-testid={dt && pl.copy.copy === 0 ? `detail-${dt.id}` : undefined}
                   />
                 );
@@ -698,6 +727,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             </g>
           );
         })}
+        {net && layout.placed.map((pl) => <NetPicks key={`pick-${pl.copy.key}`} d={d} pl={pl} px={px} sel={sel} onFold={pickFold} />)}
         {netBad.map((o, k) => {
           const pl = layout.placed.find((x) => x.copy.copy === 0 && x.copy.pieceKey === o.net);
           if (!pl) return null;
@@ -817,7 +847,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
           <button onClick={() => setVB(fitVB())} aria-label={t('view.fit')} title={t('view.fit')} data-testid="fit-view">
             <Icon name="fit" />
           </button>
-          {!solo && planEdit && (
+          {!solo && !net && planEdit && (
             <button
               onClick={() => {
                 const st = useStore.getState();
@@ -837,7 +867,18 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
             {t('ann.dims')}
           </button>
         )}
-        {!solo && <YieldBar />}
+        {/* milestone 113: the sheets, or the nets one by one */}
+        {!solo && netsOk && (
+          <span className="seg plan-mode" role="group" aria-label={t('plan.mode')}>
+            {(['sheets', 'nets'] as const).map((v) => (
+              <button key={v} type="button" className={(net ? 'nets' : 'sheets') === v ? 'on' : ''} aria-pressed={(net ? 'nets' : 'sheets') === v} onClick={() => useStore.getState().setPrefs({ planMode: v === 'sheets' ? undefined : v })} data-testid={`plan-mode-${v}`}>
+                {t(`plan.${v}`)}
+              </button>
+            ))}
+          </span>
+        )}
+        {dockExtra}
+        {!solo && !net && <YieldBar />}
       </div>
       {/* milestone 89: what each colour and dash means, always (Guided names no layers, milestone 108) */}
       {fLegend && <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
@@ -853,7 +894,7 @@ export function Plan2D({ soloPanel }: { soloPanel?: string }) {
         )}
       </div>}
       {fHint && <div className="view-hint" dir={uiDir()}>
-        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : t('pack.hint')}
+        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : net ? t('net.hint') : t('pack.hint')}
       </div>}
     </div>
   );
@@ -918,4 +959,80 @@ function FramePills({ box, circle, id, toSvg, px }: { box: FrameBox; circle: boo
     );
   };
   return <g className="frame-pills">{circle ? pill('w') : [pill('w'), pill('h')]}</g>;
+}
+
+
+/**
+ * The Net view's picking layer (milestone 113): a wide transparent line on
+ * every edge of a net's boards. A free edge selects the edge (its grow card,
+ * and a flap); a fold opens its joint; another joint selects its board with
+ * that joint open. A fold's angle sits on it as a chip, with a valley or
+ * mountain mark.
+ */
+function NetPicks({ d, pl, px, sel, onFold }: { d: Design; pl: Placed; px: number; sel: StoreSelection | null; onFold: (id: string) => (ev: React.PointerEvent) => void }) {
+  const t = useT();
+  const [hover, setHover] = useState<string | null>(null);
+  const edges = useMemo(() => netEdges(d, pl.copy), [d, pl.copy]);
+  const chips = useMemo(() => foldChips(d, pl.copy), [d, pl.copy]);
+  const at = (q: Vec2) => ({ x: q.x + pl.ox, y: pl.H - q.y });
+  const pick = (e: NetEdge) => (ev: React.PointerEvent) => {
+    if (ev.button !== 0) return;
+    ev.stopPropagation();
+    const st = useStore.getState();
+    if (e.foldId) return onFold(e.foldId)(ev);
+    if (e.jointId) {
+      st.select({ kind: 'panel', id: e.panelId });
+      st.set({ openJoint: e.jointId });
+      return;
+    }
+    st.select({ kind: 'edge', panelId: e.panelId, edge: e.key });
+  };
+  return (
+    <g className="net-picks" data-testid={`net-picks-${pl.copy.pieceKey}`}>
+      {edges.map((e) => {
+        const a = at(e.a), b = at(e.b);
+        const id = `${e.panelId}-${e.key}`;
+        const on = sel?.kind === 'edge' && sel.panelId === e.panelId && sel.edge === e.key;
+        return (
+          <g key={id}>
+            {on && <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#1fb8ac" strokeWidth={px * 4} strokeLinecap="round" pointerEvents="none" data-testid="net-edge-selected" />}
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              className={`edge-hit${e.free ? ' free' : ''}`}
+              stroke="transparent"
+              strokeWidth={SNAP_PX * px}
+              onPointerDown={pick(e)}
+              onPointerEnter={() => setHover(id)}
+              onPointerLeave={() => setHover((h) => (h === id ? null : h))}
+              data-testid={`net-edge-${e.panelId}-${e.key}`}
+              data-free={e.free || undefined}
+              data-fold={e.foldId}
+            />
+            {hover === id && e.free && !on && (
+              <g pointerEvents="none" transform={`translate(${(a.x + b.x) / 2}, ${(a.y + b.y) / 2})`}>
+                <circle r={px * 9} fill="#1fb8ac" />
+                <text textAnchor="middle" dy={px * 4} fontSize={px * 13} fill="#fff">+</text>
+                <title>{t('net.addHere')}</title>
+              </g>
+            )}
+          </g>
+        );
+      })}
+      {chips.map((c) => {
+        const p = at(c.at);
+        return (
+          <g key={c.foldId} className="fold-chip" pointerEvents="none" transform={`translate(${p.x}, ${p.y})`} data-testid={`fold-chip-${c.foldId}`}>
+            <rect x={-px * 20} y={-px * 8} width={px * 40} height={px * 16} rx={px * 8} />
+            <text textAnchor="middle" dy={px * 4} fontSize={px * 10} direction="ltr">
+              {`${Math.round(c.angle)}° ${c.valley ? 'V' : 'M'}`}
+            </text>
+            <title>{t(c.valley ? 'conn.valley' : 'conn.mountain')}</title>
+          </g>
+        );
+      })}
+    </g>
+  );
 }

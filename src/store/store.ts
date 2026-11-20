@@ -162,6 +162,10 @@ export type ViewPrefs = {
   growMore?: boolean;
   /** The cut plan shows blank sizes and glue areas (milestone 89). */
   planDims?: boolean;
+  /** The cut plan shows the sheets (absent) or the nets one by one (milestone 113). */
+  planMode?: 'sheets' | 'nets';
+  /** The folded preview beside the Net view (absent: shown, milestone 113). */
+  netPreview?: boolean;
   /** The welcome screen's step 2 as the sentence (absent) or as cards of named styles (milestone C1). */
   startView?: 'sentence' | 'cards';
   /** A board's *Edges* list is open (milestone 78; closed by default). */

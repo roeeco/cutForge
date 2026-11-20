@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Edges, GizmoHelper, GizmoViewcube, Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -54,7 +54,7 @@ import { panelsCutBy, removedByCut, throughHits, type ThroughHit } from '../mode
 import polygonClipping from 'polygon-clipping';
 import { polygonContour } from '../geom/vec';
 import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, pushPullAnchors } from './edgeGaps';
-import { featureState, isGuided, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
+import { StagePreview, featureState, isGuided, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
 import { outlineWhy } from '../model/outlineWhy';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
 import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
@@ -173,6 +173,8 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
   const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
   // what the stage shows in this mode (milestone 105): Guided has its own handles
   const fEdges = shown(useFeature('stage.edges')), fWidgets = shown(useFeature('stage.panelWidgets'));
+  // milestone 113: the folded preview beside Nets keeps the grow ghost and its ✓ (an edge picked in the flat grows there; 114 moves it to the flat)
+  const previewGhost = useContext(StagePreview);
   const fFloorGizmo = shown(useFeature('stage.floorGizmo')), fPlacedGizmo = shown(useFeature('stage.placedGizmo'));
   const fDividerButton = shown(useFeature('stage.dividerButton')), fDividerSlide = shown(useFeature('stage.dividerSlide'));
   const fShapeGizmo = shown(useFeature('stage.shapeGizmo')), fPan = shown(useFeature('stage.pan')), fDock = shown(useFeature('stage.dock'));
@@ -771,7 +773,7 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
         <BandObject key={s.band.id} s={s} d={design} m={s.pre ? (display.xf.get(s.band.parent) ?? IDM).clone().multiply(s.pre) : (display.xf.get(s.band.parent) ?? IDM)} index={design.order.indexOf(s.band.parent)} outlines={prefs.outlines} />
       ))}
       {guides && design.panels[guides.panelId] && <SnapGuides p={design.panels[guides.panelId]} t={design.material.thickness} g={guides} />}
-      {selEdge && !folded && !jointsOn && fEdges && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
+      {selEdge && !folded && !jointsOn && (fEdges || previewGhost) && <GrowGhost d={design} panelId={selEdge.panelId} edge={selEdge.edge} m={display.xf.get(selEdge.panelId) ?? IDM} />}
       {selPanel && design.panels[selPanel] && tool === 'select' && !folded && !jointsOn && editOutline !== selPanel && fWidgets && (
         <PanelWidgets d={design} p={design.panels[selPanel]} m={display.xf.get(selPanel) ?? IDM} dims={prefs.dims} />
       )}
@@ -2825,8 +2827,20 @@ export function stageHintKey<K extends string>(empty: boolean, tool: string, mod
 }
 
 /** The 3D stage. `layer`: what another shell draws inside the scene (Guided's handles, milestone 105), so this file never imports it. */
-export function View3D({ layer }: { layer?: ReactNode } = {}) {
+/** The 3D stage; `preview` (milestone 113): beside the Net view, it orbits, folds and shows the selection, and edits nothing. */
+export function View3D({ layer, preview }: { layer?: ReactNode; preview?: boolean } = {}) {
+  if (preview)
+    return (
+      <StagePreview.Provider value={true}>
+        <Stage3D layer={layer} />
+      </StagePreview.Provider>
+    );
+  return <Stage3D layer={layer} />;
+}
+
+function Stage3D({ layer }: { layer?: ReactNode }) {
   const t = useT();
+  const inPreview = useContext(StagePreview);
   const fDock = shown(useFeature('stage.dock')), fFoldBar = shown(useFeature('stage.foldBar')), fHint = shown(useFeature('stage.hint'));
   // Quick build calls the joints view "How it's built" (milestone 37)
   const jointsKey = shown(useFeature('joints')) ? 'view.joints' : 'quick.howBuilt';
@@ -2976,7 +2990,7 @@ export function View3D({ layer }: { layer?: ReactNode } = {}) {
           return k ? <div className="view-hint" dir={uiDir()}>{t(k)}</div> : null;
         })()}
       </div>
-      <PolygonToolCard />
+      {!inPreview && <PolygonToolCard />}
       <span hidden data-testid="quality" data-quality={quality} />
     </div>
   );

@@ -1804,6 +1804,26 @@ Limitations
 - The RSC's slot width (the walls' gap at the corners) is the four-flap end's; real slotted containers use about one thickness, to check on stock.
 - The drawer's sleeve is cut standing on end beside the tray; in the model it does not hold the drawer.
 
+## Milestone 113 (Dieline D1) — the Net view: *Sheets · Nets* in the cut plan ✅
+
+`DIELINE_DNA_PLAN.md` D1; `HANDOFF_105-118.md` §113. New `src/views/netPick.ts`, `src/views/NetView.tsx`; `src/views/Plan2D.tsx` (a `net` mode, the picking layer `NetPicks`, the switch), `src/views/View3D.tsx` (`preview`), `src/easy/features.ts` (`'plan.nets'`, `StagePreview`), `src/App.tsx`, `src/ui/Inspector.tsx`, `src/store/store.ts` (`planMode`, `netPreview`).
+- **A *Sheets · Nets* switch** in the cut plan's dock (Workshop). *Nets* shows each piece's net once, side by side and top-aligned, without sheets, packing or *Repack*; the overlaps check, names, *Dimensions* and the legend stay.
+- **Every edge of every board can be picked in the flat**: a free edge selects the edge, so its grow card (and *Add a flap*) opens on the side as in 3D; a fold selects the board it folds and opens its joint (the hinge dial for a grown board); another joint selects its board with that joint open. A free edge shows a `+` on hover; the picked edge is drawn thick. Fold lines in the net can be clicked too.
+- **Each fold has a chip** on its crease with its angle and a valley (V) or mountain (M) mark.
+- **The folded model beside the net** (40 %, at least 320 px): it orbits, folds with the fold slider and shows the selection; nothing on it edits (its dock, edge handles, gizmos and widgets are hidden through `StagePreview`). An edge picked in the flat can be grown with the preview's ✓ until 114 moves it to the flat. *Folded preview* turns it off (remembered per browser); under 900 px wide it is not mounted, and *Show it folded* shows it in place of the net.
+- **Double-click in Nets edits outlines in place** (a shape, a line, or the board itself), with no face-on view: D2's *outline editing in the flat* comes with it.
+- Hidden in Quick build and Guided; a stored *Nets* in a level that hides it shows the sheets.
+
+Verified
+- `tests/netpick.test.ts` (5): a card tray is one piece whose wall tops are free, wall bottoms and base edges folds and wall sides glued joints; every edge lies on the piece's outline or a fold's crease in copy coordinates; a carton's glue seam is joined; a hexagon tray's six turned wall tops are free; one chip per fold with its angle. `tests/store.test.ts`: the choice is written to this browser and kept across views.
+- `tests/e2e/nets.spec.ts` (4): Nets in English and Hebrew (a wall's top opens the edge card, a fold opens its joint, the preview's fold slider, the preview turned off); at 800 px the preview shown in place of the net; no switch in Quick build and a stored choice shows the sheets. Looked at in the browser.
+- Unit suite and typecheck green; goldens byte-identical (view only); `quickTable.test.ts` lists `'plan.nets'` hidden.
+
+Limitations
+- At 800 px the plan dock is crowded and its last buttons can sit under the card.
+- The grow card can cover part of the preview.
+- Nets of many pieces are a long row (fit and zoom work).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

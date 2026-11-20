@@ -100,6 +100,8 @@ export const FEATURES = {
   'flap.shape': 'hide',
   /** The welcome screen's *Sentence · Cards* switch and its card grid of named styles (C1). */
   'start.cards': 'show',
+  /** The cut plan's *Sheets · Nets* switch, the Net view and its edge picking (113). */
+  'plan.nets': 'hide',
   /** *Match top with*, *Own outline*, *Copy outline from* (71). */
   match: 'hide',
   /** A fold's *Automatic · Keep whole · Cut here*, and the design's split setting (69): only when it must. */
@@ -201,6 +203,7 @@ export const GUIDED = {
   edgeFlap: 'hide',
   'flap.shape': 'hide',
   'start.cards': 'hide',
+  'plan.nets': 'hide',
   match: 'hide',
   split: 'auto',
   yield: 'hide',
@@ -315,8 +318,17 @@ export function useMode(): Mode {
 }
 
 /** What a feature is in the current mode. */
+/**
+ * A stage shown as a preview beside the Net view (milestone 113): it orbits and folds, and nothing on it edits.
+ * The stage's own controls read this through `useFeature`.
+ */
+export const StagePreview = createContext(false);
+const PREVIEW_HIDES = new Set<string>(['stage.edges', 'stage.panelWidgets', 'stage.floorGizmo', 'stage.placedGizmo', 'stage.dividerButton', 'stage.dividerSlide', 'stage.shapeGizmo', 'stage.dock', 'stage.hint', 'gizmo']);
+
 export function useFeature(f: Feature): FeatureState {
-  return featureState(f, useMode());
+  const preview = useContext(StagePreview);
+  const s = featureState(f, useMode());
+  return preview && PREVIEW_HIDES.has(f) ? 'hide' : s;
 }
 
 /** The same outside React (event handlers, the stage). */

@@ -98,6 +98,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const d = useStore((s) => s.design);
   const apply = useStore((s) => s.apply);
   const view = useStore((s) => s.view);
+  const netsStored = useStore((s) => s.viewPrefs.planMode === 'nets');
+  const netsShown = shown(useFeature('plan.nets'));
+  const planNets = netsStored && netsShown;
   const editOutline = useStore((s) => s.editOutline);
   const outlineMode = useStore((s) => !!s.viewPrefs.outlineMode);
   const keepRatio = useStore((s) => !!s.viewPrefs.keepRatio);
@@ -106,7 +109,8 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
   const quickWords = useMode() === 'quick';
   const mm = t('unit.mm');
-  if (sel?.kind === 'edge') return view === '3d' ? <EdgeBar panelId={sel.panelId} edge={sel.edge} /> : null;
+  // milestone 113: also in the cut plan's Nets, where edges are picked in the flat
+  if (sel?.kind === 'edge') return view === '3d' || (view === '2d' && planNets) ? <EdgeBar panelId={sel.panelId} edge={sel.edge} /> : null;
 
   let body: ReactElement | null = null;
   if (sel?.kind === 'detail' && sel.ids.length > 1) {

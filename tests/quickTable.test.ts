@@ -143,6 +143,7 @@ describe('the feature table (rule 3)', () => {
       'match',
       'op.scoreAdd',
       'outline.mode',
+      'plan.nets',
       'rail.ops',
       'rail.tools',
       'saveBoard.steps',
