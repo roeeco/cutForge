@@ -595,3 +595,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Coplanar faces are merged within 1e-6 on the normal and 1e-4 mm on the plane** (a revolution's facets are planar only to about 1e-7).
 - **Convex faces are tested for overlap by separating axes**, and `polygon-clipping` (retried on coarser grids, a failure counted as an overlap) is kept for concave ones.
 - **The spike's code stays in `tests/spike/`** as the reference; R3 and R5 write the engine's versions in `src/model/` in its own types.
+
+## The batch's kiss-score note (20 November)
+- **In English, the export's own words**: a teacher's batch mixes students and has no student language; the note is the same as a student's English export.
+- **Note above, owner below** on a kiss-scored piece, so the two never overlap.

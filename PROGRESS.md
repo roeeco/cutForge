@@ -1955,6 +1955,15 @@ Limitations
 - No flaps in the overlap test yet (R5 adds them, so real nets are a little larger); no coplanar merges across shapes (the house is written merged; R3's `tidy` does it).
 - Timed on this machine, not on a real Chromebook; the 4× throttle stands in for one.
 
+## Fix: a teacher's batch cuts kiss-scored pieces as the student's export does ✅
+
+`HANDOFF_105-118.md` finding 8, checked and fixed. `src/export/batch.ts`.
+- **The batch now mirrors a kiss-scored piece** in its box and adds its *THIS SIDE UP (kiss scores)* note (milestone 66), as `prepareExport` does: before, it would have been cut with its scored face down. On such a piece the note takes the upper half and the owner's name the lower half.
+- **Arcs are refitted** before compensation, as in the student's export (milestone 62): before, a batch cut curved outlines as many short lines.
+
+Verified
+- `tests/regress/repro-batch-kiss-mirror.test.ts`: a one-design batch of a kiss-scored corrugated tray gives exactly the student's export's scores and cuts, with more guide text (the note and the name). It failed before the fix. The batch tests (`batch.test.ts`, `fuzz/batch.test.ts`, the batch regressions) pass; unit suite and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
