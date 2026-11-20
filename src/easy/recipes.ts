@@ -4,7 +4,7 @@ import { defaultEnd, defaultSeam } from '../model/round';
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
 import type { Design, DetailOp, DetailShape, DividerRec, MaterialProfile, P2, V3 } from '../model/types';
-import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, autoConnect, createDesign, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
+import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, autoConnect, createDesign, setRoundMinOf, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
 import { validate } from '../model/validate';
 import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
@@ -72,6 +72,8 @@ export function roundedMin(m: MaterialProfile, height = 40): number {
   return r;
 }
 const minCache = new Map<string, number>();
+// the model's material change grows rounded corners to this (ops.ts, `toNewBoard`)
+setRoundMinOf(roundedMin);
 
 /** The estimate the probe starts from: the tightest its bend patterns reach on a wall this high, plus the thickness. */
 function estimateMin(m: MaterialProfile, height: number): number {

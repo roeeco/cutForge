@@ -1870,9 +1870,51 @@ export function setMaterial(d: Design, m: MaterialProfile) {
     d.material = { ...m };
     // boards naming the old working material keep it
     normalizeMaterials(d, prev);
+    if (m.kind !== was) toNewBoard(d, m);
     solve(d);
     if (m.kind !== was) applyJointChoices(d);
   });
+}
+
+/** The least radius a box's walls bend round in a board at a height (`roundedMin`, set by `easy/recipes`: it probes boxes). */
+let roundMinOf: ((m: MaterialProfile, height: number) => number) | null = null;
+export function setRoundMinOf(f: typeof roundMinOf) {
+  roundMinOf = f;
+}
+
+/**
+ * What a change of board kind does besides the board (milestone 139, the owner's report of 20 November: an open card
+ * box with rounded corners turned into "a ridiculous object" on plywood). Joints the new board allows but would never
+ * choose for a whole box (a card box's walls fold off its base; on plywood each became a living hinge, and the net lay
+ * over itself) take the new board's defaults, unless set by hand; and rounded corners tighter than the new board
+ * bends grow to its least radius.
+ */
+function toNewBoard(d: Design, m: MaterialProfile) {
+  const ply = m.kind === 'plywood';
+  for (const t of Object.values(d.trays ?? {})) {
+    const base = d.panels[t.baseId];
+    if (!base || base.material) continue;
+    const k = newTrayKinds(d, t.baseId);
+    if (!connectionsFor(m, 90).includes(t.wallKind) || (ply && t.wallKind === 'fold' && t.base !== 'open')) {
+      t.wallKind = k.wallKind;
+      // the walls' own wish was the old board's default: it goes with it (a joint set by hand keeps its wish)
+      for (const c of Object.values(d.connections)) if (c.grown && c.trayId === t.id && c.a.panelId === t.baseId && !c.picked) c.pref = c.kind = k.wallKind;
+    }
+    if (!seamKinds(m, 'corner').includes(t.cornerKind)) t.cornerKind = k.cornerKind;
+    const s = base.sketch;
+    const min = roundMinOf && !t.lidOf ? roundMinOf(m, t.height) : 0;
+    if (min && s.kind === 'poly' && !s.round && s.pts.some((q) => q.curve === 'round' && (q.r ?? 0) < min - 1e-6)) {
+      s.pts = s.pts.map((q) => (q.curve === 'round' && (q.r ?? 0) < min ? { ...q, r: min } : q));
+      normalizeSketch(base);
+    }
+  }
+  // a wall grown by hand that folds off its board by default (card): plywood's own joint instead, unless picked
+  if (ply)
+    for (const c of Object.values(d.connections))
+      if (c.grown && !c.trayId && !c.picked && c.kind === 'fold' && !c.radius && !d.panels[c.b.panelId]?.material) {
+        const k = connectionsFor(m, c.angle).find((x) => x !== 'fold');
+        if (k) c.pref = c.kind = k;
+      }
 }
 
 /**

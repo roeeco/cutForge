@@ -2338,6 +2338,13 @@ Verified: typecheck; `npm test` (one timing test in `wings.test.ts` fails only u
 
 Verified: typecheck; `npm test`; QA repros for the sketch, the decorations and the pyramid's name pass (`tests/qa/placement.test.ts`, `guided.test.ts`); in the dev server, *Fit view* puts a 150 × 100 box whole beside the card.
 
+## Fix: a rounded card box changed to plywood ✅
+
+The owner's report during the fix round: an open box with rounded corners built in card, then changed to plywood, "results in a ridiculous object".
+- **Cause:** the box's walls kept card's joint to the base, a fold. Plywood allows a fold (a living hinge), so nothing replaced it: every wall became a living hinge bending off the base, and the net lay over itself (`val.netOverlap`). Its 15 mm corners were also tighter than plywood bends at 45 mm (`val.bendTight`). The same happened from corrugated 1.6 mm; from corrugated 4 mm only the folds.
+- **Fix** (`ops.ts`, `toNewBoard`, run by `setMaterial` when the kind of board changes): a box's wall and corner joints that the new board would never choose for a whole box take its defaults (a fold to the base becomes plywood's finger joint), as do walls grown by hand that fold by default; a joint set by hand keeps its kind. Rounded corners tighter than the new board bends grow to its least radius (`roundedMin`, through `setRoundMinOf`). A box stated by its inside keeps that size.
+- **Now:** card, corrugated 1.6 and 4 mm rounded boxes changed to plywood end exactly as the same box made in plywood (finger joints to the base, a living hinge at each corner keyed once, base and wall strip as two pieces, nothing flagged); plywood → card → plywood comes back unchanged. `tests/qa/material.test.ts`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
