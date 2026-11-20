@@ -514,3 +514,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Libraries bundled, not from a public CDN**: browsers keep a separate cache per site, so a CDN's copy is not shared with other sites; bundling keeps only the parts used; a school network that blocks a CDN, an outage, the offline mode and the students' privacy all argue for one origin; Cloudflare already serves the files from its edge.
 - **Rolldown's `advancedChunks`** (Vite 8), not `manualChunks`, which merged three.js's core into the 3D renderer's file.
 - **The 3D view is not deferred**: the welcome screen draws its pictures with three.js and the editor opens on the 3D view.
+
+## Milestone 111: the edge-feature registry (DIELINE_DNA_PLAN.md D3a)
+- **Fold-over issues stay where they are** (`foldOverIssues`): they mix rules for one fold-over with one between two (`val.linerCollide`) and a flute check that packs the whole design, which a per-item check cannot hold without packing once per item. The registry is about output; issues can move later.
+- **`blocked` is optional** and filled in 112, when there are reasons to give (today `canFoldOver` answers yes or no).
+- **A fold-over and a flap may still share an edge** in 111 (as before); 112 refuses new ones.
+- **`edgeFlapGeom` and `flapOn` live in the registry's file** and `geometry.ts` re-exports them, which avoids an import cycle (`geometry.ts` → registry → `foldover.ts`).

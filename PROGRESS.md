@@ -1734,6 +1734,18 @@ Limitations
 - Headless Chromium names a download with Hebrew letters *download*; the spec checks the file's contents there (a real browser keeps the name).
 - *Print a plan* is A4 only in Guided.
 
+## Milestone 111 (Dieline D3a) — the edge-feature registry ✅
+
+`DIELINE_DNA_PLAN.md` D3, step 1; `HANDOFF_105-118.md` §111. New `src/model/edgeFeatures.ts`; `src/model/geometry.ts` (`extrasByPanel` reads the registry; `edgeFlapGeom` and `flapOn` moved to the registry's file and re-exported, so `dividers.ts` and the tests are unchanged).
+- **One list of what sits on a free edge**: `EDGE_FEATURES` holds two kinds, fold-overs and flaps, each saying which items a board carries (`on`) and what each adds (`geom`: adds, scores with their `toward`, holes in any board, liner holes, and hinged parts, empty until 112). `edgeFeatures(d)` gives every hit (memoised on a frozen design under `'edgeFeatures'`) and `featuresOnEdge(d, board, edge)` the ones on one edge (for 112 and 113).
+- **`extrasByPanel` runs one loop over the registry** in place of its two, in the same order as before (every fold-over by `d.order`, then every flap), and keeps `only`: a fold-over's lock slots still land in the base when only the base is asked for.
+- No change in output, no control, no words.
+
+Verified
+- New goldens `foldover-corr` and `flap-card-plain`, generated on the code before the change (its own commit), and every golden byte-identical after it.
+- `tests/edgefeatures.test.ts` (5): the fold-over hits equal `allFoldOvers` field for field (scores keep `toward`; the slots are in the base); the flap hits equal `edgeFlapGeom`; `extrasByPanel`, whole and for every board, deep-equals a copy of the old function on a corrugated fold-over, a card board with plain flaps, a card tray and a closed card box; the base still gets its slots; a flap on a joined edge gives nothing.
+- Unit suite and typecheck green.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

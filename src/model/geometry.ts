@@ -8,7 +8,8 @@ import { findEdge, panelEdges, segDir, segInward, segLength, type EdgeSeg } from
 import { normalizeNotches } from './seams';
 // the own outline (Add/Cut shapes) feeds the edge layer
 import './outline';
-import { allFoldOvers } from './foldover';
+import { edgeFeatures } from './edgeFeatures';
+export { edgeFlapGeom, flapOn } from './edgeFeatures';
 import { memo } from './derived';
 import type { Polygon } from 'polygon-clipping';
 import { safeDifference, safeUnion } from '../geom/clip';
@@ -69,26 +70,14 @@ export function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras
     return x;
   };
   const want = (id: string) => !only || id === only;
-  // fold-overs: rim and liner on their wall, lock slots in the base
-  for (const fo of allFoldOvers(d)) {
-    for (const h of fo.g.holes) if (want(h.panelId)) at(h.panelId).holes.push(h.poly);
-    if (want(fo.panelId)) {
-      const x = at(fo.panelId);
-      for (const a of fo.g.adds) x.adds.push(a.poly);
-      for (const s of fo.g.scores) x.scores.push(s);
-      x.linerHoles.push(...fo.g.linerHoles);
-    }
-  }
-  // plain flaps on free edges (milestone 67)
-  for (const id of d.order) {
-    const p = d.panels[id];
-    if (!p?.edgeFlaps?.length || !want(id)) continue;
-    for (const f of p.edgeFlaps) {
-      const g = edgeFlapGeom(d, p, f);
-      if (!g) continue;
-      at(id).adds.push(g.poly);
-      at(id).scores.push(g.score);
-    }
+  // edge features (milestone 111): fold-overs (rim and liner on their wall, lock slots in the base), then flaps
+  for (const h of edgeFeatures(d, only)) {
+    for (const q of h.out.holes) if (want(q.panelId)) at(q.panelId).holes.push(q.poly);
+    if (!want(h.panelId)) continue;
+    const x = at(h.panelId);
+    for (const a of h.out.adds) x.adds.push(a);
+    for (const s of h.out.scores) x.scores.push(s);
+    x.linerHoles.push(...h.out.linerHoles);
   }
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;
@@ -321,25 +310,3 @@ export function detailBBox(dt: Detail) {
   };
 }
 
-/**
- * A plain flap on a free edge (milestone 67): a lip `len` mm out from the
- * edge, its ends tapered 30°, scored where it folds. None on an edge that is
- * gone or joined.
- */
-export function edgeFlapGeom(d: Design, p: Panel, f: { edge: string; len: number }): { poly: P2[]; score: { a: P2; b: P2 } } | null {
-  const e = findEdge(p, f.edge);
-  if (!e) return null;
-  const joined = Object.values(d.connections).some((c) => (c.a.panelId === p.id && findEdge(p, c.a.edge)?.key === e.key) || (c.b.panelId === p.id && c.b.edge !== 'face' && findEdge(p, c.b.edge)?.key === e.key));
-  if (joined) return null;
-  return flapOn(e, f.len);
-}
-
-/** A flap `len` mm out from an edge, its ends tapered 30°, and its score line (milestone 67; a divider's end on a curved band, milestone 70). */
-export function flapOn(e: EdgeSeg, len0: number, scoreIn = 0): { poly: P2[]; score: { a: P2; b: P2 } } {
-  const L = segLength(e), dir = segDir(e), inw = segInward(e);
-  const len = Math.max(2, len0);
-  const taper = Math.min(len * Math.tan(Math.PI / 6), L / 3);
-  const at = (s: number, o: number): P2 => ({ x: e.a.x + dir.x * s - inw.x * o, y: e.a.y + dir.y * s - inw.y * o });
-  // `scoreIn`: a crease half a thickness inside the edge, where the flap folds against a board (milestone overhaul)
-  return { poly: [at(0, -0.01), at(L, -0.01), at(L - taper, len), at(taper, len)], score: { a: at(0, -scoreIn), b: at(L, -scoreIn) } };
-}
