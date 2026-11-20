@@ -18,7 +18,8 @@ import type { Bend, BandShown } from './foldView';
 /** How far past its hinge's straight a plain folded lid opens (degrees): about 110° for a lid square to its wall. */
 export const LID_OPEN_PAST = 20;
 
-export type LidView = { shut: Record<string, boolean>; selected: string[]; foldT: number; assembling: boolean };
+/** `openPast`: how far past straight a folded lid opens (default LID_OPEN_PAST; the illustrations open them about halfway). */
+export type LidView = { shut: Record<string, boolean>; selected: string[]; foldT: number; assembling: boolean; openPast?: number };
 
 /** The boards that move with a lid: its parts and anything placed on them. */
 function riders(d: Design, parts: string[]): Set<string> {
@@ -86,7 +87,7 @@ export function applyLidPoses(d: Design, r: { xf: Map<string, THREE.Matrix4>; be
       const th = tOf(d, L.id);
       const pivot = new THREE.Vector3(...toWorld(L.frame, 0, -th / 2, th / 2));
       const axis = new THREE.Vector3(...L.frame.v).cross(new THREE.Vector3(...matDir(L.frame)).negate()).normalize();
-      const phi = ((180 - c.angle + LID_OPEN_PAST) * Math.PI) / 180;
+      const phi = ((180 - c.angle + (v.openPast ?? LID_OPEN_PAST)) * Math.PI) / 180;
       R = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z).multiply(new THREE.Matrix4().makeRotationAxis(axis, phi)).multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
     }
     move(ids, P.clone().multiply(R).multiply(P.clone().invert()), c.id);

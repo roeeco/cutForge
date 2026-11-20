@@ -14,7 +14,7 @@ import { choose, chooseStructure, listOf, rangeNow, resolve, type Change, type V
 import { addable, clausesOf, parts, readout, type Readout, type SentenceValue } from './model';
 import { Word } from './Word';
 import { NumberWord, type NumRange } from './NumberWord';
-import { renderThumbnail } from '../views/thumbnail';
+import { designPicture } from '../views/picture';
 import { builtFor } from '../templates/structures/box';
 import { GROUPS, STRUCTURE_GROUP, STYLES, chooseStyle, isAlias, styleById, styleDesc, styleListed, styleName, styleOf, styleWord } from '../templates/styles';
 
@@ -24,7 +24,8 @@ function picture(def: TemplateDef, m: MaterialProfile, p: Record<string, Value>,
   if (!pics.has(key)) {
     let src: string | null = null;
     try {
-      src = renderThumbnail(builtFor(def, m, p), w, h);
+      // a tray in the list holds a few sweets, so it reads as what it is for
+      src = designPicture(builtFor(def, m, p), w, h, { prop: def.id === 'tray' ? 'sweets' : undefined });
     } catch {
       src = null;
     }
@@ -77,7 +78,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
       const r = readout(def, m, p);
       setOut(r);
       setBusy(false);
-      setImg(r.design ? renderThumbnail(r.design, pw, ph) : null);
+      setImg(r.design ? designPicture(r.design, pw, ph) : null);
     }, 150);
     return () => clearTimeout(h);
   }, [def, m, p, pw, ph]);

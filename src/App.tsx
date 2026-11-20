@@ -32,6 +32,7 @@ const TeacherApp = lazy(() => import('./teacher/TeacherApp').then((m) => ({ defa
 // Guided's shell (milestone 105): its own chunk
 const GuidedApp = lazy(() => import('./guided/GuidedApp').then((m) => ({ default: m.GuidedApp })));
 const SentenceDev = lazy(() => import('./sentence/SentenceDev').then((m) => ({ default: m.SentenceDev })));
+const IllustrateDev = lazy(() => import('./dev/IllustrateDev').then((m) => ({ default: m.IllustrateDev })));
 /** What shows while a part loads: the same quiet placeholder as the app's own first load. */
 const Loading = () => <div className="loading" aria-busy="true" />;
 import { EditorBoundary } from './ui/ErrorBoundary';
@@ -105,6 +106,13 @@ export function App() {
     return (
       <Suspense fallback={<Loading />}>
         <SentenceDev />
+      </Suspense>
+    );
+  // the SVG illustration prototype beside today's thumbnails, in development
+  if (import.meta.env.DEV && location.search.includes('illustrate'))
+    return (
+      <Suspense fallback={<Loading />}>
+        <IllustrateDev />
       </Suspense>
     );
   if (!loaded) return <div className="loading" aria-busy="true" />;

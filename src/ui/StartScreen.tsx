@@ -17,7 +17,7 @@ import { Library, openFromLibrary } from './Library';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { Icon, Logo } from './icons';
-import { renderThumbnail } from '../views/thumbnail';
+import { designPicture, MISSION_PROP } from '../views/picture';
 import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { MISSIONS, missionById, startMission, type Mission } from '../easy/missions';
@@ -30,7 +30,7 @@ function missionThumb(id: string, m: MaterialProfile, w: number, h: number): str
     const ms = missionById(id);
     let src: string | null = null;
     try {
-      src = ms ? renderThumbnail(startMission(ms, m), w, h) : null;
+      src = ms ? designPicture(startMission(ms, m), w, h, { prop: MISSION_PROP[id] }) : null;
     } catch {
       src = null;
     }
@@ -85,7 +85,7 @@ export function StartScreen() {
   const openThumb = useMemo(() => {
     if (!open) return null;
     try {
-      return renderThumbnail(open, 240, 140);
+      return designPicture(open, 240, 140);
     } catch {
       return null;
     }
@@ -98,7 +98,7 @@ export function StartScreen() {
     let live = true;
     loadDesign(recent.id)
       .then((raw) => {
-        if (live && raw) setRecentThumb(renderThumbnail(migrateDesign(raw), 240, 140));
+        if (live && raw) setRecentThumb(designPicture(migrateDesign(raw), 240, 140));
       })
       .catch(() => {});
     return () => {

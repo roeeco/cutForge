@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import type { MaterialProfile } from '../model/types';
-import { renderThumbnail } from '../views/thumbnail';
-import { listDesigns, type DesignMeta } from '../store/persist';
+import { designPicture, MISSION_PROP } from '../views/picture';
+import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
+import { migrateDesign } from '../model/serialize';
 import { openFromLibrary, Library } from '../ui/Library';
 import { openProjectFile } from '../ui/openFile';
 import { MaterialArt } from '../ui/MaterialArt';
@@ -18,7 +19,7 @@ function thumbOf(th: Thing, m: MaterialProfile): string | null {
   const key = `thing:${th.id}:${m.id}:${m.thickness}`;
   if (!thumbs.has(key)) {
     try {
-      thumbs.set(key, renderThumbnail(th.start(m), 520, 300));
+      thumbs.set(key, designPicture(th.start(m), 520, 300, { prop: th.mission ? MISSION_PROP[th.mission] : undefined }));
     } catch {
       thumbs.set(key, null);
     }
@@ -80,6 +81,21 @@ export function GuidedStart() {
       .then((l) => setRecent(l.live.filter((x) => x.boards > 0).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3)))
       .catch(() => setRecent([]));
   }, []);
+  // each kept design's picture, drawn from the design itself (autosave stores none)
+  const [pics, setPics] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    let live = true;
+    for (const r of recent)
+      if (!r.thumb)
+        loadDesign(r.id)
+          .then((raw) => {
+            if (live && raw) setPics((x) => ({ ...x, [r.id]: designPicture(migrateDesign(raw), 160, 100) }));
+          })
+          .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [recent]);
   const matName = (x: MaterialProfile) => (MATERIALS.some((b) => b.nameKey === x.nameKey) ? t(x.nameKey as 'mat.ply3') : t('mat.customNamed', { mm: x.thickness }));
   return (
     <div className="start g-start" role="dialog" aria-modal="true" aria-labelledby="g-start-title" data-testid="g-start">
@@ -98,7 +114,7 @@ export function GuidedStart() {
         <div className="g-recent" data-testid="g-recent">
           {recent.map((r) => (
             <button key={r.id} className="g-keep" onClick={() => void openFromLibrary(r.id)} data-testid={`g-keep-${r.id}`}>
-              <span className="art">{r.thumb ? <img src={r.thumb} alt="" /> : null}</span>
+              <span className="art">{(r.thumb ?? pics[r.id]) ? <img src={(r.thumb ?? pics[r.id])!} alt="" /> : null}</span>
               <span dir="auto">{t('g.start.keep', { name: r.name || t('g.untitled') })}</span>
             </button>
           ))}
