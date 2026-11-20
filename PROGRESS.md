@@ -1824,6 +1824,25 @@ Limitations
 - The grow card can cover part of the preview.
 - Nets of many pieces are a long row (fit and zoom work).
 
+## Milestone 114 (Dieline D2) — building in the flat ✅
+
+`DIELINE_DNA_PLAN.md` D2; `HANDOFF_105-118.md` §114. `src/views/ghost.ts` (`growConfirm`), `src/views/netPick.ts` (`ghostInNet`), `src/views/Plan2D.tsx` (the ghost, three drag handles, the ✓ bar), `src/views/panelTool.tsx` (`ConfirmBarHtml`), `src/views/View3D.tsx`, `src/geom/vec.ts` (`invertX`), `src/easy/features.ts` (`'net.build'`).
+- **Grow in the flat**: in *Nets*, a picked free edge shows the new board as a dashed ghost in the net, exactly where ✓ will put it (it is grown on a copy of the design as ✓ grows it, and read from that copy's net). A joint that is not a fold shows its board beside the edge, *Cut as its own piece*. Amber when the hinge is blocked or the net would overlap, with *Cut it as its own piece*.
+- **A height handle** on the ghost's far edge: dragged along the board, it snaps to the heights that mean something (the far wall a lid reaches, the neighbours' heights), says which, and otherwise to the grid; Esc puts the height back.
+- **✓ in the flat**: a bar beside the ghost, with what it makes (*Closes the box: Tuck flap*), Enter and Esc. The stage and the flat share one decision (`growConfirm`, taken out of the 3D grow): Quick build's lid across a box, Workshop's closing choice, or a plain grow. With building in the flat on, the folded preview has no ghost or ✓ of its own.
+- **A flap's length** is dragged by a handle at the middle of its far edge, and a selected rectangular board's size by handles on its free right and far edges (a grown board's far edge). Each drag is one undo step.
+- **Outlines are edited in place** by double-click (built with 113).
+
+Verified
+- `tests/netbuild.test.ts` (6): the ghost of a lid off a card tray wall, of a hexagon tray's turned wall and of a part-edge grow lies where ✓ puts the board (every corner within 1e-6, compared in the parent board's frame); the ghost's place does not change with its height; one ✓ for both views (a tray top in Workshop offers what closes the box, a free root edge grows a board); three flap-length previews and a commit are one undo step and Esc leaves the design as it was; a board resize is one step and its grown board follows its edge.
+- `tests/e2e/nets-build.spec.ts` (English and Hebrew): a card tray in Nets, its back wall's top picked, the ghost and one ✓ only, the height handle dragged, ✓ makes the lid, one undo removes it; a flap's length dragged in one step. `grow-cleanup.spec.ts`, `closures.spec.ts` and `lids.spec.ts` pass after the ✓ was taken out of the 3D grow. Looked at in the browser.
+- Unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- Board handles only on edges that grow away from the board's anchor (a root board's right and far edges, a grown board's far edge); tray walls and bases are sized on their cards.
+- The ghost of a band fold (a fold with a radius) has not been checked against ✓ (no free edge in the golden designs to try).
+- Hand-grown walls in Nets do not offer *Closes the box* (D4, waiting for the owner): start from a tray.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

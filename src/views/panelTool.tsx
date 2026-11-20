@@ -378,29 +378,40 @@ export function PendingBar({ d, m }: { d: Design; m: (panelId: string) => THREE.
 }
 
 /** The same bar as plain HTML at a screen position (the cut plan and the face-on view). */
-export function PendingBarHtml({ x, y }: { x: number; y: number }) {
+/**
+ * A ✓ / × bar in screen space over a 2D drawing (milestone 114: the grow's ✓ in the Net view, and a shape waiting for ✓):
+ * Enter confirms, Esc cancels (not while typing in a field).
+ */
+export function ConfirmBarHtml(props: { x: number; y: number; onOk: () => void; onCancel: () => void; okDisabled?: boolean; testId?: string; okTestId?: string; cancelTestId?: string; children?: React.ReactNode }) {
   const t = useT();
-  const st = useStore.getState;
+  const h = useRef(props);
+  h.current = props;
   useEffect(() => {
     const key = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
       if (ev.key === 'Enter') {
         ev.preventDefault();
-        st().confirmPending();
-      } else if (ev.key === 'Escape') st().cancelPending();
+        if (!h.current.okDisabled) h.current.onOk();
+      } else if (ev.key === 'Escape') h.current.onCancel();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
   return (
-    <div className="ghost-bar" style={{ position: 'absolute', left: x, top: y }} dir="auto" data-testid="pending-bar" onPointerDown={(e) => e.stopPropagation()}>
-      <button className="ok" onClick={() => st().confirmPending()} title={t('ghost.ok')} aria-label={t('ghost.ok')} data-testid="ghost-ok">
+    <div className="ghost-bar" style={{ position: 'absolute', left: props.x, top: props.y }} dir="auto" data-testid={props.testId ?? 'pending-bar'} onPointerDown={(e) => e.stopPropagation()}>
+      <button className="ok" onClick={() => props.onOk()} disabled={props.okDisabled} title={t('ghost.ok')} aria-label={t('ghost.ok')} data-testid={props.okTestId ?? 'ghost-ok'}>
         <Icon name="check" size={16} />
       </button>
-      <button className="cancel" onClick={() => st().cancelPending()} title={t('ghost.cancel')} aria-label={t('ghost.cancel')} data-testid="ghost-cancel">
+      <button className="cancel" onClick={() => props.onCancel()} title={t('ghost.cancel')} aria-label={t('ghost.cancel')} data-testid={props.cancelTestId ?? 'ghost-cancel'}>
         <Icon name="close" size={16} />
       </button>
+      {props.children}
     </div>
   );
+}
+
+export function PendingBarHtml({ x, y }: { x: number; y: number }) {
+  const st = useStore.getState;
+  return <ConfirmBarHtml x={x} y={y} onOk={() => st().confirmPending()} onCancel={() => st().cancelPending()} />;
 }

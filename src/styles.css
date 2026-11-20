@@ -1133,3 +1133,11 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .fold-chip rect { fill: var(--surface); stroke: var(--line-strong); }
 .fold-chip text { fill: var(--ink); font-weight: 600; }
 .plan-dock .seg.plan-mode button { min-height: 32px; }
+
+/* milestone 114: building in the flat */
+.net-ghost polygon { fill: rgba(31, 184, 172, 0.18); stroke: #1fb8ac; }
+.net-ghost.warn polygon { fill: rgba(230, 160, 40, 0.22); stroke: #c47f12; }
+.net-ghost.own polygon { fill: rgba(31, 184, 172, 0.08); }
+.net-ghost text { fill: var(--ink-muted); }
+.net-handle { fill: #fff; stroke: #1fb8ac; stroke-width: 2px; vector-effect: non-scaling-stroke; cursor: grab; }
+.net-handle.grow-h { fill: #1fb8ac; }

@@ -141,6 +141,7 @@ describe('the feature table (rule 3)', () => {
       'hints',
       'keys.tools',
       'match',
+      'net.build',
       'op.scoreAdd',
       'outline.mode',
       'plan.nets',

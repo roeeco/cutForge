@@ -3,14 +3,16 @@
 // what it would run into when adapting is on).
 import type { Design, Panel, WallSketch } from '../model/types';
 import { growKind, useStore, type CloseAs, type GrowOptions } from '../store/store';
-import { closeAsRecipe } from '../easy/lid';
+import { closeAsRecipe, closeChoice, closeChoices, wallClosesBox } from '../easy/lid';
+import { closeBoxGo } from '../easy/actions';
+import { checkHinge } from '../model/hinge';
 import { fromHinge } from '../model/hinge';
 import { defaultOffset, growPanel, seatingOf } from '../model/ops';
 import { connectionsFor, matOf } from '../model/materials';
 import { designKind } from '../model/jointDefaults';
 import { netOverlaps } from '../model/pieces';
 import type { ConnectionKind } from '../model/types';
-import { adaptiveSketch, edgeFreeSpans, ghostNeighbours, ghostPanel } from '../model/adapt';
+import { adaptiveSketch, edgeFreeSpans, edgeHasRoom, ghostNeighbours, ghostPanel } from '../model/adapt';
 import { edgeLength } from '../model/frame';
 import { findEdge } from '../model/edges';
 
@@ -113,4 +115,45 @@ export function ownGrowKind(d: Design, panelId: string): ConnectionKind {
   const m = matOf(d, panelId);
   const ok = connectionsFor(m, 90).filter((k) => k !== 'fold');
   return designKind(d, 'base', ok, m.kind) ?? (m.kind === 'card' ? 'glue' : 'tabslot');
+}
+
+/**
+ * What the grow's ✓ does (milestone 114), for the 3D stage and the Net view
+ * alike: in Quick build a ghost across a box's top makes the box's lid; in
+ * Workshop one that closes a box makes what the grow card chose; otherwise
+ * the board is grown. Disabled when the hinge is blocked, unless it closes a
+ * box with a lid that opens. `over`: the boards the new one would overlap in
+ * the flat, with `own` to cut it as its own piece instead.
+ */
+export type GrowConfirm = {
+  ok: () => void;
+  disabled: boolean;
+  closes: ReturnType<typeof wallClosesBox>;
+  closesW: ReturnType<typeof closeChoices>;
+  closeAs: CloseAs | null;
+  over: string[];
+  own: () => void;
+  blocked: boolean;
+};
+export function growConfirm(d: Design, panelId: string, edge: string, grow: GrowOptions, advanced: boolean): GrowConfirm | null {
+  const parent = d.panels[panelId];
+  if (!parent || !edgeHasRoom(d, panelId, edge)) return null;
+  const eg = effectiveGrow(d, panelId, edge, grow);
+  if (!eg.ghost) return null;
+  const check = checkHinge(d, panelId, edge, grow.angle, grow.height);
+  const blocked = !!check.blocking;
+  const closes = advanced ? null : wallClosesBox(d, panelId, edge, eg.ghost);
+  const closesW = advanced ? closeChoices(d, panelId, edge, eg.ghost) : null;
+  const closeAs = closesW ? closeChoice(closesW, grow.closeAs) : null;
+  const over = growOverlap(d, panelId, edge, grow);
+  return {
+    ok: () => void (closes ? closeBoxGo(closes.tray, closes.choice) : closesW && closeAs ? closeAsGo(panelId, edge, closesW.tray, closeAs) : doGrow(panelId, edge)),
+    disabled: blocked && !closes && !(closesW && closeAs && closeAs !== 'fixed' && !closeAs.startsWith('style:')),
+    closes,
+    closesW,
+    closeAs,
+    over,
+    own: () => void doGrow(panelId, edge, ownGrowKind(d, panelId)),
+    blocked,
+  };
 }

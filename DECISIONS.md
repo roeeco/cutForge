@@ -550,3 +550,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The preview is the stage with its controls hidden by a context** (`StagePreview`, read by `useFeature`), not a second renderer: the same scene, the same fold slider.
 - **The preview keeps the grow ghost and its ✓ in 113**, so an edge picked in the flat can already be grown; 114 moves the ✓ to the flat and hides it here (never both).
 - **Hidden in Quick build and Guided** (the plan's §7 question 1; ROADMAP §5.2 row 10), and a stored *Nets* falls back to the sheets there.
+
+## Milestone 114: building in the flat (DIELINE_DNA_PLAN.md D2)
+- **The ghost is grown, not worked out**: on a copy of the design, as ✓ will grow it, and read from that copy's net through the parent board. Exact by construction (bands, per-board materials, re-rooted nets), for one grow on a copy per change, as the overlap check already did.
+- **One ✓ decision for both views** (`growConfirm`), and never two ✓ bars: where building in the flat is on, the folded preview has none.
+- **Handles capture the pointer** so a drag that ends over the folded preview still ends.
+- **Board handles only where the board grows away from its anchor**; the other edges would move the board too, and trays are sized on their own cards.
+- **Nets building is Workshop only** (the plan's §7 question 1; hidden in Quick build and Guided).

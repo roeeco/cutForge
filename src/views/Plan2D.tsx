@@ -2,7 +2,7 @@
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { foldChips, netEdges, type NetEdge } from './netPick';
+import { foldChips, ghostInNet, netEdges, type NetEdge } from './netPick';
 import type { Selection as StoreSelection } from '../store/store';
 import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
 import { frameDrag, fromOwn, typedSize, type FrameBox, type FrameHandle } from './frameScale';
@@ -22,12 +22,19 @@ import { isOutlineShape } from '../model/outline';
 import { contourPathD } from '../export/svg';
 import { applyX, flattenContour, IDENTITY, invertPoint, xformContour } from '../geom/vec';
 import { SNAP_PX, type Vec2, type Xform2 } from '../geom/types';
-import { addDetail, findDetail, newId, rotateDetails, updateDetail } from '../model/ops';
+import { MIN_PANEL, addDetail, findDetail, newId, parentConnection, rotateDetails, setEdgeFlap, setPanelSize, updateDetail } from '../model/ops';
+import { findEdge, isRectSketch, segInward } from '../model/edges';
+import { edgeHasRoom, heightTargets, snapTo } from '../model/adapt';
+import { heightMarks } from '../easy/lid';
+import { trayRing } from '../model/cartons';
+import { effectiveGrow, growConfirm } from './ghost';
+import { closeLabel } from '../ui/EdgeBar';
+
 import { scaleDetails } from '../model/edit';
 import { detailBBox, detailContours } from '../model/geometry';
 import { snapBox, snapContext, snapPoint, type Guide } from '../model/snap';
 import { LAYERS } from '../export/layers';
-import { fmtNum } from '../i18n';
+import { fmtNum, type MsgKey } from '../i18n';
 import type { Design, Detail, MaterialProfile, SheetPlacement } from '../model/types';
 import { validate } from '../model/validate';
 import { placeText } from './View3D';
@@ -36,7 +43,7 @@ import { panelLabel } from '../model/names';
 import { annotations } from '../export/annotate';
 import { materialName } from '../ui/materialName';
 import { snapAngle } from './widgets';
-import { PendingBarHtml } from './panelTool';
+import { ConfirmBarHtml, PendingBarHtml } from './panelTool';
 import { Icon } from '../ui/icons';
 
 const GAP = 40;
@@ -55,7 +62,11 @@ type Drag =
   | { kind: 'gresize'; ids: string[]; placed: Placed; panelId: string; fixed: Vec2; corner: Vec2 }
   | { kind: 'draw'; id: string; placed: Placed; panelId: string; start: Vec2 }
   | { kind: 'piece'; key: string; start: SheetPlacement; startSvg: Vec2; moved: boolean }
-  | { kind: 'pt2d'; ptId: string; placed: Placed; panelId: string; startSvg: Vec2; moved: boolean };
+  | { kind: 'pt2d'; ptId: string; placed: Placed; panelId: string; startSvg: Vec2; moved: boolean }
+  // milestone 114 (Nets): the grow ghost's height, a flap's length, a board's size, dragged in the flat
+  | { kind: 'growH'; axis: Vec2; startSvg: Vec2; h0: number; marks: { y: number; key: MsgKey; vars?: Record<string, string> }[]; targets: number[] }
+  | { kind: 'flapLen'; panelId: string; edge: string; axis: Vec2; startSvg: Vec2; len0: number }
+  | { kind: 'boardSize'; panelId: string; dim: 'w' | 'h'; axis: Vec2; startSvg: Vec2; v0: number };
 
 
 export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { soloPanel?: string; mode?: 'sheets' | 'net'; dockExtra?: ReactNode }) {
@@ -171,6 +182,89 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
   };
   /** First placed copy showing a panel (where its shapes are edited). */
   const placedOf = (panelId: string) => layout.placed.find((p) => p.copy.copy === 0 && p.copy.panels.some((n) => n.panelId === panelId));
+  // milestone 114: building in the flat (the grow ghost, its ✓, the flap and board handles)
+  const buildOk = shown(useFeature('net.build'));
+  const growAdvanced = shown(useFeature('grow.advanced'));
+  const grow = useStore((s) => s.grow);
+  const edgeSel = net && buildOk && sel?.kind === 'edge' ? sel : null;
+  const ghostPl = edgeSel ? placedOf(edgeSel.panelId) : undefined;
+  const netGhost = useMemo(() => (edgeSel && ghostPl ? ghostInNet(d, ghostPl.copy, edgeSel.panelId, edgeSel.edge, grow) : null), [d, edgeSel?.panelId, edgeSel?.edge, ghostPl?.copy.key, grow]);
+  const growC = useMemo(() => (edgeSel ? growConfirm(d, edgeSel.panelId, edgeSel.edge, grow, growAdvanced) : null), [d, edgeSel?.panelId, edgeSel?.edge, grow, growAdvanced]);
+  const toNetSvg = (pl: Placed, q: Vec2) => ({ x: q.x + pl.ox, y: pl.H - q.y });
+  const ghostHandle = useMemo(() => {
+    if (!edgeSel || !ghostPl || !netGhost) return null;
+    const eg = effectiveGrow(d, edgeSel.panelId, edgeSel.edge, grow);
+    const gp = eg.ghost;
+    if (!gp) return null;
+    const o = ghostPl.copy.origin;
+    const net = (x: number, y: number) => {
+      const q = applyX(netGhost.xf, { x, y });
+      return toNetSvg(ghostPl, { x: q.x - o.x, y: q.y - o.y });
+    };
+    const a = net(gp.w / 2, gp.h), b = net(gp.w / 2, gp.h + 1);
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const marks = eg.plain ? heightMarks(d, edgeSel.panelId, eg.plain) : [];
+    const targets = eg.plain ? heightTargets(d, eg.plain, new Set([edgeSel.panelId])) : [];
+    return { at: a, axis: { x: (b.x - a.x) / L, y: (b.y - a.y) / L }, marks, targets };
+  }, [d, edgeSel?.panelId, edgeSel?.edge, grow, netGhost, ghostPl?.copy.key]);
+  // the ✓ bar in screen space, just past the ghost's far edge
+  const ghostBarAt = (() => {
+    const svg = svgRef.current;
+    if (!ghostHandle || !svg) return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const box = svg.getBoundingClientRect();
+    const pt = svg.createSVGPoint();
+    pt.x = ghostHandle.at.x + ghostHandle.axis.x * mmPerPx() * 28;
+    pt.y = ghostHandle.at.y + ghostHandle.axis.y * mmPerPx() * 28;
+    const r = pt.matrixTransform(ctm);
+    // kept clear of the plan dock above and the hint below
+    return { x: Math.max(110, Math.min(box.width - 380, r.x - box.left - 30)), y: Math.max(84, Math.min(box.height - 110, r.y - box.top - 16)) };
+  })();
+  // a handle at the middle of each flap's far edge
+  const flapHandles = useMemo(() => {
+    if (!net || !buildOk) return [];
+    const out: { key: string; panelId: string; edge: string; at: Vec2; axis: Vec2; len: number }[] = [];
+    for (const pl of layout.placed) {
+      for (const n of pl.copy.panels) {
+        const p = d.panels[n.panelId];
+        for (const f of p?.edgeFlaps ?? []) {
+          const e = findEdge(p, f.edge);
+          if (!e) continue;
+          const L = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) || 1;
+          const inw = segInward(e);
+          const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+          const far = { x: mid.x - inw.x * f.len, y: mid.y - inw.y * f.len };
+          const a = toSvg(pl, p.id, far), b = toSvg(pl, p.id, { x: far.x - inw.x, y: far.y - inw.y });
+          const k = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+          void L;
+          out.push({ key: `${p.id}:${f.id}`, panelId: p.id, edge: f.edge, at: a, axis: { x: (b.x - a.x) / k, y: (b.y - a.y) / k }, len: f.len });
+        }
+      }
+    }
+    return out;
+  }, [d, net, buildOk, layout]);
+  // a selected rectangular board's size handles, on the edges that grow away from its anchor (a root board's right and far edges, a grown board's far edge), when free
+  const boardHandles = useMemo(() => {
+    const id = net && buildOk && sel?.kind === 'panel' && !sel.ids?.length ? sel.id : null;
+    const p = id ? d.panels[id] : null;
+    const pl = id ? placedOf(id) : undefined;
+    if (!p || !pl || !isRectSketch(p) || p.divider) return [];
+    const grown = !!parentConnection(d, p.id);
+    const isTray = Object.values(d.trays ?? {}).some((t) => t.baseId === p.id || trayRing(d, t).some((r) => r.wall === p.id));
+    if (isTray) return [];
+    const out: { key: string; panelId: string; dim: 'w' | 'h'; at: Vec2; axis: Vec2; v0: number }[] = [];
+    for (const [edge, dim] of (grown ? [['e2', 'h']] : [['e1', 'w'], ['e2', 'h']]) as ['e1' | 'e2', 'w' | 'h'][]) {
+      const e = findEdge(p, edge);
+      if (!e || !edgeHasRoom(d, p.id, e.key)) continue;
+      const inw = segInward(e);
+      const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 };
+      const a = toSvg(pl, p.id, mid), b = toSvg(pl, p.id, { x: mid.x - inw.x, y: mid.y - inw.y });
+      const k = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      out.push({ key: `${p.id}:${edge}`, panelId: p.id, dim, at: a, axis: { x: (b.x - a.x) / k, y: (b.y - a.y) / k }, v0: dim === 'w' ? p.w : p.h });
+    }
+    return out;
+  }, [d, net, buildOk, sel, layout]);
   /** A fold picked in Nets (milestone 113): the board folded by it, its joint open on the card. */
   const pickFold = (foldId: string) => (ev: React.PointerEvent) => {
     if (ev.button !== 0) return;
@@ -193,6 +287,28 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
         const k = mmPerPx();
         void svg;
         setVB({ ...g.vb, x: g.vb.x - (ev.clientX - g.sx) * k, y: g.vb.y - (ev.clientY - g.sy) * k });
+        return;
+      }
+      if (g.kind === 'growH' || g.kind === 'flapLen' || g.kind === 'boardSize') {
+        // milestone 114: along the handle's axis, in millimetres (the net is drawn 1:1)
+        const cur = svgPoint(ev);
+        const delta = (cur.x - g.startSvg.x) * g.axis.x + (cur.y - g.startSvg.y) * g.axis.y;
+        if (g.kind === 'growH') {
+          const raw = Math.max(MIN_PANEL, g.h0 + delta);
+          const sn = noSnap ? null : snapTo(raw, [...g.targets, ...g.marks.map((k) => k.y)], tol);
+          const h = sn ?? Math.max(MIN_PANEL, grid(raw, ev));
+          st.setGrow({ height: h });
+          const mk = sn !== null ? g.marks.find((k) => Math.abs(k.y - sn) < 0.05) : undefined;
+          setLabel({ text: mk ? `${fmtNum(h)} · ${t(mk.key, mk.vars?.panel ? { name: panelLabel(st.design, mk.vars.panel, t) } : {})}` : fmtNum(h), ...cur });
+        } else if (g.kind === 'flapLen') {
+          const len = Math.max(2, grid(g.len0 + delta, ev));
+          st.preview((x) => setEdgeFlap(x, g.panelId, g.edge, len));
+          setLabel({ text: fmtNum(len), ...cur });
+        } else {
+          const v = Math.max(MIN_PANEL, grid(g.v0 + delta, ev));
+          st.preview((x) => setPanelSize(x, g.panelId, g.dim === 'w' ? v : undefined, g.dim === 'h' ? v : undefined));
+          setLabel({ text: fmtNum(v), ...cur });
+        }
         return;
       }
       if (g.kind === 'pt2d') {
@@ -346,10 +462,13 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
           st.cancel();
           st.set({ sel2d: g.ptId });
         }
+      } else if (g.kind === 'growH') {
+        // the ghost's height is the grow card's, not the design's: nothing to commit
       } else if (g.kind !== 'pan') st.commit();
     };
     const key = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape' && drag.current) {
+        if (drag.current.kind === 'growH') useStore.getState().setGrow({ height: drag.current.h0 });
         drag.current = null;
         setLabel(null);
         setGuides(null);
@@ -728,6 +847,80 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
           );
         })}
         {net && layout.placed.map((pl) => <NetPicks key={`pick-${pl.copy.key}`} d={d} pl={pl} px={px} sel={sel} onFold={pickFold} />)}
+        {/* milestone 114: building in the flat — the grow ghost with its height handle, flap and board handles */}
+        {net && buildOk && netGhost && ghostPl && (() => {
+          const at = (q: Vec2) => ({ x: q.x + ghostPl.ox, y: ghostPl.H - q.y });
+          const pts = netGhost.pts.map(at);
+          const warn = !!growC && (growC.blocked || growC.over.length > 0);
+          const hEnd = ghostHandle!;
+          return (
+            <g className={`net-ghost${netGhost.own ? ' own' : ''}${warn ? ' warn' : ''}`} data-testid="net-ghost" data-own={netGhost.own || undefined}>
+              <polygon points={pts.map((q) => `${q.x},${q.y}`).join(' ')} strokeWidth={px * 1.5} strokeDasharray={`${px * 6} ${px * 4}`} pointerEvents="none" />
+              {netGhost.own && (
+                <text x={pts.reduce((a, q) => a + q.x, 0) / pts.length} y={pts.reduce((a, q) => a + q.y, 0) / pts.length} textAnchor="middle" fontSize={px * 11} pointerEvents="none" data-testid="net-own-piece">
+                  {t('net.ownPiece')}
+                </text>
+              )}
+              <circle
+                cx={hEnd.at.x}
+                cy={hEnd.at.y}
+                r={px * 9}
+                className="net-handle grow-h"
+                onPointerDown={(ev) => {
+                  if (ev.button !== 0) return;
+                  ev.stopPropagation();
+                  // the release comes back here even over the folded preview (it handles pointers itself)
+              (ev.currentTarget as Element).setPointerCapture?.(ev.pointerId);
+              drag.current = { kind: 'growH', axis: hEnd.axis, startSvg: svgPoint(ev), h0: grow.height, marks: hEnd.marks, targets: hEnd.targets };
+                }}
+                data-testid="net-grow-height"
+              >
+                <title>{t('net.dragHeight')}</title>
+              </circle>
+            </g>
+          );
+        })()}
+        {net && buildOk && !netGhost && boardHandles.map((h) => (
+          <rect
+            key={`bh-${h.key}`}
+            x={h.at.x - px * 6}
+            y={h.at.y - px * 6}
+            width={px * 12}
+            height={px * 12}
+            rx={px * 2}
+            className="net-handle board-size"
+            onPointerDown={(ev) => {
+              if (ev.button !== 0) return;
+              ev.stopPropagation();
+              useStore.getState().select({ kind: 'panel', id: h.panelId });
+              // the release comes back here even over the folded preview (it handles pointers itself)
+              (ev.currentTarget as Element).setPointerCapture?.(ev.pointerId);
+              drag.current = { kind: 'boardSize', panelId: h.panelId, dim: h.dim, axis: h.axis, startSvg: svgPoint(ev), v0: h.v0 };
+            }}
+            data-testid={`net-size-${h.panelId}-${h.dim}`}
+          >
+            <title>{t('net.dragSize')}</title>
+          </rect>
+        ))}
+        {net && buildOk && flapHandles.map((h) => (
+          <circle
+            key={`fh-${h.key}`}
+            cx={h.at.x}
+            cy={h.at.y}
+            r={px * 7}
+            className="net-handle flap-len"
+            onPointerDown={(ev) => {
+              if (ev.button !== 0) return;
+              ev.stopPropagation();
+              // the release comes back here even over the folded preview (it handles pointers itself)
+              (ev.currentTarget as Element).setPointerCapture?.(ev.pointerId);
+              drag.current = { kind: 'flapLen', panelId: h.panelId, edge: h.edge, axis: h.axis, startSvg: svgPoint(ev), len0: h.len };
+            }}
+            data-testid={`net-flap-${h.panelId}-${h.edge}`}
+          >
+            <title>{t('net.dragFlap')}</title>
+          </circle>
+        ))}
         {netBad.map((o, k) => {
           const pl = layout.placed.find((x) => x.copy.copy === 0 && x.copy.pieceKey === o.net);
           if (!pl) return null;
@@ -831,6 +1024,31 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
       </svg>
       {edit2d && <Edit2DCard t={edit2d} />}
       {pendingAt && <PendingBarHtml x={pendingAt.x} y={pendingAt.y} />}
+      {net && buildOk && netGhost && growC && ghostBarAt && (
+        <ConfirmBarHtml
+          x={ghostBarAt.x}
+          y={ghostBarAt.y}
+          onOk={() => growC.ok()}
+          onCancel={() => sel?.kind === 'edge' && useStore.getState().select({ kind: 'panel', id: sel.panelId })}
+          okDisabled={growC.disabled}
+          testId="grow-ghost-bar"
+          okTestId="grow-go"
+        >
+          {growC.closesW && growC.closeAs && (
+            <span data-testid="grow-closes-bar" data-lid={growC.closeAs}>
+              {t('grow.makes', { what: t(closeLabel(growC.closeAs)) })}
+            </span>
+          )}
+          {growC.over.length > 0 && !growC.closes && (
+            <>
+              <span className="warn" data-testid="grow-overlap">{t('grow.overlap', { panels: growC.over.map((x) => panelLabel(d, x, t)).join(', ') })}</span>
+              <button onClick={() => growC.own()} data-testid="grow-own">
+                {t('grow.own')}
+              </button>
+            </>
+          )}
+        </ConfirmBarHtml>
+      )}
       <div className="plan-dock" dir={uiDir()}>
         {solo && (
           <button className="primary" onClick={() => useStore.getState().closeSolo()} data-testid="solo-back">
@@ -894,7 +1112,7 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
         )}
       </div>}
       {fHint && <div className="view-hint" dir={uiDir()}>
-        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : net ? t('net.hint') : t('pack.hint')}
+        {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : net ? t(netGhost ? 'net.buildHint' : 'net.hint') : t('pack.hint')}
       </div>}
     </div>
   );

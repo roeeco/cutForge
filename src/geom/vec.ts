@@ -33,6 +33,15 @@ export function invertPoint(t: Xform2, p: Vec2): Vec2 {
   const r = rotate({ x: p.x - t.tx, y: p.y - t.ty }, -t.rot);
   return t.mirror ? { x: -r.x, y: r.y } : r;
 }
+/** The inverse transform: `applyX(invertX(t), applyX(t, p)) = p` (milestone 114). */
+export function invertX(t: Xform2): Xform2 {
+  // p → R(M p) + T; inverse: q → M R⁻¹ (q − T); with a mirror M R(−θ) = R(θ) M
+  const rot = t.mirror ? t.rot : -t.rot;
+  const m = { x: t.mirror ? -t.tx : t.tx, y: t.ty };
+  const r = t.mirror ? rotate(m, t.rot) : rotate(m, -t.rot);
+  return { tx: -r.x, ty: -r.y, rot, mirror: t.mirror || undefined };
+}
+
 /** Compose: first apply `inner`, then `outer`. */
 export function composeX(outer: Xform2, inner: Xform2): Xform2 {
   const o = applyX(outer, { x: inner.tx, y: inner.ty });

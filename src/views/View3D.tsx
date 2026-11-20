@@ -42,7 +42,7 @@ import { Segmented } from '../ui/NumField';
 import { FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeSeg } from '../model/edges';
 import { dividerAxes, dividerRow, snapDividerLine, snapDividerOffset } from '../model/dividers';
 import { angleTargets, edgeFreeSpans, edgeHasRoom, heightTargets, snapTo, spanFrame, spanTargets } from '../model/adapt';
-import { closeAsGo, doGrow, effectiveGrow, growOverlap, ownGrowKind } from './ghost';
+import { closeAsGo, doGrow, effectiveGrow, growConfirm, growOverlap, ownGrowKind } from './ghost';
 import { sketchRing, wallCorners } from '../model/edges';
 import { closedAt, OutlineHandles, PolygonTool, PolygonToolCard, type PolyToolHandle } from './polyTool';
 import { MIN_EDGE, trayOf, wallHeight } from '../model/trays';
@@ -174,7 +174,10 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
   // what the stage shows in this mode (milestone 105): Guided has its own handles
   const fEdges = shown(useFeature('stage.edges')), fWidgets = shown(useFeature('stage.panelWidgets'));
   // milestone 113: the folded preview beside Nets keeps the grow ghost and its ✓ (an edge picked in the flat grows there; 114 moves it to the flat)
-  const previewGhost = useContext(StagePreview);
+  const inPreviewStage = useContext(StagePreview);
+  // milestone 114: where Nets builds in the flat, its ✓ is there and the preview has none (never two)
+  const netBuild = shown(useFeature('net.build'));
+  const previewGhost = inPreviewStage && !netBuild;
   const fFloorGizmo = shown(useFeature('stage.floorGizmo')), fPlacedGizmo = shown(useFeature('stage.placedGizmo'));
   const fDividerButton = shown(useFeature('stage.dividerButton')), fDividerSlide = shown(useFeature('stage.dividerSlide'));
   const fShapeGizmo = shown(useFeature('stage.shapeGizmo')), fPan = shown(useFeature('stage.pan')), fDock = shown(useFeature('stage.dock'));
@@ -1592,13 +1595,14 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
   useEffect(() => {
     if (!advanced) useStore.getState().setGrow({ height: quickWallHeight(useStore.getState().design, panelId, edge, useStore.getState().grow.height) });
   }, [panelId, edge, advanced]);
-  // a fold whose net would overlap when flat (milestone 35): amber, with a way out
-  const over = useMemo(() => (parent && free && eg?.ghost ? growOverlap(d, panelId, edge, grow) : []), [d, panelId, edge, grow, !!eg?.ghost, free]);
-  // Quick build (milestone 73): a ghost across a box's top makes the box's lid, one that opens, never a board jointed shut
-  const closes = useMemo(() => (advanced ? null : wallClosesBox(d, panelId, edge, eg?.ghost ?? null)), [d, panelId, edge, eg, advanced]);
-  // Workshop (milestone 77): a ghost that closes the box makes what the grow card chose
-  const closesW = useMemo(() => (advanced ? closeChoices(d, panelId, edge, eg?.ghost ?? null) : null), [d, panelId, edge, eg, advanced]);
-  const closeAs = closesW ? closeChoice(closesW, grow.closeAs) : null;
+  // what ✓ does (milestone 114: one function for the stage and the Net view): a fold whose net would overlap when flat
+  // (milestone 35) is amber with a way out; in Quick build a ghost across a box's top makes its lid (73); in Workshop
+  // one that closes the box makes what the grow card chose (77)
+  const gc = useMemo(() => growConfirm(d, panelId, edge, grow, advanced), [d, panelId, edge, grow, advanced]);
+  const over = gc?.over ?? [];
+  const closes = gc?.closes ?? null;
+  const closesW = gc?.closesW ?? null;
+  const closeAs = gc?.closeAs ?? null;
   if (!ghost || !check || !eg) return null;
   const f = ghost.frame;
   // the height arrow sits on the ghost's (trimmed) outline, at half its width
@@ -1634,9 +1638,9 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
       <ConfirmBar
         at={barAt}
         below
-        onOk={() => void (closes ? closeBoxGo(closes.tray, closes.choice) : closesW && closeAs ? closeAsGo(panelId, edge, closesW.tray, closeAs) : doGrow(panelId, edge))}
+        onOk={() => gc?.ok()}
         onCancel={() => useStore.getState().select({ kind: 'panel', id: panelId })}
-        okDisabled={blocked && !closes && !(closesW && closeAs && closeAs !== 'fixed' && !closeAs.startsWith('style:'))}
+        okDisabled={!gc || gc.disabled}
         okTestId="grow-go"
         testId="grow-ghost-bar"
       >
@@ -1653,7 +1657,7 @@ function GrowGhost({ d, panelId, edge, m }: { d: Design; panelId: string; edge: 
         {over.length > 0 && !closes && (
           <>
             <span className="warn" data-testid="grow-overlap">{t('grow.overlap', { panels: over.map((x) => panelLabel(d, x, t)).join(', ') })}</span>
-            <button onClick={() => void doGrow(panelId, edge, ownGrowKind(d, panelId))} data-testid="grow-own">
+            <button onClick={() => gc?.own()} data-testid="grow-own">
               {t('grow.own')}
             </button>
           </>

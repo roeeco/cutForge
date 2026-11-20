@@ -3,9 +3,12 @@
 // bounding box's corner at 0, 0), with what it is: free to grow from or flap,
 // a fold (and which), or another joint. Pure, so it is tested without a browser.
 import type { Design } from '../model/types';
-import type { Vec2 } from '../geom/types';
+import type { Vec2, Xform2 } from '../geom/types';
 import type { PieceCopy } from '../model/pack';
-import { applyX } from '../geom/vec';
+import { applyX, composeX, invertX } from '../geom/vec';
+import { pieceCopies } from '../model/pack';
+import { growWith } from './ghost';
+import type { GrowOptions } from '../store/store';
 import { findEdge, isCurveKey, panelEdges } from '../model/edges';
 import { edgeHasRoom } from '../model/adapt';
 import { foldHolds } from '../model/pieces';
@@ -67,3 +70,63 @@ export function foldChips(d: Design, copy: PieceCopy): FoldChip[] {
   }
   return out;
 }
+
+/**
+ * Where a grow's new board lies in a net (milestone 114, D2): grown on a copy
+ * of the design exactly as ✓ would grow it, then read from that copy's net
+ * and brought into the shown net through the parent board (its place in the
+ * net may move when the net gets a new board). Copy coordinates; null when the
+ * grow makes nothing. `own`: the new board is cut as a piece of its own (not a
+ * fold), so it is drawn beside its edge, outside the net.
+ */
+export type NetGhost = { pts: Vec2[]; own: boolean; xf: Xform2 };
+const ghostCache = new Map<string, NetGhost | null>();
+export function ghostInNet(d: Design, copy: PieceCopy, panelId: string, edge: string, grow: GrowOptions): NetGhost | null {
+  const parentXf = copy.panels.find((n) => n.panelId === panelId)?.xf;
+  if (!parentXf) return null;
+  const key = JSON.stringify([panelId, edge, grow, copy.key]);
+  const hit = ghostCache.get(key);
+  // (the cache is per design object: cleared when the design changes)
+  if (hit !== undefined && ghostCacheOf === d) return hit;
+  if (ghostCacheOf !== d) {
+    ghostCache.clear();
+    ghostCacheOf = d;
+  }
+  const work = JSON.parse(JSON.stringify(d)) as Design;
+  let r: ReturnType<typeof growWith> = null;
+  try {
+    r = growWith(work, panelId, edge, grow);
+  } catch {
+    r = null;
+  }
+  const P = r && work.panels[r.panelId];
+  let out: NetGhost | null = null;
+  if (r && P) {
+    const net = pieceCopies(work).find((c) => c.copy === 0 && c.panels.some((n) => n.panelId === panelId));
+    const pW = net?.panels.find((n) => n.panelId === panelId)?.xf;
+    const nW = net?.panels.find((n) => n.panelId === r!.panelId)?.xf;
+    const ring = panelEdges(P).map((e) => e.a);
+    if (pW && nW) {
+      // new board → its net → the parent's own frame → the shown net
+      const xf = composeX(parentXf, composeX(invertX(pW), nW));
+      out = { pts: ring.map((q) => applyX(xf, q)).map((q) => ({ x: q.x - copy.origin.x, y: q.y - copy.origin.y })), own: false, xf };
+    } else {
+      // a piece of its own: drawn flat beside the edge it grows from, as if folded out flat
+      const e = findEdge(d.panels[panelId], edge);
+      if (e) {
+        const L = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) || 1;
+        const ux = (e.b.x - e.a.x) / L, uy = (e.b.y - e.a.y) / L;
+        // outward (away from the board): the right-hand normal of a counter-clockwise ring
+        const nx = uy, ny = -ux;
+        const gap = 6;
+        const xfLocal: Xform2 = { tx: e.a.x + nx * gap, ty: e.a.y + ny * gap, rot: Math.atan2(uy, ux) };
+        const xf = composeX(parentXf, xfLocal);
+        out = { pts: ring.map((q) => applyX(xf, q)).map((q) => ({ x: q.x - copy.origin.x, y: q.y - copy.origin.y })), own: true, xf };
+      }
+    }
+  }
+  if (ghostCache.size > 50) ghostCache.clear();
+  ghostCache.set(key, out);
+  return out;
+}
+let ghostCacheOf: Design | null = null;

@@ -102,6 +102,8 @@ export const FEATURES = {
   'start.cards': 'show',
   /** The cut plan's *Sheets · Nets* switch, the Net view and its edge picking (113). */
   'plan.nets': 'hide',
+  /** Building in *Nets*: the ghost, its height handle and ✓, the flap and board handles (114). */
+  'net.build': 'hide',
   /** *Match top with*, *Own outline*, *Copy outline from* (71). */
   match: 'hide',
   /** A fold's *Automatic · Keep whole · Cut here*, and the design's split setting (69): only when it must. */
@@ -204,6 +206,7 @@ export const GUIDED = {
   'flap.shape': 'hide',
   'start.cards': 'hide',
   'plan.nets': 'hide',
+  'net.build': 'hide',
   match: 'hide',
   split: 'auto',
   yield: 'hide',
