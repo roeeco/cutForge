@@ -146,7 +146,9 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
     const el = svgRef.current;
     const cw = el?.clientWidth || 1200, ch = el?.clientHeight || 760;
     const rtl = document.documentElement.dir === 'rtl';
-    const railPx = 96, cardPx = 340, topPx = 84, bottomPx = 64;
+    // below the plan dock, which can wrap to two rows (milestone 113's switch made it wider)
+    const dockH = (el?.parentElement?.querySelector('.plan-dock') as HTMLElement | null)?.offsetHeight ?? 34;
+    const railPx = 96, cardPx = 340, topPx = Math.max(84, 16 + dockH + 40), bottomPx = 64;
     const left = rtl ? cardPx : railPx, right = rtl ? railPx : cardPx;
     const availW = Math.max(200, cw - left - right), availH = Math.max(160, ch - topPx - bottomPx);
     const k = Math.min(availW / totalW, availH / H); // px per mm
@@ -215,11 +217,14 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
     if (!ctm) return null;
     const box = svg.getBoundingClientRect();
     const pt = svg.createSVGPoint();
-    pt.x = ghostHandle.at.x + ghostHandle.axis.x * mmPerPx() * 28;
-    pt.y = ghostHandle.at.y + ghostHandle.axis.y * mmPerPx() * 28;
+    // in the middle of the ghost (its far edge can run under the plan dock, a lid grown towards the top)
+    const gp = netGhost && ghostPl ? netGhost.pts.map((q) => ({ x: q.x + ghostPl.ox, y: ghostPl.H - q.y })) : [ghostHandle.at];
+    pt.x = gp.reduce((a, q) => a + q.x, 0) / gp.length;
+    pt.y = gp.reduce((a, q) => a + q.y, 0) / gp.length;
     const r = pt.matrixTransform(ctm);
     // kept clear of the plan dock above and the hint below
-    return { x: Math.max(110, Math.min(box.width - 380, r.x - box.left - 30)), y: Math.max(84, Math.min(box.height - 110, r.y - box.top - 16)) };
+    const dockH = (svg.parentElement?.querySelector('.plan-dock') as HTMLElement | null)?.offsetHeight ?? 34;
+    return { x: Math.max(110, Math.min(box.width - 380, r.x - box.left - 30)), y: Math.max(16 + dockH + 12, Math.min(box.height - 110, r.y - box.top - 16)) };
   })();
   // a handle at the middle of each flap's far edge
   const flapHandles = useMemo(() => {

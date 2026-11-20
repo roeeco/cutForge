@@ -1,6 +1,7 @@
 // A tray's rounded corners on its card (milestone 64, PACKAGING_PLAN.md §4.4):
 // how they join the next wall, all at once, and where a plywood strip that
 // runs all round is keyed shut.
+import { CRASH_LOCK_OFFERED } from '../model/cartons';
 import { useStore, useT } from '../store/store';
 import { setClosingCorner, setTrayCorners, setTrayCurveKind, setTrayEnds } from '../model/ops';
 import { trayRing } from '../model/cartons';
@@ -104,7 +105,7 @@ export function TrayEnds({ tray }: { tray: Tray }) {
             <option value="tuckBack">{t('carton.tuckBack')}</option>
             <option value="seal">{t('carton.seal')}</option>
             <option value="rsc">{t('carton.rsc')}</option>
-            <option value="crash">{t('carton.crash')}</option>
+            {(CRASH_LOCK_OFFERED || tray.bottom === 'crash') && <option value="crash">{t('carton.crash')}</option>}
           </select>
         </div>
       )}

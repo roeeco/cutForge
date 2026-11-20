@@ -607,6 +607,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Hidden in Quick build and Guided** (`'drawer.grades'`); the welcome screen's step 1 keeps the four classroom materials.
 - **B flute 3 mm makes cartons with shipping flaps** (C2's rule for corrugated up to 4 mm), not none as the handoff's test list assumed.
 
+## Before a deploy (20 November)
+- **The crash-lock is held back by one switch** (`CRASH_LOCK_OFFERED` in `src/model/cartons.ts`), not removed: the patent question is the owner's (SENTENCE_STYLES_PLAN.md §0). Hidden: the sentence's word, its style, the tray card's option for a tray without one. The engine, its tests and its golden stay.
+- **The plan dock wraps** rather than losing buttons under the card; *Fit* reads the dock's height.
+
 ## Milestone 120 (Shapes R1): the port
 - **From `claude/guided-mode` at `e450c6b`**, which has the commit after PR #6 (`claude/waffle-mode` on the remote lacks it), by path.
 - **Absent `outcome` is *not made yet***, not the waffle: a waffle file from PR #6 opens here as shapes, its `waffle` field kept for when the waffle joins.

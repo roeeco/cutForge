@@ -4,7 +4,7 @@ import '../src/templates/registry';
 import polygonClipping from 'polygon-clipping';
 import { MATERIALS } from '../src/model/materials';
 import { cartonDesign } from '../src/templates/structures/carton';
-import { backAndFront, endId } from '../src/model/cartons';
+import { CRASH_LOCK_OFFERED, backAndFront, endId } from '../src/model/cartons';
 import { validate } from '../src/model/validate';
 import { NOTE_KEYS } from '../src/easy/fix';
 import { defaults, templateById } from '../src/templates/registry';
@@ -53,14 +53,14 @@ describe('C3: the crash-lock bottom', () => {
     expect(area(left)).toBeLessThan(0.02 * base.w * base.h);
   });
 
-  it('card only: corrugated never offers it; the style is listed on card', () => {
+  it('card only, and held back until the patent question is settled: corrugated never offers it; card offers it (and its style) only when released', () => {
     const carton = templateById('carton')!;
     const p = chooseStructure(carton, CARD, defaults(carton)).params;
-    expect(listOf(carton, CARD, p, 'bottom')).toContain('crash');
     const pc = chooseStructure(carton, CORR, defaults(carton)).params;
     expect(listOf(carton, CORR, pc, 'bottom')).not.toContain('crash');
     const style = STYLES.find((s) => s.id === 'autoBottom')!;
-    expect(styleListed(style, CARD, p, templateById)).toBe(true);
+    expect(listOf(carton, CARD, p, 'bottom').includes('crash')).toBe(CRASH_LOCK_OFFERED);
+    expect(styleListed(style, CARD, p, templateById)).toBe(CRASH_LOCK_OFFERED);
     expect(styleListed(style, CORR, pc, templateById)).toBe(false);
   });
 

@@ -3,6 +3,7 @@
 // fills in several words at once; the sentence shows the name whenever its
 // words match one. Nothing new is stored: the style is worked out from the
 // words every time. The welcome screen's card grid lists the same styles.
+import { CRASH_LOCK_OFFERED } from '../model/cartons';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import type { Params, TemplateDef } from './types';
@@ -39,7 +40,7 @@ export const STYLES: StyleDef[] = [
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },
   { id: 'rte', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'opposite' }, group: 'cartons', uses: ['cosmetics', 'pharma'], code: 'ECMA A55', status: 'stable' },
   { id: 'tuckSnap', structure: 'carton', words: { top: 'tuck', bottom: 'snap' }, group: 'cartons', uses: ['retail'], code: 'ECMA A60', status: 'stable' },
-  { id: 'autoBottom', structure: 'carton', words: { top: 'tuck', bottom: 'crash' }, group: 'cartons', uses: ['retail', 'cosmetics'], code: 'ECMA A65 / B40', status: 'stable' },
+  { id: 'autoBottom', structure: 'carton', words: { top: 'tuck', bottom: 'crash' }, group: 'cartons', uses: ['retail', 'cosmetics'], code: 'ECMA A65 / B40', status: CRASH_LOCK_OFFERED ? 'stable' : 'planned' },
   { id: 'gable', structure: 'carton', words: { top: 'gable' }, group: 'cartons', uses: ['gift', 'food'], status: 'stable' },
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
   // shipping
