@@ -39,9 +39,12 @@ test('every structure the sentence lists starts, in every material that lists it
       await page.getByTestId('sen-structure').click();
       await page.getByTestId(`sen-structure-opt-${id}`).click();
       await expect(page.getByTestId('tpl-sentence')).toHaveAttribute('aria-checked', 'true');
+      // a named style (milestone C1) is a structure with some of its words set
+      const want = await page.getByTestId('sentence').getAttribute('data-structure');
+      if (!id.startsWith('style:')) expect(want).toBe(id);
       await page.getByTestId('start-go').click();
       const d = await design(page);
-      expect(d.template?.id, `${id} on ${m}`).toBe(id);
+      expect(d.template?.id, `${id} on ${m}`).toBe(want);
       expect(d.material.id).toBe(m);
       expect(await page.evaluate(() => (window as any).__cutforge.issues().filter((k: string) => k !== 'val.split')), `${id} on ${m}`).toEqual([]);
     }

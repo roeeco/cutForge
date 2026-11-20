@@ -529,3 +529,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **One feature per edge** from now on; old files with a fold-over and a flap on one edge keep both.
 - **The flap block stays under *More…*** on the grow card (the rail and the card stay quiet); it is reached from the flat in 113–114.
 - **Quick build shows a shaped flap's board read-only** (`WorkshopWhy` `'flap'`), as it does fold-overs.
+
+## Milestone C1: named styles and the card grid (SENTENCE_STYLES_PLAN.md)
+- **A style is words, not a template**: `regenerate`, a change of material, sizes, missions and the library see an ordinary sentence design; nothing new is stored and the style is worked out from the words (`styleOf`, the most specific match).
+- **The card grid is an alternative view of the same choice** (the owner, 20 November): the sentence stays the default; a *Sentence · Cards* switch, remembered per browser (`viewPrefs.startView`); picking a card fills in the sentence's words. Hidden in Guided, which has its own gallery.
+- **Styles are listed only when the material can make them as they are** (every word they fix allowed after the resolver's checks), as the sentence's lists are: hidden, never greyed.
+- **A style with no words of its own** (Open tray, Open sleeve) is not a second entry in the sentence's list: its structure's entry carries its name. It is a card of its own in the grid.
+- **Trade codes are kept but not shown** until the owner checks each (the sentence plan's decision).
+- **These milestones keep letters (C1–C5)**: ROADMAP §5.3 gives 119–133 to the shapes-to-dielines plan.

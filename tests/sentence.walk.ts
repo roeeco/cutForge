@@ -16,9 +16,10 @@ export function rng(seed: number) {
 export type WalkFail = { seed: number; step: number; why: string; params: Params };
 
 /** One walk: random words changed (any word, before or after the last one), built after each step, checked. */
-export function walk(def: TemplateDef, m: MaterialProfile, seed: number, steps: number): WalkFail[] {
+export function walk(def: TemplateDef, m: MaterialProfile, seed: number, steps: number, start?: Params): WalkFail[] {
   const r = rng(seed);
-  let p: Params = defaults(def);
+  // (milestone C1: a walk may start from a named style's words)
+  let p: Params = start ?? defaults(def);
   const fails: WalkFail[] = [];
   for (let k = 0; k < steps; k++) {
     const ws = resolve(def, m, p).filter((w) => w.shown);

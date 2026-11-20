@@ -5,6 +5,7 @@ import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
 import { defaults, generate, templateById } from '../templates/registry';
 import { Sentence } from '../sentence/Sentence';
+import { StyleCards } from '../sentence/StyleCards';
 import { chooseMaterial, type Change } from '../sentence/resolve';
 import type { SentenceValue } from '../sentence/model';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
@@ -15,7 +16,7 @@ import { Icon, Logo } from './icons';
 import { MaterialArt } from './MaterialArt';
 import { renderThumbnail } from '../views/thumbnail';
 import { MISSIONS, missionById, startMission } from '../easy/missions';
-import { useMode } from '../easy/features';
+import { shown, useFeature, useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
 function missionThumb(id: string, m: MaterialProfile): string | null {
@@ -59,6 +60,10 @@ export function StartScreen() {
   const [tpl, setTpl] = useState('');
   const [sentence, setSentence] = useState<SentenceValue>(() => ({ id: 'box', params: defaults(templateById('box')!) }));
   const [notes, setNotes] = useState<Change[]>([]);
+  // milestone C1: step 2 as the sentence (the default) or as cards of the same styles
+  const cardsOk = shown(useFeature('start.cards'));
+  const setPrefs = useStore((s) => s.setPrefs);
+  const startView = useStore((s) => (cardsOk ? (s.viewPrefs.startView ?? 'sentence') : 'sentence'));
   // opened from the project menu over a design: a way back to it
   const back = useStore((s) => s.design.order.length > 0);
   // the first-use tour (milestone 43): a card until it was taken or ended, then a link; not when the class locks Quick build
@@ -161,12 +166,27 @@ export function StartScreen() {
             <small>{t('start.blankDesc')}</small>
           </span>
         </button>
-        {/* milestone 98: presets said instead of picked (SENTENCE_BUILDER_PLAN.md) */}
-        <div className={`pick-row sentence-row${effTpl === 'sentence' ? ' on' : ''}`} onFocusCapture={() => setTpl('sentence')} onPointerDown={() => setTpl('sentence')}>
-          <button className="dot-btn" role="radio" aria-checked={effTpl === 'sentence'} aria-label={t('sen.legend')} onClick={() => setTpl('sentence')} data-testid="tpl-sentence">
+        {/* milestone 98: presets said instead of picked (SENTENCE_BUILDER_PLAN.md); milestone C1: or picked from cards of named styles */}
+        {cardsOk && (
+          <div className="start-view" role="group" aria-label={t('start.view')}>
+            <span className="seg">
+              {(['sentence', 'cards'] as const).map((v) => (
+                <button key={v} type="button" aria-pressed={startView === v} className={startView === v ? 'on' : ''} onClick={() => setPrefs({ startView: v === 'sentence' ? undefined : v })} data-testid={`start-view-${v}`}>
+                  {t(`start.view.${v}`)}
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
+        <div className={`pick-row sentence-row${effTpl === 'sentence' ? ' on' : ''}${startView === 'cards' ? ' cards' : ''}`} onFocusCapture={() => setTpl('sentence')} onPointerDown={() => setTpl('sentence')}>
+          <button className="dot-btn" role="radio" aria-checked={effTpl === 'sentence'} aria-label={startView === 'cards' ? t('start.cards') : t('sen.legend')} onClick={() => setTpl('sentence')} data-testid="tpl-sentence">
             <span className="dot" aria-hidden />
           </button>
-          <Sentence m={mat} value={sentence} onChange={(v) => (setSentence(v), setTpl('sentence'))} notes={notes} />
+          {startView === 'cards' ? (
+            <StyleCards m={mat} value={sentence} selected={effTpl === 'sentence'} onChange={(v, ch) => (setSentence(v), setNotes(ch), setTpl('sentence'))} />
+          ) : (
+            <Sentence m={mat} value={sentence} onChange={(v) => (setSentence(v), setTpl('sentence'))} notes={notes} />
+          )}
         </div>
       </div>
       {missions.length > 0 && (

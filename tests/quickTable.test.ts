@@ -123,6 +123,7 @@ describe('the feature table (rule 3)', () => {
       'stage.panelWidgets',
       'stage.placedGizmo',
       'stage.shapeGizmo',
+      'start.cards',
       'tray.wallIt',
       'viewSettings',
     ]);

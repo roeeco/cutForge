@@ -495,6 +495,13 @@ textarea { width: 100%; resize: vertical; }
 .pick-card[aria-checked='true'] .tick-mark { display: grid; }
 .start-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-start: 24px; }
 .start-foot .note { max-width: 520px; }
+.start-view { display: flex; justify-content: flex-end; margin: -6px 0 6px; }
+/* milestone C1: the card grid of named styles, in the sentence's row */
+.sentence-row.cards { align-items: flex-start; }
+.style-grid { flex: 1; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.style-grid .pick-card .art { height: 140px; }
+.style-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-block-start: 6px; }
+.style-tag { font-size: 11px; font-weight: 600; color: #fff; background: var(--ink); border-radius: 6px; padding: 2px 7px; }
 .start .go { min-height: 48px; padding: 0 34px; font-size: 18px; border-radius: var(--r-pill); }
 
 /* ---------- hints (coach marks) ---------- */
@@ -940,6 +947,12 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .sen-list li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; min-height: 44px; }
 .sen-list li.active { background: rgba(31, 184, 172, 0.14); }
 .sen-list li[aria-selected='true'] { font-weight: 600; }
+/* milestone C1: the structure list grouped, with a style's description under its name */
+.sen-list { max-height: min(70vh, 520px); overflow-y: auto; }
+.sen-list li.sen-group { min-height: 0; padding: 8px 8px 2px; cursor: default; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+.sen-opt { display: flex; flex-direction: column; gap: 1px; }
+.sen-list:has(.sen-group) { min-width: 320px; }
+.sen-opt small { font-size: 12px; font-weight: 400; color: var(--ink-muted); }
 .sen-list .pic { width: 64px; height: 44px; flex: none; background: #f3efe8; border-radius: 4px; overflow: hidden; }
 .sen-list .pic img { width: 100%; height: 100%; object-fit: contain; }
 .sen-list .sen-loading { color: var(--ink-muted); cursor: default; }

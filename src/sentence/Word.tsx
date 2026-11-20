@@ -16,6 +16,10 @@ export function Word(props: {
   options: () => Value[];
   /** A small picture per option (a data URL), or null. */
   picture?: (v: Value) => string | null;
+  /** The heading of the group an option is in (milestone C1): shown above the first option of each group. */
+  group?: (v: Value) => string | null;
+  /** A line under an option's name (milestone C1: a style's description). */
+  detail?: (v: Value) => string | null;
   onPick: (v: Value) => void;
   testId: string;
   onFocus?: () => void;
@@ -120,7 +124,12 @@ export function Word(props: {
           data-testid={`${props.testId}-list`}
         >
           {!opts && <li className="sen-loading">{t('sen.loading')}</li>}
-          {opts?.map((v, i) => (
+          {opts?.map((v, i) => [
+            props.group && props.group(v) !== (i > 0 ? props.group(opts[i - 1]) : null) && props.group(v) ? (
+              <li key={`g:${String(v)}`} role="presentation" className="sen-group" data-testid={`${props.testId}-group`}>
+                {props.group(v)}
+              </li>
+            ) : null,
             <li
               key={String(v)}
               id={`${id}-o${i}`}
@@ -133,9 +142,16 @@ export function Word(props: {
               data-testid={`${props.testId}-opt-${v}`}
             >
               {props.picture && <span className="pic">{pics[String(v)] ? <img src={pics[String(v)]!} alt="" /> : null}</span>}
-              <span>{props.text(v)}</span>
-            </li>
-          ))}
+              {props.detail?.(v) ? (
+                <span className="sen-opt">
+                  <span>{props.text(v)}</span>
+                  <small>{props.detail(v)}</small>
+                </span>
+              ) : (
+                <span>{props.text(v)}</span>
+              )}
+            </li>,
+          ])}
         </ul>
       )}
     </span>

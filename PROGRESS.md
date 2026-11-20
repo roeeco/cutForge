@@ -1768,6 +1768,24 @@ Limitations
 - The glue areas of shaped glue flaps are not yet named on the cut plan's *Dimensions* or the spec sheet.
 - Hang hole sizes are starting values until checked against the school's hooks.
 
+## Milestone C1 (Styles) — named styles in the sentence, and the card grid ✅
+
+`SENTENCE_STYLES_PLAN.md` C1. New `src/templates/styles.ts`, `src/sentence/StyleCards.tsx`, `tests/styles.test.ts`, `tests/e2e/styles.spec.ts`; `src/sentence/Sentence.tsx`, `src/sentence/Word.tsx`, `src/ui/StartScreen.tsx`, `src/store/store.ts` (`ViewPrefs.startView`), `src/easy/features.ts` (`'start.cards'`).
+- **A style is a name for a set of the sentence's words** (`STYLES`): its structure and the words it fixes. Picking one fills them in; the sentence's first word then reads the style (*a reverse tuck end carton*), and changing one of its words renames it (*a tuck-top snap-lock carton*) or goes back to the plain structure (*a carton*). Nothing new is stored: `styleOf` works it out from the words.
+- **Eight styles** that the engine already makes: Open tray, Hinged-lid tray, Hexagon box + lid, Tray + lid, Reverse tuck end, Tuck-top snap-lock, Sealed-end carton, Open sleeve. Each has a name, a line saying what it is and what it is for (*Cosmetics*, *Pharma*, *Gift*…).
+- **The first word's list is grouped** (*Boxes and trays · Cartons · More*), each style with its picture and its line under its name; a style that fixes no word of its own (Open tray, Open sleeve) is its structure's entry, whose line names it.
+- **The card grid**: a *Sentence · Cards* switch above step 2 (the sentence by default, remembered per browser). The cards are the same styles, each with its picture at the sentence's sizes, its line and its uses; picking one fills in the sentence, so switching back shows the same thing. Only what the material can make is listed (plywood: no cartons or sleeves), never greyed.
+
+Verified
+- `tests/styles.test.ts` (6): every style's words exist on its structure and it has its words in English; choosing a style gives words that are that style in every material that lists it; a changed word renames it, the most specific style wins (a hexagon box with a lid is not *Tray + lid*); every listed style builds with nothing blocking in each material that lists it; plywood lists no carton or sleeve; random walks starting from each style stay clean.
+- `tests/e2e/styles.spec.ts` (4, English and Hebrew): the grouped list, a style picked and renamed by a changed word, started as the carton it says; the card grid by default off, cards on the switch, a card filling the sentence, plywood hiding cartons, the switch remembered. `start-sentence.spec.ts` updated for style entries (a style starts as its structure).
+- Looked at in the browser: the grouped list and the card grid. Unit suite and typecheck green; goldens byte-identical.
+
+Limitations
+- The cards' pictures are the sentence's thumbnails: a sealed carton and a sleeve show without their end flaps.
+- Trade codes are stored but not shown until the owner checks them.
+- Guided's gallery does not show the styles yet (its things are still the plain structures).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

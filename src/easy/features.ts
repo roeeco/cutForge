@@ -98,6 +98,8 @@ export const FEATURES = {
   edgeFlap: 'hide',
   /** A flap's shape pictures, fold angle, tapers, radius and hang hole (112). */
   'flap.shape': 'hide',
+  /** The welcome screen's *Sentence · Cards* switch and its card grid of named styles (C1). */
+  'start.cards': 'show',
   /** *Match top with*, *Own outline*, *Copy outline from* (71). */
   match: 'hide',
   /** A fold's *Automatic · Keep whole · Cut here*, and the design's split setting (69): only when it must. */
@@ -198,6 +200,7 @@ export const GUIDED = {
   bend: 'auto',
   edgeFlap: 'hide',
   'flap.shape': 'hide',
+  'start.cards': 'hide',
   match: 'hide',
   split: 'auto',
   yield: 'hide',

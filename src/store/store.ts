@@ -162,6 +162,8 @@ export type ViewPrefs = {
   growMore?: boolean;
   /** The cut plan shows blank sizes and glue areas (milestone 89). */
   planDims?: boolean;
+  /** The welcome screen's step 2 as the sentence (absent) or as cards of named styles (milestone C1). */
+  startView?: 'sentence' | 'cards';
   /** A board's *Edges* list is open (milestone 78; closed by default). */
   edgesOpen?: boolean;
   /** The settings card is open while there are boards and nothing is selected (milestone 78; it folds to its header by default). */
