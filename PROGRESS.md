@@ -2317,6 +2317,17 @@ Verified in the dev server with two tabs: opening the second raises nothing in t
 
 Verified: typecheck; the QA repros for empty designs flipped to `it`; in the dev server, an empty plywood design's download dialog and Guided's gallery as above.
 
+## Milestone 138 (QA fix round Q4) — curves and lids: one rule, and the gate ✅
+
+- **One minimum bend radius** (`REPORT.md` I1, I11): `roundedMin` is now the export check's own answer, found on a probe box of the same board and height (a few ms a try, kept per board and height). Plywood 3 mm: 21.5 / 19 / 12.5 mm for 20 / 40 / 80 mm walls (it said 29 / 21.5 / 13.5, while the check passed at 21.2 / 18.8 / 12.5); card and corrugated were already the same. The card's warning, Quick build's box and the export check now give one number.
+- **A tight bend shows in Workshop as it happens** (owner's decision 3): the *Ready to cut* badge appears in Workshop's top bar while something blocks cutting, and only then.
+- **Rounding a finished box** (C3): `roundTrayCorners` rounds every outside corner of a box's base to the least radius its walls bend at; the walls stay and bend round each corner (a living hinge with a key on plywood, glued lips on card). The box card offers it as *Round the corners*; greyed, with why, under a hinged or arched lid. In *Edit outline*, *Curve* is greyed with the reason (a smooth curve cannot hold a joint), *Round* says it keeps the walls, and a box's corner starts at the least radius (it started at 10 mm). Quick build's outline help no longer points at card controls it does not have.
+- **Gated, with reasons** (C1, C10): *Hinged* on a box with rounded corners (also Guided's *Round box*) says a hinged lid needs square corners; an arched lid's reason names the board's bend and the inside depth and height it needs (it said only "tall enough"; on a 135 × 66 box the depth is what falls short). A lid that could not be made says why on the card (I9: nothing happened, silently).
+- **Inside height kept** (C7): `setBoxLid` keeps a box stated by its inside at that size (a hinged lid made it 0.5 mm lower in card and 3 mm in plywood). The golden `hex-box-card` changes on purpose: its walls are 0.5 mm taller.
+- **Not reproduced:** C2 (*Hinged → None* leaving the back wall unseen, 150 vs 147 mm): the design after it is identical to before, field for field, and the stage draws the box whole. The blank stage seen then was the camera not framing a new box (H7, milestone 140).
+
+Verified: typecheck; `npm test` (one timing test in `wings.test.ts` fails only under the full parallel run, as before); QA repros for the radius and the hinged lid flipped to `it`; in the dev server, a plywood box's card shows *Round the corners*.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

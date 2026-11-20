@@ -9,7 +9,11 @@ import { sheetUse } from './sheet';
 import { blocking, canFix, fixIssue } from './fix';
 import { setMode } from './mode';
 
-export function ReadyBadge() {
+/**
+ * `problemsOnly` (Workshop, milestone 138): shown only while something blocks cutting, so a too-tight bend is seen as it
+ * happens and not first at *Download*; Workshop keeps its export check for the rest.
+ */
+export function ReadyBadge({ problemsOnly = false }: { problemsOnly?: boolean } = {}) {
   const t = useT();
   const live = useStore((s) => s.design);
   const d = useDeferredValue(live);
@@ -24,6 +28,7 @@ export function ReadyBadge() {
     setOpen(false);
   };
   if (!d.order.length) return null;
+  if (problemsOnly && ok) return null;
   return (
     <div className="ready-wrap">
       <button className={`ready-badge ${ok ? 'ok' : 'warn'}`} aria-expanded={open} onClick={() => setOpen(!open)} data-testid="ready-badge" data-ok={ok} data-n={blockers.length}>
@@ -56,7 +61,7 @@ export function ReadyBadge() {
                     <button className="primary" onClick={() => fix(i)} data-testid="ready-fix">
                       {t('ready.fix')}
                     </button>
-                  ) : (
+                  ) : problemsOnly ? null : (
                     <button onClick={() => (show(i), setMode('workshop'))} data-testid="ready-workshop">
                       {t('ready.noFix')}
                     </button>

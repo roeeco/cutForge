@@ -8,7 +8,7 @@ import { useStore, useT } from '../store/store';
 import { setLidHasps, setTrayEnds } from '../model/ops';
 import { HASP_HOLES } from '../model/lid';
 import { matOf } from '../model/materials';
-import { autoStyle, boxLid, locksWhy, boxOfPanel, capRimOf, lidParts, lidStyleWhy, lidWhy, LID_STYLES, setBoxLid, setCapRim, type BoxLid, type CapRim, type LidChoice, type LidStyle } from '../easy/lid';
+import { autoStyle, boxLid, locksWhy, boxOfPanel, capRimOf, lidParts, lidStyleWhy, lidWhy, lidWhyVars, LID_STYLES, setBoxLid, setCapRim, type BoxLid, type CapRim, type LidChoice, type LidStyle } from '../easy/lid';
 import { Segmented } from './NumField';
 import { shown, useFeature } from '../easy/features';
 import { PictureChoice, type PictureOption } from './Pictures';
@@ -32,6 +32,7 @@ export function LidSection({ panelId }: { panelId: string }) {
   const f = shown(useFeature('lid'));
   const adv = shown(useFeature('lid.advanced'));
   const [dropped, setDropped] = useState(0);
+  const [failed, setFailed] = useState<LidChoice | null>(null);
   const trayId = useMemo(() => boxOfPanel(d, panelId), [d, panelId]);
   const tray = trayId ? d.trays[trayId] : undefined;
   const choices: LidChoice[] = adv ? ['none', 'liftoff', 'hinged', 'arched'] : ['none', 'liftoff', 'hinged'];
@@ -51,16 +52,18 @@ export function LidSection({ panelId }: { panelId: string }) {
     label: t(`lid.kind.${c}`),
     pic: pic[c],
     testId: `lid-${c}`,
-    why: whys[c] ? t(whys[c]!) : undefined,
+    why: whys[c] ? t(whys[c]!, trayId ? lidWhyVars(d, trayId, c) : undefined) : undefined,
   }));
   // a board grown across the top with a plywood joint: shown, not chosen (it is made by growing)
   if (lid.kind === 'fixed' && adv) options.push({ value: 'fixed', label: t('lid.kind.fixed'), pic: 'fixed', testId: 'lid-fixed' });
   const value = lid.kind === 'flaps' || (lid.kind === 'fixed' && !adv) ? null : lid.kind;
   const choose = (c: LidChoice | 'fixed') => {
     if (c === 'fixed') return;
-    let n = 0;
-    apply((x) => void (n = setBoxLid(x, tray.id, c).dropped));
-    setDropped(n);
+    let r = { ok: true, dropped: 0 };
+    apply((x) => void (r = setBoxLid(x, tray.id, c)));
+    setDropped(r.dropped);
+    // a lid that could not be made says so (milestone 138, REPORT.md I9: an arched lid changed nothing, silently)
+    setFailed(r.ok ? null : c);
   };
   const locks = locksWhy(d, tray.id);
   const flatTop = lid.kind === 'liftoff' && lid.style === 'flat' ? lid.top : null;
@@ -71,6 +74,11 @@ export function LidSection({ panelId }: { panelId: string }) {
       <h4>{t('lid.title')}</h4>
       {onLid && <p className="note" data-testid="tray-is-lid">{t('tray.isLid')}</p>}
       <PictureChoice label={t('lid.title')} hideLabel value={value} options={options} onChange={choose} testId="lid-kind" />
+      {failed && failed !== lid.kind && (
+        <p className="note warn" data-testid="lid-failed">
+          {t(whys[failed] ?? (failed === 'arched' ? 'lid.why.arch' : 'lid.why.cannot'), lidWhyVars(d, tray.id, failed))}
+        </p>
+      )}
       <p className="note" data-testid="lid-help">
         {t(lidHelp(lid, plywood, carton))}
       </p>

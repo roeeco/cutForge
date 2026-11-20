@@ -2203,6 +2203,38 @@ export function setPointRound(d: Design, panelId: string, i: number, r: number |
   return true;
 }
 
+/**
+ * Round every outside corner of a box's base to `r` (milestone 138, REPORT.md C3): the walls stay, and a bend takes
+ * the place of each corner joint (a living hinge on plywood, glued lips on card). False when there is nothing to
+ * round (a round base, or no straight corner).
+ */
+export function roundTrayCorners(d: Design, trayId: string, r: number): boolean {
+  const t = d.trays?.[trayId];
+  const p = t && d.panels[t.baseId];
+  if (!p) return false;
+  if (p.sketch.kind !== 'poly') p.sketch = { kind: 'poly', pts: [{ x: 0, y: 0 }, { x: p.w, y: 0 }, { x: p.w, y: p.h }, { x: 0, y: p.h }], edgeIds: ['e0', 'e1', 'e2', 'e3'] };
+  const s = p.sketch;
+  if (s.kind !== 'poly' || s.round) return false;
+  const n = s.pts.length;
+  const area = s.pts.reduce((a, q, i) => a + q.x * s.pts[(i + 1) % n].y - s.pts[(i + 1) % n].x * q.y, 0);
+  // outside corners only: an inside corner of an L cannot be bent round from the outside
+  const convex = (i: number) => {
+    const a = s.pts[(i + n - 1) % n], b = s.pts[i], c = s.pts[(i + 1) % n];
+    return Math.sign((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) === Math.sign(area);
+  };
+  const v = Math.max(MIN_END, Math.round(r * 100) / 100);
+  let any = false;
+  s.pts = s.pts.map((q, i) => {
+    if (q.curve || !convex(i)) return q;
+    any = true;
+    return { ...q, curve: 'round' as const, r: v };
+  });
+  if (!any) return false;
+  normalizeSketch(p);
+  solve(d);
+  return true;
+}
+
 /** Set every rounded corner of a base to radius r (its other points stay as they are). */
 export function setCornerRadius(d: Design, panelId: string, r: number): boolean {
   const p = d.panels[panelId];

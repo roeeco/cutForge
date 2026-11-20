@@ -4,7 +4,8 @@ import { defaultEnd, defaultSeam } from '../model/round';
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
 import type { Design, DetailOp, DetailShape, DividerRec, MaterialProfile, P2, V3 } from '../model/types';
-import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
+import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, autoConnect, createDesign, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
+import { validate } from '../model/validate';
 import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
 import { foldsAsCarton, tOf } from '../model/materials';
@@ -31,6 +32,49 @@ export type Footprint =
  * the wall's thickness (the base's corner is the band's outer face).
  */
 export function roundedMin(m: MaterialProfile, height = 40): number {
+  // one rule with the export check (milestone 138, REPORT.md I1/I11: the card asked 21.5 mm where the check passed
+  // 18.8 mm, and the other way round on low plywood walls): the least radius a box of this height in this board
+  // passes the check at, found on a probe box (a few milliseconds a try), to the half millimetre, kept per board
+  const h = Math.max(5, Math.round(height));
+  const key = JSON.stringify([m.kind, m.thickness, m.clearance, m.bend ?? null, h]);
+  const hit = minCache.get(key);
+  if (hit !== undefined) return hit;
+  const est = estimateMin(m, h);
+  const bad = (r: number) => {
+    const d = createDesign(m);
+    const W = Math.max(200, 4 * r + 60), D = Math.max(120, 3 * r + 60);
+    const b = addRoundedRect(d, 0, D, W, D, r);
+    if (!b) return true;
+    addTray(d, b, h);
+    autoConnect(d);
+    return validate(d).some((i) => i.key === 'val.bendTight' || i.key === 'val.bendRoom' || i.key === 'val.bendShort');
+  };
+  let r = est;
+  try {
+    let hi = Math.max(est, m.thickness * 2, 1);
+    for (let i = 0; i < 6 && bad(hi); i++) hi *= 1.5;
+    if (!bad(hi)) {
+      let lo = m.thickness / 2;
+      if (!bad(lo)) hi = lo;
+      else
+        for (let i = 0; i < 10; i++) {
+          const mid = (lo + hi) / 2;
+          if (bad(mid)) lo = mid;
+          else hi = mid;
+        }
+      r = Math.ceil(hi * 2) / 2;
+    }
+  } catch {
+    r = est;
+  }
+  if (minCache.size > 200) minCache.clear();
+  minCache.set(key, r);
+  return r;
+}
+const minCache = new Map<string, number>();
+
+/** The estimate the probe starts from: the tightest its bend patterns reach on a wall this high, plus the thickness. */
+function estimateMin(m: MaterialProfile, height: number): number {
   // its walls are about the box's height (less the base's thickness where they stand on it)
   const reach = Math.max(...[height, height - m.thickness].map((len) => bestReach({ m, r: 0, len, width: 50, turn: Math.PI / 2 })));
   return Math.ceil(((Number.isFinite(reach) ? reach : 0) + m.thickness) * 2) / 2;

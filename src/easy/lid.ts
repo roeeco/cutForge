@@ -9,11 +9,12 @@
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
 import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
-import { addArchedLid, addDropinLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
+import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
-import { matOf } from '../model/materials';
+import { bendOf, matOf } from '../model/materials';
+import { keepingStatedSizes } from '../model/boxSize';
 import { removePanelRecord } from '../model/place';
 import { toLocal, toWorld } from '../model/frame';
 import { bandOf, foldRadius } from '../model/bands';
@@ -140,6 +141,14 @@ function removeLid(d: Design, trayId: string, lid: BoxLid): { dt: Detail; at: [n
  * box), and those that do not fit are dropped and counted.
  */
 export function setBoxLid(d: Design, trayId: string, choice: LidChoice, style?: LidStyle): { ok: boolean; dropped: number } {
+  // a box stated by its inside keeps that size whatever lid it gets (milestone 138, REPORT.md C7: a hinged lid made
+  // it 3 mm lower inside, with no note)
+  let out = { ok: false, dropped: 0 };
+  keepingStatedSizes(d, () => void (out = setBoxLidAs(d, trayId, choice, style)));
+  return out;
+}
+
+function setBoxLidAs(d: Design, trayId: string, choice: LidChoice, style?: LidStyle): { ok: boolean; dropped: number } {
   const t = d.trays?.[trayId];
   if (!t || t.lidOf) return { ok: false, dropped: 0 };
   const cur = boxLid(d, trayId);
@@ -191,6 +200,10 @@ export function lidWhy(d: Design, trayId: string, choice: LidChoice): MsgKey | n
   const carton = t.base === 'open';
   if (carton && choice !== 'hinged') return 'lid.why.carton';
   if (choice === 'arched' && t.top) return 'lid.why.arch';
+  // a hinged lid is a flat board folded off the back wall: over rounded corners it covers only part of the opening
+  // (milestone 138, REPORT.md C1; gated until curved walls are structural, QA_FIX_PLAN.md S6)
+  const B = d.panels[t.baseId];
+  if (choice === 'hinged' && t.base !== 'open' && B?.sketch.kind === 'poly' && B.sketch.pts.some((q) => q.curve)) return 'lid.why.hingeRound';
   if (choice === 'liftoff' || boxLid(d, trayId).kind === choice) return null;
   // what the answer depends on: the box's base, walls, tray settings and material (not shapes, names or other boards)
   const key = boxKey(d, trayId) + '|' + choice;
@@ -199,6 +212,18 @@ export function lidWhy(d: Design, trayId: string, choice: LidChoice): MsgKey | n
   if (whyCache.size > 200) whyCache.delete(whyCache.keys().next().value!);
   whyCache.set(key, why);
   return why;
+}
+
+/**
+ * The numbers a lid's reason names (milestone 138, REPORT.md I9: "needs a box tall enough" said neither how tall nor
+ * that depth was the problem): an arched lid's least inside depth and height in this board, and its bend.
+ */
+export function lidWhyVars(d: Design, trayId: string, choice: LidChoice): Record<string, number> {
+  const t = d.trays?.[trayId];
+  if (!t || choice !== 'arched') return {};
+  const m = matOf(d, t.baseId);
+  const r = Math.ceil(Math.max(m.thickness + 1, bendOf(m).patternR + m.thickness));
+  return { r, depth: 2 * r + ARCH_STRIP, height: r + 7 };
 }
 
 const whyCache = new Map<string, MsgKey | null>();

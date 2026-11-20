@@ -371,9 +371,12 @@ function PointCurve({ panelId }: { panelId: string }) {
   const kind = vertex?.curve === 'round' ? 'round' : pointCurve(d, panelId, sel) ? 'auto' : 'corner';
   const blocked = kind !== 'auto' && curveBlocked(d, panelId, sel);
   const apply = useStore.getState().apply;
+  // a box's corner rounds no tighter than its walls bend (milestone 138: it started at 10 mm, too tight for plywood)
+  const tray = Object.values(d.trays ?? {}).find((x) => x.baseId === panelId);
+  const startR = tray ? Math.max(10, roundedMin(matOf(d, panelId), tray.height)) : 10;
   const choose = (v: string) => {
     if (v === 'auto' && blocked) return;
-    if (v === 'round' && typeof sel === 'number') apply((x) => void setPointRound(x, panelId, sel, vertex?.r ?? 10));
+    if (v === 'round' && typeof sel === 'number') apply((x) => void setPointRound(x, panelId, sel, vertex?.r ?? startR));
     else if (v === 'auto') apply((x) => void setPointCurve(x, panelId, sel, true));
     else apply((x) => void (kind === 'round' && typeof sel === 'number' ? setPointRound(x, panelId, sel, null) : setPointCurve(x, panelId, sel, false)));
   };
@@ -384,7 +387,7 @@ function PointCurve({ panelId }: { panelId: string }) {
         value={kind}
         options={[
           { value: 'corner', label: t('outline.corner'), testId: 'point-corner' },
-          { value: 'auto', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve-auto' },
+          { value: 'auto', label: <><Icon name="curve" size={14} /> {t('outline.curve')}</>, testId: 'point-curve-auto', disabled: !!blocked, title: blocked === 'joined' ? t('outline.curveJoined') : undefined },
           ...(vertex ? [{ value: 'round', label: t('outline.round'), testId: 'point-round' }] : []),
         ]}
         onChange={choose}

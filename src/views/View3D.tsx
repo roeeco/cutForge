@@ -2888,6 +2888,9 @@ function Stage3D({ layer }: { layer?: ReactNode }) {
   const outlineModeOn = useStore((s) => !!s.viewPrefs.outlineMode);
   // outline mode: a hovered board that cannot be edited says why
   const outlineNo = useStore((s) => (s.viewPrefs.outlineMode && s.hoverPart ? outlineWhy(s.design, s.hoverPart) : null));
+  // the outline help names the card's point controls only where the card has them (milestone 138: Quick build's
+  // said "Make a point a curve in the card", and its card has no such control)
+  const fCurves = shown(useFeature('curves'));
   const hint =
     foldT < 0.999
       ? 'fold.hint'
@@ -2898,7 +2901,7 @@ function Stage3D({ layer }: { layer?: ReactNode }) {
       : picking && tool === 'select'
         ? 'div.pickHint'
       : editing && tool === 'select'
-        ? 'outline.help'
+        ? fCurves ? 'outline.help' : 'outline.helpPlain'
         : trayCut && tool === 'select'
           ? 'tray.cutHint'
         : tool === 'select' && edgeSel

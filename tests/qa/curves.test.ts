@@ -19,7 +19,7 @@ function roundedBox(r: number, H = 40, W = 135, D = 66) {
 }
 
 describe('§11 (I1, I11): one minimum bend radius', () => {
-  it.fails("the card's minimum and the export check agree", () => {
+  it("the card's minimum and the export check agree", () => {
     const min = roundedMin(PLY, 40);
     // the export check's answer for each radius from well below to the card's minimum
     const passes = [16, 17, 18, 19, 20, 21, min].filter((r) => !validate(roundedBox(r).d).some((i) => i.key === 'val.bendTight'));
@@ -29,7 +29,7 @@ describe('§11 (I1, I11): one minimum bend radius', () => {
 });
 
 describe('C1: a hinged lid is offered only where it closes the box', () => {
-  it.fails('a rounded box: Hinged is greyed with a reason (gated, QA_FIX_PLAN.md S6)', () => {
+  it('a rounded box: Hinged is greyed with a reason (gated, QA_FIX_PLAN.md S6)', () => {
     const { d, t } = roundedBox(25);
     // today: offered (no reason), and the lid made is a rectangle over part of the opening
     expect(lidWhy(d, t, 'hinged')).not.toBeNull();

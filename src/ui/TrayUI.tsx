@@ -8,7 +8,9 @@ import { NumField, Segmented, Stepper } from './NumField';
 import { allFoldOvers, foldOverDims } from '../model/foldover';
 import { validate } from '../model/validate';
 import { Icon } from './icons';
-import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt, withSeam } from '../model/ops';
+import { addFoldOver, addTray, canFoldOver, parentConnection, removeFoldOver, roundTrayCorners, setCustomHeight, setTrayFlat, setTrayHeight, setTrayKinds, setTrayPin, trayFlatInfo, updateFoldOver, wallIt, withSeam } from '../model/ops';
+import { roundedMin } from '../easy/recipes';
+import { boxLid } from '../easy/lid';
 import { trayWallOn } from '../model/flatnet';
 import { panelLabel } from '../model/names';
 import { fmtNum } from '../i18n';
@@ -110,6 +112,7 @@ export function TraySection({ panelId }: { panelId: string }) {
         );
       })()}
       <FlatNote baseId={panelId} height={tray.height} tray={tray} />
+      <RoundCorners trayId={tray.id} />
       <Gate f="tray.joints">
       <div className="field">
         <label htmlFor="tray-wall-kind">{t('tray.wallJoint')}</label>
@@ -329,6 +332,32 @@ export function FlatNote({ baseId, height, tray }: { baseId: string; height: num
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * *Round the corners* (milestone 138, REPORT.md C3): a box with straight corners gets a bend at each, its walls kept.
+ * Offered while the base has a straight outside corner; greyed, with why, under a hinged or arched lid.
+ */
+function RoundCorners({ trayId }: { trayId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const tray = d.trays?.[trayId];
+  const base = tray && d.panels[tray.baseId];
+  if (!tray || !base || tray.lidOf || tray.base === 'open') return null;
+  const s = base.sketch;
+  const straight = s.kind !== 'poly' || (!s.round && s.pts.some((q) => !q.curve));
+  if (!straight) return null;
+  const lid = boxLid(d, trayId).kind;
+  const why = lid === 'hinged' || lid === 'arched' ? t('tray.roundWhyLid') : null;
+  const r = roundedMin(matOf(d, tray.baseId), tray.height);
+  return (
+    <div className="field">
+      <button disabled={!!why} title={why ?? t('tray.roundCornersHelp', { r })} onClick={() => useStore.getState().apply((x) => void roundTrayCorners(x, trayId, r))} data-testid="tray-round-corners">
+        {t('tray.roundCorners')}
+      </button>
+      {why && <p className="note">{why}</p>}
     </div>
   );
 }

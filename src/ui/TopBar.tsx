@@ -172,7 +172,7 @@ export function TopBar() {
           ))}
         </div>
       )}
-      {badge && <ReadyBadge />}
+      {badge ? <ReadyBadge /> : mode === 'workshop' && <ReadyBadge problemsOnly />}
       {sketching ? (
         <SketchTopBar />
       ) : (
