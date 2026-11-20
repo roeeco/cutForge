@@ -181,3 +181,32 @@ The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and
 | 12 | **Board grades** | Dieline D5b; sentence §8 *More boards* | The sentence's `materials(m)` and `allowed` check the thickness, so grades need no change there. |
 | 13 | **The fold overhaul** (`923e0c5`, `1917440`) | A crease now lies where the mid-planes meet (`src/model/crease.ts`), `foldAllowance` defaults to 0, flaps crease `scoreIn` inside their edge, lid rims are perforated by default, schema 11 | Dieline D2's ghost in the flat and D3's shaped flaps use `foldLay` / `scoreIn`; D5a's *crease to crease* is *outside − t* for a folded box; D8's `perf` layer includes the rims' automatic perforations. The sentence reads sizes from the built design, so it is unaffected. |
 | 14 | **The guided-mode branch's code** | Dieline D0b-1 ports `src/sketch/*` and `canvas2d.tsx` | **No git merge of `claude/guided-mode`.** It forked at milestone 43 (`c47c273`); a merge conflicts in 14 files and would mark the waffle commits merged under PR #6. Files are brought over by path, with the branch named in the commit. |
+
+### 5.3 Milestones 119–133: from shapes to folds and boards (plan of 20 November)
+
+`SHAPES_TO_DIELINES_PLAN.md` (R0–R14), with the owner's answers of the same day (its §9).
+- **The owner's mission:** a Tinkercad-inspired workplane where one click turns the shape into a folded or panel assembly, with every joint fitted to the material and its thickness.
+- **The port:** the shape modeller of PR #6 (`claude/waffle-mode`, not live) is brought over by path (rule 14 of §5.2), shapes only. The waffle stays on PR #6 for now.
+- **The engine** gains a face graph, seam folds between free boards, an unfolder, a joint chooser and a reassembler.
+- **Levels:** Workshop has the workplane. Guided gets a pyramid and a diamond (rule 4b).
+
+| # | Milestone | Plan |
+| --- | --- | --- |
+| **119** | Spike: face graph and unfolder on fixtures, timed | R0 |
+| **120** | The shape modeller on this branch (port, shapes only) | R1 |
+| **121** | The Tinkercad-style workplane: typed sizes, place on a face, flat-faced shapes, the diamond | R2 |
+| **122** | The face graph with stable keys | R3 |
+| **123** | Free boards and seam folds in the engine | R4 |
+| **124** | The unfolder | R5 |
+| **125** | Joints chosen for the material and its thickness | R6 |
+| **126** | *Fold it*, in one click | R7 |
+| **127** | *Build from boards*, in one click | R8 |
+| **128** | Guided: a pyramid and a diamond | R9 |
+| **129** | Linked to the shape: update, carry-over, detach | R10 |
+| **130** | Openings, and a lid by a cut | R11 |
+| **131** | Assembly: seam numbers, fold order, steps | R12 |
+| **132** | The workplane, second part: align and mirror, snap, edit group, protractor, loft, chamfer | R13 |
+| **133** | Verification of 119–132 | R14 |
+
+- **The one-click core is 119–127.** 120 and 123 can run side by side (`src/sculpt` against `src/model`).
+- **Nothing here waits for 110–118.** 126 shows its net in the Net view (113) when that is built, and in the Cut plan otherwise. 128 adds two things to Guided's gallery (106).
