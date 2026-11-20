@@ -320,6 +320,8 @@ The always-visible legend and the 1 : 1 print come from `PACKAGING_AND_LEARNING.
 
 ## 10. Quick build
 
+> **Since milestones 105–110** a first level, *Guided*, comes before Quick build (`GUIDED_MODE.md`); this section still describes Quick build itself.
+
 ### 10.1 Rules
 
 `EASY_MODE.md`'s decisions stand: expression stays open, engineering is automatic, everything is a ghost that ✓ makes, the same design opens in both modes. Five rules are added so that Quick build stays small as the engine grows:

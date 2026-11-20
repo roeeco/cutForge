@@ -1897,6 +1897,26 @@ Limitations
 - The folder's pockets are glued on their outer side only; the spine side is left open.
 - The envelope is sized by the card inside; a letter folded in thirds is not a word.
 
+## Milestone 110 (Guided G7) — Guided in the level switch ✅
+
+`GUIDED_MODE.md` G7, `HANDOFF_105-118.md` §110, as the owner decided on 20 November: **Guided is in the level switch for everyone; a new browser and a new class still start in Workshop.** The gallery is the way in only in Guided; Quick build and Workshop keep the sentence's welcome screen. `src/easy/mode.ts`; `README.md`, `EASY_MODE.md`, `LIDS_LINES_PROJECTS_PLAN.md` §10, `DECISIONS.md`.
+- **The switch** in Quick build's and Workshop's top bar has three levels, *Guided · Quick build · Workshop*, with no flag (the `?guided` of 105 is no longer needed and is harmless). Where the bar is narrow they are in the ⋯ menu, as before. Guided's menu has *More tools (Quick build)* and *All tools (Workshop)*. A locked class hides all of them.
+- **Between levels** nothing changes the design. A design that is more than one box shows, in Guided's Build, *Made with more tools: you can decorate it and send it* with a button to Quick build, or to Workshop when a part needs it.
+- **Docs**: README's three levels and a *Guided* section; one line at the top of `EASY_MODE.md` and of the lids plan's §10 pointing to Guided; a *Guided* section in `DECISIONS.md`.
+
+Decisions
+- Not done, by the owner's choice: a new browser starting in Guided, and the Worker creating classes in Guided. `quick.spec`'s *a new browser starts in the Workshop* stays as it is.
+
+Verified (the final check of the Guided block, 105–110)
+- `tests/guidedmode.test.ts` (14): the switch offers the three levels; a new browser, and a browser with saved preferences but no level, start in Workshop; a locked class cannot switch; a box with a wall added in Quick build is *more* in Guided and unchanged by the trip there and back.
+- `tests/e2e/guided.spec.ts` (9): the 8 of 109, and Guided → Quick build → Guided on one design with the design unchanged. `tests/e2e/topbar.spec.ts` gains Guided's bar at the same eight sizes in both languages (the steps, Undo, Redo and the menu always on it); the three-level switch fits Quick build's and Workshop's bars at all eight. `guided-fence.spec`: Workshop and Quick build open on the sentence, with Guided offered in the switch and their own level kept.
+- Unit suite (1172 passed) and typecheck green. The full browser suite of app specs: 191 passed. `classroom.spec.ts` with the real Worker: 5 passed. The sentence's walks (6 × 20) and the fuzz suites (Quick build and Guided, 30 sessions) pass. Goldens byte-identical.
+- Production build: Guided's own file is 47 KB (15 KB compressed), loaded only in Guided and fetched once the editor is up for offline use; the app's entry is 399 KB (124 KB compressed) beside the shared libraries, as after code splitting.
+
+Limitations (the Guided block)
+- Waiting for the owner: real students on a Chromebook; a trackpad and a touch screen for every drag; the Hebrew name of the level (*מודרך*, a placeholder) and every `g.*` string, with the `sen.*` words; the calls of `GUIDED_MODE.md` §4 as taken (joints under *More about this box*, Send waiting for the check, the two missions rebuilt as boxes).
+- The arrows and grips are the stage's push-pull handles (14 px cones, a larger invisible target): to be tried by finger.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
