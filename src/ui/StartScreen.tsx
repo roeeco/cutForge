@@ -1,5 +1,5 @@
-// First screen of a new design: what are you making? Step 1 the material,
-// step 2 a template (drawn by the real renderer), then Start.
+// First screen of a new design: what are you making? Step 1 the material, with *New blank design* in the same row;
+// step 2 a sentence or a card of styles, each with its own Start, and (Quick build) missions that start on a click.
 import { useMemo, useState } from 'react';
 import { TOUR_OFFERED } from '../tour/TourNudge';
 import { tourDone, useStore, useT } from '../store/store';
@@ -57,8 +57,6 @@ export function StartScreen() {
   const lang = useStore((s) => s.lang);
   const setLang = useStore((s) => s.setLang);
   const [matId, setMatId] = useState(DEFAULT_MATERIAL.id);
-  // step 2 (milestone 98): blank, the sentence, or (Quick build) a mission
-  const [tpl, setTpl] = useState('');
   const [sentence, setSentence] = useState<SentenceValue>(() => ({ id: 'box', params: defaults(templateById('box')!) }));
   const [notes, setNotes] = useState<Change[]>([]);
   // milestone C1: step 2 as the sentence (the default) or as cards of the same styles
@@ -78,7 +76,6 @@ export function StartScreen() {
   // milestone 120: a sculpture design (Workshop only)
   const shapesOk = shown(useFeature('start.shapes'));
   const tplOk = (id: string) => !id || id === 'sentence' || (id === 'shapes' && shapesOk) || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
-  const effTpl = tplOk(tpl) ? tpl : '';
   // step 1 sets what the sentence can say: a word this material cannot make becomes what it can, with a note
   const pickMaterial = (id: string) => {
     const m = MATERIALS.find((x) => x.id === id)!;
@@ -87,11 +84,12 @@ export function StartScreen() {
     setSentence({ id: r.def.id, params: r.params });
     setNotes(r.changes);
   };
-  const start = () => {
+  // each way in starts itself (the welcome screen's redesign, 20 November): no choice to make first, then Start
+  const start = (what: string) => {
     const s = useStore.getState();
-    const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
-    const tp = effTpl === 'sentence' ? templateById(sentence.id) : null;
-    if (effTpl === 'shapes') s.replaceDesign(createWaffleDesign(mat), false);
+    const ms = what.startsWith('mission:') ? missionById(what.slice(8)) : undefined;
+    const tp = what === 'sentence' ? templateById(sentence.id) : null;
+    if (what === 'shapes') s.replaceDesign(createWaffleDesign(mat), false);
     else if (ms) s.replaceDesign(startMission(ms, mat), false);
     else if (tp) s.replaceDesign(generate(tp, mat, sentence.params), false);
     else if (s.design.order.length) {
@@ -144,7 +142,7 @@ export function StartScreen() {
       </p>
       <div className="mat-grid" role="radiogroup" aria-label={t('start.material')}>
         {MATERIALS.map((m) => (
-          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} aria-label={t(m.nameKey as 'mat.ply3')} onClick={() => pickMaterial(m.id)} onDoubleClick={start} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
+          <button key={m.id} className="pick-card" role="radio" aria-checked={m.id === matId} aria-label={t(m.nameKey as 'mat.ply3')} onClick={() => pickMaterial(m.id)} onDoubleClick={() => start('')} data-testid={`mat-${m.id}`} title={m.kind === 'plywood' ? t('mat.joints.ply') : t('mat.joints.paper')}>
             <span className="art">
               <MaterialArt kind={m.kind} thickness={m.thickness} />
             </span>
@@ -157,27 +155,30 @@ export function StartScreen() {
             </span>
           </button>
         ))}
+        {/* a blank design in the material chosen, in the materials' own row */}
+        <button className="pick-card start-blank primary" onClick={() => start('')} title={t('start.blankDesc')} data-testid="start-go">
+          <span className="art" aria-hidden>
+            <Icon name="plus" size={36} />
+          </span>
+          <span className="cap">
+            <strong>{t('start.newBlank')}</strong>
+            <small>{t('start.newBlankIn', { material: t(mat.nameKey as 'mat.ply3') })}</small>
+          </span>
+        </button>
       </div>
 
       <p className="step-label">
         <b>{t('start.step', { n: 2 })}</b> {t('start.template')}
       </p>
-      <div className="start-from" role="radiogroup" aria-label={t('start.template')}>
-        <button className="pick-row" role="radio" aria-checked={effTpl === ''} onClick={() => setTpl('')} data-testid="tpl-blank">
-          <span className="dot" aria-hidden />
-          <span className="cap">
-            <strong>{t('tpl.blank')}</strong>
-            <small>{t('start.blankDesc')}</small>
-          </span>
-        </button>
+      <div className="start-from" aria-label={t('start.template')}>
         {shapesOk && (
-          // milestone 120: build a form from shapes, then fold it or build it from boards
-          <button className="pick-row" role="radio" aria-checked={effTpl === 'shapes'} onClick={() => setTpl('shapes')} onDoubleClick={start} data-testid="tpl-shapes">
-            <span className="dot" aria-hidden />
+          // milestone 120: build a form from shapes, then fold it or build it from boards; nothing to set, so it starts
+          <button className="pick-row start-row" onClick={() => start('shapes')} data-testid="tpl-shapes">
             <span className="cap">
               <strong>{t('start.shapes')}</strong>
               <small>{t('start.shapesDesc')}</small>
             </span>
+            <Icon name="chevRight" size={18} />
           </button>
         )}
         {/* milestone 98: presets said instead of picked (SENTENCE_BUILDER_PLAN.md); milestone C1: or picked from cards of named styles */}
@@ -192,23 +193,24 @@ export function StartScreen() {
             </span>
           </div>
         )}
-        <div className={`pick-row sentence-row${effTpl === 'sentence' ? ' on' : ''}${startView === 'cards' ? ' cards' : ''}`} onFocusCapture={() => setTpl('sentence')} onPointerDown={() => setTpl('sentence')}>
-          <button className="dot-btn" role="radio" aria-checked={effTpl === 'sentence'} aria-label={startView === 'cards' ? t('start.cards') : t('sen.legend')} onClick={() => setTpl('sentence')} data-testid="tpl-sentence">
-            <span className="dot" aria-hidden />
-          </button>
+        <div className={`pick-row sentence-row${startView === 'cards' ? ' cards' : ''}`} role="group" aria-label={startView === 'cards' ? t('start.cards') : t('sen.legend')} data-testid="sentence-row">
           {startView === 'cards' ? (
-            <StyleCards m={mat} value={sentence} selected={effTpl === 'sentence'} onChange={(v, ch) => (setSentence(v), setNotes(ch), setTpl('sentence'))} />
+            <StyleCards m={mat} value={sentence} selected onChange={(v, ch) => (setSentence(v), setNotes(ch))} />
           ) : (
-            <Sentence m={mat} value={sentence} onChange={(v) => (setSentence(v), setTpl('sentence'))} notes={notes} />
+            <Sentence m={mat} value={sentence} onChange={(v) => setSentence(v)} notes={notes} />
           )}
+          {/* its own, smaller Start: the sentence as it reads, or the style card picked */}
+          <button className="primary start-small" onClick={() => start('sentence')} data-testid={startView === 'cards' ? 'start-cards' : 'start-sentence'}>
+            {t('start.go')}
+          </button>
         </div>
       </div>
       {missions.length > 0 && (
         <>
           <p className="step-label">{t('start.missions')}</p>
-          <div className="tpl-grid" role="radiogroup" aria-label={t('start.missions')}>
+          <div className="tpl-grid" aria-label={t('start.missions')}>
             {missions.map((m) => (
-              <button key={m.id} className="pick-card mission-card" role="radio" aria-checked={effTpl === `mission:${m.id}`} disabled={!tplOk(`mission:${m.id}`)} onClick={() => setTpl(`mission:${m.id}`)} data-testid={`mission-${m.id}`}>
+              <button key={m.id} className="pick-card mission-card" disabled={!tplOk(`mission:${m.id}`)} onClick={() => start(`mission:${m.id}`)} data-testid={`mission-${m.id}`}>
                 <span className="art">{m.materials.includes(mat.kind) ? <MissionArt id={m.id} mat={mat} /> : null}</span>
                 <span className="cap">
                   <strong>{t(m.title)}</strong>
@@ -218,9 +220,6 @@ export function StartScreen() {
                       <li key={g.id}>{t(g.label, g.vars)}</li>
                     ))}
                   </ul>
-                </span>
-                <span className="tick-mark">
-                  <Icon name="check" size={16} />
                 </span>
               </button>
             ))}
@@ -237,9 +236,6 @@ export function StartScreen() {
             </button>
           )}
         </p>
-        <button className="primary go" onClick={start} data-testid="start-go">
-          {t('start.go')}
-        </button>
       </div>
     </div>
   );

@@ -472,6 +472,8 @@ export const he: Record<MsgKey, string> = {
   'start.template': 'בחרו תבנית',
   'start.blankDesc': 'מתחילים מרשת ריקה ומשרטטים לוחות בעצמכם.',
   'start.go': 'התחלה',
+  'start.newBlank': 'עיצוב חדש וריק',
+  'start.newBlankIn': 'משטח ריק, ב{material}',
   'insp.part': 'חלק',
   'insp.shapeOn': 'צורה על {panel}',
   'edge.kicker': 'הוספת לוח חדש',

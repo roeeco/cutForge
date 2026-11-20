@@ -23,7 +23,6 @@ test('a house from shapes, Fold it, one click: it exports as card with no proble
   await page.goto('/');
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('tpl-shapes').click();
-  await page.getByTestId('start-go').click();
   await expect(page.getByTestId('sculpt-loading')).toBeHidden({ timeout: 20_000 });
   // a house: its gable end drawn on an upright plane and pulled out 60 mm
   await S(page, async () => {

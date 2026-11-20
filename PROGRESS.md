@@ -2393,6 +2393,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - In the dev server: the report's joint sequence, two tabs, an empty design, *Fit view*, the level switch at 1366 px, the folded 4-to-8 loft, and a rounded card box changed to plywood with the material pill, each as described in `REPORT.md` §13–§14.
 - `REPORT.md` has the round's results (§13), the owner's reports during it (§14), corrections (§15) and what is still open (§16).
 
+## The welcome screen's redesign (owner, 20 November) ✅
+
+- *New blank design* is a tile in the materials' row: it starts an empty grid in the material picked (it was step 2's *Blank design* plus the bottom *Start*). Double-clicking a material does the same.
+- The sentence has its own, smaller *Start*, and so does the card view of styles (*Cards*); the bottom *Start* is gone.
+- A mission (Quick build) starts on its click; Workshop's *Shapes* row starts on its click too (it has nothing to set), with an arrow instead of a radio dot.
+- E2E specs follow: `start-sentence` / `start-cards` replace `tpl-sentence` + `start-go`; missions and *Shapes* need no `start-go`; `start-go` is the blank tile.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

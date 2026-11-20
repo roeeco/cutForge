@@ -470,6 +470,8 @@ export const en = {
   'start.template': 'Choose a template',
   'start.blankDesc': 'Start from an empty grid and draw your own panels.',
   'start.go': 'Start',
+  'start.newBlank': 'New blank design',
+  'start.newBlankIn': 'An empty grid, in {material}',
   'insp.part': 'Part',
   'insp.shapeOn': 'Shape on {panel}',
   'edge.kicker': 'Grow a new panel',

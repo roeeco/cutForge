@@ -16,8 +16,7 @@ for (const [name, state] of [['Workshop', WORKSHOP_STATE], ['Quick build', QUICK
       await expect(page.getByTestId('g-topbar')).toHaveCount(0);
       // the switch offers the three levels (milestone 110); this one stays chosen
       await page.getByTestId('mat-ply-3').click();
-      await page.getByTestId('tpl-sentence').click();
-      await page.getByTestId('start-go').click();
+      await page.getByTestId('start-sentence').click();
       await expect(page.getByTestId('view3d')).toBeVisible();
       await expect(page.getByTestId('mode-guided')).toBeVisible();
       await expect(page.getByTestId(name === 'Workshop' ? 'mode-workshop' : 'mode-quick')).toHaveAttribute('aria-checked', 'true');
@@ -28,8 +27,7 @@ for (const [name, state] of [['Workshop', WORKSHOP_STATE], ['Quick build', QUICK
     test('to Guided and back: the same design, and this level looks as it did', async ({ page }) => {
       await page.goto('/');
       await page.getByTestId('mat-ply-3').click();
-      await page.getByTestId('tpl-sentence').click();
-      await page.getByTestId('start-go').click();
+      await page.getByTestId('start-sentence').click();
       await expect(page.getByTestId('view3d')).toBeVisible();
       const design = () => page.evaluate(() => JSON.stringify((window as any).__cutforge.store.getState().design));
       const before = await design();

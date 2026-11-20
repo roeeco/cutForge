@@ -60,7 +60,7 @@ test('organiser template: parameters regenerate, user cutouts stay, lid follows'
   // an edit that cannot be kept is listed
   await S(page, () => (window as any).__cutforge.store.getState().apply((x: any) => void x.panels['t:divX3'].details.push({ id: 'z', shape: 'circle', op: 'cut', cx: 20, cy: 10, w: 6, h: 6 })));
   await setNum(page, 'tp-dividersX', '1');
-  await expect(page.getByTestId('template-lost')).toContainText('1 shape(s) on panel');
+  await expect(page.getByTestId('template-lost')).toContainText('1 shape on');
 
   // the export checks pass for the template as generated
   await page.getByTestId('open-export').click();
@@ -74,7 +74,7 @@ test('card stand template in corrugated', async ({ page }) => {
   await page.getByTestId('sen-structure').click();
   await page.getByTestId('sen-structure-opt-stand').click();
   await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'stand');
-  await page.getByTestId('start-go').click();
+  await page.getByTestId('start-sentence').click();
   const d = await design(page);
   expect(d.order).toEqual(expect.arrayContaining(['t:base', 't:support1', 't:support3', 't:lip']));
   await page.getByTestId('tp-angle').selectOption('30');

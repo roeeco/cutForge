@@ -26,7 +26,7 @@ for (const lang of ['en', 'he'] as const) {
     await page.getByTestId('sen-bottom').click();
     await page.getByTestId('sen-bottom-opt-snap').click();
     await expect(page.getByTestId('sen-structure')).not.toHaveText(word!);
-    await page.getByTestId('start-go').click();
+    await page.getByTestId('start-sentence').click();
     const d = await design(page);
     expect(d.template).toMatchObject({ id: 'carton', params: { top: 'tuck', bottom: 'snap' } });
   });
@@ -50,7 +50,7 @@ for (const lang of ['en', 'he'] as const) {
     await expect(page.getByTestId('style-trayLid')).toBeVisible();
     await expect(page.getByTestId('style-rte')).toHaveCount(0);
     await page.getByTestId('style-hexLid').click();
-    await page.getByTestId('start-go').click();
+    await page.getByTestId('start-cards').click();
     const d = await design(page);
     expect(d.template).toMatchObject({ id: 'box', params: { shape: 'poly', sides: 6, lid: 'liftoff' } });
     // the switch is remembered by this browser

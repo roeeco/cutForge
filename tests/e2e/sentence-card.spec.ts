@@ -15,7 +15,7 @@ test('the card hides what does not apply, says what a change dropped, and refuse
   await page.getByTestId('sen-nx').fill('12');
   await page.getByTestId('sen-nx').press('Enter');
   await expect(page.getByTestId('sen-nx')).toHaveValue('12', { timeout: 15_000 });
-  await page.getByTestId('start-go').click();
+  await page.getByTestId('start-sentence').click();
   let d = await design(page);
   expect(d.template.params.nx).toBe(12);
   await expect(page.getByTestId('template-section')).toBeVisible();

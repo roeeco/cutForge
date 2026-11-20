@@ -139,7 +139,6 @@ for (const lang of ['en', 'he']) {
     await page.getByTestId('mission-game-organiser').click();
     await page.waitForTimeout(300);
     await shot(page, lang, '40-start-missions');
-    await page.getByTestId('start-go').click();
     await S(page, () => {
       const cf = (window as any).__cutforge;
       const s = cf.store.getState();

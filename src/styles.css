@@ -1287,3 +1287,17 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .card-dock .card-modes { display: flex; gap: 8px; padding: 8px; margin-top: 8px; }
 .card-dock .card-modes button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; }
 .card-dock .card-modes button.on { background: var(--accent-soft, #e3f1ec); border-color: var(--accent, #2f7d62); font-weight: 600; }
+
+/* the welcome screen's redesign (20 November): *New blank design* in the materials' row; Start in each way in */
+.mat-grid { grid-template-columns: repeat(5, minmax(0, 200px)); }
+.mat-grid .start-blank { display: flex; flex-direction: column; border: 2px dashed var(--accent-bright); background: var(--surface); color: inherit; }
+.mat-grid .start-blank .art { display: grid; place-items: center; color: var(--accent-bright); }
+.mat-grid .start-blank:hover { box-shadow: 0 0 0 4px rgba(31, 184, 172, 0.18); }
+.sentence-row { position: relative; }
+.sentence-row .start-small { align-self: flex-end; margin-inline-start: auto; flex: none; padding: 6px 16px; }
+.tpl-grid .mission-card { cursor: pointer; }
+@media (max-width: 1180px) { .mat-grid { grid-template-columns: repeat(3, minmax(0, 220px)); } }
+@media (max-width: 700px) { .mat-grid { grid-template-columns: repeat(2, minmax(0, 240px)); } }
+.pick-row.start-row { align-items: center; justify-content: space-between; }
+.pick-row.start-row:hover { border-color: var(--accent-bright); }
+[dir='rtl'] .pick-row.start-row svg { transform: scaleX(-1); }

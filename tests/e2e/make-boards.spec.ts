@@ -23,7 +23,6 @@ test('a house from shapes, Build from boards, one click: seven boards with fitte
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('tpl-shapes').click();
-  await page.getByTestId('start-go').click();
   await expect(page.getByTestId('sculpt-loading')).toBeHidden({ timeout: 20_000 });
   // a house: its gable end drawn on an upright plane and pulled out 60 mm
   await S(page, async () => {

@@ -13,7 +13,6 @@ test('shapes: a box with a cylinder hole, combined; the two Make buttons wait fo
   await page.goto('/');
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('tpl-shapes').click();
-  await page.getByTestId('start-go').click();
   await expect(page.getByTestId('stage-stepper')).toBeVisible();
   await expect(page.getByTestId('sculpt-loading')).toBeHidden({ timeout: 20_000 });
   // nothing yet: the two buttons are greyed

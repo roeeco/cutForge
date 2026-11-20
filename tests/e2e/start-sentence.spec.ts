@@ -15,7 +15,6 @@ test('Blank design still gives an empty design in each material', async ({ page 
   for (const m of MATS) {
     await fresh(page);
     await page.getByTestId(`mat-${m}`).click();
-    await expect(page.getByTestId('tpl-blank')).toHaveAttribute('aria-checked', 'true');
     await page.getByTestId('start-go').click();
     const d = await design(page);
     expect(d.material.id).toBe(m);
@@ -29,6 +28,7 @@ test('every structure the sentence lists starts, in every material that lists it
     await fresh(page);
     await page.getByTestId(`mat-${m}`).click();
     await page.getByTestId('sen-structure').click();
+    await expect(page.getByTestId('sen-structure-list').locator('[role=option]').nth(1)).toBeVisible();
     const ids = await page.getByTestId('sen-structure-list').locator('[role=option]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')!.replace('sen-structure-opt-', '')));
     await page.keyboard.press('Escape');
     expect(ids.length).toBeGreaterThan(1);
@@ -38,11 +38,10 @@ test('every structure the sentence lists starts, in every material that lists it
       await page.getByTestId(`mat-${m}`).click();
       await page.getByTestId('sen-structure').click();
       await page.getByTestId(`sen-structure-opt-${id}`).click();
-      await expect(page.getByTestId('tpl-sentence')).toHaveAttribute('aria-checked', 'true');
       // a named style (milestone C1) is a structure with some of its words set
       const want = await page.getByTestId('sentence').getAttribute('data-structure');
       if (!id.startsWith('style:')) expect(want).toBe(id);
-      await page.getByTestId('start-go').click();
+      await page.getByTestId('start-sentence').click();
       const d = await design(page);
       expect(d.template?.id, `${id} on ${m}`).toBe(want);
       expect(d.material.id).toBe(m);
@@ -64,7 +63,7 @@ test('a change of material after the sentence is filled in keeps what it can and
   await expect(page.getByTestId('sen-width')).toHaveValue('90');
   await expect(page.getByTestId('sen-clause-lid')).toBeVisible();
   await expect(page.getByTestId('sen-note')).toBeVisible();
-  await page.getByTestId('start-go').click();
+  await page.getByTestId('start-sentence').click();
   const d = await design(page);
   expect(d.template.id).toBe('box');
   expect(d.template.params.lid).toBe('liftoff');
