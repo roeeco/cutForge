@@ -176,3 +176,25 @@ The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and
 | 12 | **Board grades** | Dieline D5b; sentence §8 *More boards* | The sentence's `materials(m)` and `allowed` check the thickness, so grades need no change there. |
 | 13 | **The fold overhaul** (`923e0c5`, `1917440`) | A crease now lies where the mid-planes meet (`src/model/crease.ts`), `foldAllowance` defaults to 0, flaps crease `scoreIn` inside their edge, lid rims are perforated by default, schema 11 | Dieline D2's ghost in the flat and D3's shaped flaps use `foldLay` / `scoreIn`; D5a's *crease to crease* is *outside − t* for a folded box; D8's `perf` layer includes the rims' automatic perforations. The sentence reads sizes from the built design, so it is unaffected. |
 | 14 | **The guided-mode branch's code** | Dieline D0b-1 ports `src/sketch/*` and `canvas2d.tsx` | **No git merge of `claude/guided-mode`.** It forked at milestone 43 (`c47c273`); a merge conflicts in 14 files and would mark the waffle commits merged under PR #6. Files are brought over by path, with the branch named in the commit. |
+
+### 5.3 Milestones 119–131: from shapes to folds and boards (plan of 20 November)
+
+`SHAPES_TO_DIELINES_PLAN.md` (R0–R12). The owner's mission: a Tinkercad-inspired workplane where one click turns the shape into a folded or panel assembly. The shape modeller of PR #6 (`claude/waffle-mode`, not live) is ported by path (rule 14 of §5.2), and the dieline engine gains a face graph, seam folds between free boards, an unfolder and a reassembler. Workshop only at first (rule 4b).
+
+| # | Milestone | Plan |
+| --- | --- | --- |
+| **119** | Spike: face graph and unfolder on fixtures, timed | R0 |
+| **120** | The shape modeller on this branch (port, waffle included) | R1 |
+| **121** | The Tinkercad-style workplane: typed sizes, place on a face, flat-faced shapes, align and mirror | R2 |
+| **122** | The face graph with stable keys | R3 |
+| **123** | Free boards and seam folds in the engine | R4 |
+| **124** | The unfolder | R5 |
+| **125** | *Fold it*, in one click | R6 |
+| **126** | *Build from boards*, in one click | R7 |
+| **127** | Linked to the shape: update, carry-over, detach | R8 |
+| **128** | Openings, and a lid by a cut | R9 |
+| **129** | Assembly: seam numbers, fold order, steps | R10 |
+| **130** | Smooth walls on curved faces (spike first; may be dropped) | R11 |
+| **131** | Verification of 119–130 | R12 |
+
+119–126 is the one-click core. 120 and 123 can run side by side (`src/sculpt` vs `src/model`). Nothing here waits for 110–118. 125 shows its net in the Net view (113) when that is built, and in the Cut plan otherwise.
