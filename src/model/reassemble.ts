@@ -24,6 +24,8 @@ export type MakeResult = { unfolding?: Unfolding; issues: MakeIssue[]; changed?:
 /** What the student added to a made model, by key, to carry across a remake. */
 type Carry = {
   details: Record<FaceKey, Pick<Panel, 'details' | 'lines' | 'edgeFlaps' | 'foldOvers'>>;
+  /** Which way each carried face looked (its outward normal), to find the face nearest it when it is gone. */
+  normals: Record<FaceKey, [number, number, number]>;
   joints: Record<EdgeKey, ConnectionKind>;
   opts: Record<EdgeKey, Partial<Pick<Connection, 'fingers' | 'tabs' | 'crease' | 'flap' | 'tabLen' | 'lockDepth'>>>;
   cuts: Record<EdgeKey, 'fold' | 'cut'>;
@@ -31,12 +33,15 @@ type Carry = {
 
 /** Gather what the student did on the last made model (milestone 129, §4.5 step 3). */
 function gather(d: Design): Carry {
-  const c: Carry = { details: {}, joints: {}, opts: {}, cuts: {} };
+  const c: Carry = { details: {}, normals: {}, joints: {}, opts: {}, cuts: {} };
   for (const id of d.order) {
     const p = d.panels[id];
     if (!p?.src) continue;
     if (p.details.length || p.lines?.length || p.edgeFlaps?.length || p.foldOvers?.length)
+    {
       c.details[p.src.face] = JSON.parse(JSON.stringify({ details: p.details, lines: p.lines, edgeFlaps: p.edgeFlaps, foldOvers: p.foldOvers }));
+      c.normals[p.src.face] = normalOf(p);
+    }
   }
   for (const x of Object.values(d.connections)) {
     if (!x.src) continue;
@@ -185,12 +190,33 @@ export function reassemble(d: Design, P: Polyhedron, spec0: MakeSpec, unfolding?
 function applyCarry(d: Design, P: Polyhedron, carry: Carry, spec: MakeSpec): Lost {
   const lost: Lost = { faces: [], edges: [] };
   const byFace = new Map(d.order.filter((id) => d.panels[id]?.src).map((id) => [d.panels[id].src!.face, d.panels[id]]));
+  const taken = new Set<string>();
   for (const [face, w] of Object.entries(carry.details)) {
-    const p = byFace.get(face);
+    let p = byFace.get(face);
+    // a ready shape's face that is gone (Guided's pyramid or diamond with fewer sides): its shapes go to the face that
+    // looks most nearly the same way and has none of its own, centred on it (milestone 139, REPORT.md B8: a name was
+    // dropped with no note); a face the student's own shape lost is listed as lost (milestone 129)
+    if (!p && spec.solid && w.details.length && carry.normals[face]) {
+      const n = carry.normals[face];
+      const near = [...byFace.entries()]
+        .filter(([k, q]) => !carry.details[k] && !taken.has(q.id) && !q.details.length)
+        .map(([, q]) => ({ q, dot: normalOf(q).reduce((a, x, i) => a + x * n[i], 0) }))
+        .sort((a, b) => b.dot - a.dot)[0];
+      if (near && near.dot > 0.3) {
+        p = near.q;
+        const cx = w.details.reduce((a, x) => a + x.cx, 0) / w.details.length, cy = w.details.reduce((a, x) => a + x.cy, 0) / w.details.length;
+        w.details = w.details.map((x) => ({ ...x, cx: x.cx - cx + p!.w / 2, cy: x.cy - cy + p!.h / 2 }));
+        // lines and flaps belong to the old face's edges: not moved
+        w.lines = undefined;
+        w.edgeFlaps = undefined;
+        w.foldOvers = undefined;
+      }
+    }
     if (!p) {
       lost.faces.push(face);
       continue;
     }
+    taken.add(p.id);
     p.details = w.details;
     if (w.lines) p.lines = w.lines;
     if (w.edgeFlaps) p.edgeFlaps = w.edgeFlaps;
@@ -410,3 +436,9 @@ export function detach(d: Design) {
 }
 
 export { cornerFit };
+
+/** A board's outward normal (its frame's u × v). */
+function normalOf(p: Panel): [number, number, number] {
+  const { u, v } = p.frame;
+  return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+}

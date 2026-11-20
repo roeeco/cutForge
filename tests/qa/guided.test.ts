@@ -25,7 +25,7 @@ function overlaps(d: Design, panelId: string): string[] {
 }
 
 describe('B6: decorations are placed where nothing else is', () => {
-  it.fails('a name, then a sticker, then a window on one side do not overlap', () => {
+  it('a name, then a sticker, then a window on one side do not overlap', () => {
     const d = ops.createDesign(PLY);
     const base = ops.addRootPanel(d, 0, 0, 150, 80);
     ops.addTray(d, base, 45);
@@ -38,7 +38,7 @@ describe('B6: decorations are placed where nothing else is', () => {
 });
 
 describe('B8: a change of Sides keeps the decorations, or says what went', () => {
-  it.fails('a name on the last face of a pyramid is still there after Sides 4 → 3', () => {
+  it('a name on the last face of a pyramid is still there after Sides 4 → 3', () => {
     const d = startSolid('pyramid', CARD);
     const last = d.order[d.order.length - 1];
     expect('id' in addName(d, last, 'Hi')).toBe(true);

@@ -2328,6 +2328,16 @@ Verified: typecheck; the QA repros for empty designs flipped to `it`; in the dev
 
 Verified: typecheck; `npm test` (one timing test in `wings.test.ts` fails only under the full parallel run, as before); QA repros for the radius and the hinged lid flipped to `it`; in the dev server, a plywood box's card shows *Round the corners*.
 
+## Milestone 139 (QA fix round Q5) — where new things appear, and the camera ✅
+
+- **A finished sketch beside the shapes** (`REPORT.md` #2): `besideOthers` moves a new solid made inside another along +x, 10 mm clear of every shape it meets (a solid standing on another, from a workplane on its top, stays).
+- **Decorations apart** (B6): Guided's name, sticker and window take the free place nearest the middle of the side (2 mm clear of the others, where the laser can cut), instead of all three in the middle.
+- **A ready shape keeps its decorations** (B8): when *Sides* takes away the face a name was on, the name goes to the face that looks most nearly the same way, centred on it. On a student's own shape a lost face is still listed as lost (milestone 129).
+- **The camera** (#5-#6, H7, §8): *Fit view* frames the design in the part of the stage the rail and the card leave free (it framed the whole canvas, half under the card), never from below the floor; a new or opened design is framed when it appears (it kept the last design's view, once below the floor).
+- Not done here: Quick build's *Wall / lid* picking an edge behind the one clicked, and Guided's divider grip on the width arrow (both left for milestone 145's browser pass).
+
+Verified: typecheck; `npm test`; QA repros for the sketch, the decorations and the pyramid's name pass (`tests/qa/placement.test.ts`, `guided.test.ts`); in the dev server, *Fit view* puts a 150 × 100 box whole beside the card.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

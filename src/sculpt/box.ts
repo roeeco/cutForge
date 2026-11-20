@@ -48,3 +48,23 @@ export function freeSpot(sc: Sculpt, w: number, d: number, near: { x: number; z:
   }
   return { x: x0, z: z0 };
 }
+
+/**
+ * Move a new top-level shape beside the others when it lands inside one (milestone 139, REPORT.md #2: a sketch drawn
+ * at the stage's middle was made inside the shape already there): slid along +x, 10 mm clear of every shape it
+ * meets, as the shape tiles are placed (`freeSpot`). A shape standing on another (on a workplane on its top) does not
+ * meet it and stays. Returns the move made, or null.
+ */
+export function besideOthers(sc: Sculpt, id: string): [number, number, number] | null {
+  const me = worldBox(sc, id);
+  if (!me) return null;
+  const others = sc.order.filter((x) => x !== id).map((x) => worldBox(sc, x)).filter((b): b is Box3 => !!b);
+  const meets = (dx: number) => others.filter((b) => me.min[0] + dx < b.max[0] - 1e-6 && me.max[0] + dx > b.min[0] + 1e-6 && me.min[1] < b.max[1] - 1e-6 && me.max[1] > b.min[1] + 1e-6 && me.min[2] < b.max[2] - 1e-6 && me.max[2] > b.min[2] + 1e-6);
+  let dx = 0;
+  for (let i = 0; i < 40; i++) {
+    const hit = meets(dx);
+    if (!hit.length) return dx ? [dx, 0, 0] : null;
+    dx = Math.max(...hit.map((b) => b.max[0])) + 10 - me.min[0];
+  }
+  return null;
+}

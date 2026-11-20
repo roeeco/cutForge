@@ -232,7 +232,7 @@ comes before 115, 117 and 118.**
 | **136** | Saving and two tabs | Q2 | ✅ |
 | **137** | Truthful status: empty designs, notes, names, plurals | Q3 | ✅ |
 | **138** | One rulebook for lids and curves, and the gate; live check in Workshop | Q4 | ✅ |
-| **139** | Placement and the stage layout | Q5 | |
+| **139** | Placement and the stage layout | Q5 | ✅ (two interaction items left to 145) |
 | **140** | Modes and the level switch; *Joints* and *Outlines* in the card | Q6 | |
 | **141** | Gizmos | Q7 | |
 | **142** | Guided specifics | Q8 | |

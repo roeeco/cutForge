@@ -1,10 +1,10 @@
 // Decorate (milestone 108, GUIDED_MODE.md §3.4): a name, a sticker and a window, each placed in the middle of
-// a side, ready to drag. Pure functions on a design; the store's guard keeps them where the laser can cut.
+// a side, or the free place nearest it (milestone 139), ready to drag. Pure functions on a design; the store's guard keeps them where the laser can cut.
 import type { Design, DetailOp } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { addText, parentConnection } from '../model/ops';
 import { holeRecipe, stickerRecipe } from '../easy/recipes';
-import { fitShape, minTextSize } from '../easy/guard';
+import { fitShape, minTextSize, shapeAllowed } from '../easy/guard';
 import { stickerById, stickerSize } from '../easy/stickers';
 import { workshopOnly } from '../easy/mode';
 import { isDivider } from '../model/dividers';
@@ -42,6 +42,7 @@ export function addName(d: Design, panelId: string, value: string): Made {
   const id = addText(d, panelId, p.w / 2, p.h / 2, value, 'engrave', undefined, size);
   if (!id) return { why: 'g.deco.tooSmall' };
   fitShape(d, id);
+  apart(d, panelId, id);
   return { id };
 }
 
@@ -56,6 +57,7 @@ export function addSticker(d: Design, panelId: string, stickerId: string): Made 
     p.details = p.details.filter((x) => x.id !== id);
     return { why: 'g.deco.tooSmall' };
   }
+  apart(d, panelId, id);
   return { id };
 }
 
@@ -74,5 +76,33 @@ export function addWindow(d: Design, panelId: string, shape: WindowShape, op: Ex
     p.details = p.details.filter((x) => x.id !== id);
     return { why: 'g.deco.tooSmall' };
   }
+  apart(d, panelId, id);
   return { id };
+}
+
+/**
+ * Move a new decoration off the ones already on its side (milestone 139, REPORT.md B6: a sticker and a window were
+ * put on top of the name): the place nearest the middle where its box keeps 2 mm from every other one's and the
+ * laser can still cut it. Left where it is when no such place is found.
+ */
+function apart(d: Design, panelId: string, id: string) {
+  const p = d.panels[panelId];
+  const dt = p?.details.find((x) => x.id === id);
+  if (!p || !dt) return;
+  const others = p.details.filter((x) => x.id !== id);
+  const clear = (x: number, y: number) => others.every((o) => Math.abs(x - o.cx) * 2 >= dt.w + o.w + 4 || Math.abs(y - o.cy) * 2 >= dt.h + o.h + 4);
+  if (clear(dt.cx, dt.cy)) return;
+  const step = Math.max(1, Math.min(p.w, p.h) / 40);
+  const pts: { x: number; y: number; k: number }[] = [];
+  for (let x = dt.w / 2; x <= p.w - dt.w / 2; x += step) for (let y = dt.h / 2; y <= p.h - dt.h / 2; y += step) pts.push({ x, y, k: Math.hypot(x - p.w / 2, y - p.h / 2) });
+  pts.sort((a, b) => a.k - b.k);
+  const was = { cx: dt.cx, cy: dt.cy };
+  for (const q of pts) {
+    if (!clear(q.x, q.y)) continue;
+    dt.cx = q.x;
+    dt.cy = q.y;
+    if (shapeAllowed(d, id)) return;
+  }
+  dt.cx = was.cx;
+  dt.cy = was.cy;
 }

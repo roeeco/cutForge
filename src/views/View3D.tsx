@@ -2648,6 +2648,26 @@ function designBox(d: Design): THREE.Box3 {
   return box;
 }
 
+/**
+ * The stage's free strip across (px from the canvas's left): right of the tool rail and left of the card, where
+ * they cover it (milestone 139). The whole canvas when nothing does.
+ */
+function freeStageX(width: number): { left: number; right: number } {
+  const cv = document.querySelector('main.viewport canvas') ?? document.querySelector('main canvas');
+  const c = cv?.getBoundingClientRect();
+  if (!c) return { left: 0, right: width };
+  let left = 0, right = width;
+  for (const el of document.querySelectorAll('.rail')) {
+    const r = el.getBoundingClientRect();
+    if (r.width && r.left - c.left < width / 3) left = Math.max(left, r.right - c.left + 8);
+  }
+  for (const el of document.querySelectorAll('.card-dock')) {
+    const r = el.getBoundingClientRect();
+    if (r.width && r.height > 80 && r.left - c.left > width / 2) right = Math.min(right, r.left - c.left - 8);
+  }
+  return right - left > 120 ? { left, right } : { left: 0, right: width };
+}
+
 function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal: number; onAutoFit: () => void }) {
   const { camera, set, size, controls, invalidate } = useThree() as unknown as {
     camera: THREE.Camera & { zoom: number; updateProjectionMatrix(): void };
@@ -2696,18 +2716,41 @@ function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal:
     const center = box.getCenter(new THREE.Vector3());
     const radius = Math.max(50, box.getSize(new THREE.Vector3()).length() / 2);
     const target = controls?.target ?? new THREE.Vector3();
-    const dir = new THREE.Vector3().subVectors(camera.position, target).normalize();
-    target.copy(center);
+    let dir = new THREE.Vector3().subVectors(camera.position, target).normalize();
+    // never framed from below the floor or edge-on to it (milestone 139, REPORT.md H7: a view below the floor
+    // carried into a new design, where nothing could be drawn)
+    if (!(dir.y > 0.15)) dir = new THREE.Vector3(0.55, 0.6, 0.85).normalize();
+    // the part of the stage the rail and the card leave free (milestone 139: *Fit view* and new parts were framed
+    // under the card): the design is framed there, not in the middle of the whole canvas
+    const free = freeStageX(size.width);
+    const W = Math.max(120, free.right - free.left);
+    const off = (free.left + free.right) / 2 - size.width / 2;
+    const tanV = Math.tan((45 * Math.PI) / 360);
     if (camera instanceof THREE.OrthographicCamera) {
-      camera.position.copy(center).addScaledVector(dir, 2000);
-      camera.zoom = Math.min(size.width, size.height) / (radius * 2.4);
+      camera.zoom = Math.min(W, size.height) / (radius * 2.4);
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+      target.copy(center).addScaledVector(right, -off / camera.zoom);
+      camera.position.copy(target).addScaledVector(dir, 2000);
     } else {
-      camera.position.copy(center).addScaledVector(dir, (radius * 1.3) / Math.tan((45 * Math.PI) / 360));
+      const dist = Math.max((radius * 1.3) / tanV, (radius * 1.3) / (tanV * (W / size.height)));
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+      target.copy(center).addScaledVector(right, (-off * 2 * dist * tanV) / size.height);
+      camera.position.copy(target).addScaledVector(dir, dist);
     }
+    camera.lookAt(target);
     camera.updateProjectionMatrix();
     controls?.update();
     invalidate();
   }, [fitSignal]);
+  // a new or opened design is framed (milestone 139, REPORT.md H7: it kept the last design's view)
+  const designId = useStore((s) => s.design.id);
+  const seenId = useRef(designId);
+  useEffect(() => {
+    if (seenId.current === designId) return;
+    seenId.current = designId;
+    const id = setTimeout(onAutoFit, 150);
+    return () => clearTimeout(id);
+  }, [designId]);
   // a view that shows none of the design (after a view switch, a new template
   // or a material change) frames it again by itself
   useEffect(() => {

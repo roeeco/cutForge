@@ -2,7 +2,8 @@
 // from, and what Finish writes into the design. The draft lives outside the
 // design until Finish, so autosave and the design's history are untouched.
 import type { Design, Sculpt, Shape3, SketchGraph } from '../model/types';
-import { addShape, startHeight, type Heights } from './ops';
+import { addShape, moveShapes, startHeight, type Heights } from './ops';
+import { besideOthers } from './box';
 import { planeMatrix, revolveBlocked, setSketchMode, sketchMatrix, sketchShape, type SketchPlane } from './sketch';
 import { sketchState } from '../sketch/regions';
 import { m4Unscaled, type M4 } from './xform';
@@ -63,6 +64,11 @@ export function writeSketch(d: Design, o: { shapeId: string | null; plane: Sketc
     if (s.axis?.kind === 'seg' && s.sketch!.segs[s.axis.id]?.k !== 'line') s.axis = { kind: 'plane' };
     return o.shapeId;
   }
-  return addShape(d, { ...sketchShape(o.plane, o.draft, o.mode, h), color: shapeColor(Object.keys(d.sculpt?.shapes ?? {}).length) }, o.into);
+  const id = addShape(d, { ...sketchShape(o.plane, o.draft, o.mode, h), color: shapeColor(Object.keys(d.sculpt?.shapes ?? {}).length) }, o.into);
+  // a new solid is not made inside another: it is moved beside them (milestone 139)
+  const sc = d.sculpt;
+  const move = id && !o.into && sc && sc.order.includes(id) ? besideOthers(sc, id) : null;
+  if (move) moveShapes(d, [id], move);
+  return id;
 }
 
