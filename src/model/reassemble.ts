@@ -15,7 +15,7 @@ import { cornerFit } from './seams';
 import { findEdge } from './edges';
 import type { MsgKey } from '../i18n';
 
-export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' };
+export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number };
 export type MakeResult = { unfolding?: Unfolding; issues: MakeIssue[]; changed?: number };
 
 /** The sheet the unfolder lays a net on: the material's, less the design's margins. */
@@ -111,9 +111,16 @@ export function reassemble(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?:
     solve(d);
     return { unfolding: u, issues };
   }
-  // boards: one on each face, material inward; corners joined as for any box, then chosen
+  // boards: one on each face, material inward; corners joined as for any box, then chosen.
+  // A through-hole's walls meet the boards round it along their holes' rims, where no
+  // corner joint can be cut: they are left out and listed (the hole stays a cut-out).
+  const rimWall = (k: FaceKey) => Object.values(P.edges).some((e) => (e.a === k && e.eb.ring > 0) || (e.b === k && e.ea.ring > 0));
+  const walls = faces.filter((f) => rimWall(f.key)).map((f) => f.key);
+  if (walls.length) issues.push({ kind: 'holeWall', n: walls.length });
+  // no face faces up: no board can go in last from outside
+  if (!last) issues.push({ kind: 'noLast' });
   const ids: Record<FaceKey, string> = {};
-  const order = faces.map((f) => f.key).sort((a, b) => (a === last ? 1 : b === last ? -1 : Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1)));
+  const order = faces.filter((f) => !walls.includes(f.key)).map((f) => f.key).sort((a, b) => (a === last ? 1 : b === last ? -1 : Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1)));
   for (const k of order) {
     const f = P.faces[k];
     const id = addFreePanel(d, { id: boardId(k), name: k, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });

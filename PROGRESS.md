@@ -2094,6 +2094,23 @@ Limitations
 - *Make it smaller* scales every shape by 80%; it does not split a face.
 - A sharp fold (under 20°) is not yet warned about.
 
+## Milestone 127 (Shapes R8) — *Build from boards*, in one click ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R8. `src/model/reassemble.ts` (boards: the walls round a through-hole, *no board goes in last*), `src/make/run.ts`, `src/make/MakeCard.tsx`.
+- **The click**: *Build from boards* makes a board on each face (material inward, so the shape is the outside), joins the corners as for any box (`autoConnect`), gives each the chooser's joint and its reason, and shows the boards coming in one after another, **the board that closes last last** (milestone 40's assembly animation). The material is the design's when it makes boards, else plywood 3 mm.
+- **Holes stay cut-outs.** A through-hole's walls meet the boards round it along the hole's rim, where no corner joint can be cut: they are left out and listed (*A hole's 12 walls are left out*).
+- **Problems**: a corner outside 30–150° (*Glue it* on corrugated, *Fold it instead*, *Fewer faces*); no face facing up, so no board can go in last (*Fold it instead*); the face graph's own (tiny, sliver, too many faces).
+
+Verified
+- `tests/e2e/make-boards.spec.ts`: *Shapes* in plywood, the house, one click on *Build from boards*: 7 boards, 15 corners, none broken, fingers and tabs, no problem listed, 7 outlines in the SVG, *1 Shape* keeps everything; no page errors.
+- `tests/reassemble.test.ts` (17): a plywood box's boards span the shape's outside sizes exactly (100 × 80 × 90); an L-shelf and a hexagonal planter join every corner with nothing listed; a tall spire has no board to put in last; and 125's box, diamond and house cases.
+- A look in the dev server: the plywood house, fingers on the walls and angled tabs on the roof.
+
+Limitations
+- **Size is: Inside** is not offered for made boards: it needs the solid offset outwards by the thickness, which is left for later.
+- *Square this corner* (the protractor, 132) is not among the fixes yet; *Merge into neighbour* is not built.
+- The boards' assembly animation is the Workshop's (pieces drop in from above in order), not a path per board.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

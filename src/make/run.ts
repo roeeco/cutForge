@@ -13,6 +13,7 @@ import { MATERIALS, CARD_FOLD_MAX } from '../model/materials';
 import { setMaterial } from '../model/ops';
 import type { Polyhedron } from '../model/polyhedron';
 import { create } from 'zustand';
+import { playAssembly } from '../easy/assemble';
 
 /** What the last Make left for the card: its issues, and whether it is still working. */
 export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null }>(() => ({ issues: [], busy: false, changed: null }));
@@ -117,6 +118,7 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   useStore.getState().setSculpt({ stage: 'make' });
   useStore.getState().setView('3d');
   useStore.getState().select(null);
-  if (opts.play !== false) playFold();
+  // folds fold up; boards come in one after another, the one that closes last last (milestone 40's animation)
+  if (opts.play !== false) as === 'fold' ? playFold() : playAssembly();
   return true;
 }

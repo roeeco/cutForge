@@ -1922,6 +1922,8 @@ export const en = {
   'make.working': "Working out the net…",
   'make.problems': "To look at",
   'make.again': "Make again",
+  'make.p.noLast': "No board faces up, so none can go in last from outside",
+  'make.p.holeWall': "A hole's {n} walls are left out: a board joint cannot be cut round a hole's rim (the hole is cut)",
 } as const;
 
 export type MsgKey = keyof typeof en;

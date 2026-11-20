@@ -37,6 +37,10 @@ function Problem({ issue, spec }: { issue: MakeIssue; spec: MakeSpec }) {
   let text = '';
   const fixes: { key: MsgKey; run: () => void }[] = [];
   if (issue.kind === 'empty') text = t('make.p.empty');
+  else if (issue.kind === 'noLast') {
+    text = t('make.p.noLast');
+    fixes.push({ key: 'make.fix.fold', run: () => void makeNow('fold', {}) });
+  } else if (issue.kind === 'holeWall') text = t('make.p.holeWall', { n: issue.n });
   else if (issue.kind === 'corner') {
     text = t('make.p.corner', { deg: Math.round(issue.dihedral) });
     if (d.material.kind === 'corrugated') fixes.push({ key: 'make.fix.glue', run: () => redo({ joints: { ...(spec.joints ?? {}), [issue.edge]: 'glue' } }) });

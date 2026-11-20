@@ -652,3 +652,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The fixes make the model again** with the changed spec (one undo step each), so a fix can never leave the made model half-changed.
 - **The material each design was made with is kept in memory, not in the file**: after a reload, the material it opens with is the baseline for *the material changed*.
 - **The Make card's outcome chooser is gone**: the stage bar's two buttons choose, and a click on the other one makes the other outcome.
+
+## Milestone 127 (Shapes R8): boards
+- **A through-hole's walls are left out of a board model** and listed: their edges lie on the hole's rim, a cut-out in the boards round it, where no corner joint can be cut. The hole itself is cut.
+- **Boards are added largest first, the one that closes last at the end**, so the cut plan and the assembly animation put it last.
+- **Size is: Inside** waits: a board model with the shape as its inside needs an outward offset of the solid, not a flip of the boards' sides.

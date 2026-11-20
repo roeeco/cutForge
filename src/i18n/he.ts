@@ -1924,4 +1924,6 @@ export const he: Record<MsgKey, string> = {
   'make.working': "מחשבים את הפריסה…",
   'make.problems': "לבדוק",
   'make.again': "להכין שוב",
+  'make.p.noLast': "אף לוח לא פונה למעלה, אז אף אחד לא יכול להיכנס אחרון מבחוץ",
+  'make.p.holeWall': "{n} הדפנות של חור נשארו בחוץ: אי אפשר לחתוך חיבור לוחות סביב שפת חור (החור נחתך)",
 };
