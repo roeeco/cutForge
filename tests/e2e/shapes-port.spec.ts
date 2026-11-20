@@ -46,7 +46,7 @@ test('shapes: a box with a cylinder hole, combined; the two Make buttons wait fo
   // something to make: both buttons work (126, 127)
   await expect(page.getByTestId('make-fold')).toBeEnabled();
   await expect(page.getByTestId('make-boards')).toBeEnabled();
-  // no level switch on a sculpture
-  await expect(page.getByTestId('mode-toggle')).toHaveCount(0);
+  // the level switch is on the Shapes stage too (milestone 140, owner's decision of 20 November)
+  await expect(page.getByTestId('mode-toggle')).toHaveCount(1);
   expect(errors).toEqual([]);
 });

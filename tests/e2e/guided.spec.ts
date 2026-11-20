@@ -14,7 +14,7 @@ const GUIDED = (lang: 'en' | 'he') => ({
 });
 
 async function noOtherLevels(page: Page) {
-  for (const id of ['toggle-joints', 'tool-shapes', 'quick-rail', 'material-pill', 'mode-toggle', 'inspector-design']) await expect(page.getByTestId(id), id).toHaveCount(0);
+  for (const id of ['toggle-joints', 'tool-shapes', 'quick-rail', 'material-pill', 'inspector-design']) await expect(page.getByTestId(id), id).toHaveCount(0);
 }
 
 for (const lang of ['en', 'he'] as const)

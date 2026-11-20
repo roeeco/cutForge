@@ -163,8 +163,10 @@ export function TopBar() {
       </button>
       {/* a sculpture (milestone 120): the stage bar instead of the level switch */}
       {d.kind === 'waffle' && !sketching && <ShapeStageBar />}
-      {!s.viewPrefs.modeLocked && d.kind !== 'waffle' && (
-        <div className="seg mode-seg tablet-hide" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
+      {/* one place for the level switch in every level and state, the Shapes stage included (milestone 140,
+          REPORT.md #3, H1: it moved into ⋯ once Quick build's badge showed, and the Shapes stage had none) */}
+      {!s.viewPrefs.modeLocked && (
+        <div className="seg mode-seg" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
           {levels(s.viewPrefs).map((m) => (
             <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(MODE_HELP[m])} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
               {t(MODE_NAME[m])}
@@ -220,13 +222,6 @@ export function TopBar() {
             <button role="menuitem" onClick={() => (setMore(false), setSubmitOpen(true))} data-testid="more-submit">
               <Icon name="send" /> {t('sub.button')}
             </button>
-            {!s.viewPrefs.modeLocked &&
-              d.kind !== 'waffle' &&
-              levels(s.viewPrefs).map((m) => (
-                <button key={m} role="menuitemradio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => (setMore(false), setMode(m))} data-testid={`more-mode-${m}`}>
-                  <Icon name={mode === m ? 'check' : 'box'} /> {t(MODE_NAME[m])}
-                </button>
-              ))}
             <hr />
             <button role="menuitem" onClick={() => (setMore(false), s.setLang(s.lang === 'en' ? 'he' : 'en'))} lang={s.lang === 'en' ? 'he' : 'en'} data-testid="more-lang">
               {t('lang.toggle')}

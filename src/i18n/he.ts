@@ -925,6 +925,7 @@ export const he: Record<MsgKey, string> = {
   'joint.more': "כל הגדרות המחבר…",
   'joint.pickPanel': "תצוגת מחברים: בחרו לוח או דופן כדי לראות את המחברים שלו; לחצו על מחבר כדי לשנות אותו.",
   'view.jointsOn': "מחברים",
+  'view.modes': "איך החלק מוצג",
   'view.jointsHelp': "הצגת המחברים: לחצו על מחבר כדי לשנות אותו. ידיות ההזזה, הסיבוב וההוספה מוסתרות בינתיים.",
   'teach.goals': "{met} מתוך {total} יעדים",
   'goal.compartments': "{n} תאים",

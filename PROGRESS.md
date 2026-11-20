@@ -2345,6 +2345,18 @@ The owner's report during the fix round: an open box with rounded corners built 
 - **Fix** (`ops.ts`, `toNewBoard`, run by `setMaterial` when the kind of board changes): a box's wall and corner joints that the new board would never choose for a whole box take its defaults (a fold to the base becomes plywood's finger joint), as do walls grown by hand that fold by default; a joint set by hand keeps its kind. Rounded corners tighter than the new board bends grow to its least radius (`roundedMin`, through `setRoundMinOf`). A box stated by its inside keeps that size.
 - **Now:** card, corrugated 1.6 and 4 mm rounded boxes changed to plywood end exactly as the same box made in plywood (finger joints to the base, a living hinge at each corner keyed once, base and wall strip as two pieces, nothing flagged); plywood → card → plywood comes back unchanged. `tests/qa/material.test.ts`.
 
+## Milestone 140 (QA fix round Q6) — modes and the level switch ✅
+
+- **One place for the level switch** (`REPORT.md` #3, H1, owner's decision 5): the *Guided · Quick build · Workshop* switch stays in the top bar at every width (smaller below 1480 px, the sheet meter's words go first) and in every state; it no longer moves into ⋯ when Quick build's badge shows. The Shapes stage has it too (it had none: the only way out was *New design*), and Guided's bar shows it beside the design's name (it was only in ☰).
+- **Joints and Outlines under the card** (§2.3): one row of full-size labelled buttons at the bottom of the right-hand card (`CardModes`), not small toggles in the view cluster, where *Outlines* hung its label below the bar. Turning one on turns the other off.
+- **One way out of outline editing** (§8): in outline mode the card's *Edit outline* button is its *Done* (it was a greyed *Editing (outline mode)*); the row's button reads *Done* too.
+- **A new icon for editing an outline** (§2.4): an open line with a dot at each point (`outlineEdit`), no longer the Sketch tool's pentagon.
+- **Nothing carries into the next design** (H3): a new or opened design starts with *Joints* and *Outlines* off.
+- After a load the stage checks again, once it has its size, that the design is in view.
+- E2E specs updated for the owner's decision: the Shapes stage has the level switch (`shapes-port.spec.ts`); Guided's bar has it (`guided.spec.ts`).
+
+Verified: typecheck; `npm test`; in the dev server at 1366 × 768, Quick build with a box shows the level switch and the badge together, and the card's row.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

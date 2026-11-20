@@ -923,6 +923,7 @@ export const en = {
   'joint.more': "All joint settings…",
   'joint.pickPanel': "Joints view: select a panel or a wall to see its joints; click a joint to change it.",
   'view.jointsOn': "Joints",
+  'view.modes': "How the part is shown",
   'view.jointsHelp': "Show the joints: click one to change it. The move, turn and grow handles are hidden meanwhile.",
   'teach.goals': "{met} of {total} goals",
   'goal.compartments': "{n} compartments",

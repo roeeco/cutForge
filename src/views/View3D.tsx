@@ -2754,14 +2754,17 @@ function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal:
   // a view that shows none of the design (after a view switch, a new template
   // or a material change) frames it again by itself
   useEffect(() => {
-    const id = setTimeout(() => {
+    const check = () => {
       const box = designBox(useStore.getState().design);
       if (box.isEmpty()) return;
       camera.updateMatrixWorld();
       const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
       if (!fr.intersectsBox(box)) onAutoFit();
-    }, 120);
-    return () => clearTimeout(id);
+    };
+    // again once the stage has its size and any saved view is back (milestone 140: after a reload the stage could
+    // stay blank, the box out of view, until *Fit view*)
+    const ids = [setTimeout(check, 120), setTimeout(check, 900)];
+    return () => ids.forEach(clearTimeout);
   }, [order, material]);
   return null;
 }
@@ -2997,30 +3000,6 @@ function Stage3D({ layer }: { layer?: ReactNode }) {
           <button onClick={() => setFit((f) => f + 1)} title={t('view.fit')} aria-label={t('view.fit')} data-testid="fit-view">
             <Icon name="fit" />
           </button>
-          <button
-            className={`stage-toggle joints-toggle ${prefs.joints ? 'on' : ''}`}
-            onClick={() => useStore.getState().setPrefs({ joints: !prefs.joints })}
-            title={t('view.jointsHelp')}
-            aria-label={t(jointsKey)}
-            aria-pressed={prefs.joints}
-            data-testid="toggle-joints"
-          >
-            <Icon name="finger" />
-            <span>{t(jointsKey === 'view.joints' ? 'view.jointsOn' : jointsKey)}</span>
-          </button>
-          {shown(fOutlineMode) && (
-            <button
-              className={`stage-toggle outline-toggle ${prefs.outlineMode ? 'on' : ''}`}
-              onClick={() => useStore.getState().setPrefs({ outlineMode: !prefs.outlineMode })}
-              title={t('view.outlineModeHelp')}
-              aria-label={t('view.outlineMode')}
-              aria-pressed={!!prefs.outlineMode}
-              data-testid="toggle-outline"
-            >
-              <Icon name="polygon" />
-              <span>{t('view.outlineMode')}</span>
-            </button>
-          )}
           <button onClick={playAssembly} title={t('assemble.go')} aria-label={t('assemble.go')} data-testid="assemble-go">
             <Icon name="play" />
           </button>

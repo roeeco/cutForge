@@ -1271,3 +1271,17 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .combine-box .note:last-child { margin: 8px 0 0; color: var(--ink-muted); }
 .combine-box button { width: 100%; justify-content: center; }
 .stage-seg .soon { font-size: 11px; color: var(--ink-muted); font-weight: 400; }
+
+/* milestone 140: the level switch stays in the bar at every width; it gets smaller instead of moving into ⋯ */
+@media (max-width: 1480px) {
+  .topbar .mode-seg button { padding-inline: 8px; font-size: 13px; }
+}
+@media (max-width: 1180px) {
+  .topbar .mode-seg button { padding-inline: 6px; font-size: 12.5px; }
+  .topbar:has(.ready-wrap) .sheet-meter .meter-text { display: none; }
+}
+
+/* milestone 140: Joints and Outlines, one row under the card */
+.card-dock .card-modes { display: flex; gap: 8px; padding: 8px; margin-top: 8px; }
+.card-dock .card-modes button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; }
+.card-dock .card-modes button.on { background: var(--accent-soft, #e3f1ec); border-color: var(--accent, #2f7d62); font-weight: 600; }

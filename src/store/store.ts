@@ -805,7 +805,9 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, dragKind: null, heights: {} }, sketch: null, steps: null, ...(get().tool === 'shapes' || get().tool === 'sketch' || get().tool === 'radius' ? { tool: 'select' as Tool } : {}), design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view === 'sketch' ? '3d' : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  // a new or opened design starts with no overlay on (milestone 140, REPORT.md H3: *Joints* and *Outlines* carried into
+  // the next design)
+  replaceDesign: (d, needsMaterial = false) => set({ viewPrefs: { ...get().viewPrefs, joints: false, outlineMode: false }, sculpt: { ...get().sculpt, stage: 'shape', focus: null, dragKind: null, heights: {} }, sketch: null, steps: null, ...(get().tool === 'shapes' || get().tool === 'sketch' || get().tool === 'radius' ? { tool: 'select' as Tool } : {}), design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view === 'sketch' ? '3d' : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
     if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'shape' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();

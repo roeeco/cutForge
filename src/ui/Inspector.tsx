@@ -9,6 +9,7 @@ import { followersOf } from '../model/match';
 import { convertToPoints, curveBlocked, deleteDetail, deletePanel, edgeConnection, findDetail, MIN_PANEL, normDeg, panelYaw, parentConnection, pointCurve, setCornerRadius, setPanelSize, setPanelYaw, setPointCurve, setPointRound, setRoundShape, updateDetail } from '../model/ops';
 import { pieceKeyOf, pieceRoot, placementPiece } from '../model/pieces';
 import { matOf } from '../model/materials';
+import { CardModes } from './CardModes';
 import { materialName } from './materialName';
 import { ovalRadii } from '../model/round';
 import { quantityRoot, rotateCopy } from '../model/pack';
@@ -277,13 +278,13 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           {/* one rule for which outlines can be edited (milestone 101), shared with outline mode */}
           {!outlineWhy(d, id) && view === '3d' && (
             <button
-              className={editOutline === id ? 'on' : ''}
-              aria-pressed={editOutline === id}
-              disabled={outlineMode}
-              onClick={() => useStore.getState().set({ editOutline: editOutline === id ? null : id, selVertex: null })}
+              className={editOutline === id || outlineMode ? 'on' : ''}
+              aria-pressed={editOutline === id || outlineMode}
+              // one way out of outline editing (milestone 140, REPORT.md §8): in outline mode this is its *Done* too
+              onClick={() => (outlineMode ? useStore.getState().setPrefs({ outlineMode: false }) : useStore.getState().set({ editOutline: editOutline === id ? null : id, selVertex: null }))}
               data-testid="edit-outline"
             >
-              <Icon name="polygon" size={16} /> {t(outlineMode ? 'outline.inMode' : editOutline === id ? 'outline.done' : 'outline.edit')}
+              <Icon name="outlineEdit" size={16} /> {t(outlineMode || editOutline === id ? 'outline.done' : 'outline.edit')}
             </button>
           )}
           {editOutline === id && (
@@ -355,6 +356,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
         {body}
         {footer}
       </aside>
+      <CardModes />
     </div>
   );
 }

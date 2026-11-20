@@ -91,6 +91,8 @@ const P: Record<string, ReactElement> = {
   roundrect: <rect x="4" y="6" width="16" height="12" rx="4" />,
   circle: <circle cx="12" cy="12" r="7.5" />,
   polygon: <path d="M12 3.5 20 9.3 17 19h-10L4 9.3Z" />,
+  // editing an outline's points (milestone 140): an open line with a dot at each point, unlike the Sketch pentagon
+  outlineEdit: <><path d="M4 17 8 7l8 3 4 9" /><circle cx="4" cy="17" r="2" fill="currentColor" /><circle cx="8" cy="7" r="2" fill="currentColor" /><circle cx="16" cy="10" r="2" fill="currentColor" /><circle cx="20" cy="19" r="2" fill="currentColor" /></>,
   // the Line footprint and its types (milestone 84)
   line: <path d="M4 18 L11 8 L20 12" />,
   'line-cut': <path d="M4 12h16" />,

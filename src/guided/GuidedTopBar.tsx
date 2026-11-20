@@ -6,7 +6,7 @@ import { blocking } from '../easy/fix';
 import { useStore, useT, type GuidedStep } from '../store/store';
 import { duplicateDesign } from '../model/ops';
 import { storeDesign } from '../store/persist';
-import { setMode } from '../easy/mode';
+import { levels, MODE_HELP, MODE_NAME, setMode } from '../easy/mode';
 import { openProjectFile } from '../ui/openFile';
 import { Icon, Logo } from '../ui/icons';
 
@@ -39,6 +39,7 @@ export function GuidedTopBar() {
     };
   }, [menu]);
   const st = useStore.getState;
+  const prefs = useStore((x) => x.viewPrefs);
   const item = (fn: () => void) => () => {
     setMenu(false);
     fn();
@@ -64,6 +65,17 @@ export function GuidedTopBar() {
         dir="auto"
         data-testid="g-name"
       />
+      {/* the level, in the same place as the other levels' switch (milestone 140, REPORT.md 2.1: Guided had it only
+          in ☰ as *More tools* and *All tools*) */}
+      {!locked && (
+        <div className="seg mode-seg g-levels" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
+          {levels(prefs).map((m) => (
+            <button key={m} role="radio" aria-checked={m === 'guided'} className={m === 'guided' ? 'on' : ''} title={t(MODE_HELP[m])} onClick={() => m !== 'guided' && setMode(m)} data-testid={`mode-${m}`}>
+              {t(MODE_NAME[m])}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="spacer" />
       <div className="seg g-steps" role="tablist" aria-label={t('g.step.label')} data-testid="g-steps">
         {STEPS.map((s, i) => (
