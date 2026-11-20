@@ -16,6 +16,7 @@ import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
+import { seamFit, seamGlue } from './seamFold';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -582,6 +583,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const glue = connectionGeomOne(d, { ...c, kind: 'glue' }, rng);
     return glue ? slitLock(d, c, glue) : null;
   }
+  // a made model's seam (milestone 123): a fold or a glue flap at any angle
+  if (c.seam) return seamGeom(d, c);
   const g = empty();
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
@@ -1019,6 +1022,20 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
   const [z0, z1] = c.dir === 'up' ? [tP, tP + t] : [-t, 0];
   g.flaps3d.push(withFold(t, C, flat, { panelId: P.id, poly: [q(0, 0), q(taper, fh), q(L - taper, fh), q(L, 0)], z0, z1 }, P));
   return g;
+}
+
+/**
+ * A made model's seam (milestone 123): a seam fold is one creased board (no cut-back);
+ * a cut seam carries a glue flap (a slit lock is made from it).
+ */
+function seamGeom(d: Design, c: Connection): ConnGeom | null {
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return null;
+  const f = seamFit(A, c.a.edge, B, c.b.edge);
+  if (!f) return null;
+  if (c.kind === 'glue') return seamGlue(d, c, f);
+  // a seam fold is one creased board: nothing is cut back (the crease's place takes up the thickness)
+  return empty();
 }
 
 /** Local coords of a world point (x, y on the plane, z into the material). */

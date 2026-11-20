@@ -189,6 +189,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
           l.pts.every((q: any) => ptOk(q) && (q.bulge === undefined || (Number.isFinite(q.bulge) && Math.abs(q.bulge) <= 10))),
       );
   }
+  // a board made from a shape's face (milestone 123)
+  if (x.src !== undefined && !(isObj(x.src) && typeof x.src.face === 'string')) delete x.src;
   if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin'))) delete x.lidOf;
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {
@@ -308,6 +310,10 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.lockDepth !== undefined && x.lockDepth !== null) num(x.lockDepth, `${where}.lockDepth`, { min: 0, max: 1000 });
   if (x.trayId !== undefined && typeof x.trayId !== 'string') fail(`${where}.trayId`, 'not an id');
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
+  // a made model's seam (milestone 123)
+  if (x.seam !== undefined && x.seam !== true) delete x.seam;
+  if (x.src !== undefined && typeof x.src !== 'string') delete x.src;
+  if (x.seam && x.hingeOf !== undefined && x.hingeOf !== x.a.panelId && x.hingeOf !== x.b.panelId) delete x.hingeOf;
   if (x.cut !== undefined && x.cut !== 'cut' && x.cut !== 'keep') delete x.cut;
   if (x.autoCut !== undefined && x.autoCut !== true) delete x.autoCut;
   if (x.split !== undefined && x.split !== true) delete x.split; // derived

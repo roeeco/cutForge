@@ -173,6 +173,8 @@ export type Panel = {
    * `place.x/y` and `w` are derived; this record is what the student drew.
    */
   divider?: DividerRec;
+  /** Milestone 123 (SHAPES_TO_DIELINES_PLAN.md §4.3): a free board made from a face of a shape (`FaceKey`). Absent: a hand-made board. */
+  src?: { face: string };
 };
 
 /**
@@ -337,6 +339,16 @@ export type Connection = {
   split?: true;
   /** Derived (milestone 70): a divider's end on a tray corner's band (that corner's wing connection id); `b` is the wall carrying the band. */
   bandEnd?: string;
+  /**
+   * Milestone 123 (SHAPES_TO_DIELINES_PLAN.md §4.3): a seam of a made model, between two free
+   * boards whose edges meet along a line, at any angle from 5° to 355°. A seam fold is kind
+   * 'fold' with `hingeOf` its child (the board laid flat off the other in the net); a cut seam
+   * is 'glue' or 'lock' (`a` carries the flap). Its kind is set by whoever made it and is never
+   * re-fitted by `solve`. Absent: an ordinary joint.
+   */
+  seam?: true;
+  /** Milestone 123: the edge of the face graph this seam was made from (`EdgeKey`). */
+  src?: string;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */

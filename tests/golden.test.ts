@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tuckDustBoard, hangTabBoard, plainFlapBoard, linesBoard, haspBox, dropinBox, lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
+import { boxSolid, foldedSolid, prismSolid, pyramidSolid } from './solids';
 import { cartonDesign as styleCarton } from '../src/templates/structures/carton';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -105,6 +106,11 @@ CASES.push({ name: 'envelope-card-pocket', make: () => templateDesign('envelope'
 CASES.push({ name: 'folder-card', make: () => templateDesign('folder', MATERIALS[0]) });
 CASES.push({ name: 'card-holder-card', make: () => templateDesign('cardHolder', MATERIALS[0]) });
 CASES.push({ name: 'hex-box-card', make: () => templateDesign('box', MATERIALS[0], { shape: 'poly', sides: 6, lid: 'hinged', width: 120, depth: 120, height: 60 }) });
+// milestone 123: free boards with seam folds and glue, at 90°, 120°, about 55° and 150°
+CASES.push({ name: 'seam-cube-card', make: () => foldedSolid(boxSolid(60, 60, 60)) });
+CASES.push({ name: 'seam-hexprism-card', make: () => foldedSolid(prismSolid(6, 40, 60)) });
+CASES.push({ name: 'seam-pyramid-card', make: () => foldedSolid(pyramidSolid(4, 40 * Math.SQRT2, 60)) });
+CASES.push({ name: 'seam-tube12-card', make: () => foldedSolid(prismSolid(12, 40, 60)) });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);

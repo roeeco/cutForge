@@ -614,3 +614,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Outcomes made of boards register no piece hooks**: `buildPieces` and `validate` fall through to the boards, so the cut plan, the checks and the export need nothing new.
 - **The sculpture keeps the top bar's 3D / Cut plan tabs**; the level switch is hidden on a sculpture (as on PR #6).
 - **`.wasm` is typed by the Worker** (`wasmTyped`) as well as by the static assets, so the kernel streams in every deployment.
+
+## Milestone 123 (Shapes R4): free boards and seam folds
+- **A seam fold is a tray corner made a fold** (`hingeOf` its child) with its own fit (`seamFit`, 5°–355° except 175–185°), not a new kind of fold: the net, the fold view and the cut plan already handled those.
+- **A seam fold is never cut back.** A tray's hinged wall was one; a made model's two faces are one creased board, so the crease's place takes up the thickness and the two outlines overlap by it in the net (their union is the piece).
+- **Free boards lie material side up** (side 1), as every board the app makes, so seam creases are scored, not perforated. Edges keep their names (`e<i>` as given) when the points are stored the other way round.
+- **A seam's kind belongs to its maker**: `solve` does not re-fit it and `autoConnect` leaves it alone (`auto: false`). R6's chooser sets it.
+- **The face graph's builders came forward from R3** (`src/model/polyhedron.ts`): pairing by vertex index, runs of collinear edges with one neighbour joined (their middle points dropped from both faces), no T-junction splitting (a manifold mesh has none).
+- **Face keys numbered with `*`** when one name covers two faces (never `~`, which marks a wall set's member in a board id).

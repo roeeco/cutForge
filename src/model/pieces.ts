@@ -14,6 +14,7 @@ import { v3dot, v3sub } from '../geom/v3';
 import { findEdge, segInward } from './edges';
 import { foldLay } from './crease';
 import { cornerDepths, cornerFit } from './seams';
+import { seamFit } from './seamFold';
 import { cleanPolygon, detailContours, panelExtras, panelNotches, panelOutlines } from './geometry';
 import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
@@ -102,7 +103,7 @@ export function netFolds(d: Design): NetFold[] {
     } else if (c.hingeOf) {
       const child = c.hingeOf, parent = child === c.a.panelId ? c.b.panelId : c.a.panelId;
       const pe = child === c.a.panelId ? c.b.edge : c.a.edge, ce = child === c.a.panelId ? c.a.edge : c.b.edge;
-      out.push({ id: c.id, parent, child, xf: (dd) => cornerFoldXform(dd, parent, pe, child, ce) });
+      out.push({ id: c.id, parent, child, xf: (dd) => cornerFoldXform(dd, parent, pe, child, ce, !!c.seam) });
     }
   }
   return out;
@@ -114,9 +115,10 @@ export function netFolds(d: Design): NetFold[] {
  * from it, the child beyond it (its edge cut back by the corner, so its
  * material starts at the allowance).
  */
-export function cornerFoldXform(d: Design, parentId: string, pe: string, childId: string, ce: string): Xform2 | null {
+export function cornerFoldXform(d: Design, parentId: string, pe: string, childId: string, ce: string, seam = false): Xform2 | null {
   const P = d.panels[parentId], C = d.panels[childId];
-  const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+  // a made model's seam fold (milestone 123): any dihedral, the same unfolding
+  const fit = P && C ? (seam ? seamFit(P, pe, C, ce) : cornerFit(P, pe, C, ce, 1e-6)) : null;
   if (!P || !C || !fit) return null;
   const [aP, bP] = edgeLocal(P, pe), [aC, bC] = edgeLocal(C, ce);
   const lp = Math.hypot(bP.x - aP.x, bP.y - aP.y), lc = Math.hypot(bC.x - aC.x, bC.y - aC.y);
@@ -252,7 +254,7 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
     pe = child === c.a.panelId ? c.b.edge : c.a.edge;
     const ce = child === c.a.panelId ? c.a.edge : c.b.edge;
     const P = d.panels[parentId], C = child ? d.panels[child] : undefined;
-    const fit = P && C ? cornerFit(P, pe, C, ce, 1e-6) : null;
+    const fit = P && C ? (c.seam ? seamFit(P, pe, C, ce) : cornerFit(P, pe, C, ce, 1e-6)) : null;
     if (!P || !fit) return null;
     const [A0, B0] = edgeLocal(P, pe);
     const l = Math.hypot(B0.x - A0.x, B0.y - A0.y), ux = (B0.x - A0.x) / l, uy = (B0.y - A0.y) / l;
@@ -283,7 +285,8 @@ export function foldBand(d: Design, c: Connection): FoldStrip | null {
   // the score on the crease, the strip only where the child's material starts out from the edge (a fold allowance)
   const ce = c.grown ? c.b.edge : child === c.a.panelId ? c.a.edge : c.b.edge;
   const lay = C ? foldLay(d, P, pe, C, ce) : { a: 0, score: 0 };
-  const cut = !c.grown && C ? cornerDepths(tOf(d, parentId), cornerFit(P, pe, C, ce, 1e-6)!, tOf(d, child)).depth : 0;
+  // a seam fold is never cut back: its crease takes up the thickness (milestone 123)
+  const cut = c.seam ? 0 : !c.grown && C ? cornerDepths(tOf(d, parentId), cornerFit(P, pe, C, ce, 1e-6)!, tOf(d, child)).depth : 0;
   const start = lay.a + cut;
   // both run only along the stretch the child's material attaches (a wall cut back at a corner stops short of it)
   if (c.grown && C) [A, B] = childStretch(d, P, pe, C, ce, A, B);
@@ -515,6 +518,18 @@ const mbox = (m: MultiPolygon) => {
   return { x0, y0, x1, y1 };
 };
 
+/** The area two boards joined by a seam fold share along it in the flat net (milestone 123), or 0. */
+function seamStrip(d: Design, a: string, b: string): number {
+  let s = 0;
+  for (const c of Object.values(d.connections)) {
+    if (!c.seam || c.kind !== 'fold' || !((c.a.panelId === a && c.b.panelId === b) || (c.a.panelId === b && c.b.panelId === a))) continue;
+    const P = d.panels[c.a.panelId], C = d.panels[c.b.panelId];
+    const f = seamFit(P, c.a.edge, C, c.b.edge);
+    if (f) s += (f.s1 - f.s0) * (Math.abs(foldLay(d, P, c.a.edge, C, c.b.edge).a) + 0.01);
+  }
+  return s;
+}
+
 /**
  * Panels of a fold net that overlap when it lies flat (milestone 35): each
  * panel flattened with its additions, intersected pair by pair. Overlaps of
@@ -536,7 +551,9 @@ export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => bool
         } catch {
           continue;
         }
-        const area = multiArea(r);
+        let area = multiArea(r);
+        // two boards of a seam fold share the crease's strip, as wide as the fold takes up: that is one board, not an overlap
+        area -= seamStrip(d, flats[i].id, flats[j].id);
         if (area >= min) out.push({ a: flats[i].id, b: flats[j].id, area, region: r.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y }))), net: g[0].panelId });
       }
   }

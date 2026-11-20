@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Connection, Design, Flap3d } from '../model/types';
 import { edgeWorld, frameNormal, matDir, toWorld } from '../model/frame';
 import { cornerFit, inwardWorld } from '../model/seams';
+import { seamFit } from '../model/seamFold';
 import { findEdge } from '../model/edges';
 import { tOf } from '../model/materials';
 import { bandChildMove, bandOf, type Band } from '../model/bands';
@@ -120,12 +121,15 @@ function hingeMatrix(d: Design, c: Connection, id: string, foldT: number, visit:
   const stay = childA ? c.b : c.a, me = childA ? c.a : c.b;
   const S = d.panels[stay.panelId], C = d.panels[id];
   if (!S || !C || !findEdge(S, stay.edge) || !findEdge(C, me.edge)) return null;
-  const fit = cornerFit(S, stay.edge, C, me.edge, 1e-6);
+  // a made model's seam fold (milestone 123) at any dihedral
+  const sf = c.seam ? seamFit(S, stay.edge, C, me.edge) : null;
+  const fit = c.seam ? sf : cornerFit(S, stay.edge, C, me.edge, 1e-6);
   if (!fit) return null;
   const m = visit(stay.panelId).clone();
-  const alpha = Math.atan2(fit.sin, fit.cos);
+  // a seam past 180° (an inside corner) turns the other way: its dihedral, not atan2's
+  const alpha = sf ? (sf.dihedral * Math.PI) / 180 : Math.atan2(fit.sin, fit.cos);
   const psi = (Math.PI - alpha) * (1 - foldT);
-  if (psi < 1e-6) return m;
+  if (Math.abs(psi) < 1e-6) return m;
   const [a, b] = edgeWorld(S, stay.edge);
   const pivot = new THREE.Vector3(...a);
   const axis = new THREE.Vector3(...b).sub(pivot).normalize();

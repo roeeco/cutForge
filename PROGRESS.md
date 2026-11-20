@@ -2000,6 +2000,25 @@ Limitations
 - `sculptscale`'s percent test was cut to this branch's `evalNumber` (milestone 97 reads a percent only as the whole entry; `50%+5` is not read).
 - The shape stage's cards and the sketch view keep the waffle branch's look; R2 and R13 change the workplane.
 
+## Milestone 123 (Shapes R4) — free boards and seam folds in the engine ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R4 (§4.3). New `src/model/seamFold.ts` (`seamFit`, `seamGlue`), `src/model/seamNet.ts` (`addSeamNet`), `src/model/polyhedron.ts` (the face graph's types and builders, written now because R4's solids need them; R3 adds the kernel bridge); `addFreePanel` in `src/model/ops.ts`; `Panel.src`, `Connection.seam` and `Connection.src` (optional, checked on load, no schema bump).
+- **Free boards** (E1, E5): `addFreePanel` puts a polygon on any plane, **material side up** (v turned round when the material lies against u × v), so its creases are scored on the face that ends up inside, as every board the app makes. Edge *i* of the outline as given is always `e<i>`, even when the points are stored in the other order. Holes become cut-out shapes.
+- **Seam folds** (E2): a fold between two free boards whose edges lie on one line, at **any dihedral from 5° to 355°** (175–185° are one plane). It is a tray corner made a fold (`hingeOf` its child), with `seamFit` in place of `cornerFit` in `cornerFoldXform`, `foldBand` and the fold view's hinge (which now turns past 180° the right way for an inside corner). **Nothing is cut back**: the crease's place (`foldLay`, the overhaul's rule) takes up the thickness. Valley or mountain from the dihedral's side.
+- **Seam glue and slit locks at any angle** (E4): a tapered flap on the owner's edge, scored, folded onto the receiver's inside face; recorded for the fold view as tray corners' flaps are. A slit lock is made from it by the existing `slitLock`.
+- **`solve` never re-fits a seam's kind** (the maker chose it), and seams are `auto: false`, so `autoConnect` after an edit neither removes nor adds one.
+- `netOverlaps` leaves out the strip two boards of a seam fold share along their crease (one board, counted twice).
+- `addSeamNet(d, polyhedron, plan)`: a board per face, seam folds along the plan's fold tree (walked from each island's first face), glue (or `plan.seam`'s kind) on every other edge, ids from keys (`f:<face>`, `s:<edge>`).
+
+Verified
+- `tests/seamfold.test.ts` (25), on hand-written solids (`tests/solids.ts`: a box, prisms, a pyramid, a diamond, an L-prism, a house): the face graphs are closed with the expected angles (90°, 120°, about 56° and 108°, 150°, one 270°); a cube, a hexagonal prism, a square pyramid and a 12-sided tube each fold into one piece with no overlap, every seam laid out; at fold 1 the fold view is where the boards are, at 0 they lie in one plane; every glue flap is drawn folded with the area it has in the net; the cube's flaps lie on their receivers' inside faces, inside their outlines; slit locks on a cube, the tube and the pyramid have their tongues and slits; `autoConnect` changes no seam; boards and seams survive a save and load.
+- **Four new goldens**: `seam-cube-card`, `seam-hexprism-card`, `seam-pyramid-card`, `seam-tube12-card` (the tube's net does not fit the card sheet, so milestone 69 cuts its top off with flaps). Every old golden byte-identical. Unit suite and typecheck green.
+
+Limitations
+- Neighbouring boards at a shared corner overlap by under 1 mm² in the flat net (the crease strips meet there); cut as one outline it only stops a V-gap short of its corner. The tests take 1 mm² as their floor for seam nets.
+- Edges on a face's holes are left unjoined (openings, 130). The goldens' nets are a simple breadth-first tree; the unfolder (124) chooses real ones.
+- The seam flap's depth and taper are R6's to choose; for now 8–15 mm by thickness, at most a third of the seam, tapered at 45°.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
