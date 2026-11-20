@@ -159,7 +159,7 @@ The plans name their milestones by letter; **this table is the only place that n
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-**Status (20 November):** 92–114 and 116 built, C1–C5, and 119 (the shapes plan's spike) (see `PROGRESS.md`); next: 120 (R1), then 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
+**Status (20 November):** 92–114 and 116 built, C1–C5, 119 (the shapes plan's spike) and 120 (R1) (see `PROGRESS.md`); next: the rest of 121–133, then 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
 
 **Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
 

@@ -184,7 +184,25 @@ function dropMicro(pts: P2[]): P2[] {
   return out;
 }
 
+/**
+ * Sculpture designs (milestone 120, ported from `claude/guided-mode`'s milestones 51 and 60):
+ * an outcome whose parts are not the design's boards (the waffle's slices, when it joins)
+ * registers its hooks here when its code loads, so box designs never load the shape kernel.
+ * An outcome made into ordinary panels and connections (*Fold it*, *Build from boards*)
+ * registers none: its pieces are the boards'. `partOf` names the part a piece key belongs to.
+ */
+export type OutcomeHooks = { thumb?: (d: Design) => string | null; checks?: (d: Design) => import('./validate').Issue[]; pieces: (d: Design) => Piece[]; partOf?: (d: Design, pieceKey: string) => { group: string; id: string; label: string } | null };
+const outcomeHooksById = new Map<string, OutcomeHooks>();
+export function registerOutcome(id: string, h: OutcomeHooks) {
+  outcomeHooksById.set(id, h);
+}
+/** The hooks of a design's outcome, or null (no outcome yet, an outcome made of boards, or hooks not loaded). */
+export const outcomeHooks = (d: Pick<Design, 'outcome'>): OutcomeHooks | null => (d.outcome ? outcomeHooksById.get(d.outcome) ?? null : null);
+
 export function buildPieces(d: Design): Piece[] {
+  // a sculpture with its own hooks cuts what they make; otherwise its boards (none before Make)
+  const h = d.kind === 'waffle' ? outcomeHooks(d) : null;
+  if (h) return h.pieces(d);
   return netGroups(d).flatMap((g) => groupPieces(d, g));
 }
 

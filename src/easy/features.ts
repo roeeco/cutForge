@@ -102,6 +102,8 @@ export const FEATURES = {
   'start.cards': 'show',
   /** The material drawer's *More boards…* and its board grades (116). */
   'drawer.grades': 'hide',
+  /** The welcome screen's *Shapes* (a sculpture design: the shape stage, *Fold it*, *Build from boards*; 120). */
+  'start.shapes': 'hide',
   /** The cut plan's *Sheets · Nets* switch, the Net view and its edge picking (113). */
   'plan.nets': 'hide',
   /** Building in *Nets*: the ghost, its height handle and ✓, the flap and board handles (114). */
@@ -208,6 +210,7 @@ export const GUIDED = {
   'flap.shape': 'hide',
   'start.cards': 'hide',
   'drawer.grades': 'hide',
+  'start.shapes': 'hide',
   'plan.nets': 'hide',
   'net.build': 'hide',
   match: 'hide',
@@ -284,6 +287,11 @@ export const SECTIONS: Record<string, Feature | null> = {
   'edge-flap': 'edgeFlap',
   'flap-shape': 'flap.shape',
   'drawer-grades': 'drawer.grades',
+  // milestone 120: the shape stage's cards (a sculpture design; Workshop only, by 'start.shapes')
+  'sculpt-combine-section': null,
+  'sketch-plane-section': null,
+  'sketch-bar': null,
+  'sketch-tool-help': null,
   // milestone 104: the outline being edited in the 2D view
   'edit2d-section': 'edit2d',
   // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)

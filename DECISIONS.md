@@ -606,3 +606,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Kerf by √(t / t₀)** from the nearest classroom board, rounded to 0.05 mm; clearance as that board's (plywood 0.1); fold allowance 0. Greyboard's bend: smooth radius 20t, pattern radius 6t (starting values, unverified).
 - **Hidden in Quick build and Guided** (`'drawer.grades'`); the welcome screen's step 1 keeps the four classroom materials.
 - **B flute 3 mm makes cartons with shipping flaps** (C2's rule for corrugated up to 4 mm), not none as the handoff's test list assumed.
+
+## Milestone 120 (Shapes R1): the port
+- **From `claude/guided-mode` at `e450c6b`**, which has the commit after PR #6 (`claude/waffle-mode` on the remote lacks it), by path.
+- **Absent `outcome` is *not made yet***, not the waffle: a waffle file from PR #6 opens here as shapes, its `waffle` field kept for when the waffle joins.
+- **The one-click buttons live on the stage bar** in the top bar, beside *1 Shape*, in place of *2 Waffle*; there is no *2 Make* step to pass through. A made outcome's button shows it pressed and goes back to it.
+- **Outcomes made of boards register no piece hooks**: `buildPieces` and `validate` fall through to the boards, so the cut plan, the checks and the export need nothing new.
+- **The sculpture keeps the top bar's 3D / Cut plan tabs**; the level switch is hidden on a sculpture (as on PR #6).
+- **`.wasm` is typed by the Worker** (`wasmTyped`) as well as by the static assets, so the kernel streams in every deployment.

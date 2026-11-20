@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { quickGuard, type GuardNote } from '../easy/guard';
 import { keepsCuttable, type Mode } from '../easy/features';
 import { produce, type Draft } from 'immer';
-import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, MaterialProfile, WallSketch } from '../model/types';
+import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, MaterialProfile, SketchGraph, V3, WallSketch } from '../model/types';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -15,6 +15,9 @@ import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
 import { fromHinge } from '../model/hinge';
+import { isSculpture, type Heights } from '../sculpt/ops';
+import type { SketchPlane } from '../sculpt/sketch';
+import { draftOf, finishBlock, planeFrame, shapeFrame, writeSketch } from '../sculpt/session';
 
 export type Selection =
   /** `ids`: every selected panel (milestone 31), `id` the last clicked; absent: just `id`. */
@@ -22,6 +25,8 @@ export type Selection =
   | { kind: 'edge'; panelId: string; edge: string }
   /** One or more shapes; `id` is the primary (last clicked), `ids` all of them. */
   | { kind: 'detail'; id: string; ids: string[] }
+  /** Sculpture designs (milestone 120): one or more 3D shapes; `id` is the last clicked. */
+  | { kind: 'shape'; id: string; ids: string[] }
   | null;
 
 /** Ids of the selected shapes (empty when none). */
@@ -29,7 +34,10 @@ export function selectedDetailIds(s: Selection): string[] {
   return s?.kind === 'detail' ? s.ids : [];
 }
 /** What clicking an export-check message selects: the shape, the panel, or both panels of a joint message. */
-export function issueSelection(i: { target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }): Selection {
+export function issueSelection(i: { target: { kind: 'panel' | 'detail' | 'shape' | 'none'; id: string }; pair?: [string, string] }): Selection {
+  // a sculpture's checks select a shape, or nothing
+  if (i.target.kind === 'shape') return { kind: 'shape', id: i.target.id, ids: [i.target.id] };
+  if (i.target.kind === 'none') return null;
   if (i.target.kind === 'detail') return { kind: 'detail', id: i.target.id, ids: [i.target.id] };
   if (i.pair) return { kind: 'panel', id: i.pair[0], ids: [i.pair[0], i.pair[1]] };
   return { kind: 'panel', id: i.target.id };
@@ -51,9 +59,18 @@ export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular' | 
 /** Tools the Shapes tool drives: a footprint drawn as a board or as a shape on one. */
 export const SHAPE_DRAW_TOOLS = new Set<string>(['panel', 'rect', 'roundrect', 'circle', 'polygon']);
 
-export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool;
+export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool | SculptTool;
+/** Sculpture designs' tools (milestone 120): place shapes, sketch an outline, round corners. */
+export type SculptTool = 'shapes' | 'sketch' | 'radius';
+/** Ids of the selected 3D shapes (empty when none). */
+export function selectedShapeIds(s: Selection): string[] {
+  return s?.kind === 'shape' ? s.ids : [];
+}
+export function shapeSel(ids: string[]): Selection {
+  return ids.length ? { kind: 'shape', id: ids[ids.length - 1], ids } : null;
+}
 /** Tools that work on the 3D stage only. */
-const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider']);
+const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider', 'shapes', 'sketch', 'radius']);
 /** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
 export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
@@ -76,7 +93,39 @@ export type PanelGhost = {
   /** The pointer is still down (drawing); Quick build's Divider then waits for ✓. */
   drawing: boolean;
 };
-export type View = '3d' | '2d' | 'solo';
+export type View = '3d' | '2d' | 'solo' | 'sketch';
+
+/** The 2D sketcher's tools (SKETCH_OVERHAUL.md §6.2 on `claude/guided-mode`). */
+export type SkTool = 'select' | 'line' | 'arc' | 'smooth' | 'bezier' | 'points' | 'erase' | 'tape';
+/** What is selected in the sketch view: points, segments, and maybe one curve handle (a Bezier's end). */
+export type SkSelection = { pts: string[]; segs: string[]; handle?: { seg: string; end: 'a' | 'b' } };
+/** A sketch being drawn or edited in the 2D sketch view; the design is changed only by Finish. */
+export type SketchSession = {
+  /** The shape being edited, or null for a new one. */
+  shapeId: string | null;
+  plane: SketchPlane;
+  /** The sketch's local → world matrix, and whether it is a rigid move. */
+  M: number[];
+  rigid: boolean;
+  mode: 'extrude' | 'revolve';
+  draft: SketchGraph;
+  /** The draft when the session opened (for Cancel's question). */
+  start: SketchGraph;
+  past: SketchGraph[];
+  future: SketchGraph[];
+  /** The draft before a gesture's previews (like the design's txnBase). */
+  txn: SketchGraph | null;
+  sel: SkSelection;
+  tool: SkTool;
+  /** New lines are construction lines. */
+  cons: boolean;
+  /** Show measurements. */
+  dims: boolean;
+  /** The group new shapes go into. */
+  into: string | null;
+};
+/** The sketch view's own undo history holds this many steps. */
+const SKETCH_HISTORY = 200;
 
 /** Grow card settings. `angle` is the hinge angle, 0–360° (see src/model/hinge.ts). */
 export type GrowOptions = {
@@ -99,7 +148,7 @@ export type GrowOptions = {
 export type CloseAs = 'liftoff' | 'hinged' | 'fixed' | `style:${ClosureStyle}`;
 
 /** A just-made thing waiting for ✓: what it is, and the design and history from before it was made. */
-export type Pending = { kind: 'shape' | 'panel'; ids: string[]; panelId: string; base: Design; pastLen: number };
+export type Pending = { kind: 'shape' | 'panel' | 'sculpt'; ids: string[]; panelId: string; base: Design; pastLen: number };
 
 /** The design autosave writes (milestone 92): while a draft waits for ✓, the design from before it, so a reload never keeps an unconfirmed draft. */
 export function designToSave(s: { design: Design; pending: Pending | null }): Design {
@@ -114,6 +163,8 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
 function guarded(d: Design, base: Design) {
+  // a sculpture before Make has no boards to solve or join (milestone 120)
+  if (isSculpture(d) && !d.outcome) return;
   if (!keepsCuttable(useStore.getState().viewPrefs.mode)) {
     solve(d);
     autoConnect(d);
@@ -142,6 +193,8 @@ export type ViewPrefs = {
   gridStep: number;
   /** Turn step (degrees) for the gizmo ring and the cut plan's turn knob. */
   turnStep: number;
+  /** The shape stage's camera frames what is selected (on unless set to false). */
+  follow?: boolean;
   /** Open sections of the settings card, as last left by this viewer; absent: the defaults (see DesignSettings). */
   sections?: Partial<Record<SettingsSection, boolean>>;
   /** Guided, Quick build or Workshop (milestones 37, 105): a viewer preference, never part of the design. */
@@ -227,8 +280,53 @@ export function tourDone(): boolean {
   }
 }
 
+/** Sculpture designs' editor state (milestone 120): not saved with the design. */
+export type SculptUi = {
+  /** The stage: 1 Shape, or 2 Make (what the design's outcome makes). */
+  stage: 'shape' | 'make';
+  /** The Shapes tool's next shape, and whether it is a Hole. */
+  next: 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus';
+  nextHole: boolean;
+  /** A shape being dragged from its tile onto the stage, or null. */
+  dragKind: SculptUi['next'] | null;
+  /** The heights new shapes start at, by kind (the last one confirmed); empty the first time. */
+  heights: Heights;
+  /** Which handles the selected shapes show: move (arrows), turn (rings) or size (the scale frame). */
+  xform: 'move' | 'turn' | 'size';
+  /** The group being worked inside (double-click), or null. */
+  focus: string | null;
+  /** The kernel has loaded. */
+  ready: boolean;
+  /** The kernel failed to load. */
+  failed: boolean;
+  /** The sketch tool's plane. */
+  plane: { kind: 'floor' } | { kind: 'upright'; o: V3; ang: number };
+};
+
 type State = {
   design: Design;
+  sculpt: SculptUi;
+  /** The 2D sketch view's session, or null. */
+  sketch: SketchSession | null;
+  /** Open the sketch view on a shape's sketch, or on the sketch tool's plane for a new one. */
+  openSketch: (shapeId: string | null) => void;
+  /** Edit the draft (immer): one step of the sketch's own history, or with `preview` a step of a gesture (see sketchCommit). */
+  sketchEdit: (fn: (sk: Draft<SketchGraph>) => unknown, opts?: { preview?: boolean }) => boolean;
+  sketchCommit: () => void;
+  sketchCancelGesture: () => void;
+  sketchUndo: () => void;
+  sketchRedo: () => void;
+  /** Change the session's view state (tool, selection, mode, construction, measurements). */
+  setSketch: (p: Partial<Pick<SketchSession, 'tool' | 'sel' | 'mode' | 'cons' | 'dims'>>) => void;
+  /** Write the draft into the design (one undo step) and go back to 3D; false when it cannot be built. */
+  finishSketch: () => boolean;
+  /** Close the session without changing the design. */
+  cancelSketch: () => void;
+  /** The radius tool's radius (mm; 0 = sharp), also used by Round all corners. */
+  sculptRadius: number;
+  /** An outcome's assembly steps view: the step shown (0-based), or null. View only. */
+  steps: number | null;
+  setSculpt: (p: Partial<SculptUi>) => void;
   past: Design[];
   future: Design[];
   /** Design at the start of an open transaction (drag in progress). */
@@ -360,6 +458,8 @@ type State = {
   closeSolo: () => void;
   /** Click on a shape: replace the selection, or toggle it with Shift/Ctrl. */
   clickDetail: (id: string, additive: boolean) => void;
+  /** Click on a 3D shape: select it, or toggle it with Shift/Ctrl. */
+  clickShape: (id: string, additive: boolean) => void;
   /** Click on a panel: select it, or (Shift/Ctrl) add it to or take it from the selected panels (milestone 31). */
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
@@ -410,12 +510,93 @@ function validSelection(d: Design, s: Selection): Selection {
   if (!s) return s;
   if (s.kind === 'panel') return panelSel(selectedPanelIds(s).filter((id) => d.panels[id]));
   if (s.kind === 'edge') return d.panels[s.panelId] ? s : null;
+  if (s.kind === 'shape') return shapeSel(s.ids.filter((id) => !!d.sculpt?.shapes[id]));
   const ids = s.ids.filter((x) => d.order.some((id) => d.panels[id]?.details.some((y) => y.id === x)));
   return detailSel(ids);
 }
 
 export const useStore = create<State>()((set, get) => ({
   design: createDesign(),
+  sculpt: { stage: 'shape', xform: 'move', next: 'box', nextHole: false, dragKind: null, heights: {}, focus: null, ready: false, failed: false, plane: { kind: 'floor' } },
+  sculptRadius: 5,
+  sketch: null,
+  openSketch: (shapeId) => {
+    const st = get();
+    const sc = st.design.sculpt;
+    const s = shapeId ? sc?.shapes[shapeId] : null;
+    if (shapeId && !s?.sketch) return;
+    st.cancelPending();
+    if (st.txnBase) st.commit();
+    const fr = s && sc ? shapeFrame(sc, shapeId!)! : planeFrame(st.sculpt.plane);
+    const draft: SketchGraph = s ? draftOf(s) : { pts: {}, segs: {}, order: [] };
+    const mode = s?.kind === 'revolve' ? 'revolve' : 'extrude';
+    set({
+      sketch: { shapeId, plane: fr.plane, M: fr.M, rigid: fr.rigid, mode, draft, start: draft, past: [], future: [], txn: null, sel: { pts: [], segs: [] }, tool: s ? 'select' : 'line', cons: false, dims: true, into: st.sculpt.focus },
+      view: 'sketch',
+      prevView: '3d',
+    });
+  },
+  sketchEdit: (fn, opts) => {
+    const k = get().sketch;
+    if (!k) return false;
+    let ok = true;
+    if (opts?.preview) {
+      const base = k.txn ?? k.draft;
+      const next = produce(base, (x) => void (ok = fn(x) !== false));
+      set({ sketch: { ...k, txn: base, draft: ok ? next : base } });
+      return ok;
+    }
+    const base = k.txn ? (get().sketchCommit(), get().sketch!) : k;
+    const next = produce(base.draft, (x) => void (ok = fn(x) !== false));
+    if (!ok || next === base.draft) return ok;
+    set({ sketch: { ...base, draft: next, past: [...base.past, base.draft].slice(-SKETCH_HISTORY), future: [], sel: liveSel(next, base.sel) } });
+    return true;
+  },
+  sketchCommit: () => {
+    const k = get().sketch;
+    if (!k?.txn) return;
+    if (k.txn === k.draft) return set({ sketch: { ...k, txn: null } });
+    set({ sketch: { ...k, txn: null, past: [...k.past, k.txn].slice(-SKETCH_HISTORY), future: [], sel: liveSel(k.draft, k.sel) } });
+  },
+  sketchCancelGesture: () => {
+    const k = get().sketch;
+    if (k?.txn) set({ sketch: { ...k, draft: k.txn, txn: null } });
+  },
+  sketchUndo: () => {
+    const k = get().sketch;
+    if (!k) return;
+    if (k.txn) return get().sketchCancelGesture();
+    if (!k.past.length) return;
+    const prev = k.past[k.past.length - 1];
+    set({ sketch: { ...k, draft: prev, past: k.past.slice(0, -1), future: [k.draft, ...k.future], sel: liveSel(prev, k.sel) } });
+  },
+  sketchRedo: () => {
+    const k = get().sketch;
+    if (!k?.future.length) return;
+    const next = k.future[0];
+    set({ sketch: { ...k, draft: next, past: [...k.past, k.draft], future: k.future.slice(1), sel: liveSel(next, k.sel) } });
+  },
+  setSketch: (p) => {
+    const k = get().sketch;
+    if (k) set({ sketch: { ...k, ...p } });
+  },
+  finishSketch: () => {
+    const st = get();
+    const k = st.sketch;
+    if (!k) return false;
+    if (k.txn) st.sketchCommit();
+    const shape = k.shapeId ? st.design.sculpt?.shapes[k.shapeId] : null;
+    if (finishBlock(k.draft, k.mode, shape)) return false;
+    let id = '';
+    st.apply((d) => void (id = writeSketch(d as Design, { shapeId: k.shapeId, plane: k.plane, mode: k.mode, draft: k.draft, heights: st.sculpt.heights, into: k.into })));
+    set({ sketch: null, view: '3d', tool: 'select' });
+    if (id) get().select({ kind: 'shape', id, ids: [id] });
+    return true;
+  },
+  cancelSketch: () => set({ sketch: null, view: get().view === 'sketch' ? '3d' : get().view }),
+  steps: null,
+  // a stage change closes the assembly steps view and the sketch view
+  setSculpt: (p) => set({ sculpt: { ...get().sculpt, ...p }, ...(p.stage ? { steps: null } : {}), ...(p.stage && get().sketch ? { sketch: null, view: get().view === 'sketch' ? '3d' : get().view } : {}) }),
   past: [],
   future: [],
   txnBase: null,
@@ -603,6 +784,8 @@ export const useStore = create<State>()((set, get) => ({
     if (txnBase) set({ design: txnBase, txnBase: null });
   },
   undo: () => {
+    // the design's undo leaves the sketch view (its own undo is sketchUndo)
+    if (get().sketch) set({ sketch: null, view: get().view === 'sketch' ? '3d' : get().view });
     if (get().pending) return get().cancelPending();
     const { past, future, design, txnBase } = get();
     if (txnBase) return get().cancel();
@@ -616,10 +799,10 @@ export const useStore = create<State>()((set, get) => ({
     const next = future[0];
     set({ design: next, past: [...past, design], future: future.slice(1), selection: validSelection(next, get().selection) });
   },
-  replaceDesign: (d, needsMaterial = false) => set({ design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view, soloPanel: null, foldT: 1, openJoint: null }),
+  replaceDesign: (d, needsMaterial = false) => set({ sculpt: { ...get().sculpt, stage: 'shape', focus: null, dragKind: null, heights: {} }, sketch: null, steps: null, ...(get().tool === 'shapes' || get().tool === 'sketch' || get().tool === 'radius' ? { tool: 'select' as Tool } : {}), design: d, past: [], future: [], txnBase: null, selection: null, guidedStep: 'build', guidedSpace: null, guidedNote: null, panelGhost: null, pending: null, edit2d: null, sel2d: null, needsMaterial, view: get().view === 'solo' ? get().prevView : get().view === 'sketch' ? '3d' : get().view, soloPanel: null, foldT: 1, openJoint: null }),
   select: (s) => {
     const g = get().pending;
-    if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
+    if (g && !(s && ((s.kind === 'detail' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'shape' && s.ids.every((x) => g.ids.includes(x))) || (s.kind === 'panel' && g.ids.includes(s.id))))) get().cancelPending();
     set({ selection: validSelection(get().design, s), openJoint: null, panelGhost: null, ...(s?.kind === 'edge' ? {} : { spanPick: null }), ...(s?.kind === 'edge' && !(get().selection?.kind === 'edge' && (get().selection as { panelId: string }).panelId === s.panelId && (get().selection as { edge: string }).edge === s.edge) ? { grow: { ...get().grow, span: null, sketch: null, editGhost: false, ...(get().viewPrefs.mode === 'quick' ? QUICK_GROW : {}) } } : {}), ...(s?.kind === 'panel' && s.id === get().extrude?.baseId ? {} : { extrude: null }), ...(s?.kind === 'panel' && s.id === get().editOutline ? {} : get().viewPrefs.outlineMode && s?.kind === 'panel' && !s.ids?.length && !outlineWhy(get().design, s.id) ? { editOutline: s.id, selVertex: null } : { editOutline: null, selVertex: null }) });
   },
   setTool: (t) => {
@@ -647,16 +830,21 @@ export const useStore = create<State>()((set, get) => ({
     if (b) return f === 'rect' ? get().setTool('panel') : poly(f === 'rounded' ? 'rounded' : 'round');
     get().setTool(f === 'rect' ? 'rect' : f === 'rounded' ? 'roundrect' : 'circle');
   },
-  setView: (v) => set({ view: v, tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
+  setView: (v) => set({ view: v, ...(v !== 'sketch' && get().sketch ? { sketch: null } : {}), tool: v !== '3d' && ONLY_3D.has(get().tool) ? 'select' : get().tool, soloPanel: v === 'solo' ? get().soloPanel : null }),
   openSolo: (panelId) => {
     const cur = get().view;
-    set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' ? get().prevView : cur, tool: ONLY_3D.has(get().tool) ? 'select' : get().tool });
+    set({ view: 'solo', soloPanel: panelId, prevView: cur === 'solo' || cur === 'sketch' ? get().prevView : cur, tool: ONLY_3D.has(get().tool) ? 'select' : get().tool });
   },
   closeSolo: () => set({ view: get().prevView, soloPanel: null, edit2d: null, sel2d: null }),
   clickPanel: (id, additive) => {
     const cur = selectedPanelIds(get().selection);
     if (!additive) return get().select({ kind: 'panel', id });
     get().select(panelSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  },
+  clickShape: (id, additive) => {
+    const cur = selectedShapeIds(get().selection);
+    if (!additive) return get().select(shapeSel([id]));
+    get().select(shapeSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   },
   clickDetail: (id, additive) => {
     const cur = selectedDetailIds(get().selection);
@@ -698,6 +886,13 @@ export const useStore = create<State>()((set, get) => ({
     if (cur !== mode) set({ polyMode: mode });
   },
 }));
+
+/** A sketch selection with only what still exists in the draft. */
+function liveSel(sk: SketchGraph, sel: SkSelection): SkSelection {
+  const pts = sel.pts.filter((p) => sk.pts[p]), segs = sel.segs.filter((g) => sk.segs[g]);
+  const handle = sel.handle && sk.segs[sel.handle.seg]?.k === 'bez' ? sel.handle : undefined;
+  return pts.length === sel.pts.length && segs.length === sel.segs.length && handle === sel.handle ? sel : { pts, segs, ...(handle ? { handle } : {}) };
+}
 
 /** Connection the grow card will use: the chosen one if this angle allows it. */
 /** Smart snapping is off for this drag: Alt is held, or it is turned off in the settings. */

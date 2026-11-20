@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import worker, { LIMITS } from './index';
+import worker, { LIMITS, wasmTyped } from './index';
 import { testEnv } from './testenv';
 import { addRootPanel, createDesign, growPanel } from '../src/model/ops';
 import { serializeProject } from '../src/model/serialize';
@@ -168,5 +168,14 @@ describe('site password', () => {
     expect((await raw(env, '/', { cookie: 'cf_site=99999999999999.abc' })).status).toBe(401);
     env.SITE_PASSWORD = 'new-pass';
     expect((await raw(env, '/', { cookie })).status).toBe(401);
+  });
+});
+
+describe('the shape kernel', () => {
+  it('serves its WASM as application/wasm (milestone 120)', () => {
+    const r = wasmTyped(new URL('https://x/assets/manifold-abc.wasm'), new Response('x', { headers: { 'content-type': 'application/octet-stream' } }));
+    expect(r.headers.get('content-type')).toBe('application/wasm');
+    const js = new Response('x', { headers: { 'content-type': 'text/javascript' } });
+    expect(wasmTyped(new URL('https://x/assets/a.js'), js)).toBe(js);
   });
 });

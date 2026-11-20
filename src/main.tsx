@@ -27,6 +27,8 @@ if (import.meta.env.DEV || location.search.includes('test'))
     store: useStore,
     ops: import.meta.env.DEV ? ops : undefined,
     issues: () => validate(useStore.getState().design).map((i) => i.key),
+    // the shape kernel (milestone 120): loaded on demand, so tests can wait for it
+    kernel: () => import('./sculpt/kernel').then((m) => m.kernel()),
     // a preset the welcome screen no longer lists (the organiser, milestone 98), started as the old card did
     startTemplate: (id: string, matId: string) => {
       const t = templateById(id), m = profileById(matId);

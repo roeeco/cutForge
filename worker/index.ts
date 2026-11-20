@@ -157,12 +157,24 @@ const goals = (met: unknown, total: unknown): { goalsMet?: number; goalsTotal?: 
   Number.isInteger(met) && Number.isInteger(total) && (total as number) > 0 && (total as number) <= 20 && (met as number) >= 0 && (met as number) <= (total as number) ? { goalsMet: met as number, goalsTotal: total as number } : {};
 const clean = (s: unknown, max: number) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f]/g, '').trim().slice(0, max) : '');
 
+/**
+ * The shape kernel's WASM (milestone 120) is compiled while it streams only when it is
+ * served as `application/wasm`; the static assets name it by its extension, and this
+ * makes sure of it whatever they say.
+ */
+export function wasmTyped(url: URL, res: Response): Response {
+  if (!url.pathname.endsWith('.wasm') || !res.ok || res.headers.get('content-type') === 'application/wasm') return res;
+  const h = new Headers(res.headers);
+  h.set('content-type', 'application/wasm');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     const gate = await siteGate(req, env, url);
     if (gate) return gate;
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(req) : new Response('Not found', { status: 404 });
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS ? wasmTyped(url, await env.ASSETS.fetch(req)) : new Response('Not found', { status: 404 });
     try {
       return await api(req, env, url);
     } catch (e) {

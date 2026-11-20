@@ -1981,6 +1981,25 @@ Limitations
 - Every grade's kerf, clearance and greyboard's bend are starting values, unverified on stock (D10's real-cut list).
 - Greyboard 1 mm folds (the ceiling is 1 mm inclusive).
 
+## Milestone 120 (Shapes R1) — the shape modeller on this branch ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R1. Brought **by path** from `claude/guided-mode` at `e450c6b` (*after milestone 60: hands-on fixes to the sketch and shape tools*), never merged: `src/sculpt/**` (the kernel, primitives, Solid / Hole, Combine, scale, turn, rounded corners, sketches on the floor and on upright planes extruded or revolved, the 2D sketch view, `faces.ts`, the outcome registry), `src/views/polyDraw.ts`, `src/ui/SketchTopBar.tsx`, and the tests `sculptkernel`, `sculptscale`, `sculptsketch`, `sculptfaces`, `outcomes`. `src/waffle/**`, the `waffle` field and the waffle tests stay on PR #6.
+- **The design fields** `kind?: 'waffle'` (read as *has shapes*, `isSculpture`), `sculpt?` and `outcome?: 'fold' | 'boards' | 'waffle'` (`src/model/types.ts`). **Absent `outcome` means not made yet** (decision 11); on PR #6 it meant the waffle, so a waffle file opened here opens as shapes not made yet, its `waffle` field kept untouched. No schema bump; `checkSculpt` reads the shapes on load and drops an unknown outcome.
+- **The outcome hooks** (`registerOutcome`, `outcomeHooks` in `pieces.ts`) only for an outcome whose parts are not the design's boards; `partOf` is generic (`{ group, id, label }`). *Fold it* and *Build from boards* will make ordinary panels and connections, so they register no hooks: their pieces and checks are the boards'.
+- **The stage bar** (`src/ui/ShapeStageBar.tsx`, in the top bar instead of the level switch): *1 Shape · Fold it · Build from boards*. An outcome's button works once its code registers `make` with `registerOutcomeUi`; until then it is greyed, *· Coming next*.
+- **The welcome screen's *Shapes*** row (feature `'start.shapes'`: Workshop only, `'hide'` in Quick build and Guided).
+- The store's sculpt state, the sketch session and its own history, `clickShape`, the `'shape'` selection and the sculpt keys; `src/sculpt/load.ts` loads the kernel when a sculpture opens (box designs never download it); the Worker serves `.wasm` as `application/wasm` whatever the static assets say (`wasmTyped`, the check `WAFFLE_MODE.md` §12 left open).
+- `src/sketch/**` was already here (102) and is used as it is; the branch's older copy was not brought.
+
+Verified
+- The ported sculpt tests (98) pass. `outcomes.test.ts` rewritten for this branch: nothing in `src/sculpt` imports `src/waffle` and `src/waffle` is absent; a sculpture with no outcome has no pieces and no checks; an outcome with hooks gives both; every known outcome survives a save and load and an unknown one is dropped. `worker/api.test.ts`: a `.wasm` file comes back as `application/wasm`.
+- `tests/e2e/shapes-port.spec.ts`: *Shapes* from the welcome screen, a box sized 80 × 80 × 40, a cylinder made a hole, both combined; *Fold it* and *Build from boards* greyed with *Coming next*; no level switch; no page errors.
+- Unit suite and typecheck green; goldens byte-identical. A look in the dev server at 1400 px: the top bar fits.
+
+Limitations
+- `sculptscale`'s percent test was cut to this branch's `evalNumber` (milestone 97 reads a percent only as the whole entry; `50%+5` is not read).
+- The shape stage's cards and the sketch view keep the waffle branch's look; R2 and R13 change the workplane.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

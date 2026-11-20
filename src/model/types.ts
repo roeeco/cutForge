@@ -469,7 +469,84 @@ export type Design = {
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
   joints?: JointChoices;
+  /**
+   * The design type (milestone 120, ported from `claude/guided-mode`'s milestone 49).
+   * Absent: a box design (every file made before). 'waffle' is read as *has shapes*
+   * (`isSculpture`): the design is made of shapes, and its `outcome` says what they
+   * became. The stored value keeps its old name so the waffle can join with no migration.
+   */
+  kind?: 'waffle';
+  /** Sculpture designs: the shapes the solid is built from. */
+  sculpt?: Sculpt;
+  /**
+   * A sculpture design's outcome: what its shapes were made into (folded card,
+   * boards, or later the waffle's slices). Absent: not made yet (SHAPES_TO_DIELINES_PLAN.md decision 11).
+   */
+  outcome?: OutcomeKind;
 };
+
+/** What a sculpture's shapes become (SHAPES_TO_DIELINES_PLAN.md decision 1). */
+export type OutcomeKind = 'fold' | 'boards' | 'waffle';
+
+/** A sculpture design's shapes (WAFFLE_MODE.md §4 on `claude/guided-mode`). */
+export type Sculpt = {
+  shapes: Record<string, Shape3>;
+  /** Top-level shapes, in creation order (group members are listed by their group). */
+  order: string[];
+};
+
+export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'extrude' | 'revolve' | 'group';
+
+/** A unit quaternion [x, y, z, w]. */
+export type Quat = [number, number, number, number];
+
+export type Shape3 = {
+  id: string;
+  name: string;
+  kind: ShapeKind;
+  /** Tinkercad's Hole: inside a group it is subtracted from the group's solids; outside one it cuts nothing. */
+  hole?: true;
+  /** Position of its local origin (mm, world; a member's is in its group's frame) and its turn. */
+  at: V3;
+  q: Quat;
+  /** Size before turning (mm): x, up, z. Not for groups, extrudes or revolves. */
+  size?: V3;
+  /** Prism and pyramid sides (3–12). */
+  n?: number;
+  /** Cone and pyramid: top size as a fraction of the base (0 = a point). */
+  top?: number;
+  /** Torus: tube diameter (mm). */
+  tube?: number;
+  /** Box and prism: footprint corner radii by corner index (absent or 0 = sharp). */
+  corners?: number[];
+  /** Extrude and revolve: the outline. */
+  sketch?: ShapeSketch;
+  /** Extrude: height (mm; negative = the other side of an upright plane). */
+  height?: number;
+  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight segment of the sketch). */
+  angle?: number;
+  axis?: { kind: 'plane' } | { kind: 'seg'; id: string };
+  /** Group: its members (each still a Shape3 with its own Solid/Hole). */
+  children?: string[];
+  color?: string;
+  /** Stretch along the shape's own axes (x, up, z), applied to the built body before it is placed. Absent = [1, 1, 1]. */
+  stretch?: V3;
+  /**
+   * Faces (3–64): a cylinder, cone, sphere, half sphere, ring or revolve goes round in this many
+   * flat pieces, and an extrusion's arcs and curves are cut into this many per quarter turn,
+   * in place of the 0.02 mm rule. Absent: smooth.
+   */
+  facets?: number;
+};
+
+/**
+ * A point of a primitive's footprint outline: a Corner (neither field), a Curve (`curve: 'auto'`),
+ * or a Round corner (`r` > 0 mm, a tangent arc).
+ */
+export type SculptPt = { x: number; y: number; curve?: 'auto'; r?: number };
+
+/** A shape's sketch, in the shape's local XY. */
+export type ShapeSketch = { plane: 'floor' | 'upright'; v: 2 } & SketchGraph;
 
 /**
  * How a lid closes (milestone 67, PACKAGING_PLAN.md §7): a tuck lip inside the
