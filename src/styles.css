@@ -1305,13 +1305,14 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .mat-chip:hover { border-color: var(--line-strong); }
 .mat-chip[aria-checked='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .mat-chip .swatch { width: 30px; height: 30px; flex: none; border-radius: 50%; overflow: hidden; background: var(--surface-sunk); display: grid; place-items: center; }
-.mat-chip .swatch svg { width: 150%; height: 150%; }
-.composer .sen-text { font-size: 23px; line-height: 2.15; }
-.composer .sen-word, .composer .sen-num { background: var(--accent-soft); border-bottom: 0; border-radius: 10px; min-height: 40px; font-weight: 500; color: var(--accent); }
-.composer .sen-word { padding: 0 10px; }
-.composer .sen-num { width: 4.4ch; padding: 0 4px; }
-.composer .sen-word:hover, .composer .sen-word:focus-visible, .composer .sen-num:hover { background: #c6ebe6; }
-.composer .sen-num:focus { background: var(--surface); outline: 2px solid var(--accent-bright); }
+.mat-chip .swatch img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.composer .sen-text { font-size: 23px; line-height: 1.95; }
+/* the words to change: teal text on a solid underline, no blocks (the owner, 21 November: the tinted pills were too busy) */
+.composer .sen-word, .composer .sen-num { background: none; border: 0; border-bottom: 2px solid var(--accent-bright); border-radius: 0; min-height: 0; padding: 0 1px; font-weight: 500; color: var(--accent); line-height: 1.25; }
+/* a number as wide as its digits, so a comma after it sits close */
+.composer .sen-num { width: auto; min-width: 2ch; field-sizing: content; text-align: center; }
+.composer .sen-word:hover, .composer .sen-word:focus-visible, .composer .sen-num:hover { background: none; border-bottom-color: var(--accent); color: var(--accent-hover); }
+.composer .sen-word:focus-visible, .composer .sen-num:focus { outline: 2px solid var(--accent-bright); outline-offset: 3px; border-radius: 4px; background: none; }
 .composer .sen-out { font-size: 14px; margin-top: 4px; }
 .composer .sen-note { background: var(--warn-bg); border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
 .composer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin-top: auto; padding-top: 18px; }
@@ -1338,8 +1339,9 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   background: var(--surface); border: 2px solid transparent; border-radius: 22px; box-shadow: var(--shadow-float); position: relative; transition: border-color 0.15s, transform 0.15s; }
 .way-card:hover { border-color: var(--accent-bright); transform: translateY(-2px); }
 .way-card:focus-visible { outline: none; box-shadow: var(--focus), var(--shadow-float); }
-.way-card .art { flex: 1 0 112px; min-height: 0; background: var(--stage-bg); display: grid; place-items: center; padding: 10px; }
-.way-card .art svg { width: 100%; height: 100%; max-height: 170px; }
+/* the pictures' own background, so a picture shown whole meets the card without a seam */
+.way-card .art { flex: 1 0 112px; min-height: 0; background: #eceef1; display: grid; place-items: center; padding: 0; overflow: hidden; }
+.way-card .art img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .way-card .cap { display: flex; flex-direction: column; gap: 4px; padding: 14px 64px 16px 18px; }
 [dir='rtl'] .way-card .cap { padding: 14px 18px 16px 64px; }
 .way-card .cap strong { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
@@ -1371,7 +1373,7 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   .composer { padding: 16px; }
   .composer .sentence .sen-picture { min-height: 240px; }
   .composer .sentence .sen-picture img { max-height: 300px; }
-  .composer .sen-text { font-size: 21px; line-height: 2.05; }
+  .composer .sen-text { font-size: 21px; line-height: 1.9; }
   .composer-actions { padding-top: 12px; }
 }
 @media (max-width: 900px) {
@@ -1420,3 +1422,12 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   .topbar .ready-badge.ok::after { content: '✓'; font-size: 15px; }
   .topbar .ready-badge.warn::after { content: '! ' attr(data-n); font-size: 13px; font-weight: 600; }
 }
+
+/* the part card's title renames the part (editor review, 21 November) */
+.part-title { all: unset; cursor: text; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 1px 4px; margin-inline-start: -4px; }
+.part-title svg { color: var(--ink-faint); opacity: 0; transition: opacity 0.15s; }
+.part-title:hover, .part-title:focus-visible { background: var(--surface-sunk); }
+.part-title:hover svg, .part-title:focus-visible svg { opacity: 1; }
+.part-title-input { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; padding: 2px 6px; }
+.part-more { margin-top: 4px; }
+.part-more[data-folds='false'] { border: 0; padding: 0; margin: 0; }

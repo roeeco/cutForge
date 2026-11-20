@@ -14,7 +14,7 @@ export async function setNum(page: Page, testId: string, value: string) {
 /** A browser that has used CutForge before: it opens in the Workshop (milestone 37), the grow card's More… and the settings card open (milestone 78). */
 export const WORKSHOP_STATE = {
   cookies: [],
-  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop', growMore: true, settingsOpen: true, edgesOpen: true }) }] })),
+  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'workshop', growMore: true, settingsOpen: true, edgesOpen: true, partMore: true }) }] })),
 };
 
 /** Open the Shapes tool (milestone 75) if its menu is not showing. */
@@ -63,7 +63,7 @@ export async function opPick(page: Page, op: 'add' | 'cut' | 'engrave' | 'score'
 /** A browser that chose Quick build (a new browser starts in the Workshop). */
 export const QUICK_STATE = {
   cookies: [],
-  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'quick', settingsOpen: true, edgesOpen: true }) }] })),
+  origins: ['http://localhost:5199', 'http://localhost:5299', 'http://127.0.0.1:8787', 'http://localhost:8787'].map((origin) => ({ origin, localStorage: [{ name: 'cutforge.viewPrefs', value: JSON.stringify({ mode: 'quick', settingsOpen: true, edgesOpen: true, partMore: true }) }] })),
 };
 
 /**

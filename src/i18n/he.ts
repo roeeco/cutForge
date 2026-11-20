@@ -382,6 +382,8 @@ export const he: Record<MsgKey, string> = {
   'insp.title': 'מאפיינים',
   'insp.nothing': 'לא נבחר דבר. הגדרות העיצוב:',
   'insp.panel': 'לוח {name}',
+  'insp.partMore': "עוד לחלק הזה",
+  'insp.rename': "שינוי שם",
   'insp.panelName': 'שם',
   'insp.width': 'רוחב',
   'insp.height': 'גובה',

@@ -7,3 +7,12 @@ playwright-report
 *.tsbuildinfo
 .dev.vars
 .wrangler
+
+# macOS folder metadata
+.DS_Store
+# image-model explorations and source images: kept locally, not in the repo
+generated_images/
+redesign mocks/
+docs/welcome-ux-review-2026-11-20/assets-source/
+docs/welcome-ux-review-2026-11-20/images/
+docs/cutforge-browser-qa-2026-11-20/evidence/

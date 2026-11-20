@@ -112,6 +112,9 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
   const outlineMode = useStore((s) => !!s.viewPrefs.outlineMode);
   const keepRatio = useStore((s) => !!s.viewPrefs.keepRatio);
   const edgesOpen = useStore((s) => s.viewPrefs.edgesOpen);
+  const partMore = useStore((s) => s.viewPrefs.partMore);
+  // Workshop folds a part's rarer rows under *More for this part*; Quick build shows its few inline (it has its own More…)
+  const foldRare = useMode() === 'workshop';
   const opsAll = shown(useFeature('op.scoreAdd'));
   // Quick build's words (LIDS_LINES_PROJECTS_PLAN.md §10.7): a footprint is Width · Depth, a box's walls rise to its Height
   const quickWords = useMode() === 'quick';
@@ -211,25 +214,13 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
         <section data-testid="inspector-panel" key={id}>
           <p className="kicker" data-testid="panel-kicker">{placedWhere(d, id, t) ?? t('insp.part')}</p>
           <div className="card-head">
-            <h3 dir="auto">{panelLabel(d, id, t)}</h3>
+            <PartTitle panelId={id} />
             <button className="ghost icon-btn" onClick={() => useStore.getState().openSolo(id)} aria-label={t('solo.open')} title={t('solo.open')} data-testid="open-solo">
               <Icon name="solo" />
             </button>
             <button className="ghost icon-btn danger" onClick={() => apply((x) => deletePanel(x, id))} aria-label={t('insp.delete')} title={t('insp.delete')} data-testid="delete-panel">
               <Icon name="trash" />
             </button>
-          </div>
-          <div className="field">
-            <label htmlFor="p-name">{t('insp.panelName')}</label>
-            <input
-              id="p-name"
-              dir="auto"
-              value={isAutoName(p.name) ? '' : p.name}
-              placeholder={panelLabel(d, id, t)}
-              onChange={(e) => useStore.getState().preview((x) => void (x.panels[id].name = e.target.value))}
-              onBlur={() => useStore.getState().commit()}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
           </div>
           {boxTray && <SizeAsSwitch trayId={boxTray} />}
           {p.divider ? (
@@ -269,12 +260,6 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           {/* how a lid closes its box is on the lid's card in Quick build too (PACKAGING_PLAN.md decision 8); it was behind More… */}
           <ClosureSection panelId={id} />
           <TrayWallNote panelId={id} />
-          <Gate f="match">
-            <MatchSection panelId={id} />
-          </Gate>
-          <Gate f="foldover">
-            <FoldOverSection panelId={id} />
-          </Gate>
           {/* one rule for which outlines can be edited (milestone 101), shared with outline mode */}
           {!outlineWhy(d, id) && view === '3d' && (
             <button
@@ -292,21 +277,6 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               <PointCurve panelId={id} />
             </Gate>
           )}
-          <Stepper
-            label={t('insp.quantity')}
-            value={d.pieces[quantityRoot(d, pieceKeyOf(d, id))]?.quantity ?? 1}
-            min={1}
-            max={500}
-            slider={false}
-            onCommit={(v) => apply((x) => void (x.pieces[quantityRoot(x, pieceKeyOf(x, id))] = { quantity: Math.round(v) }))}
-            testId="panel-qty"
-          />
-          <Gate f="boardMaterial">
-            <BoardMaterial ids={[id]} />
-          </Gate>
-          <Gate f="construction">
-            <PlacedSection panelId={id} />
-          </Gate>
           <ExtrudeSection panelId={id} />
           {/* milestone 130: a board made from a shape's face */}
           <MadeFaceSection panelId={id} />
@@ -314,11 +284,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           <LidSection panelId={id} />
           <LinesSection panelId={id} />
           <InsideSection panelId={id} />
-          <SheetPlacementControls panelId={id} />
           <ClearSizes panelId={id} />
-          <Gate f="joints">
-            <JointsAdvanced panelId={id} />
-          </Gate>
           {/* only the edges a board can still grow from: a row of greyed buttons for the walled ones was noise */}
           {growable.length > 0 && (
             <div className="subsection" data-testid="edges-section">
@@ -342,6 +308,43 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               </div>}
             </div>
           )}
+          {/* the editor review (21 November): what a part rarely needs, folded under one header (remembered per browser) */}
+          <div className="subsection part-more" data-folds={foldRare} data-testid="part-more">
+            {foldRare && (
+              <button className="sub-toggle" aria-expanded={!!partMore} onClick={() => useStore.getState().setPrefs({ partMore: !partMore })} data-testid="part-more-toggle">
+                <Icon name={partMore ? 'chevDown' : 'chevRight'} size={14} /> {t('insp.partMore')}
+              </button>
+            )}
+            {(partMore || !foldRare) && (
+              <>
+                <Stepper
+                  label={t('insp.quantity')}
+                  value={d.pieces[quantityRoot(d, pieceKeyOf(d, id))]?.quantity ?? 1}
+                  min={1}
+                  max={500}
+                  slider={false}
+                  onCommit={(v) => apply((x) => void (x.pieces[quantityRoot(x, pieceKeyOf(x, id))] = { quantity: Math.round(v) }))}
+                  testId="panel-qty"
+                />
+                <Gate f="boardMaterial">
+                  <BoardMaterial ids={[id]} />
+                </Gate>
+                <Gate f="construction">
+                  <PlacedSection panelId={id} />
+                </Gate>
+                <Gate f="match">
+                  <MatchSection panelId={id} />
+                </Gate>
+                <Gate f="foldover">
+                  <FoldOverSection panelId={id} />
+                </Gate>
+                <SheetPlacementControls panelId={id} />
+                <Gate f="joints">
+                  <JointsAdvanced panelId={id} />
+                </Gate>
+              </>
+            )}
+          </div>
         </section>
       );
     }
@@ -362,6 +365,55 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
 }
 
 /** While editing an outline: the selected point as a corner or a smooth (auto) curve. */
+/**
+ * The part's name as its card's title: click it to rename (Enter or leaving keeps it, Esc puts it back). It replaced
+ * the *Name* field under the title, which repeated it (the editor review, 21 November). An empty name goes back to
+ * the part's role name.
+ */
+function PartTitle({ panelId }: { panelId: string }) {
+  const t = useT();
+  const d = useStore((s) => s.design);
+  const p = d.panels[panelId];
+  const [edit, setEdit] = useState<string | null>(null);
+  const label = panelLabel(d, panelId, t);
+  const done = (keep: boolean) => {
+    if (edit === null) return;
+    const v = edit;
+    setEdit(null);
+    if (!keep) return;
+    const name = v.trim() === label ? p.name : v.trim();
+    if (name !== p.name) useStore.getState().apply((x) => void (x.panels[panelId].name = name));
+  };
+  if (edit !== null)
+    return (
+      <input
+        className="part-title-input"
+        autoFocus
+        dir="auto"
+        value={edit}
+        placeholder={label}
+        aria-label={t('insp.rename')}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setEdit(e.target.value)}
+        onBlur={() => done(true)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') done(true);
+          else if (e.key === 'Escape') done(false);
+        }}
+        data-testid="panel-name"
+      />
+    );
+  return (
+    <h3 dir="auto">
+      <button className="part-title" title={t('insp.rename')} onClick={() => setEdit(isAutoName(p.name) ? label : p.name)} data-testid="panel-title">
+        {label}
+        <Icon name="pencil" size={14} />
+      </button>
+    </h3>
+  );
+}
+
 function PointCurve({ panelId }: { panelId: string }) {
   const t = useT();
   const d = useStore((s) => s.design);

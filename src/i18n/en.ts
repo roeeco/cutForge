@@ -380,6 +380,8 @@ export const en = {
   'insp.title': 'Inspector',
   'insp.nothing': 'Nothing selected. Design settings:',
   'insp.panel': 'Panel {name}',
+  'insp.partMore': "More for this part",
+  'insp.rename': "Rename",
   'insp.panelName': 'Name',
   'insp.width': 'Width',
   'insp.height': 'Height',

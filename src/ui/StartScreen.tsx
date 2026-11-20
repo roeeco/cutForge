@@ -17,7 +17,6 @@ import { Library, openFromLibrary } from './Library';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { Icon, Logo } from './icons';
-import { MaterialArt } from './MaterialArt';
 import { renderThumbnail } from '../views/thumbnail';
 import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
@@ -39,6 +38,11 @@ function missionThumb(id: string, m: MaterialProfile, w: number, h: number): str
   }
   return thumbCache.get(key) ?? null;
 }
+
+/** The welcome screen's pictures (public/welcome; made from the prompts in docs/welcome-ux-review-2026-11-20 §8). */
+const pic = (name: string) => `${import.meta.env.BASE_URL}welcome/${name}`;
+/** A material's chip picture: its cut edge close up (*mat.corr16* → mat-corr16.jpg). */
+const chipPic = (m: MaterialProfile) => pic(`${m.nameKey.replace(/^mat\./, 'mat-')}.jpg`);
 
 /** A material's short name for its chip (*Corrugated 1.6*); the full one is its label. */
 const shortName = (m: MaterialProfile) => m.nameKey.replace(/^mat\./, 'mat.short.') as MsgKey;
@@ -144,7 +148,7 @@ export function StartScreen() {
           data-testid={`mat-${m.id}`}
         >
           <span className="swatch" aria-hidden>
-            <MaterialArt kind={m.kind} thickness={m.thickness} />
+            <img src={chipPic(m)} alt="" />
           </span>
           {t(shortName(m))}
         </button>
@@ -240,9 +244,9 @@ export function StartScreen() {
           )}
         </section>
         <div className="cs-ways">
-          {way('start-go', <BlankArt />, t('start.blank'), t('start.blankIn', { material: t(mat.nameKey as 'mat.ply3') }), () => start(''))}
-          {shapesOk && way('tpl-shapes', <ShapesArt />, t('start.shapesLink'), t('start.shapesLine'), () => start('shapes'))}
-          {missions.length > 0 && way('start-missions', <MissionsArt />, t('start.missionsWay'), t('start.missionsLine'), () => setMissionId(missions[0].id))}
+          {way('start-go', <img src={pic('way-blank.jpg')} alt="" />, t('start.blank'), t('start.blankIn', { material: t(mat.nameKey as 'mat.ply3') }), () => start(''))}
+          {shapesOk && way('tpl-shapes', <img src={pic('way-shapes.jpg')} alt="" />, t('start.shapesLink'), t('start.shapesLine'), () => start('shapes'))}
+          {missions.length > 0 && way('start-missions', <img src={pic('way-mission.jpg')} alt="" />, t('start.missionsWay'), t('start.missionsLine'), () => setMissionId(missions[0].id))}
         </div>
         </div>
 
@@ -307,67 +311,8 @@ function MissionView(props: { m: Mission; all: Mission[]; mat: MaterialProfile; 
   );
 }
 
-/** Start blank's picture: the empty workshop floor, an isometric grid with a plus on it. */
-function BlankArt() {
-  return (
-    <svg viewBox="0 0 240 150" preserveAspectRatio="xMidYMid meet">
-      <path d="M120 22 222 78 120 134 18 78Z" fill="var(--surface)" stroke="var(--accent-bright)" strokeOpacity="0.6" strokeWidth="1.5" />
-      <g stroke="var(--accent-bright)" strokeOpacity="0.3" strokeWidth="1">
-        {[1, 2, 3, 4, 5, 6, 7].map((i) => {
-          const s = i / 8;
-          // lines parallel to each pair of the floor's edges
-          return (
-            <g key={i}>
-              <line x1={120 - 102 * s} y1={22 + 56 * s} x2={222 - 102 * s} y2={78 + 56 * s} />
-              <line x1={120 + 102 * s} y1={22 + 56 * s} x2={18 + 102 * s} y2={78 + 56 * s} />
-            </g>
-          );
-        })}
-      </g>
-      <circle cx="120" cy="78" r="23" fill="var(--accent)" />
-      <path d="M120 66v24M108 78h24" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  );
-}
 
-/** Build from shapes' picture: a block, a cylinder and a pyramid of plywood on the workshop floor (milestone 120's shapes). */
-function ShapesArt() {
-  return (
-    <svg viewBox="0 0 240 150" preserveAspectRatio="xMidYMid meet">
-      <path d="M120 30 216 82 120 134 24 82Z" fill="var(--surface)" stroke="var(--accent-bright)" strokeOpacity="0.45" strokeWidth="1.5" />
-      <g stroke="#9a7a4f" strokeWidth="1.6" strokeLinejoin="round">
-        <path d="M130 28 112 66 130 76Z" fill="#d9bb8a" />
-        <path d="M130 28 130 76 150 66Z" fill="#cfae7a" />
-        <path d="M88 64 112 77 88 90 64 77Z" fill="#e7cfa6" />
-        <path d="M64 77 88 90V116L64 103Z" fill="#d9bb8a" />
-        <path d="M88 90 112 77V103L88 116Z" fill="#cfae7a" />
-        <path d="M134 82V106A20 9 0 0 0 174 106V82" fill="#d9bb8a" />
-        <ellipse cx="154" cy="82" rx="20" ry="9" fill="#e7cfa6" />
-      </g>
-    </svg>
-  );
-}
 
-/** Follow a mission's picture: a goal card with ticks beside a small box. */
-function MissionsArt() {
-  return (
-    <svg viewBox="0 0 240 150" preserveAspectRatio="xMidYMid meet">
-      <g stroke="#9a7a4f" strokeWidth="1.6" strokeLinejoin="round">
-        <path d="M60 70 96 52 132 70 96 88Z" fill="#e7cfa6" />
-        <path d="M60 70 96 88V118L60 100Z" fill="#d9bb8a" />
-        <path d="M96 88 132 70V100L96 118Z" fill="#cfae7a" />
-      </g>
-      <rect x="134" y="34" width="70" height="86" rx="10" fill="var(--surface)" stroke="var(--accent-bright)" strokeOpacity="0.6" strokeWidth="1.5" />
-      {[54, 76, 98].map((y, i) => (
-        <g key={y}>
-          <rect x="144" y={y - 7} width="14" height="14" rx="4" fill={i < 2 ? 'var(--accent)' : 'none'} stroke="var(--accent)" strokeWidth="1.5" />
-          {i < 2 && <path d={`M147 ${y}l3 3 5-6`} stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
-          <rect x="164" y={y - 3} width="30" height="6" rx="3" fill="var(--line)" />
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 function MissionArt({ id, mat }: { id: string; mat: MaterialProfile }) {
   const src = useMemo(() => missionThumb(id, mat, 520, 380), [id, mat]);

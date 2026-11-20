@@ -280,6 +280,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'clear-sizes': null,
   'sheet-placement': null,
   'edges-section': null,
+  // the part card's *More for this part* (the editor review, 21 November): its rows keep their own features
+  'part-more': null,
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
   'flap-shape': 'flap.shape',
