@@ -98,8 +98,6 @@ export const FEATURES = {
   edgeFlap: 'hide',
   /** A flap's shape pictures, fold angle, tapers, radius and hang hole (112). */
   'flap.shape': 'hide',
-  /** The welcome screen's *Sentence · Cards* switch and its card grid of named styles (C1). */
-  'start.cards': 'show',
   /** The material drawer's *More boards…* and its board grades (116). */
   'drawer.grades': 'hide',
   /** The welcome screen's *Shapes* (a sculpture design: the shape stage, *Fold it*, *Build from boards*; 120). */
@@ -208,7 +206,6 @@ export const GUIDED = {
   bend: 'auto',
   edgeFlap: 'hide',
   'flap.shape': 'hide',
-  'start.cards': 'hide',
   'drawer.grades': 'hide',
   'start.shapes': 'hide',
   'plan.nets': 'hide',

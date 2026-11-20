@@ -37,6 +37,15 @@ export type ParamDef = ParamRules &
 /** A number's range now, and why it ends there. */
 export type Limit = { min?: number; max?: number; why?: MsgKey };
 
+/**
+ * The sizes a box, tray, carton or drawer is said in, and how many spaces each way (the owner, 20 November:
+ * 5 to 300 mm; no more than 10 dividers each way, so 11 spaces). A size inside these that cannot be cut clean is
+ * still refused by the engine, with its reason.
+ */
+export const SIZE_MIN = 5;
+export const SIZE_MAX = 300;
+export const SPACES_MAX = 11;
+
 export type TemplateIssue = { key: MsgKey; vars: Record<string, string | number>; panel: string };
 
 export type TemplateDef = {

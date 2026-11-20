@@ -30,30 +30,4 @@ for (const lang of ['en', 'he'] as const) {
     const d = await design(page);
     expect(d.template).toMatchObject({ id: 'carton', params: { top: 'tuck', bottom: 'snap' } });
   });
-
-  test(`the card grid: the sentence by default, cards on the switch, a card fills the sentence, plywood hides cartons (${lang})`, async ({ page }) => {
-    await fresh(page, lang);
-    await page.getByTestId('mat-card-0.5').click();
-    await expect(page.getByTestId('sentence')).toBeVisible();
-    await expect(page.getByTestId('start-view-sentence')).toHaveAttribute('aria-pressed', 'true');
-    await page.getByTestId('start-view-cards').click();
-    await expect(page.getByTestId('style-cards')).toBeVisible();
-    await expect(page.getByTestId('style-rte')).toBeVisible();
-    await page.getByTestId('style-sealed').click();
-    await expect(page.getByTestId('style-sealed')).toHaveAttribute('aria-checked', 'true');
-    // the same choice in the sentence
-    await page.getByTestId('start-view-sentence').click();
-    await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'carton');
-    await page.getByTestId('start-view-cards').click();
-    // plywood: no cartons; the grid keeps what it can
-    await page.getByTestId('mat-ply-3').click();
-    await expect(page.getByTestId('style-trayLid')).toBeVisible();
-    await expect(page.getByTestId('style-rte')).toHaveCount(0);
-    await page.getByTestId('style-hexLid').click();
-    await page.getByTestId('start-cards').click();
-    const d = await design(page);
-    expect(d.template).toMatchObject({ id: 'box', params: { shape: 'poly', sides: 6, lid: 'liftoff' } });
-    // the switch is remembered by this browser
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cutforge.viewPrefs')!).startView)).toBe('cards');
-  });
 }

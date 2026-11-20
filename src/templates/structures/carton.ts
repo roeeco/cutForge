@@ -6,7 +6,7 @@
 import { CRASH_LOCK_OFFERED } from '../../model/cartons';
 import type { Design, MaterialProfile, TrayBottom, TrayTop } from '../../model/types';
 import type { MsgKey } from '../../i18n';
-import type { Limit, ParamDef, Params, TemplateDef } from '../types';
+import { SIZE_MAX, SIZE_MIN, SPACES_MAX, type Limit, type ParamDef, type Params, type TemplateDef } from '../types';
 import { addRootPanel, addTray, addWallInsert, autoConnect, createDesign, growPanel, setClosure } from '../../model/ops';
 import { trayRing } from '../../model/cartons';
 import { topLidId } from '../../model/cartons';
@@ -34,9 +34,9 @@ const folds = (m: MaterialProfile, most: number) => foldsAsCarton(m, most);
 
 function sizeParams(h: number): ParamDef[] {
   return [
-    { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: 20, max: 580, default: 80, affects: ['walls'] },
-    { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: 20, max: 580, default: 55, affects: ['walls'] },
-    { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: 20, max: 580, default: h, affects: ['walls'] },
+    { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 80, affects: ['walls'] },
+    { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 55, affects: ['walls'] },
+    { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: h, affects: ['walls'] },
     {
       key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
       options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }, { value: 'crease', label: 'sen.sizeAs.crease' }],

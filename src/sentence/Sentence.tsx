@@ -4,7 +4,7 @@
 // design, the change notes (read out from a live region), and a picture
 // rebuilt 150 ms after the last change. Under 600 px wide the same words are
 // labelled rows. The material is the welcome screen's step 1.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { useStore, useT } from '../store/store';
@@ -47,7 +47,11 @@ function useNarrow(): boolean {
   return n;
 }
 
-export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onChange: (v: SentenceValue, changes: Change[]) => void; notes?: Change[] }) {
+/**
+ * `top` and `actions` go above and below the words (the welcome composer's material chips and its Start), and
+ * `picture` is the size the picture is drawn at.
+ */
+export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onChange: (v: SentenceValue, changes: Change[]) => void; notes?: Change[]; top?: ReactNode; actions?: ReactNode; picture?: [number, number] }) {
   const t = useT();
   const lang = useStore((s) => s.lang);
   const narrow = useNarrow();
@@ -61,6 +65,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   const [img, setImg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const live = useRef<HTMLDivElement>(null);
+  const [pw, ph] = props.picture ?? [300, 210];
 
   useEffect(() => {
     if (props.notes?.length) setNotes(props.notes);
@@ -72,10 +77,10 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
       const r = readout(def, m, p);
       setOut(r);
       setBusy(false);
-      setImg(r.design ? renderThumbnail(r.design, 300, 210) : null);
+      setImg(r.design ? renderThumbnail(r.design, pw, ph) : null);
     }, 150);
     return () => clearTimeout(h);
-  }, [def, m, p]);
+  }, [def, m, p, pw, ph]);
 
   const word = (key: string) => words.find((w) => w.key === key);
   const pdef = (key: string) => def.params.find((x) => x.key === key) as ParamDef | undefined;
@@ -255,6 +260,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
       </div>
       <fieldset className="sen-body">
         <legend className="sr-only">{t('sen.legend')}</legend>
+        {props.top}
         {narrow ? (
           <div className="sen-rows">
             {rowKeys.map((k) => (
@@ -293,6 +299,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
         <div ref={live} className="sr-only" aria-live="polite" data-testid="sen-live">
           {notes.map(noteText).join(' ')}
         </div>
+        {props.actions}
       </fieldset>
     </div>
   );

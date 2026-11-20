@@ -182,7 +182,7 @@ export const folder: TemplateDef = {
   materials: ['card'],
   canMake: cardOnly,
   fallback: () => 'box',
-  params: [num('width', 'sen.coverWidth', 80, 240, 140), num('height', 'sen.coverHeight', 100, 330, 200), num('pocket', 'sen.pocket', 30, 150, 70)],
+  params: [num('width', 'sen.coverWidth', 80, 240, 140), num('height', 'sen.coverHeight', 100, 300, 200), num('pocket', 'sen.pocket', 30, 150, 70)],
   generate: generateFolder,
   sentence: { main: 'sen.s.folder' },
 };

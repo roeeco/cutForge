@@ -6,7 +6,7 @@
 // made.
 import type { Design, MaterialProfile } from '../../model/types';
 import type { MsgKey } from '../../i18n';
-import type { Limit, ParamDef, Params, TemplateDef } from '../types';
+import { SIZE_MAX, SIZE_MIN, SPACES_MAX, type Limit, type ParamDef, type Params, type TemplateDef } from '../types';
 import { boxRecipe, dividerLine, holeRecipe, roundedMin, type Footprint } from '../../easy/recipes';
 import { boxLid, lidWhy, setBoxLid, type LidChoice } from '../../easy/lid';
 import { validate } from '../../model/validate';
@@ -121,9 +121,9 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
   };
   const engine = (key: string) => (v: string | number, p: Params, m: MaterialProfile) => v === 'none' || cleanWith(def(), m, p, key, v);
   const out: ParamDef[] = [
-    { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: 20, max: 580, default: 160, affects: ['base'] },
-    { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: 20, max: 580, default: 110, affects: ['base'] },
-    { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: 10, max: 300, default: o.height, affects: ['walls'] },
+    { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 160, affects: ['base'] },
+    { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 110, affects: ['base'] },
+    { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: o.height, affects: ['walls'] },
     {
       key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
       options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }, { value: 'crease', label: 'sen.sizeAs.crease' }],
@@ -165,10 +165,10 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       why: (v, p) => (v === 'size' && p.shape !== 'rect' && p.shape !== 'rounded' ? 'sen.why.sizeOnRect' : 'sen.why.engine'),
       affects: ['dividers'],
     },
-    { key: 'nx', label: 'sen.nx', type: 'int', min: 1, max: 20, default: 3, when: (p) => p.spacesBy === 'count', affects: ['dividers'] },
-    { key: 'ny', label: 'sen.ny', type: 'int', min: 1, max: 20, default: 2, when: (p) => p.spacesBy === 'count', affects: ['dividers'] },
-    { key: 'sx', label: 'sen.sx', type: 'number', unit: 'mm', min: MIN_COMPARTMENT, max: 580, default: 50, when: (p) => p.spacesBy === 'size', affects: ['dividers'] },
-    { key: 'sy', label: 'sen.sy', type: 'number', unit: 'mm', min: MIN_COMPARTMENT, max: 580, default: 50, when: (p) => p.spacesBy === 'size', affects: ['dividers'] },
+    { key: 'nx', label: 'sen.nx', type: 'int', min: 1, max: SPACES_MAX, default: 3, when: (p) => p.spacesBy === 'count', affects: ['dividers'] },
+    { key: 'ny', label: 'sen.ny', type: 'int', min: 1, max: SPACES_MAX, default: 2, when: (p) => p.spacesBy === 'count', affects: ['dividers'] },
+    { key: 'sx', label: 'sen.sx', type: 'number', unit: 'mm', min: MIN_COMPARTMENT, max: SIZE_MAX, default: 50, when: (p) => p.spacesBy === 'size', affects: ['dividers'] },
+    { key: 'sy', label: 'sen.sy', type: 'number', unit: 'mm', min: MIN_COMPARTMENT, max: SIZE_MAX, default: 50, when: (p) => p.spacesBy === 'size', affects: ['dividers'] },
   );
   if (o.addons.includes('window'))
     out.push({
@@ -199,6 +199,9 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
 }
 
 /** Each number's range: the sizes as big as one sheet takes, the counts while every space is at least the smallest compartment. */
+/** Where the largest-size search starts: sizes a box is known to cut clean at (the minimums before 20 November). */
+const SEARCH_FROM = { width: 20, depth: 20, height: 10 } as const;
+
 function boxLimits(def: TemplateDef) {
   return (m: MaterialProfile, p: Params): Record<string, Limit> => {
     const big = sizeLimit(m);
@@ -209,7 +212,9 @@ function boxLimits(def: TemplateDef) {
     // the largest size that still cuts clean with the words before it (square corners, no add-ons), found
     // by bisection over builds (SENTENCE_BUILDER_PLAN.md §3.3); worked out only for the number asked about
     const sheetMax = (key: 'width' | 'depth' | 'height', hi: number): Limit => {
-      const lo = Number(def.params.find((x) => x.key === key)!.type === 'choice' ? 0 : (def.params.find((x) => x.key === key) as { min: number }).min);
+      // the search starts where a box is known to cut clean (sizes go down to SIZE_MIN, but a 5 mm box may not, and
+      // a search from a size that fails gave that size as the largest: everything was squeezed to it)
+      const lo = Math.max(SEARCH_FROM[key], Number(def.params.find((x) => x.key === key)!.type === 'choice' ? 0 : (def.params.find((x) => x.key === key) as { min: number }).min));
       const base: Params = { ...p, shape: 'rect' };
       const ck = JSON.stringify([def.id, m, { ...base, [key]: null }, key]);
       const v = largestOk(ck, lo, hi, (x) => cleanWith(def, m, { ...base, [key]: x }, key, x), 9, 0.5);

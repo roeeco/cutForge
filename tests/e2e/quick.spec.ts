@@ -301,7 +301,9 @@ test(`mission (${lang}): Pencil box — size the compartments until the pencils 
   await page.goto('/');
   if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
   await page.getByTestId('mat-ply-3').click();
+  await page.getByTestId('start-missions').click();
   await page.getByTestId('mission-pencil-box').click();
+  await page.getByTestId('start-mission').click();
   await expect(page.getByTestId('mission-panel')).toBeVisible();
   await expect(page.getByTestId('goal-fits-pencil')).toHaveAttribute('data-ok', 'false');
   await expect(page.getByTestId('goal-compartments-3')).toHaveAttribute('data-ok', 'true');

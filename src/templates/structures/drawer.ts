@@ -5,7 +5,7 @@
 // tube standing on end. Card and corrugated (the sleeve folds).
 import type { Design, MaterialProfile } from '../../model/types';
 import type { MsgKey } from '../../i18n';
-import type { Limit, ParamDef, Params, TemplateDef } from '../types';
+import { SIZE_MAX, SIZE_MIN, SPACES_MAX, type Limit, type ParamDef, type Params, type TemplateDef } from '../types';
 import { addRootPanel, addTray, autoConnect, solve } from '../../model/ops';
 import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { boxRecipe, holeRecipe } from '../../easy/recipes';
@@ -19,9 +19,9 @@ const folds = (m: MaterialProfile) => foldsAsCarton(m, 4);
 
 
 const params: ParamDef[] = [
-  { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: 30, max: 400, default: 120, affects: ['base'] },
-  { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: 30, max: 400, default: 80, affects: ['base'] },
-  { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: 15, max: 200, default: 40, affects: ['walls'] },
+  { key: 'width', label: 'sen.width', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 120, affects: ['base'] },
+  { key: 'depth', label: 'sen.depth', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 80, affects: ['base'] },
+  { key: 'height', label: 'sen.height', type: 'number', unit: 'mm', min: SIZE_MIN, max: SIZE_MAX, default: 40, affects: ['walls'] },
   {
     key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
     options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }, { value: 'crease', label: 'sen.sizeAs.crease' }],
@@ -105,7 +105,9 @@ drawer.limits = (m: MaterialProfile, p: Params): Record<string, Limit> => {
       get: () => {
         const ck = JSON.stringify(['drawer', m, { ...p, [key]: null }, key]);
         const own = params.find((x) => x.key === key) as Extract<ParamDef, { max: number }>;
-        const v = largestOk(ck, own.min, own.max, (x) => cleanWith(drawer, m, { ...p, [key]: x }, key, x), 9, 0.5);
+        // from a size a drawer is known to cut clean at (sizes go down to SIZE_MIN; see box.ts SEARCH_FROM)
+        const lo = Math.max(own.min, { width: 30, depth: 30, height: 15 }[key]);
+        const v = largestOk(ck, lo, own.max, (x) => cleanWith(drawer, m, { ...p, [key]: x }, key, x), 9, 0.5);
         return { max: Math.max(own.min, v), why: 'sen.why.sheet' as MsgKey };
       },
     });

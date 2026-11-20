@@ -42,12 +42,13 @@ for (const lang of ['en', 'he'] as const) {
     await page.getByTestId('sen-more').click();
     await page.getByTestId('sen-more-opt-spacesBy').click();
     await expect(page.getByTestId('sen-nx')).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId('sen-nx').fill('12');
+    // ten spaces (the count ends at 11: ten dividers)
+    await page.getByTestId('sen-nx').fill('10');
     await page.getByTestId('sen-nx').press('Enter');
-    await expect(page.getByTestId('sen-nx')).toHaveValue('12', { timeout: 15_000 });
+    await expect(page.getByTestId('sen-nx')).toHaveValue('10', { timeout: 15_000 });
     await page.getByTestId('sen-width').fill('60');
     await page.getByTestId('sen-width').press('Enter');
-    await expect(page.getByTestId('sen-nx')).not.toHaveValue('12', { timeout: 20_000 });
+    await expect(page.getByTestId('sen-nx')).not.toHaveValue('10', { timeout: 20_000 });
     await expect(page.getByTestId('sen-note')).toBeVisible();
     await expect(page.getByTestId('sen-live')).not.toBeEmpty();
     // past its end: refused, the range shown, the value kept

@@ -29,7 +29,7 @@ test('the card hides what does not apply, says what a change dropped, and refuse
   expect(d.template.params.width).toBe(60);
   expect(d.template.params.nx).toBeLessThan(12);
   // past its end: refused, with the range
-  // (the field's own bound is 20; the box holds fewer)
+  // (the field's own bound is 11, ten dividers; the box holds fewer)
   await page.getByTestId('tp-nx').click();
   await page.getByTestId('tp-nx').press('ControlOrMeta+a');
   await page.getByTestId('tp-nx').pressSequentially('20');

@@ -186,10 +186,12 @@ test('a class offers one mission; the submission shows it and its goals met (mil
   const st = await ctx.newPage();
   await st.goto(`/?class=${code}`);
   await st.getByTestId('mat-ply-3').click();
+  await st.getByTestId('start-missions').click();
   await expect(st.getByTestId('mission-pencil-box')).toBeVisible();
   await expect(st.getByTestId('mission-dice-tray')).toHaveCount(0);
-  // a mission starts on its click (the welcome screen's redesign)
+  // *Follow a mission* shows the class's missions in the composer, then one starts (the welcome redesign, 20 November)
   await st.getByTestId('mission-pencil-box').click();
+  await st.getByTestId('start-mission').click();
   await expect(st.getByTestId('mission-panel')).toBeVisible();
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);

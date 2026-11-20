@@ -136,9 +136,11 @@ for (const lang of ['en', 'he']) {
     await page.goto('/');
     if (lang === 'he') await page.getByTestId('lang-toggle-dialog').click();
     await page.getByTestId('mat-ply-3').click();
+    await page.getByTestId('start-missions').click();
     await page.getByTestId('mission-game-organiser').click();
     await page.waitForTimeout(300);
     await shot(page, lang, '40-start-missions');
+    await page.getByTestId('start-mission').click();
     await S(page, () => {
       const cf = (window as any).__cutforge;
       const s = cf.store.getState();
