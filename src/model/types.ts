@@ -347,6 +347,8 @@ export type Connection = {
    * re-fitted by `solve`. Absent: an ordinary joint.
    */
   seam?: true;
+  /** Milestone 124: a seam flap's taper, how far it narrows at each end along its edge (mm). Absent: its depth (45°). */
+  flapTaper?: number;
   /** Milestone 123: the edge of the face graph this seam was made from (`EdgeKey`). */
   src?: string;
 };

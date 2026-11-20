@@ -2035,6 +2035,24 @@ Limitations
 - Edges on a face's holes are left unjoined (openings, 130). The goldens' nets are a simple breadth-first tree; the unfolder (124) chooses real ones.
 - The seam flap's depth and taper are R6's to choose; for now 8–15 mm by thickness, at most a third of the seam, tapered at 45°.
 
+## Milestone 124 (Shapes R5) — the unfolder ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R5 (§4.4). New `src/model/unfold.ts` (`unfold`, `islandOrder`, `ringsOverlap`, `fitsSheet`, `flapTaperLen`); `Connection.flapTaper`; `addSeamNet` takes the unfolder's flap depths and tapers.
+- **The pipeline** of `MODEL_MODES_RESEARCH.md` §3, written fresh from R0's spike: edges in order of weight (flat and long first; *Fewer cuts* weights length six times more), a greedy join with union-find refused when the island would overlap itself or no longer fit the sheet in any of 8 turns, then restarts with seeded jitter, keeping the fewest pieces, then the shortest cut.
+- **Flaps are in the overlap test.** When a join closes an edge inside the island (one that will never fold), that edge's flap must fit there or the join is refused. A flap goes on the face with the smaller area-to-perimeter ratio (on a near tie, the one carrying fewer flaps, so they alternate round a chain), at full depth at 45°, then narrowing more steeply at its ends (2.5× and 5× its depth along the edge), then at 60% and 35% depth, on either face. The edges between pieces get theirs last; one that still does not fit is dropped and listed. **A dropped flap counts as a piece** when restarts are compared.
+- **Fixed edges first**: a fixed fold is joined before anything else (listed if it cannot be); a fixed cut is never folded. **Open faces** are left out.
+- **Deterministic**: the seed is a string (the design's id); restarts are counted (40 by default), not timed, with a 2 s safety cap, so the same design gives the same net on any machine. The pieces are listed largest first, each face's place in its piece's flat layout returned.
+- **Issues**: a face larger than the sheet; a split, saying why (the sheet, an overlap, the student's cuts); a dropped flap; a fixed fold that could not be made.
+
+Verified
+- `tests/unfold.test.ts` (21): a cube, a hexagonal prism, a square pyramid, an 8-sided diamond, an L-prism, a house and a 12-sided tube each unfold on A4 with no face or flap overlapping and every flap placed, each piece fitting; a cube is one piece with 7 flaps; the same seed gives the same folds and flaps; a fixed cut is not folded and a fixed fold is; a 270 × 30 × 150 box is split to fit A4 with *split: sheet*, and a face larger than the sheet is named; open faces are left out; *Fewer cuts* cuts no more; through the engine (`addSeamNet` with the unfolder's folds, flap sides, depths and tapers), each fixture cuts as many pieces as islands with no overlap and no broken seam.
+- Timing (Node, the card sheet): 14 faces 1 ms, a 32-face sphere 8 ms, a 72-face sphere 10 ms (one piece, no restarts); a 144-face torus 35 ms first pass, 505 ms with 40 restarts, 9 pieces. Unit suite and typecheck green.
+
+Limitations
+- A dense, saddle-shaped form (the torus) splits into many pieces: the flap rule is strict. Its net is still cuttable and glueable.
+- Edges on a face's holes are not joined or flapped (openings, 130); a through-hole's walls come out as a tube of their own.
+- No merge pass after the restarts: a greedy pass already tries every edge, so it would find none.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

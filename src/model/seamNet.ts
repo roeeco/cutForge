@@ -12,6 +12,9 @@ export type SeamPlan = {
   folds: Set<EdgeKey>;
   /** Cut edges: the face whose board carries the flap. Absent: face `a`. */
   flapOn?: Record<EdgeKey, FaceKey>;
+  /** A flap's depth and taper as the unfolder fitted them (mm); absent: the material's. */
+  flapDepth?: Record<EdgeKey, number>;
+  flapTaper?: Record<EdgeKey, number>;
   /** The kind on a cut edge (default glue); 'butt' leaves it unjoined. */
   seam?: (e: PEdge) => ConnectionKind;
   /** Faces left out (openings). */
@@ -96,7 +99,10 @@ export function addSeamNet(d: Design, P: Polyhedron, plan: SeamPlan): Record<Fac
     if (!ra || !rb) continue;
     const kind = plan.seam?.(e) ?? 'glue';
     const onB = plan.flapOn?.[e.key] === e.b;
-    d.connections[seamId(e.key)] = conn(seamId(e.key), kind, onB ? rb : ra, onB ? ra : rb, e);
+    const c = conn(seamId(e.key), kind, onB ? rb : ra, onB ? ra : rb, e);
+    if (plan.flapDepth?.[e.key] !== undefined) c.flap = Math.round(plan.flapDepth[e.key] * 1000) / 1000;
+    if (plan.flapTaper?.[e.key] !== undefined) c.flapTaper = Math.round(plan.flapTaper[e.key] * 1000) / 1000;
+    d.connections[seamId(e.key)] = c;
   }
   return ids;
 }

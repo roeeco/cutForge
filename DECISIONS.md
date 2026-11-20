@@ -629,3 +629,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Curved shapes are cut into facets on a copy**; the shape stage keeps its smooth look and the student's *Faces* count, when set, wins.
 - **The shape cache includes the shape's id**: provenance needs one body per shape, and the lost sharing (two identical shapes) is rare.
 - **The sliver check uses twice the area over the outline's length** as a face's width (exact for a strip) at 1.5t, so a strip 3t wide is not listed.
+
+## Milestone 124 (Shapes R5): the unfolder
+- **Restarts are counted, not timed** (40, with a 2 s cap as a guard): the plan's *deterministic, the seed is the design id* holds only when the number of tries does not depend on the machine.
+- **Flaps are fitted while joining**: an edge a join closes inside an island needs room for its flap there, or the join is refused. Checking flaps only at the end left nets too tight to glue.
+- **A dropped flap counts as a piece**, so the search prefers two pieces that glue to one that does not.
+- **A flap may narrow steeply at its ends** (its taper stored on the seam, `flapTaper`) before it is made shallower: a steep taper keeps the glue area, a shallow flap loses it.
+- **The largest face roots each piece** (`islandOrder`), so the net is laid out from it.
+- **Weights**: bend × (0.5 convex, 1 concave) − 0.05 × length / average length (0.3 with *Fewer cuts*); jitter ±0.175 after the first pass.

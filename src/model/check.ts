@@ -312,6 +312,7 @@ function connection(c: unknown, key: string, d: Record<string, any>): boolean {
   if (x.hingeOf !== undefined && typeof x.hingeOf !== 'string') delete x.hingeOf; // derived
   // a made model's seam (milestone 123)
   if (x.seam !== undefined && x.seam !== true) delete x.seam;
+  if (x.flapTaper !== undefined && !(typeof x.flapTaper === 'number' && Number.isFinite(x.flapTaper) && x.flapTaper >= 0 && x.flapTaper < 1000)) delete x.flapTaper;
   if (x.src !== undefined && typeof x.src !== 'string') delete x.src;
   if (x.seam && x.hingeOf !== undefined && x.hingeOf !== x.a.panelId && x.hingeOf !== x.b.panelId) delete x.hingeOf;
   if (x.cut !== undefined && x.cut !== 'cut' && x.cut !== 'keep') delete x.cut;

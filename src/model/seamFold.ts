@@ -80,7 +80,8 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
   const t = mO.thickness, tR = tOf(d, R.id);
   const L = f.s1 - f.s0;
   const fh = Math.max(1, c.flap ?? d.joints?.[mO.kind]?.flap ?? seamFlapDepth(mO.thickness, L));
-  const [ta, tb] = seamTapers(O, c.a.edge, f, fh);
+  // the taper the unfolder fitted (at most a third of the seam), else 45°
+  const ta = Math.max(0, Math.min(c.flapTaper ?? fh, L / 3)), tb = ta;
   const [a, b] = edgeLocal(O, c.a.edge);
   const la = Math.hypot(b.x - a.x, b.y - a.y);
   const dir = { x: (b.x - a.x) / la, y: (b.y - a.y) / la };
@@ -107,13 +108,6 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
 /** A glue flap's depth on a seam: 8–15 mm by the material (R6 refines it), and never more than a third of the seam. */
 export function seamFlapDepth(t: number, len: number): number {
   return Math.max(3, Math.min(Math.max(8, Math.min(15, 10 * t + 5)), len / 3));
-}
-
-/** How much a seam flap narrows at each end: at least its depth / tan of half the face's corner there, so flaps meeting at a corner never cross. */
-function seamTapers(O: Panel, e: EdgeArg, f: SeamFit, fh: number): [number, number] {
-  const L = f.s1 - f.s0;
-  const base = Math.min(fh, L / 3);
-  return [base, base].map((x) => Math.min(x, L / 2 - 0.5)).map((x) => Math.max(0, x)) as [number, number];
 }
 
 /** Local coords of a world point (x, y on the plane, z into the material). */
