@@ -1950,4 +1950,17 @@ export const he: Record<MsgKey, string> = {
   'make.closeAll': "לסגור את כולן",
   'make.lid': "מכסה בחיתוך",
   'make.lidDepth': "מכסה, מלמעלה",
+  // milestone 131: assembly
+  'spec.seams': "תפרים, לפי הסדר: {list}",
+  'make.step.glue': "דבק",
+  'make.step.lock': "נעילת חריץ",
+  'make.step.tabs': "לשוניות",
+  'make.step.fingers': "אצבעות",
+  'make.step.butt': "קצה אל קצה",
+  'make.steps': "להרכיב: {n} שלבים",
+  'make.stepsHelp': "קודם מקפלים כל קו קיפול, ואז סוגרים את התפרים לפי סדר המספרים.",
+  'make.stepLine': "{n}: {kind}, {a} אל {b}",
+  'steps.back': "אחורה",
+  'steps.start': "להתחיל",
+  'steps.next': "הבא",
 };

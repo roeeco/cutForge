@@ -1948,6 +1948,19 @@ export const en = {
   'make.closeAll': "Close them all",
   'make.lid': "A lid by a cut",
   'make.lidDepth': "Lid, from the top",
+  // milestone 131: assembly
+  'spec.seams': "Seams, in order: {list}",
+  'make.step.glue': "glue",
+  'make.step.lock': "slit lock",
+  'make.step.tabs': "tabs",
+  'make.step.fingers': "fingers",
+  'make.step.butt': "edge to edge",
+  'make.steps': "Putting it together: {n} steps",
+  'make.stepsHelp': "Fold every crease first, then close the seams in their numbers' order.",
+  'make.stepLine': "{n}: {kind}, {a} to {b}",
+  'steps.back': "Back",
+  'steps.start': "Start",
+  'steps.next': "Next",
 } as const;
 
 export type MsgKey = keyof typeof en;

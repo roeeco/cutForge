@@ -12,6 +12,7 @@ import { buildPieces } from '../model/pieces';
 import { canMake, facetsFor, LID_OPEN, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
 import { detach, rechooseJoints, type MakeIssue } from '../model/reassemble';
 import { MATERIALS } from '../model/materials';
+import { StepsSection } from './Steps';
 import { kernelNow } from '../sculpt/kernel';
 
 
@@ -191,6 +192,8 @@ export function MakeCard() {
       </label>
       {!!spec.lid && <NumField label={t('make.lidDepth')} value={spec.lid} unit={t('unit.mm')} min={2} onCommit={(v) => redo({ lid: v })} testId="make-lid-depth" />}
       {busy && <p className="note">{t('make.working')}</p>}
+      {/* milestone 131: the seams in the order they close */}
+      <StepsSection />
       {/* how the net was split is said, not listed as a problem: it cuts and folds as it is */}
       {issues.map((i, k) =>
         i.kind === 'unfold' && i.issue.kind === 'split' ? (

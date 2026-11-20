@@ -2168,6 +2168,22 @@ Limitations
 - The card lid's hem strengthens its rim; it does not plug into the box.
 - Faces are left open from a board's card, not by clicking faces in the shape stage.
 
+## Milestone 131 (Shapes R12) — assembly: seam numbers, the order, the steps ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R12. New `src/model/assembly.ts` (`assemblySteps`, `seamNumbers`) and `src/make/Steps.tsx`; `src/export/annotate.ts` (kind `seam`), `src/export/spec.ts` (`SpecText.seams`), `src/ui/printPlan.ts`, `src/make/MakeCard.tsx`.
+- **The order**: a made model's cut seams (or a board model's corners) piece by piece, then by how far their boards are from the piece's first board along its folds; **the seams of the face that closes last come last**: the boards round an opening when there is one, else the chooser's closing face (R6).
+- **Paired seam numbers**: each flap (or, for tabs and fingers, its board's edge) and its partner edge carry the seam's number, on the cut plan's annotations (milestone 89, shown with *Dimensions*) and on the GUIDE layer when the export is asked for them (off by default, so files do not change).
+- **The steps**, on the Make card: *Putting it together: N steps*, *Start*, *Next*, *Back*; each step says its seam's kind and boards (*3: slit lock, Roof to Gable*) and selects the two boards on the 3D stage with the model folded up.
+- **The printed plan** (90) lists each page's seams in order (*Seams, in order: 1 glue · 2 glue · 3 slit lock*).
+
+Verified
+- `tests/assembly.test.ts` (5): the house's cut seams are each one step, numbered 1…n, the roof's (the face that closes last) at the end; an open box's four seams; a plywood box's twelve corners with the lid board's last; each seam number twice on the plan (flap and partner edge); the printed plan's seam line. `spec.test.ts` and the i18n tests unchanged.
+
+Limitations
+- **Glue areas are not shaded** on the guide layer; the word *glue* on each flap (89) stays as it was.
+- The steps view is a list on the Make card with the seam's boards selected in 3D, not a view of its own with the fold slider stepping per seam.
+- The house closes in 9 seams on the card sheet (its net is one piece with 6 folds), not the plan's 6.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

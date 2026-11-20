@@ -16,7 +16,7 @@ const PAPER: Record<Paper, [number, number]> = { A4: [297, 210], A3: [420, 297] 
 /** The scales a page may be drawn at, largest first (1 : n). */
 export const SCALES = [1, 2, 5, 10, 20];
 
-export type SpecText = { title: string; date: string; material: string; blank: string; pieces: string; glue: string; kerf: string; scale: string; legend: Record<'cut' | 'score' | 'engrave' | 'guide', string>; glueWord: string; unit: string; name: (panelId: string) => string };
+export type SpecText = { title: string; date: string; material: string; blank: string; pieces: string; glue: string; kerf: string; scale: string; legend: Record<'cut' | 'score' | 'engrave' | 'guide', string>; glueWord: string; unit: string; name: (panelId: string) => string; /** Milestone 131: a made model's seams in order, one line (absent: none). */ seams?: (pieceKey: string) => string | null };
 
 /** The largest scale at which a box fits the drawing area (1 : n), or the smallest offered. */
 export function fitScale(w: number, h: number, areaW: number, areaH: number): number {
@@ -28,7 +28,8 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 /** One page of the spec sheet for a piece, as SVG (mm units). */
 export function specPage(d: Design, c: PieceCopy, paper: Paper, tx: SpecText): { svg: string; scale: number } {
   const [W, H] = PAPER[paper];
-  const margin = 12, block = 26;
+  const seamLine = tx.seams?.(c.pieceKey) ?? null;
+  const margin = 12, block = seamLine ? 31 : 26;
   const areaW = W - 2 * margin, areaH = H - 2 * margin - block;
   const n = fitScale(c.w, c.h, areaW, areaH);
   const k = 1 / n;
@@ -44,13 +45,13 @@ export function specPage(d: Design, c: PieceCopy, paper: Paper, tx: SpecText): {
   for (const a of annotations(d, c, tx.name, tx.unit)) {
     const anchor = a.kind === 'size' ? 'start' : 'middle';
     const text = a.kind === 'glue' ? tx.glueWord : a.text;
-    out.push(`<text x="${a.at.x}" y="${c.h - a.at.y}" font-size="${Math.max(a.size, 2.6 / k)}" text-anchor="${anchor}" fill="${a.kind === 'glue' ? '#8a5a00' : a.kind === 'size' ? '#0f6b3c' : '#333'}">${esc(text)}</text>`);
+    out.push(`<text x="${a.at.x}" y="${c.h - a.at.y}" font-size="${Math.max(a.size, 2.6 / k)}" text-anchor="${anchor}" fill="${a.kind === 'glue' ? '#8a5a00' : a.kind === 'size' ? '#0f6b3c' : a.kind === 'seam' ? '#2f6feb' : '#333'}"${a.kind === 'seam' ? ' font-weight="700"' : ''}>${esc(text)}</text>`);
   }
   out.push('</g>');
   // the title block and the legend at the foot
   const y0 = H - margin - block + 4;
   out.push(`<line x1="${margin}" y1="${y0 - 2}" x2="${W - margin}" y2="${y0 - 2}" stroke="#999" stroke-width="0.2"/>`);
-  const rows = [tx.title, `${tx.date} · ${tx.material}`, `${tx.blank} · ${tx.pieces} · ${tx.glue} · ${tx.kerf}`, `${tx.scale.replace('{n}', String(n))}`];
+  const rows = [tx.title, `${tx.date} · ${tx.material}`, `${tx.blank} · ${tx.pieces} · ${tx.glue} · ${tx.kerf}`, `${tx.scale.replace('{n}', String(n))}`, ...(seamLine ? [seamLine] : [])];
   rows.forEach((r, i) => out.push(`<text x="${margin}" y="${y0 + 4 + i * 5}" font-size="${i === 0 ? 4.2 : 3}" font-weight="${i === 0 ? 700 : 400}">${esc(r)}</text>`));
   (['cut', 'score', 'engrave', 'guide'] as const).forEach((op, i) => {
     const x = W - margin - 4 * 34 + i * 34;

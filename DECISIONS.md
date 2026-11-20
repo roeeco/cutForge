@@ -676,3 +676,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Leave open is on a made board's card**, the Workshop's place for a board's choices, rather than a face picker on the shape stage.
 - **A flap's clearance keeps its base on its edge's ends**: corners are where neighbours meet and creases shift them anyway; the export check allows made boards a 4t² corner sliver for the same reason.
 - **A seam kind the student picked keeps its edge cut** across remakes (milestone 129's carry-over, found while changing the unfolder): a slit lock never turns into a fold.
+
+## Milestone 131 (Shapes R12): assembly
+- **Steps are seams, numbered once each**, the face that closes last at the end; folds are not steps (they are all creased first).
+- **Seam numbers are annotations** (milestone 89's), so they show on the cut plan with *Dimensions* and go to the GUIDE layer only when the export is asked for annotations: files and goldens do not change.
+- **The steps live on the Make card** and select the seam's two boards in the Workshop's 3D view, rather than a separate steps layer.
