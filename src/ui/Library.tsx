@@ -9,6 +9,7 @@ import { migrateDesign } from '../model/serialize';
 import { duplicateDesign } from '../model/ops';
 import { MaterialArt } from './MaterialArt';
 import { Icon } from './icons';
+import { askText } from './AppDialog';
 
 /** Open a design from the library in the editor (the one open now is saved already). */
 export async function openFromLibrary(id: string) {
@@ -68,7 +69,7 @@ export function Library() {
             aria-label={t('proj.move')}
             onClick={async () => {
               // milestone 87: a project by name (made if new); an empty name takes it out of its project
-              const name = prompt(t('proj.movePrompt'), projects.find((p) => p.id === m.projectId)?.name ?? '');
+              const name = await askText(t('proj.movePrompt'), projects.find((p) => p.id === m.projectId)?.name ?? '');
               if (name === null) return;
               await setProject(m.id, name.trim() ? (await projectNamed(name.trim())).id : null);
               await reload();
@@ -82,7 +83,7 @@ export function Library() {
             title={t('lib.rename')}
             aria-label={t('lib.rename')}
             onClick={async () => {
-              const name = prompt(t('lib.rename'), m.name);
+              const name = await askText(t('lib.rename'), m.name);
               // the open design is renamed in the editor, or its next autosave would undo it
               if (name !== null && m.id === openId) useStore.getState().apply((d) => void (d.name = name));
               else if (name !== null) await renameDesign(m.id, name);

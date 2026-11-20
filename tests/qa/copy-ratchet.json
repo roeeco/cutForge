@@ -32,14 +32,5 @@
     "tray.short",
     "val.split"
   ],
-  "nativeDialogs": [
-    "src/make/MakeCard.tsx: confirm",
-    "src/teacher/TeacherApp.tsx: confirm",
-    "src/tour/TourNudge.tsx: confirm",
-    "src/ui/Library.tsx: prompt",
-    "src/ui/SketchTopBar.tsx: confirm",
-    "src/ui/Toolbar.tsx: alert",
-    "src/ui/openFile.ts: alert",
-    "src/views/Plan2D.tsx: confirm"
-  ]
+  "nativeDialogs": []
 }

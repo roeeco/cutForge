@@ -12,6 +12,9 @@ import { contentFit, inCell } from '../easy/objects';
 import { guidedCommit } from './apply';
 import { boxTrayOf, insideSize, kindOf, moveDivider, setInsideSize, spaces } from './box';
 
+/** The least inside size a Guided box takes (mm). */
+const GUIDED_MIN_SIZE = 10;
+
 type Basis = { o: V3; u: V3; v: V3; up: V3; top: number };
 const add = (a: V3, b: V3, k = 1): V3 => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 
@@ -95,13 +98,16 @@ function Arrows({ d, trayId, B }: { d: Design; trayId: string; B: Basis }) {
             k={a.label}
             value={Math.round(a.value * 10) / 10}
             unit={t('unit.mm')}
-            min={10}
+            min={0}
             testId={`g-size-${a.key}`}
-            onCommit={(v) => {
+            onCommit={(typed) => {
               const st = useStore.getState();
               const from = a.value;
+              // the least a box can be, said (milestone 142, REPORT.md B5: 5 mm became 10 mm with no word)
+              const v = Math.max(GUIDED_MIN_SIZE, typed);
               st.preview((dd) => setInsideSize(dd as Design, { [a.key]: v }));
               commitSize(a.key, from, v);
+              if (typed < GUIDED_MIN_SIZE) useStore.setState({ guidedNote: { key: 'g.size.least', vars: { n: GUIDED_MIN_SIZE }, at: Date.now() } });
             }}
           />
         </group>

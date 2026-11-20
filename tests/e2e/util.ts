@@ -97,3 +97,14 @@ export async function startTemplate(page: Page, id: string, matId: string) {
   await expect(page.getByTestId('material-dialog')).toHaveCount(0);
   await expect(page.getByTestId('view3d')).toBeVisible();
 }
+
+/** Answer the app's own dialog (milestone 143: it replaced the browser's confirm, alert and prompt): type `text` into a
+ * prompt, then OK (or Cancel with `ok: false`). Returns the dialog's message. */
+export async function answerDialog(page: import('@playwright/test').Page, o: { text?: string; ok?: boolean } = {}): Promise<string> {
+  const dlg = page.getByTestId('app-dialog');
+  await dlg.waitFor();
+  const msg = (await dlg.locator('p').first().textContent()) ?? '';
+  if (o.text !== undefined) await page.getByTestId('app-dialog-input').fill(o.text);
+  await page.getByTestId(o.ok === false ? 'app-dialog-cancel' : 'app-dialog-ok').click();
+  return msg;
+}

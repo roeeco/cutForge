@@ -235,8 +235,8 @@ comes before 115, 117 and 118.**
 | **139** | Placement and the stage layout | Q5 | ✅ (two interaction items left to 145) |
 | **140** | Modes and the level switch; *Joints* and *Outlines* in the card | Q6 | ✅ |
 | **141** | Gizmos | Q7 | ✅ (ring colours, position fields; the rest left to 145) |
-| **142** | Guided specifics | Q8 | |
-| **143** | Quick build and Shapes specifics | Q9 | |
+| **142** | Guided specifics | Q8 | ✅ |
+| **143** | Quick build and Shapes specifics | Q9 | ✅ |
 | **144** | Accessibility | Q10 | |
 | **145** | Verification of 134–144 | Q11 | |
 

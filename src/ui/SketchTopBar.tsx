@@ -2,13 +2,14 @@
 // sketch's own undo and redo. The rest is on the sketch's card (SketchPanel).
 import { useStore, useT } from '../store/store';
 import { Icon } from './icons';
+import { askConfirm } from './AppDialog';
 
 /** Cancel the sketch, asking once when it was changed. */
-export function cancelSketchAsked(t: ReturnType<typeof useT>) {
+export async function cancelSketchAsked(t: ReturnType<typeof useT>) {
   const k = useStore.getState().sketch;
   if (!k) return;
   const dirty = JSON.stringify(k.draft) !== JSON.stringify(k.start);
-  if (dirty && !confirm(t('sketch.discard'))) return;
+  if (dirty && !(await askConfirm(t('sketch.discard')))) return;
   useStore.getState().cancelSketch();
 }
 

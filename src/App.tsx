@@ -35,6 +35,7 @@ const SentenceDev = lazy(() => import('./sentence/SentenceDev').then((m) => ({ d
 /** What shows while a part loads: the same quiet placeholder as the app's own first load. */
 const Loading = () => <div className="loading" aria-busy="true" />;
 import { EditorBoundary } from './ui/ErrorBoundary';
+import { AppDialog } from './ui/AppDialog';
 
 export function App() {
   const t = useT();
@@ -96,6 +97,7 @@ export function App() {
     return (
       <Suspense fallback={<Loading />}>
         <TeacherApp />
+        <AppDialog lang={lang} />
       </Suspense>
     );
   // the sentence on its own, in development (milestone 97)
@@ -142,6 +144,8 @@ export function App() {
         </>
       )}
       {needsMaterial && !guided && <StartScreen />}
+      {/* the app's own dialogs (milestone 143) */}
+      <AppDialog lang={lang} />
       {otherTab && (
         // milestone 86: two tabs on one design
         <div className="other-tab" role="alert" data-testid="other-tab">

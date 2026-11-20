@@ -5,14 +5,15 @@
 import { useState } from 'react';
 import { TOUR_DONE_KEY, tourDone, useStore, useT } from '../store/store';
 import { translate } from '../i18n';
+import { askConfirm } from '../ui/AppDialog';
 
 /** The tour is offered nowhere (welcome screen, "New here?" note, menu) until its issues are fixed; true puts it back. */
 export const TOUR_OFFERED = false;
 
 /** Start the tour on a new design, asking first (as New design does) when the current one has boards. */
-export function startTourConfirmed(): boolean {
+export async function startTourConfirmed(): Promise<boolean> {
   const s = useStore.getState();
-  if (s.design.order.length && !confirm(translate(s.lang, 'dlg.newConfirm'))) return false;
+  if (s.design.order.length && !(await askConfirm(translate(s.lang, 'dlg.newConfirm')))) return false;
   s.startTour();
   return true;
 }
@@ -37,7 +38,7 @@ export function TourNudge() {
         <button className="link" onClick={dismiss} data-testid="tour-nudge-dismiss">
           {t('tour.nudgeDismiss')}
         </button>
-        <button className="primary" onClick={() => startTourConfirmed() && setHidden(true)} data-testid="tour-nudge-go">
+        <button className="primary" onClick={async () => (await startTourConfirmed()) && setHidden(true)} data-testid="tour-nudge-go">
           {t('tour.take')}
         </button>
       </div>

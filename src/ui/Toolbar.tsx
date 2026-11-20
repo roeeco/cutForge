@@ -9,6 +9,7 @@ import { shown, useFeature } from '../easy/features';
 import { QuickRail } from '../easy/QuickRail';
 import { LazySculptRail } from '../sculpt/ui/lazy';
 import { LINE_TYPES } from '../model/lines';
+import { tellUser } from './AppDialog';
 
 /** The Shapes tool's footprints (milestone 75), in the menu's order. */
 const FEET: { id: ShapeFoot; key: MsgKey; icon: string; kbd?: string; only3d?: boolean }[] = [
@@ -70,7 +71,7 @@ function WorkshopRail() {
   const fileRef = useRef<HTMLInputElement>(null);
   const onFile = async (f: File) => {
     const r = importSvg(await f.text());
-    if ('error' in r) return alert(t('import.failed', { reason: t(`import.${r.error}` as MsgKey) }));
+    if ('error' in r) return void tellUser(t('import.failed', { reason: t(`import.${r.error}` as MsgKey) }));
     const s = useStore.getState();
     // the operator *Board* (milestone 75): the largest outline becomes a board on the floor, at its own size;
     // with a board selected and the Shapes tool not on Board, it is a shape on that board, as before
@@ -78,18 +79,18 @@ function WorkshopRail() {
     if (s.view === '3d' && (onBoard || (s.shapeBoard && !targetPanel()))) {
       const area = (q: P2[]) => Math.abs(q.reduce((a, p, i) => a + p.x * q[(i + 1) % q.length].y - q[(i + 1) % q.length].x * p.y, 0)) / 2;
       const ring = [...r.polys].sort((a, b) => area(b) - area(a))[0];
-      if (!ring) return alert(t('import.failed', { reason: t('import.noClosed') }));
+      if (!ring) return void tellUser(t('import.failed', { reason: t('import.noClosed') }));
       let id: string | null = null;
       s.cancelPending();
       s.apply((d) => void (id = addPolygonPanel(d, 0, 0, ring.map((q) => ({ x: q.x, y: r.h - q.y })))));
       if (id) {
         s.select({ kind: 'panel', id });
         s.beginPending({ kind: 'panel', ids: [id], panelId: id });
-      } else alert(t('import.failed', { reason: t('import.badBoard') }));
+      } else void tellUser(t('import.failed', { reason: t('import.badBoard') }));
       return;
     }
     const panelId = targetPanel();
-    if (!panelId) return alert(t('import.needPanel'));
+    if (!panelId) return void tellUser(t('import.needPanel'));
     const p = s.design.panels[panelId];
     // fit into 40% of the panel, keeping proportions
     const k = (Math.min(p.w, p.h) * 0.4) / Math.max(r.w, r.h);
@@ -102,7 +103,7 @@ function WorkshopRail() {
       s.beginPending({ kind: 'shape', ids: [id], panelId });
     }
     const notes = r.problems.filter((x) => x === 'openDropped' || x === 'simplified');
-    if (notes.length) alert(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
+    if (notes.length) void tellUser(t('import.notes', { notes: notes.map((n) => t(`import.${n}` as MsgKey)).join('; ') }));
   };
   const polyMode = useStore((s) => s.polyMode);
   const shapeBoard = useStore((s) => s.shapeBoard);

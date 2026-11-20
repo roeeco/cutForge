@@ -1209,7 +1209,9 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .sk-handle-line { stroke: #6b8fd6; fill: none; }
 .sk-handle { fill: white; stroke: #2f6feb; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
 .sk-snap { fill: none; stroke: #2f6feb; }
-.sk-snap-label, .sk-dim-text { fill: #2f6feb; font-weight: 600; paint-order: stroke; stroke: white; stroke-width: 3px; }
+/* the halo in the text's own size (milestone 143, REPORT.md #8): inside the sketch's SVG a px is a mm, so 3px was a
+   blotch about three times the letters' height */
+.sk-snap-label, .sk-dim-text { fill: #2f6feb; font-weight: 600; paint-order: stroke; stroke: white; stroke-width: 0.22em; stroke-linejoin: round; }
 .sk-rubber { fill: none; stroke: var(--accent); }
 .sk-first { fill: white; stroke: var(--accent); }
 .sk-first.close { fill: var(--accent); }

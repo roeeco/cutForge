@@ -15,12 +15,12 @@ import type { Xform2 } from '../geom/types';
 import { applyX, composeX, contourArea, flattenContour, IDENTITY, invertPoint } from '../geom/vec';
 import { findEdge, panelEdges } from './edges';
 import { extrasByPanel } from './geometry';
-import { matIdOf, profileOf } from './materials';
+import { matIdOf, matOf, profileOf } from './materials';
 import { grownFoldXform, netFolds, pieceKeyOf } from './pieces';
 import { constructionSet } from './place';
 import { bandOf } from './bands';
 import { closureId } from './closures';
-import { ownKind } from './flatnet';
+import { noGlue, ownKind } from './flatnet';
 import { wingStrip } from './wings';
 import { pack, pieceCopies, quantityRoot } from './pack';
 
@@ -45,7 +45,7 @@ function wantsCut(d: Design, c: Connection): boolean {
 /** The joint a cut fold's two parts are joined with. */
 export function cutKind(d: Design, c: Connection): ConnectionKind {
   // a tray wall: the design's wall-to-base joint; any other grown panel keeps its place on the edge with a glue flap
-  return c.trayId ? ownKind(d, c.a.panelId, c.b.panelId) : 'glue';
+  return c.trayId ? ownKind(d, c.a.panelId, c.b.panelId) : noGlue(d, matOf(d, c.b.panelId).kind) ? 'lock' : 'glue';
 }
 
 /**

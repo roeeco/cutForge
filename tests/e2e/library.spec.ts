@@ -1,3 +1,4 @@
+import { answerDialog } from './util';
 // Milestone 86 (LIDS_LINES_PROJECTS_PLAN.md §7.1, §8): designs kept in the browser, and two tabs on one design.
 import { test, expect, type Page } from '@playwright/test';
 
@@ -16,7 +17,6 @@ async function make(page: Page, name: string) {
 test('New keeps the open design; Your designs lists both, opens, duplicates, deletes and restores', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('dialog', (d) => d.accept('Renamed'));
   await page.goto('/');
   await page.getByTestId('mat-ply-3').click();
   await page.getByTestId('start-go').click();
@@ -43,6 +43,7 @@ test('New keeps the open design; Your designs lists both, opens, duplicates, del
   await expect(page.locator('[data-testid^="lib-card-"]')).toHaveCount(3);
   const copy = page.locator('.lib-card', { hasText: '(copy)' });
   await copy.locator('[data-testid^="lib-rename-"]').click();
+  await answerDialog(page, { text: 'Renamed' });
   await expect(page.locator('.lib-card', { hasText: 'Renamed' })).toHaveCount(1);
   // the open design cannot be deleted; the renamed copy can
   await expect(page.locator('.lib-card', { hasText: 'Box A' }).locator('[data-testid^="lib-delete-"]')).toHaveCount(0);
@@ -75,7 +76,6 @@ test('a design changed in another tab is not overwritten: Reload or Keep mine', 
 });
 
 test('two designs moved into a project: grouped in the library; the download offers the whole project', async ({ page }) => {
-  page.on('dialog', (d) => d.accept('Game kit'));
   await page.goto('/');
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('start-go').click();
@@ -88,7 +88,11 @@ test('two designs moved into a project: grouped in the library; the download off
   await page.getByTestId('project-menu').click();
   await page.getByTestId('menu-designs').click();
   await page.getByTestId('lib-move-0').click();
+  await answerDialog(page, { text: 'Game kit' });
+  // the list is read again once the move is saved (the app's dialog does not block the page as the browser's did)
+  await expect(page.getByTestId('lib-project-Game kit').locator('.lib-card')).toHaveCount(1);
   await page.locator('.lib-card', { hasText: 'Board' }).locator('[data-testid^="lib-move-"]').click();
+  await answerDialog(page, { text: 'Game kit' });
   await expect(page.getByTestId('lib-project-Game kit').locator('.lib-card')).toHaveCount(2);
   await page.getByTestId('lib-back').click();
   await page.getByTestId('export-open').or(page.getByRole('button', { name: /Download for laser/ })).first().click();

@@ -6,7 +6,7 @@ import { boxPlan, measureYield, planSaveMaterial } from '../../src/model/split';
 import { settle } from './promises';
 
 describe('C8: Use less board keeps No glue', () => {
-  it.fails('a card box with slit-lock corners gets no glue joints from Use less board', () => {
+  it('a card box with slit-lock corners gets no glue joints from Use less board', () => {
     const d = ops.createDesign(MATERIALS[0]);
     const base = ops.addRootPanel(d, 0, 0, 150, 100);
     ops.addTray(d, base, 45);

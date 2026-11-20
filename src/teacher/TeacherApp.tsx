@@ -18,6 +18,7 @@ import { MISSIONS, missionById } from '../easy/missions';
 import { fmtNum, type MsgKey } from '../i18n';
 import type { Design } from '../model/types';
 import type { PreparedSheet } from '../export/prepare';
+import { askConfirm } from '../ui/AppDialog';
 
 export function TeacherApp() {
   const t = useT();
@@ -160,7 +161,7 @@ function Classes({ classes, current, onPick, reload }: { classes: TeacherClass[]
               <button
                 className="danger"
                 onClick={async () => {
-                  if (!confirm(t('teach.confirmDelete', { name: c.name }))) return;
+                  if (!(await askConfirm(t('teach.confirmDelete', { name: c.name })))) return;
                   await api.deleteClass(c.id);
                   reload();
                 }}
@@ -445,7 +446,7 @@ function Submissions({ cls, reload, tick }: { cls: TeacherClass; reload: () => v
                     <button
                       className="danger"
                       onClick={async () => {
-                        if (!confirm(t('teach.confirmDeleteSub'))) return;
+                        if (!(await askConfirm(t('teach.confirmDeleteSub')))) return;
                         await api.deleteSubmission(s.id);
                         await refresh();
                         reload();

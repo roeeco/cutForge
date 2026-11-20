@@ -183,6 +183,8 @@ describe("Guided's rule: nothing that cannot be cut", () => {
     expect(bad).toBe(false);
     expect(useStore.getState().design).toBe(before);
     expect(useStore.getState().past.length).toBe(1);
-    expect(useStore.getState().guidedNote?.key).toBe('g.refused');
+    // milestone 142: the note names the problem the change would have made
+    expect(useStore.getState().guidedNote?.key).toBe('g.refusedWhy');
+    expect(useStore.getState().guidedNote?.why?.key).toMatch(/^val\./);
   });
 });

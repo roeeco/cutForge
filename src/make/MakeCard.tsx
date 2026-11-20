@@ -14,6 +14,7 @@ import { detach, rechooseJoints, type MakeIssue } from '../model/reassemble';
 import { MATERIALS } from '../model/materials';
 import { StepsSection } from './Steps';
 import { kernelNow } from '../sculpt/kernel';
+import { askConfirm } from '../ui/AppDialog';
 
 
 const CURVED = new Set(['cylinder', 'cone', 'sphere', 'halfsphere', 'torus', 'revolve']);
@@ -229,8 +230,8 @@ export function MakeCard() {
       )}
       <button
         className="link"
-        onClick={() => {
-          if (!window.confirm(t('make.detachAsk'))) return;
+        onClick={async () => {
+          if (!(await askConfirm(t('make.detachAsk')))) return;
           useStore.getState().apply((x) => detach(x as Design));
         }}
         data-testid="make-detach"

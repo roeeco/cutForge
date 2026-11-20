@@ -45,6 +45,7 @@ import { materialName } from '../ui/materialName';
 import { snapAngle } from './widgets';
 import { ConfirmBarHtml, PendingBarHtml } from './panelTool';
 import { Icon } from '../ui/icons';
+import { askConfirm } from '../ui/AppDialog';
 
 const GAP = 40;
 const grid = (x: number, ev?: { altKey: boolean } | null) => gridSnap(x, ev);
@@ -1072,9 +1073,9 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
           </button>
           {!solo && !net && planEdit && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 const st = useStore.getState();
-                if (Object.values(st.design.placements).some((p) => p.manual && !p.nested) && !confirm(t('pack.confirm'))) return;
+                if (Object.values(st.design.placements).some((p) => p.manual && !p.nested) && !(await askConfirm(t('pack.confirm')))) return;
                 st.apply((dd) => void (dd.placements = {}));
               }}
               data-testid="repack"

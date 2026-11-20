@@ -18,13 +18,13 @@
 // `Tray.pin` lets the student choose for a wall, `Tray.flat: 'off'` keeps the
 // net whole (the export check then reports the overlap).
 import polygonClipping, { type MultiPolygon } from 'polygon-clipping';
-import type { Connection, ConnectionKind, Design, P2, Tray, TrayFix, V3 } from './types';
+import type { Connection, ConnectionKind, Design, MaterialKind, P2, Tray, TrayFix, V3 } from './types';
 import { flatPanel, netGroups, netOverlaps, type NetOverlap, type NetPanel } from './pieces';
 import { connectionGeom, autoFlap, cornerFit, seamKinds } from './seams';
 import { edgeLocal, edgeInwardLocal } from './frame';
 import { findEdge, panelEdges, segDir } from './edges';
 import { matOf } from './materials';
-import { designKind } from './jointDefaults';
+import { designKind, jointsOf } from './jointDefaults';
 import { applyX, invertPoint } from '../geom/vec';
 import type { Xform2 } from '../geom/types';
 
@@ -56,7 +56,15 @@ export function ownKind(d: Design, baseId: string, wallId: string): ConnectionKi
   const m = matOf(d, wallId);
   const k = designKind(d, 'base', ['glue', 'tabslot', 'slide', 'butt'], m.kind);
   if (k) return k;
+  // *No glue* (slit-lock corners) holds for a wall cut off its base too (milestone 143, REPORT.md C8: *Use less board*
+  // glued them back on)
+  if (noGlue(d, m.kind)) return 'lock';
   return m.kind === 'card' ? 'glue' : 'tabslot';
+}
+
+/** The design asks for no glue in this material: its corners are slit locks (DesignSettings' *No glue*). */
+export function noGlue(d: Design, kind: MaterialKind): boolean {
+  return jointsOf(d, kind)?.corner === 'lock';
 }
 
 /**

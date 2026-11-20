@@ -3,17 +3,22 @@
 import type { Draft } from 'immer';
 import type { Design } from '../model/types';
 import { useStore } from '../store/store';
-import { validate } from '../model/validate';
+import { validate, type Issue } from '../model/validate';
 import { blocking } from '../easy/fix';
 
 /** Blocking problems in `after` that `before` did not have (by key and target). */
 export function newProblems(before: Design, after: Design): string[] {
-  const sig = (d: Design) => validate(d).filter(blocking).map((i) => `${i.key}:${JSON.stringify(i.target ?? null)}`);
-  const had = new Set(sig(before));
-  return sig(after).filter((s) => !had.has(s)).map((s) => s.split(':')[0]);
+  return newIssues(before, after).map((i) => i.key);
 }
 
-const refuse = () => useStore.setState({ guidedNote: { key: 'g.refused', at: Date.now() } });
+/** The new blocking problems themselves (milestone 142: the note says the first one, not only "impossible to cut"). */
+export function newIssues(before: Design, after: Design): Issue[] {
+  const sig = (i: Issue) => `${i.key}:${JSON.stringify(i.target ?? null)}`;
+  const had = new Set(validate(before).filter(blocking).map(sig));
+  return validate(after).filter(blocking).filter((i) => !had.has(sig(i)));
+}
+
+const refuse = (why?: Issue, d?: Design) => useStore.setState({ guidedNote: { key: why ? 'g.refusedWhy' : 'g.refused', why, whyDesign: d, at: Date.now() } });
 
 /** One undo step, kept only when it brings no new blocking problem. */
 export function guidedApply(fn: (d: Draft<Design>) => unknown): boolean {
@@ -22,18 +27,21 @@ export function guidedApply(fn: (d: Draft<Design>) => unknown): boolean {
   st.apply(fn);
   const now = useStore.getState().design;
   if (now === was.design) return true;
-  if (!newProblems(was.design, now).length) return true;
+  const fresh = newIssues(was.design, now);
+  if (!fresh.length) return true;
   useStore.setState(was);
-  refuse();
+  refuse(fresh[0], now);
   return false;
 }
 
 /** The end of a drag: kept as one undo step, or put back when it brings a new blocking problem. */
 export function guidedCommit(): boolean {
   const st = useStore.getState();
-  if (st.txnBase && newProblems(st.txnBase, st.design).length) {
+  const fresh = st.txnBase ? newIssues(st.txnBase, st.design) : [];
+  if (fresh.length) {
+    const now = st.design;
     st.cancel();
-    refuse();
+    refuse(fresh[0], now);
     return false;
   }
   st.commit();

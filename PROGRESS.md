@@ -2363,6 +2363,15 @@ Verified: typecheck; `npm test`; in the dev server at 1366 × 768, Quick build w
 - **A place to read and correct a drag** (#5): the shape card has *Across* and *Front to back* beside *Lift* (it had only *Lift*). The gizmos' live readout was already there.
 - Not done: arrows that grow with zoom, a visible turn snap, and moving the Workshop board ring off its arrows and labels (left for the browser pass, milestone 145).
 
+## Milestones 142–143 (QA fix round Q8–Q9) — Guided, Quick build and the app's own dialogs ✅
+
+- **Guided says why** (`REPORT.md` B3–B9): a change Guided refuses names the problem it would have made (*Not changed: …*, from the new blocking problem itself), not only "impossible to cut"; a typed size under 10 mm says the least a box can be (5 mm became 10 mm with no word). Decorations and the pyramid's name: milestone 139.
+- **Use less board keeps No glue** (C8): a wall cut off its base, or any grown board's cut fold, is joined with a slit lock when the design's corners are slit locks (`noGlue`, `ownKind`, `cutKind`).
+- **The app's own dialogs** (§8, §11): `askConfirm`, `tellUser` and `askText` (`src/ui/AppDialog.tsx`) replace the browser's `confirm`, `alert` and `prompt` in all 8 files (sketch *Cancel*, *Detach*, the tour, the teacher's deletes, *Rename* and *Move to project*, SVG import messages, a file that would not open, *Repack*). The copy ratchet's list of them is empty. E2E specs answer the new dialog (`answerDialog` in `tests/e2e/util.ts`).
+- **The sketch's measurement labels** (#8): the white halo is sized to the text (`0.22em`), not 3 px, which inside the sketch's SVG is 3 mm, about three letters tall.
+
+Verified: typecheck; `npm test` (1597 passed; every QA repro now passes); `tests/e2e/library.spec.ts` (rename and move through the new dialog).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

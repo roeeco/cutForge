@@ -1,6 +1,6 @@
 // Milestone 4: text, SVG import, quantity and packing with manual placement,
 // pre-export validation, kerf modes.
-import { setNum, drawBoard, shapeTool } from './util';
+import { setNum, drawBoard, shapeTool, answerDialog } from './util';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -44,20 +44,19 @@ test('text and SVG import export as outlines', async ({ page }) => {
 
   // import an SVG icon onto the selected panel
   await S(page, ([id]: string[]) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), [base]);
-  page.once('dialog', (dlg) => dlg.accept());
   await page.getByTestId('import-file').setInputFiles({
     name: 'star.svg',
     mimeType: 'image/svg+xml',
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><polygon points="10,0 13,7 20,7 14,12 16,20 10,15 4,20 6,12 0,7 7,7"/><line x1="0" y1="0" x2="5" y2="5"/></svg>'),
   });
+  // the import's notes (an open line dropped) in the app's own dialog
+  await answerDialog(page);
   await expect.poll(async () => (await design(page)).panels[base].details.map((x: any) => x.shape)).toEqual(['text', 'path']);
   await page.getByTestId('ghost-ok').click();
 
   // refused file, with the reason
-  let msg = '';
-  page.once('dialog', (dlg) => ((msg = dlg.message()), dlg.accept()));
   await page.getByTestId('import-file').setInputFiles({ name: 'words.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><text>hi</text></svg>') });
-  await expect.poll(() => msg).toContain('Convert the text to paths');
+  expect(await answerDialog(page)).toContain('Convert the text to paths');
 
   const svg = await download(page, 'svg');
   expect(svg.text).not.toMatch(/<text|font-family|@font-face/);
@@ -97,8 +96,8 @@ test('quantity, packing, manual placement and kerf modes', async ({ page }) => {
   await expect(page.getByTestId('rotate-copy')).toBeDisabled();
 
   // repack clears manual placements (after confirming)
-  page.once('dialog', (dlg) => dlg.accept());
   await page.getByTestId('repack').click();
+  await answerDialog(page);
   await expect(page.locator('path.piece.bad')).toHaveCount(0);
 
   // kerf: nominal vs compensated

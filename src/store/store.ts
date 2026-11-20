@@ -1,3 +1,4 @@
+import type { Issue } from '../model/validate';
 import { outlineWhy } from '../model/outlineWhy';
 import type { Edit2D } from '../sketch/edit2d';
 // Editor store: the design, transactions with undo/redo, shared selection and UI state.
@@ -386,7 +387,8 @@ type State = {
   /** Guided's selected space (milestone 107): its index in the box's spaces; view state. */
   guidedSpace: number | null;
   /** Guided's short note on the stage (a size stopped at the sheet, a split refused), and when it was set. */
-  guidedNote: { key: MsgKey; vars?: Record<string, string | number>; at: number } | null;
+  /** `why`: the problem a refused change would have made, named in the note (milestone 142); `whyDesign` names its boards. */
+  guidedNote: { key: MsgKey; vars?: Record<string, string | number>; why?: Issue; whyDesign?: Design; at: number } | null;
   /** Material & sheet drawer open. */
   drawerOpen: boolean;
   /** Part under the pointer (either view), for cross-highlighting. */

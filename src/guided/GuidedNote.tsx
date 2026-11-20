@@ -2,6 +2,7 @@
 // cannot fit. It goes after a few seconds.
 import { useEffect } from 'react';
 import { useStore, useT } from '../store/store';
+import { issueVars } from '../model/names';
 
 export function GuidedNote() {
   const t = useT();
@@ -14,7 +15,7 @@ export function GuidedNote() {
   if (!n) return null;
   return (
     <div className="g-note card" role="status" data-testid="g-note" data-key={n.key}>
-      {t(n.key, n.vars)}
+      {t(n.key, { ...n.vars, ...(n.why && n.whyDesign ? { why: t(n.why.key, issueVars(n.whyDesign, n.why, t)) } : {}) })}
     </div>
   );
 }
