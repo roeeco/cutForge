@@ -2386,6 +2386,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - Behind the welcome screen the editor and its bar are `inert`: not read out or reached with Tab.
 - Correction to `REPORT.md` §11: the lid buttons do say which is chosen (`aria-checked` on radios); the first check looked for `aria-pressed`. Guided's sliders are named by the label round them.
 
+## Milestone 145 (QA fix round Q11) — verification of 134–144 ✅
+
+- `npm test`: 1609 passed (every QA repro, the joint promise gate, the copy ratchet and the fold check of every shape tile).
+- E2E specs whose expectations changed: `library.spec.ts` (the app's dialog), `shapes-port.spec.ts` and `guided.spec.ts` (the level switch): all pass.
+- In the dev server: the report's joint sequence, two tabs, an empty design, *Fit view*, the level switch at 1366 px, the folded 4-to-8 loft, and a rounded card box changed to plywood with the material pill, each as described in `REPORT.md` §13–§14.
+- `REPORT.md` has the round's results (§13), the owner's reports during it (§14), corrections (§15) and what is still open (§16).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

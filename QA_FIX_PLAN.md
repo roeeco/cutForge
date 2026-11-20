@@ -8,7 +8,7 @@ about 90 findings. This file:
 - orders the fixes into milestones (§3);
 - records the owner's decisions (§4).
 
-**Status:** decisions settled (§4). **134 (Q0) and 135 (Q1) built** (see `PROGRESS.md`): the to-do list is `tests/qa/` (the `it.fails` repros left), the fuzzer's promise checks and the copy ratchet. The milestones are numbered 134–145 in ROADMAP §5.4. Line
+**Status:** decisions settled (§4). **134–145 built** (see `PROGRESS.md`); what is still open is listed in `REPORT.md` §16. The milestones are numbered 134–145 in ROADMAP §5.4. Line
 numbers are for `0f285cd` and will drift; search for the function names.
 
 Report references: **#n** = top finding n (§1 of the report), **C n** = curved finding (§7), **J-x** = joint row (§10),

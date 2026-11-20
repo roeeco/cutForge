@@ -159,7 +159,7 @@ The plans name their milestones by letter; **this table is the only place that n
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-**Status (20 November):** 92–114 and 116 built, C1–C5, and **119–133, the shapes plan, built** (see `PROGRESS.md`); next: **the QA fix round, 134–145 (§5.4)**, then 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
+**Status (20 November):** 92–114 and 116 built, C1–C5, and **119–133, the shapes plan, built** (see `PROGRESS.md`); **the QA fix round, 134–145, built (§5.4)**; next: 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
 
 **Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
 
@@ -238,7 +238,7 @@ comes before 115, 117 and 118.**
 | **142** | Guided specifics | Q8 | ✅ |
 | **143** | Quick build and Shapes specifics | Q9 | ✅ |
 | **144** | Accessibility | Q10 | ✅ |
-| **145** | Verification of 134–144 | Q11 | |
+| **145** | Verification of 134–144 | Q11 | ✅ (open items: `REPORT.md` §16) |
 
 - **Order:** 134 first; 135 and 136 next (lying controls and lost data). 137–139 can run side by side after 134
   (model and validate, rules and lids, placement and stage). 140 and 141 share the stage overlays: one after the other.

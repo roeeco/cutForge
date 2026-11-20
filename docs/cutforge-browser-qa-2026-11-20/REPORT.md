@@ -479,3 +479,74 @@ kinds for the same joint. The browser routine now has matching checks as plan se
   the in-app browser), F (needs the teacher key and the Worker back end).
 - C5, C6, C9–C11; D5 (covered by C3), D8, D9, D12, D15, D16, D18, D19; E6–E8, E14, E17, E18.
 - H4–H6 and H8 as dedicated runs (covered in passing); I8 needs a hinged-lid bend on card.
+
+---
+
+# Fix round — results (milestones 134–145, 20 November)
+
+The fixes for this report were built as `QA_FIX_PLAN.md`'s milestones 134–145, each committed on
+`claude/modest-ride-j5iqa3` with its notes in `PROGRESS.md`. The safety nets of 134 stay in `npm test`:
+- `tests/qa/` (every repro that could be shown in the model);
+- the fuzzer's joint promise checks;
+- the copy ratchet;
+- a fold check of every shape tile.
+
+**Every model-level repro now passes.**
+
+## 13. What changed, by finding
+
+| Finding | Status | Milestone |
+|---|---|---|
+| §10 joint types: not all change, or none (J-a…J-i) | Fixed at the cause. Tray walls with tabs into the base ran past each other and became half-laps; they now span the inset ring. Lists show the real kind or *Mixed*; only kinds that do something are offered; the note counts what happened; hand-set joints survive a material change. | 135 |
+| A10 two tabs | Fixed: opening a design in a second tab no longer raises the alarm; *Not saved* instead of *Saving…* while a conflict waits. | 136 |
+| #1, H2 empty design ready to cut | Fixed: `val.empty`; Guided opens its gallery on an empty design. | 137 |
+| H11 counts, "(s)" | Fixed for 17 strings (plural forms in `translate`); 30 counted strings remain on the ratchet's list. | 137 |
+| Names (*Panel 3*, pyramid *Base*, "panel Panel 5") | Fixed. | 137 |
+| I1/I11 two minimum radii | Fixed: one rule (the export check's). | 138 |
+| C1 hinged lid on rounded box | Gated with a reason (owner's decision). | 138 |
+| C3 converting to rounded corners | *Round the corners* on the box card; *Curve* greyed with its reason; *Round* starts at the least radius. | 138 |
+| C7 inside height on a lid change | Fixed. | 138 |
+| I9 arched lid | Its reason names the sizes it needs; a lid that cannot be made says so. | 138 |
+| C2 Hinged → None | Not reproduced: the design afterwards is identical, and the stage draws it whole. | — |
+| Workshop sees tight bends only at download | The problems badge shows in Workshop while something blocks cutting. | 138 |
+| #2 sketch inside a shape | Fixed: moved beside, 10 mm clear. | 139 |
+| B6 decorations stacked | Fixed: the free place nearest the middle. | 139 |
+| B8 name lost when *Sides* changes | Fixed for Guided's ready shapes. | 139 |
+| *Fit view*, new design's camera, below the floor | Fixed: framed beside the card, from above, on open. | 139 |
+| #3, H1 level switch | Fixed: one place in every level, the Shapes stage and Guided included. | 140 |
+| #7, §2.3, §2.4 *Joints* / *Outlines* | One row under the card, one *Done*, new icon; off on a new design. | 140 |
+| #4–#5 gizmos | Rings coloured by axis; *Across* and *Front to back* fields. Arrow scaling, the visible snap and the board ring are not done. | 141 |
+| B5 silent clamp, Guided's generic refusal | Fixed: the note says why. | 142 |
+| C8 *Use less board* vs *No glue* | Fixed. | 143 |
+| Native `confirm` / `alert` / `prompt` | Replaced in all 8 files by the app's own dialog. | 143 |
+| #8 sketch label blotches | Fixed (halo sized to the text). | 143 |
+| §5 / §11 accessibility | Material radios and design rows named; editor inert behind the welcome screen. | 144 |
+
+## 14. Reported by the owner during the round
+
+- **A rounded open card box changed to plywood became "a ridiculous object".** Its walls kept card's fold to the base,
+  which plywood allows as a living hinge, so every wall became one and the net lay over itself; its corners were also
+  too tight. Fixed: a change of board kind gives the new board's defaults to joints it would never choose for a whole
+  box, and grows the corners to its least radius. In the dev server, card → plywood now ends as a plywood box made
+  from the start, with nothing flagged.
+- **Folded shapes listed many problems** (a 4-to-8 loft in card). Faces that meet only at a corner of the shape were
+  taken as boards colliding (loft: 4) or unjoined (cone: 24). Fixed for folded models; every shape tile now folds from
+  card with nothing to fix. In the dev server the folded loft lists none.
+
+## 15. Corrections to this report
+
+- **A10:** the first tab does warn; the faults were the false alarm and the *Saving…* label.
+- **J-j:** the template card notes the removed spaces; only its reason was vague.
+- **Numbered parts (1–6, two named 6):** these were stored names read from the model; the editor shows role names over
+  them.
+- **Lid buttons:** they do expose their state (`aria-checked`).
+
+## 16. Still open
+
+- **Not done in this round:** the gizmos' arrow scaling and visible turn snap; separating the Workshop board ring from
+  its arrows and labels; Quick build's *Wall / lid* picking an edge behind the one clicked; Guided's divider grip on
+  the width arrow; the 30 counted strings left on the ratchet.
+- **Seen once, not explained:** after a reload the stage drew nothing until *Fit view*. It happened only while the
+  in-app browser pane was hidden (a hidden page gets no animation frames); with the pane shown the stage drew at once.
+- **Not tested:** the teacher view (F) and offline (G3), as before.
+- **Structural curved walls:** gated now; they need a plan of their own (owner's decision).
