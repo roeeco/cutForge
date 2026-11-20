@@ -1939,4 +1939,9 @@ export const he: Record<MsgKey, string> = {
   'sculpt.workplane': "משטח עבודה: לוחצים על פאה (Shift: הצד השני; הרצפה: חזרה לרצפה)",
   'sculpt.workplaneOn': "על משטח העבודה",
   'sculpt.drop': "להוריד אל משטח העבודה",
+  // milestone 129: linked to the shape
+  'make.lost': "{n} מהשינויים שלך לא נשמרו: הפאה או הקצה שלהם כבר לא בצורה",
+  'make.update': "לעדכן מהצורה",
+  'make.detach': "לנתק מהצורות",
+  'make.detachAsk': "ניתוק: הלוחות נשארים כמו שהם, והצורות נלקחות. ביטול מחזיר אותן. להמשיך?",
 };

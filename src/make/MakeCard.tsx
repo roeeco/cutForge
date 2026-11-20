@@ -9,8 +9,8 @@ import type { Design, MakeSpec } from '../model/types';
 import { Segmented, NumField } from '../ui/NumField';
 import { Icon } from '../ui/icons';
 import { buildPieces } from '../model/pieces';
-import { canMake, facetsFor, madeWith, makeNow, matKey, polyOf, useMake } from './run';
-import { rechooseJoints, type MakeIssue } from '../model/reassemble';
+import { canMake, facetsFor, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
+import { detach, rechooseJoints, type MakeIssue } from '../model/reassemble';
 import { MATERIALS } from '../model/materials';
 import { kernelNow } from '../sculpt/kernel';
 
@@ -103,7 +103,8 @@ export function MakeCard() {
   const t = useT();
   const d = useStore((s) => s.design);
   const spec = d.make;
-  const { issues, busy, changed } = useMake();
+  const { issues, busy, changed, lost } = useMake();
+  const changedShape = shapesChanged(d);
   const matName = useMatName();
   // a change of material re-chooses every joint not set by hand (R6)
   const key = matKey(d);
@@ -195,8 +196,30 @@ export function MakeCard() {
           </ul>
         </>
       )}
-      <button onClick={() => void makeNow(spec.as, {})} data-testid="make-again">
-        {t('make.again')}
+      {lost && (
+        // milestone 129: what a remake could not keep, said once
+        <p className="note warn" data-testid="make-lost">
+          {t('make.lost', { n: lost.faces.length + lost.edges.length })}
+        </p>
+      )}
+      {changedShape ? (
+        <button className="primary" onClick={() => void makeNow(spec.as, {})} data-testid="make-update">
+          {t('make.update')}
+        </button>
+      ) : (
+        <button onClick={() => void makeNow(spec.as, {})} data-testid="make-again">
+          {t('make.again')}
+        </button>
+      )}
+      <button
+        className="link"
+        onClick={() => {
+          if (!window.confirm(t('make.detachAsk'))) return;
+          useStore.getState().apply((x) => detach(x as Design));
+        }}
+        data-testid="make-detach"
+      >
+        {t('make.detach')}
       </button>
     </section>
   );

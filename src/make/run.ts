@@ -6,7 +6,8 @@ import { useStore } from '../store/store';
 import type { Design, MakeSpec, MaterialProfile } from '../model/types';
 import { kernelNow } from '../sculpt/kernel';
 import { DEFAULT_FACETS, shapePolyhedron } from '../sculpt/polyhedron';
-import { reassemble, sheetOf, seamCtx, type MakeIssue } from '../model/reassemble';
+import { reassemble, sheetOf, seamCtx, type Lost, type MakeIssue } from '../model/reassemble';
+import { solidKey } from '../sculpt/build';
 import { unfold, type Unfolding, type UnfoldSpec } from '../model/unfold';
 import { chooseJoint, closingFace } from '../model/jointChoice';
 import { MATERIALS, CARD_FOLD_MAX } from '../model/materials';
@@ -16,7 +17,10 @@ import { create } from 'zustand';
 import { playAssembly } from '../easy/assemble';
 
 /** What the last Make left for the card: its issues, and whether it is still working. */
-export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null }>(() => ({ issues: [], busy: false, changed: null }));
+export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null; lost: Lost | null }>(() => ({ issues: [], busy: false, changed: null, lost: null }));
+
+/** The shapes changed since they were made: *Update from shape* (milestone 129). */
+export const shapesChanged = (d: Design) => !!d.make && !!d.sculpt && d.make.shapeKey !== undefined && d.make.shapeKey !== solidKey(d.sculpt);
 
 /** The material each design was last made with (not saved: a reload takes the material it opens with). */
 export const madeWith = new Map<string, string>();
@@ -99,7 +103,8 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   const d0 = st.design;
   if (!d0.sculpt?.order.length || !kernelNow()) return false;
   const prev = d0.make?.as === as ? d0.make : undefined;
-  const spec: MakeSpec = { ...(prev ?? {}), ...over, as };
+  // the shapes' key when made (milestone 129): Update from shape shows when it changes
+  const spec: MakeSpec = { ...(prev ?? {}), ...over, as, shapeKey: solidKey(d0.sculpt) };
   // the material: the design's when it can make this, else card or plywood 3 mm (decision 0)
   const swap = materialFor(as, d0.material);
   const d1: Design = swap ? { ...JSON.parse(JSON.stringify(d0)), material: { ...swap } } : d0;
@@ -108,11 +113,15 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   useMake.setState({ busy: true });
   const u = await unfoldFor(d1, P, spec);
   let issues: MakeIssue[] = [];
+  let lost: Lost | undefined;
   st.cancelPending();
   st.apply((d) => {
     if (swap) setMaterial(d as Design, swap);
-    issues = reassemble(d as Design, P, spec, u).issues;
+    const r = reassemble(d as Design, P, spec, u);
+    issues = r.issues;
+    lost = r.lost;
   });
+  useMake.setState({ lost: lost && (lost.faces.length || lost.edges.length) ? lost : null });
   madeWith.set(useStore.getState().design.id, matKey(useStore.getState().design));
   useMake.setState({ busy: false, issues, changed: null });
   useStore.getState().setSculpt({ stage: 'make' });

@@ -665,3 +665,8 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A taper is two fractions on a box or prism** (the extrusion's top scale), not a new kind.
 - **Nudge 1 mm, Shift 5 mm**, a held key one transaction (the plan's SketchForge behaviour, through CutForge's history).
 - **The workplane is view state, not saved**; *D* without one drops onto the floor.
+
+## Milestone 129 (Shapes R10): linked
+- **The student's joint picks and fold cuts are folded into the spec on every remake** (`joints`, `edges` by key), so they survive any number of remakes and a save; work on boards (shapes, text, lines, flaps) is carried board by board.
+- ***Update from shape* compares the shapes' solid key** (geometry and ids, with the cache's key), stored in the spec when made.
+- **Detach keeps `seam` on the joints**: a detached model still lays out its folds and flaps as made; only the keys, the spec and the shapes go.

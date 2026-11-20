@@ -4,7 +4,7 @@
 // chooser's flap or lock. *Build from boards*: a board on each face, material inward (the
 // shape is the outside), corners found as for any box and given the chooser's joint.
 // Pure and deterministic: ids come from keys, the unfolder's seed is the design's id.
-import type { Connection, ConnectionKind, Design, MakeSpec, MaterialProfile } from './types';
+import type { Connection, ConnectionKind, Design, MakeSpec, MaterialProfile, Panel } from './types';
 import type { EdgeKey, FaceKey, PEdge, Polyhedron } from './polyhedron';
 import { polyIssues, type PolyIssue } from './polyhedron';
 import { addFreePanel, autoConnect, solve } from './ops';
@@ -16,7 +16,40 @@ import { findEdge } from './edges';
 import type { MsgKey } from '../i18n';
 
 export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number };
-export type MakeResult = { unfolding?: Unfolding; issues: MakeIssue[]; changed?: number };
+/** What a remake could not keep (milestone 129): hand-added work on faces and choices on edges that no longer exist. */
+export type Lost = { faces: FaceKey[]; edges: EdgeKey[] };
+export type MakeResult = { unfolding?: Unfolding; issues: MakeIssue[]; changed?: number; lost?: Lost };
+
+/** What the student added to a made model, by key, to carry across a remake. */
+type Carry = {
+  details: Record<FaceKey, Pick<Panel, 'details' | 'lines' | 'edgeFlaps' | 'foldOvers'>>;
+  joints: Record<EdgeKey, ConnectionKind>;
+  opts: Record<EdgeKey, Partial<Pick<Connection, 'fingers' | 'tabs' | 'crease' | 'flap' | 'tabLen' | 'lockDepth'>>>;
+  cuts: Record<EdgeKey, 'fold' | 'cut'>;
+};
+
+/** Gather what the student did on the last made model (milestone 129, §4.5 step 3). */
+function gather(d: Design): Carry {
+  const c: Carry = { details: {}, joints: {}, opts: {}, cuts: {} };
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.src) continue;
+    if (p.details.length || p.lines?.length || p.edgeFlaps?.length || p.foldOvers?.length)
+      c.details[p.src.face] = JSON.parse(JSON.stringify({ details: p.details, lines: p.lines, edgeFlaps: p.edgeFlaps, foldOvers: p.foldOvers }));
+  }
+  for (const x of Object.values(d.connections)) {
+    if (!x.src) continue;
+    if (x.picked) c.joints[x.src] = x.kind;
+    // a fold the student cut (or kept) in the cut plan (milestone 69)
+    if (x.seam && x.cut) c.cuts[x.src] = x.cut === 'cut' ? 'cut' : 'fold';
+    if (x.picked) {
+      const o: Carry['opts'][string] = {};
+      for (const k of ['fingers', 'tabs', 'crease', 'tabLen', 'lockDepth'] as const) if (x[k] !== undefined && x[k] !== null) (o as Record<string, unknown>)[k] = x[k];
+      if (Object.keys(o).length) c.opts[x.src] = o;
+    }
+  }
+  return c;
+}
 
 /** The sheet the unfolder lays a net on: the material's, less the design's margins. */
 export const sheetOf = (d: Pick<Design, 'sheetMargin'>, m: MaterialProfile) => ({ w: m.sheetW - 2 * (d.sheetMargin ?? 5), h: m.sheetH - 2 * (d.sheetMargin ?? 5) });
@@ -63,7 +96,50 @@ function applyChoice(c: Connection, kind: ConnectionKind, params: Partial<Connec
  * (with Make's facets); `unfolding` an unfolder result already worked out (a Worker's), else
  * it is worked out here. The design is solved.
  */
-export function reassemble(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding): MakeResult {
+export function reassemble(d: Design, P: Polyhedron, spec0: MakeSpec, unfolding?: Unfolding): MakeResult {
+  // the student's work on the last made model, carried across by key (milestone 129)
+  const carry = gather(d);
+  const spec: MakeSpec = { ...spec0, joints: { ...carry.joints, ...(spec0.joints ?? {}) }, edges: { ...carry.cuts, ...(spec0.edges ?? {}) } };
+  if (!Object.keys(spec.joints!).length) delete spec.joints;
+  if (!Object.keys(spec.edges!).length) delete spec.edges;
+  const r = build(d, P, spec, unfolding);
+  r.lost = applyCarry(d, P, carry, spec);
+  if (r.lost.faces.length || r.lost.edges.length) solve(d);
+  return r;
+}
+
+/** Put the carried work back on the boards and joints that still exist; the rest is lost and listed. */
+function applyCarry(d: Design, P: Polyhedron, carry: Carry, spec: MakeSpec): Lost {
+  const lost: Lost = { faces: [], edges: [] };
+  const byFace = new Map(d.order.filter((id) => d.panels[id]?.src).map((id) => [d.panels[id].src!.face, d.panels[id]]));
+  for (const [face, w] of Object.entries(carry.details)) {
+    const p = byFace.get(face);
+    if (!p) {
+      lost.faces.push(face);
+      continue;
+    }
+    p.details = w.details;
+    if (w.lines) p.lines = w.lines;
+    if (w.edgeFlaps) p.edgeFlaps = w.edgeFlaps;
+    if (w.foldOvers) p.foldOvers = w.foldOvers;
+  }
+  const byEdge = new Map(Object.values(d.connections).filter((c) => c.src).map((c) => [c.src!, c]));
+  for (const [edge, o] of Object.entries(carry.opts)) {
+    const c = byEdge.get(edge);
+    if (c) Object.assign(c, o);
+  }
+  // a choice on an edge that is gone: dropped from the spec and listed
+  for (const k of [...Object.keys(spec.joints ?? {}), ...Object.keys(spec.edges ?? {})])
+    if (!P.edges[k]) {
+      if (!lost.edges.includes(k)) lost.edges.push(k);
+      if (spec.joints) delete spec.joints[k];
+      if (spec.edges) delete spec.edges[k];
+    }
+  if (Object.keys(carry.details).length) solve(d);
+  return lost;
+}
+
+function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding): MakeResult {
   clearMade(d);
   d.make = spec;
   d.outcome = spec.as;
@@ -189,6 +265,24 @@ export function rechooseJoints(d: Design, P: Polyhedron): number {
   }
   solve(d);
   return changed;
+}
+
+/**
+ * Detach (milestone 129, one way): the made model becomes a plain box design. The shapes,
+ * the Make spec and every key go; the boards and joints stay as they are (a seam keeps
+ * laying out as a seam). Its undo restores the link.
+ */
+export function detach(d: Design) {
+  delete d.make;
+  delete d.outcome;
+  delete d.kind;
+  delete d.sculpt;
+  for (const id of d.order) delete d.panels[id]?.src;
+  for (const c of Object.values(d.connections)) {
+    delete c.src;
+    delete c.why;
+    delete c.picked;
+  }
 }
 
 export { cornerFit };

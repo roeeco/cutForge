@@ -2133,6 +2133,23 @@ Limitations
 - *Square this corner* (the protractor, 132) is not among the fixes yet; *Merge into neighbour* is not built.
 - The boards' assembly animation is the Workshop's (pieces drop in from above in order), not a path per board.
 
+## Milestone 129 (Shapes R10) — linked to the shape ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R10, decision 3. `src/model/reassemble.ts` (`gather`, `applyCarry`, `detach`, `Lost`), `src/make/run.ts` (`shapesChanged`), `src/make/MakeCard.tsx`; `MakeSpec.shapeKey`.
+- **Ids from keys** (since 123), and **the spec is stored** with the shapes' key when made.
+- **Carried across a remake by key** (§4.5 step 3): every hand-added shape, text, line, edge flap and fold-over on a board whose face still exists; every joint kind the student picked (the joint card marks it) with its options (finger and tab counts, crease, tab lock); every fold the student cut or kept in the cut plan (milestone 69's choice), which becomes a fixed cut or fold for the unfolder.
+- **What has no face or edge left is listed once** (*2 of your changes could not be kept*) and dropped from the spec.
+- ***Update from shape*** replaces *Make again* on the Make card when the shapes changed since they were made; *Fold it* or *Build from boards* on the stage bar does the same.
+- ***Detach from the shapes*** (one way, asked first): the shapes, the spec and every key go; the boards and joints stay as they are (a seam keeps laying out as a seam). Undo brings the link back.
+
+Verified
+- `tests/linked.test.ts` (3): a slit lock (set on the joint card), a cut fold and an engraved text on the house are all kept when it is made again 20 mm taller, and the walls are taller; with the roof deleted, the wall's cut-out stays and the roof's engraving and the roof seam's lock are listed (one face, one edge) and dropped from the spec; *Detach* leaves a plain box design whose boards and seams lay out exactly as before.
+- Goldens byte-identical; the engine tests of 125–127 unchanged.
+
+Limitations
+- A shape moved so that a face's role changes (a box turned on its side keeps its roles; a prism given more sides renames its sides past the old count) loses the work on the faces that changed name.
+- Hand-added boards (not made from a face) are kept but not checked for whether they still touch anything.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

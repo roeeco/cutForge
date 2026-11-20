@@ -45,8 +45,13 @@ export function lSolid(name = 'L'): Polyhedron {
 }
 
 /** A house: a box with a roof; its gable ends are one face each. */
-export function houseSolid(name = 'house'): Polyhedron {
-  const W = 80, D = 60, H = 50, R = 30;
+export function houseSolid(name = 'house', H = 50, R = 30): Polyhedron {
+  const W = 80, D = 60;
+  // no roof: a box with the same wall keys and a flat top
+  if (R <= 0) {
+    const V: V3[] = [[0, 0, 0], [W, 0, 0], [W, 0, D], [0, 0, D], [0, H, 0], [W, H, 0], [W, H, D], [0, H, D]];
+    return polyhedron(V, faces(name, [[0, 1, 2, 3], [1, 0, 4, 5], [3, 2, 6, 7], [2, 1, 5, 6], [0, 3, 7, 4], [4, 7, 6, 5]], ['bottom', '-z', '+z', '+x', '-x', 'top']));
+  }
   const V: V3[] = [[0, 0, 0], [W, 0, 0], [W, 0, D], [0, 0, D], [0, H, 0], [W, H, 0], [W, H, D], [0, H, D], [0, H + R, D / 2], [W, H + R, D / 2]];
   return polyhedron(V, faces(name, [[0, 1, 2, 3], [1, 0, 4, 5], [3, 2, 6, 7], [2, 1, 5, 9, 6], [0, 3, 7, 8, 4], [5, 4, 8, 9], [7, 6, 9, 8]], ['bottom', '-z', '+z', '+x', '-x', 'roofBack', 'roofFront']));
 }

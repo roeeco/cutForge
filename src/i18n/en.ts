@@ -1937,6 +1937,11 @@ export const en = {
   'sculpt.workplane': "Workplane: click a face (Shift: the other side; the floor: back to the floor)",
   'sculpt.workplaneOn': "On the workplane",
   'sculpt.drop': "Drop to the workplane",
+  // milestone 129: linked to the shape
+  'make.lost': "{n} of your changes could not be kept: their face or edge is no longer in the shape",
+  'make.update': "Update from shape",
+  'make.detach': "Detach from the shapes",
+  'make.detachAsk': "Detach: the boards stay as they are, and the shapes are taken away. Undo brings them back. Go on?",
 } as const;
 
 export type MsgKey = keyof typeof en;

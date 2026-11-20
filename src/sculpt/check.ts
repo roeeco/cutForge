@@ -99,6 +99,7 @@ export function checkSculpt(d: Design) {
     if (!isObj(mk) || (mk.as !== 'fold' && mk.as !== 'boards')) delete (d as any).make;
     else {
       if (mk.prefer !== undefined && mk.prefer !== 'pieces' && mk.prefer !== 'cuts') delete mk.prefer;
+      if (mk.shapeKey !== undefined && typeof mk.shapeKey !== 'string') delete mk.shapeKey;
       if (mk.seams !== undefined && mk.seams !== 'glue' && mk.seams !== 'lock' && mk.seams !== 'tabslot') delete mk.seams;
       if (mk.open !== undefined && !(Array.isArray(mk.open) && mk.open.every((x: unknown) => typeof x === 'string'))) delete mk.open;
       for (const f of ['edges', 'joints'] as const) if (mk[f] !== undefined && !(isObj(mk[f]) && Object.values(mk[f]).every((v) => typeof v === 'string'))) delete mk[f];
