@@ -3,6 +3,7 @@
 // tuck, a snap-lock or four flaps underneath) and *a sleeve* (the tube with
 // both ends open). Card and thin corrugated only; on a board that does not
 // fold, a carton becomes a box with a lid that lifts off.
+import { CRASH_LOCK_OFFERED } from '../../model/cartons';
 import type { Design, MaterialProfile, TrayBottom, TrayTop } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { Limit, ParamDef, Params, TemplateDef } from '../types';
@@ -25,7 +26,7 @@ export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBotto
 }
 
 /** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
-const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' || v === 'gable' ? m.kind === 'card' && foldsAsCarton(m, 0) : folds(m, 2));
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' ? CRASH_LOCK_OFFERED && m.kind === 'card' && foldsAsCarton(m, 0) : v === 'gable' ? m.kind === 'card' && foldsAsCarton(m, 0) : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
 // (milestone 116: card up to 1 mm; greyboard is card, and does not fold into a carton)

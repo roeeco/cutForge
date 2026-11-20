@@ -606,3 +606,7 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Kerf by √(t / t₀)** from the nearest classroom board, rounded to 0.05 mm; clearance as that board's (plywood 0.1); fold allowance 0. Greyboard's bend: smooth radius 20t, pattern radius 6t (starting values, unverified).
 - **Hidden in Quick build and Guided** (`'drawer.grades'`); the welcome screen's step 1 keeps the four classroom materials.
 - **B flute 3 mm makes cartons with shipping flaps** (C2's rule for corrugated up to 4 mm), not none as the handoff's test list assumed.
+
+## Before a deploy (20 November)
+- **The crash-lock is held back by one switch** (`CRASH_LOCK_OFFERED` in `src/model/cartons.ts`), not removed: the patent question is the owner's (SENTENCE_STYLES_PLAN.md §0). Hidden: the sentence's word, its style, the tray card's option for a tray without one. The engine, its tests and its golden stay.
+- **The plan dock wraps** rather than losing buttons under the card; *Fit* reads the dock's height.

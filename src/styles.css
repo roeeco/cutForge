@@ -432,6 +432,8 @@ textarea { width: 100%; resize: vertical; }
 .group-box { fill: none; stroke: var(--accent-bright); stroke-dasharray: 3 2; }
 .cutplan.solo > svg { background: var(--stage-bg); }
 .plan-dock { position: absolute; top: 16px; inset-inline-start: 88px; z-index: 6; display: flex; gap: 8px; align-items: center; }
+/* milestone 113's Sheets · Nets switch made the dock wider: it wraps before the card at the inline end (about 340 px) */
+.plan-dock { flex-wrap: wrap; max-width: calc(100% - 88px - 340px); }
 .plan-dock .cluster { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 3px; box-shadow: var(--shadow-soft); }
 .plan-dock .cluster button { border: none; background: transparent; min-height: 34px; height: 34px; min-width: 34px; padding: 0 8px; display: inline-flex; align-items: center; gap: 6px; border-radius: var(--r-sm); color: var(--ink-muted); }
 .plan-dock .cluster button:hover:not(:disabled) { background: var(--surface-sunk); color: var(--ink); }
@@ -1145,3 +1147,5 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 /* milestone 116: the drawer's board grades */
 .drawer-grades .grade-family h4 { margin: 8px 0 4px; }
 .drawer-grades .mats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+/* in the Net view the card sits over the folded preview, not the plan: the dock may use the plan's width */
+.net-view .net-plan .plan-dock { max-width: calc(100% - 100px); }

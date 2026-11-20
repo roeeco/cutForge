@@ -1981,6 +1981,19 @@ Limitations
 - Every grade's kerf, clearance and greyboard's bend are starting values, unverified on stock (D10's real-cut list).
 - Greyboard 1 mm folds (the ceiling is 1 mm inclusive).
 
+## Before a deploy (20 November): the full browser run, two dock fixes, the crash-lock held back ✅
+
+`src/styles.css`, `src/views/Plan2D.tsx`, `src/model/cartons.ts` (`CRASH_LOCK_OFFERED`), `src/templates/structures/carton.ts`, `src/templates/styles.ts`, `src/ui/CornersUI.tsx`, `tests/c3.test.ts`.
+- **The full browser run of the app specs** (every spec but the classroom one, which needs the Worker; the `SHOTS` specs skip themselves): 204 passed, 61 skipped, 1 failed: `split.spec.ts`'s *Save material* sat under the design card, because milestone 113's *Sheets · Nets* switch made the plan dock wider.
+- **The plan dock wraps** before the card at the inline end (in the Net view, where the card is over the folded preview, it may use the plan's width), and *Fit* frames the sheets below it however many rows it has.
+- **The ✓ of a grow in the flat sits in the middle of its ghost** (at its far edge it could run under the wrapped dock, a lid grown towards the top).
+- **The crash-lock bottom is held back** until the owner has confirmed the patent question: `CRASH_LOCK_OFFERED = false` hides the sentence's *a bottom that locks itself*, the *Auto-bottom* style and the tray card's option (shown only on a tray that already has one). The engine still builds it, so a design that has one opens and cuts as before; one line turns it back on.
+
+Verified
+- After the fixes: `split.spec.ts`, `nets.spec.ts`, `nets-build.spec.ts`, `text-pack.spec.ts`, `spec.spec.ts`, `transform-2d.spec.ts` and `outline-2d.spec.ts` (19 passed); `styles.spec.ts` and `start-sentence.spec.ts` with the crash-lock held (7 passed).
+- `classroom.spec.ts` with the real Worker (`wrangler dev`, a local D1 and R2): 5 passed. The production build (`npm run build`) succeeds and ships no WASM (the shape kernel is used only by the R0 spike's test).
+- Unit suite (1265 passed) and typecheck green; goldens byte-identical.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

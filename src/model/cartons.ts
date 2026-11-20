@@ -122,6 +122,13 @@ export function fitTopLids(d: Design) {
 // ---------------------------------------------------------------------------
 // End flaps
 
+/**
+ * Whether the crash-lock (auto) bottom of milestone C3 is offered to students: held back until the owner has
+ * confirmed the patent question (SENTENCE_STYLES_PLAN.md §0). The engine still builds it, so a design that has one
+ * opens and cuts as before; only the sentence's word, its style and the tray card's option are hidden.
+ */
+export const CRASH_LOCK_OFFERED = false;
+
 export const endId = (t: Tray, end: 'top' | 'bottom') => `end:${t.id}:${end}`;
 
 /** The ends of each tray that close with flaps (seal ends, snap-lock and reverse-tuck bottoms). */
