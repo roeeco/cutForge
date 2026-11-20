@@ -1917,6 +1917,44 @@ Limitations (the Guided block)
 - Waiting for the owner: real students on a Chromebook; a trackpad and a touch screen for every drag; the Hebrew name of the level (*מודרך*, a placeholder) and every `g.*` string, with the `sen.*` words; the calls of `GUIDED_MODE.md` §4 as taken (joints under *More about this box*, Send waiting for the check, the two missions rebuilt as boxes).
 - The arrows and grips are the stage's push-pull handles (14 px cones, a larger invisible target): to be tried by finger.
 
+## Milestone 119 (Shapes R0) — spike: the face graph and the unfolder on fixtures, timed ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R0. New `tests/spike/facegraph.ts` (a face graph from hand-written polygons or from a kernel mesh), `tests/spike/unfoldSpike.ts` (a greedy unfolder with seeded restarts), `tests/spike/spike.test.ts`; `manifold-3d` 3.5.4 in `package.json` (Apache-2.0, `THIRD_PARTY.md`).
+- **Face graph**: flat faces with their outline and holes in their own frame, and the edges they share with the angle inside the solid. From a kernel mesh, adjacent triangles in one plane (within 1e-6 on the normal, 1e-4 mm on the plane) are one face, and each face's boundary is walked into rings (the largest the outline, the others holes).
+- **Unfolder** (`MODEL_MODES_RESEARCH.md` §3's pipeline, written fresh): edges joined flattest and longest first with union-find; a join is refused when the joined island would overlap itself (bounding boxes, then separating axes for convex faces or `polygon-clipping` for others, retried on coarser grids, a failure counting as an overlap) or would not fit the sheet in any of 8 turns; restarts with seeded jitter until the budget runs out, keeping the fewest islands, then the shortest cut. No flaps yet.
+
+Numbers (Node 22, vitest; the card sheet less its margins, 490 × 290 mm; budget 400 ms; seed 1):
+
+| Fixture | Faces | Edges | Inside corners | Extract ms | First pass ms | Unfold ms | Restarts | Islands | No overlap | Fits |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cube 60 | 6 | 12 | 0 | 0.8 | 0.9 | 1 | 1 | 1 | yes | yes |
+| hexagonal prism (r 40, h 60) | 8 | 18 | 0 | 0.3 | 0.2 | 0 | 1 | 1 | yes | yes |
+| square pyramid (base 80, h 60) | 5 | 8 | 0 | 0.2 | 0.3 | 0 | 1 | 1 | yes | yes |
+| diamond, 8 sides (r 40) | 17 | 32 | 0 | 0.5 | 1.4 | 1 | 1 | 1 | yes | yes |
+| L-prism (80 × 70, h 50) | 8 | 18 | 1 | 0.4 | 4.6 | 5 | 1 | 1 | yes | yes |
+| house (80 × 60 × 50, roof 30) | 7 | 15 | 0 | 0.3 | 0.1 | 0 | 1 | 1 | yes | yes |
+| cylinder, 12 facets (kernel) | 14 | 36 | 0 | 5.5 | 0.5 | 1 | 1 | 1 | yes | yes |
+| box with a through-hole, 16-facet hole (kernel) | 22 | 60 | 16 | 7.2 | 3.1 | 401 | 434 | 2 | yes | yes |
+| sphere, 8 facets (kernel) | 32 | 48 | 0 | 2.1 | 0.6 | 1 | 1 | 1 | yes | yes |
+| torus 12 × 8 (kernel) | 96 | 192 | 48 | 3.8 | 8.9 | 407 | 51 | 2 | yes | yes |
+| torus 16 × 12 (kernel) | 192 | 384 | 96 | 4.6 | 45.2 | 400 | 15 | 5 | yes | yes |
+
+In Chromium (the dev server, the same unfolder, after a warm-up), first pass / whole unfold with the 400 ms budget:
+
+| Fixture | 1× CPU | 4× CPU throttling (a school Chromebook, roughly) |
+| --- | --- | --- |
+| diamond (17 faces) | 1.5 ms / 2 ms, 1 piece | 1.3 ms / 1 ms, 1 piece |
+| torus 12 × 8 (96 faces) | 10.8 ms / 403 ms, 2 pieces | 31.8 ms / 407 ms, 2 pieces |
+| torus 16 × 12 (192 faces) | 35.3 ms / 417 ms, 5 pieces | 167.2 ms / 488 ms, 6 pieces |
+
+- **Every fixture unfolds with no overlap and fits the sheet**; the same seed gives the same net.
+- **Extraction is cheap** (under 8 ms for every kernel fixture); unfolding is what costs. A form that unfolds to one piece is done in its first pass; one that does not spends the whole restart budget looking for fewer pieces.
+- **Found on the way**: a revolution's facets are planar only to about 1e-7, so a coplanarity tolerance of 1e-9 split every quad into two triangles (a 192-face torus became 384 faces); and `polygon-clipping` throws on many of the near-degenerate pairs that gives. Separating axes for convex faces avoid it and are much faster.
+
+Limitations
+- No flaps in the overlap test yet (R5 adds them, so real nets are a little larger); no coplanar merges across shapes (the house is written merged; R3's `tidy` does it).
+- Timed on this machine, not on a real Chromebook; the 4× throttle stands in for one.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

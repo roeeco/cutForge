@@ -589,3 +589,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Send waits for the check**; *More download options* is the way out. A name is engraved, never cut. The Escape box (hasps) stays with Quick build and Workshop.
 - **Guided is in the level switch for everyone; a new browser and a new class still start in Workshop** (the owner, 20 November). This replaces the plan's *a new browser and a new class start in Guided*.
 
+## Milestone 119 (Shapes R0): the spike's two decisions
+- **The face-count limit is 200 faces per made model.** At 192 faces the first pass takes 35 ms on this machine's Chromium and 167 ms at 4× CPU throttling; above 200, Make lists *too many faces* with *Fewer faces* as its fix. The default facet counts (12 per turn for card, 8 for boards) keep the plan's shapes far below it (a 12-facet cylinder is 14 faces, an 8-facet sphere 32).
+- **The unfolder runs in a Worker** (from R5/R7). The plan's line was 50 ms for 200 faces on the preview build: unthrottled it is under (35 ms), but on a school-grade CPU it is over (167 ms), and any form that does not unfold to one piece spends the whole 400 ms restart budget either way. The first pass's result is shown at once and the restarts' better result replaces it when they finish (as `WAFFLE_MODE.md` §10 planned for slices). Small forms (under about 40 faces, a few milliseconds) may run on the main thread.
+- **Coplanar faces are merged within 1e-6 on the normal and 1e-4 mm on the plane** (a revolution's facets are planar only to about 1e-7).
+- **Convex faces are tested for overlap by separating axes**, and `polygon-clipping` (retried on coarser grids, a failure counted as an overlap) is kept for concave ones.
+- **The spike's code stays in `tests/spike/`** as the reference; R3 and R5 write the engine's versions in `src/model/` in its own types.
