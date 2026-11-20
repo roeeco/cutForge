@@ -25,3 +25,7 @@ bucket_name = "cutforge-submissions"
 #   npx wrangler secret put TEACHER_KEY      # the teacher's sign-in key
 #   npx wrangler secret put SESSION_SECRET   # long random string for signing sessions
 #   npx wrangler secret put SITE_PASSWORD    # optional: one password for the whole site
+
+# the shape kernel's Vite-only WASM URL import (src/sculpt/kernel.ts) is never run in the Worker
+[alias]
+"manifold-3d/manifold.wasm?url" = "./worker/wasm-url-stub.ts"
