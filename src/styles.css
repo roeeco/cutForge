@@ -1149,3 +1149,125 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .drawer-grades .mats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 /* in the Net view the card sits over the folded preview, not the plan: the dock may use the plan's width */
 .net-view .net-plan .plan-dock { max-width: calc(100% - 100px); }
+
+
+/* ---- the shape stage (milestone 120, from claude/guided-mode) ---- */
+/* the stage stepper and both view tabs: the ⋯ menu takes over sooner (milestone 55: no sideways scroll at 1024 px) */
+@media (max-width: 1480px) {
+  .topbar:has(.stage-seg) { gap: 6px; padding: 0 10px; }
+  .topbar:has(.stage-seg) .tablet-hide { display: none !important; }
+  .topbar:has(.stage-seg) .tablet-only { display: inline-flex; }
+  .topbar:has(.stage-seg) .dl-btn .full { display: none; }
+  .topbar:has(.stage-seg) .dl-btn .short { display: inline; }
+  .topbar:has(.stage-seg) .sep { display: none; }
+  .topbar:has(.stage-seg) .design-name { width: 96px; }
+}
+@media (max-width: 1100px) {
+  .topbar:has(.stage-seg) .brand { display: none; }
+  .topbar:has(.stage-seg) .mat-pill > svg { display: none; }
+}
+.stage-seg button { white-space: nowrap; }
+.shape-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 8px; }
+.shape-tile { display: grid; justify-items: center; gap: 2px; min-height: 0; padding: 4px 2px; font-size: 11px; border-radius: var(--r-md); }
+.shape-tile img { width: 100%; max-width: 64px; aspect-ratio: 4 / 3; object-fit: contain; }
+.shape-tile.on { background: var(--accent-soft); outline: 2px solid var(--accent); }
+.sculpt-loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: var(--ink-2, #555); pointer-events: none; }
+.sculpt-focus { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); background: var(--surface, #fff); border: 1px solid var(--line-strong); border-radius: var(--r-pill); padding: 4px 12px; display: flex; gap: 8px; align-items: center; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.ghost-bar .ghost-num .field { margin: 0; }
+.ghost-bar .ghost-num input { width: 56px; }
+.field-grid { display: grid; gap: 2px; }
+.row-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.steps-bar { position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: var(--surface, #fff); border: 1px solid var(--line-strong); border-radius: var(--r-pill); padding: 6px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.1); font-size: 13px; }
+.inline-btn { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+.steps-bar .flip svg { transform: scaleX(-1); }
+[dir='rtl'] .steps-bar .flip svg { transform: none; }
+[dir='rtl'] .steps-bar button:not(.flip) svg { transform: scaleX(-1); }
+
+/* ---- the 2D sketch view (milestones 57–59) ---- */
+.sketch-view { position: absolute; inset: 0; background: #fbfaf7; }
+.sketch-view > svg { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+.sk-canvas.tool-line, .sk-canvas.tool-arc, .sk-canvas.tool-smooth, .sk-canvas.tool-bezier, .sk-canvas.tool-tape, .sk-canvas.tool-points { cursor: crosshair; }
+.sk-canvas.tool-erase { cursor: not-allowed; }
+.sk-grid-minor { stroke: #e9e6df; fill: none; }
+.sk-grid-major { stroke: #d6d1c6; fill: none; }
+.sk-origin { stroke: #9a927f; fill: none; }
+.sk-axis { stroke: #e0a21b; fill: none; }
+.sk-axis-label { fill: #b07c0a; font-weight: 600; }
+.sk-underlay path { fill: rgba(120, 132, 150, 0.08); stroke: #a9b2bf; }
+.sk-region { fill: rgba(31, 184, 172, 0.12); }
+.sk-seg { fill: none; stroke: #2a3340; stroke-linecap: round; stroke-linejoin: round; }
+.sk-seg.cut { stroke: #b07c0a; }
+.sk-seg.cons { stroke: #8a95a5; }
+.sk-seg.locked { stroke: #8a8f98; }
+.sk-seg.sel { stroke: var(--accent); }
+.sk-seg-hit { fill: none; stroke: transparent; }
+.sk-pt { fill: white; stroke: #2a3340; }
+.sk-pt.cut { fill: #f2c25a; stroke: #b07c0a; }
+.sk-pt.locked { fill: #d5d8dd; }
+.sk-pt.sel { fill: var(--accent); stroke: #0f5d59; }
+.sk-open { fill: none; stroke: #e0a21b; }
+.sk-handle-line { stroke: #6b8fd6; fill: none; }
+.sk-handle { fill: white; stroke: #2f6feb; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.sk-snap { fill: none; stroke: #2f6feb; }
+.sk-snap-label, .sk-dim-text { fill: #2f6feb; font-weight: 600; paint-order: stroke; stroke: white; stroke-width: 3px; }
+.sk-rubber { fill: none; stroke: var(--accent); }
+.sk-first { fill: white; stroke: var(--accent); }
+.sk-first.close { fill: var(--accent); }
+.sk-dock { inset-inline-end: 272px; }
+.sk-preview { position: absolute; bottom: 16px; inset-inline-end: 16px; z-index: 6; width: 240px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-soft); overflow: hidden; }
+.sk-preview.folded { width: auto; }
+.sk-preview-fold { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 0; padding: 4px 8px; font-size: 12px; border: none; border-radius: 0; justify-content: flex-start; }
+.sk-preview-canvas { width: 240px; height: 180px; }
+.sk-preview-canvas canvas { touch-action: none; }
+.topbar .sk-mode button { white-space: nowrap; }
+.sk-menu { position: absolute; inset-inline-start: 64px; z-index: 8; width: 210px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow-float); display: grid; gap: 6px; }
+.sk-menu .stamps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.sk-menu .stamps button { min-height: 0; padding: 4px; font-size: 11px; display: grid; justify-items: center; gap: 2px; }
+.sk-menu .stamps svg { width: 28px; height: 28px; }
+.sk-typed { position: absolute; z-index: 9; display: flex; gap: 4px; background: white; border: 1px solid var(--accent); border-radius: var(--r-sm); padding: 4px; box-shadow: var(--shadow-soft); font-size: 12px; }
+.sk-typed label { display: flex; align-items: center; gap: 3px; }
+.sk-typed input { width: 58px; min-height: 0; padding: 2px 4px; font-size: 12px; }
+.sk-pill { fill: white; stroke: #2f6feb; }
+.sk-pill-text { fill: #1d3f86; font-weight: 600; }
+.sk-frame { fill: none; stroke: var(--accent); stroke-dasharray: 4 3; }
+.sketch-view .handles .handle { fill: white; stroke: var(--accent); }
+.sketch-view .handles .handle.side { fill: #1f2937; stroke: white; }
+.sk-shape-wrap { position: relative; display: contents; }
+.sk-rail .sk-menu { top: 0; }
+.sk-rail > .sk-shape-wrap > button { width: 44px; height: 44px; display: grid; place-items: center; border: none; background: transparent; color: var(--rail-ink); border-radius: var(--r-md); min-height: 0; padding: 0; position: relative; }
+.sk-rail > .sk-shape-wrap > button svg.ico { width: 22px; height: 22px; }
+.sk-rail > .sk-shape-wrap > button.on, .sk-rail > .sk-shape-wrap > button:hover { background: var(--rail-hover); color: white; }
+.sk-rail .sk-shape-wrap button:hover .tip { opacity: 1; }
+.sk-menu .note { margin: 0; font-size: 11px; }
+
+/* the sketch's card, top bar title, pills and the stage's Frame button (after milestone 60) */
+.sk-card-dock { max-height: calc(100% - 262px); }
+.sk-panel { display: flex; flex-direction: column; padding-block-end: 0; }
+.sk-panel h4 { margin: 0; }
+.sk-panel .subsection > h4 { margin-block-end: 4px; }
+.sk-sel-head { margin-block-end: 6px; }
+.sk-sel-head h4 { flex: 1; }
+.sk-actions { display: inline-flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.sk-actions .icon-btn.on { background: var(--accent-soft); color: var(--accent); }
+.sk-foot { position: sticky; bottom: 0; margin-block-start: 12px; margin-inline: -16px; padding: 10px 16px 14px; background: var(--surface); border-block-start: 1px solid var(--line); }
+.sk-foot .row-buttons { display: flex; gap: 8px; }
+.sk-foot .row-buttons button { flex: 0 0 auto; justify-content: center; white-space: nowrap; }
+.sk-foot .row-buttons button.primary { flex: 1; }
+.sk-state { display: flex; gap: 6px; align-items: center; margin: 0 0 8px; font-size: 12px; color: var(--ink-muted); }
+.sk-state.ok { color: #1c7a4a; }
+.sk-state.warn { color: #8a5a00; }
+.sk-top-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: var(--ink-muted); white-space: nowrap; }
+.sk-hint { max-width: calc(100% - 760px); }
+.sk-pillbox { position: absolute; z-index: 9; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 2px solid #2f6feb; border-radius: var(--r-sm); padding: 2px 6px 2px 2px; box-shadow: var(--shadow-float); font-size: 12px; color: var(--ink-muted); }
+.sk-pillbox input { width: 76px; min-height: 0; height: 26px; padding: 2px 6px; font-size: 13px; border: none; background: transparent; outline: none; font-variant-numeric: tabular-nums; }
+.sk-pill.typed { stroke: var(--accent); }
+.sk-pill-g.edit:hover .sk-pill { fill: #eaf1ff; }
+@media (max-width: 1100px) { .sk-dock { inset-inline-end: 16px; bottom: 220px; } .sk-hint { display: none; } }
+.view-dock .frame-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px 0 10px; border-radius: var(--r-md); border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font-weight: 600; font-size: 13px; box-shadow: var(--shadow-soft); }
+.view-dock .frame-btn:hover { background: var(--accent); color: white; }
+.view-dock .cluster .txt { display: inline-flex; align-items: center; gap: 6px; }
+.combine-box { background: var(--accent-soft); border-radius: var(--r-md); padding: 10px 12px; margin-block-end: 12px; }
+.combine-box .note { margin: 0 0 8px; color: var(--ink); }
+.combine-box .note:last-child { margin: 8px 0 0; color: var(--ink-muted); }
+.combine-box button { width: 100%; justify-content: center; }
+.stage-seg .soon { font-size: 11px; color: var(--ink-muted); font-weight: 400; }

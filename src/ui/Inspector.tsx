@@ -38,6 +38,8 @@ import { Gate } from '../easy/Gate';
 import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
 import { setMode, workshopOnly } from '../easy/mode';
+import { LazySculptCard } from '../sculpt/ui/lazy';
+import { MadeFaceSection } from '../make/MadeFace';
 import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
 import { outlineWhy } from '../model/outlineWhy';
 
@@ -51,7 +53,11 @@ export function Inspector() {
   // More… shows a card's Workshop version until the selection changes (milestone 37)
   const [more, setMore] = useState(false);
   useEffect(() => setMore(false), [sel]);
-  if (!quick || !sel || sel.kind === 'edge') return <InspectorBody />;
+  // a sculpture's card (milestone 120): the shape stage, and stage 2 until boards are selected on it
+  const sculptCard = useStore((s) => s.design.kind === 'waffle' && (s.sculpt.stage === 'shape' || !s.design.outcome || s.selection?.kind === 'shape' || !s.selection) && s.view !== '2d' && s.view !== 'solo');
+  const view = useStore((s) => s.view);
+  if (sculptCard) return view === 'sketch' ? null : <LazySculptCard />;
+  if (!quick || !sel || sel.kind === 'edge' || sel.kind === 'shape') return <InspectorBody />;
   const multi = (sel.kind === 'detail' && sel.ids.length > 1) || (sel.kind === 'panel' && (sel.ids?.length ?? 0) > 1);
   const panelId = sel.kind === 'panel' ? sel.id : findDetail(d, sel.id)?.panel.id;
   const why = !multi && panelId ? workshopOnly(d, panelId) : null;
@@ -301,6 +307,8 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
             <PlacedSection panelId={id} />
           </Gate>
           <ExtrudeSection panelId={id} />
+          {/* milestone 130: a board made from a shape's face */}
+          <MadeFaceSection panelId={id} />
           <TraySection panelId={id} />
           <LidSection panelId={id} />
           <LinesSection panelId={id} />

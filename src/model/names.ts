@@ -122,7 +122,7 @@ function reachesAcross(d: Design, id: string, parentId: string, cid: string): bo
  * each name is mapped back to the board the issue points at (its target, or
  * the pair of a joint message) and shown as its label ("Front wall").
  */
-export function issueVars(d: Design, i: { vars: Record<string, string | number>; target: { kind: 'panel' | 'detail'; id: string }; pair?: [string, string] }, t: T): Record<string, string | number> {
+export function issueVars(d: Design, i: { vars: Record<string, string | number>; target: { kind: 'panel' | 'detail' | 'shape' | 'none'; id: string }; pair?: [string, string] }, t: T): Record<string, string | number> {
   const v = { ...i.vars };
   const targetPanel = i.target.kind === 'panel' ? i.target.id : d.order.find((id) => d.panels[id]?.details.some((x) => x.id === i.target.id));
   const swap = (k: string, id: string | undefined) => {

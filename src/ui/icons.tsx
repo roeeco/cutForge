@@ -3,6 +3,59 @@ import type { ReactElement } from 'react';
 import type { ConnectionKind } from '../model/types';
 
 const P: Record<string, ReactElement> = {
+  // the shape stage (milestone 120, from claude/guided-mode)
+  group: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3 2.5" />
+      <rect x="6.5" y="6.5" width="7" height="7" rx="1" />
+      <circle cx="15" cy="15" r="3.5" />
+    </>
+  ),
+  ungroup: (
+    <>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <circle cx="16.5" cy="16.5" r="4" />
+      <path d="M14 6h6M17 3v6" />
+    </>
+  ),
+  skLine: (
+    <>
+      <path d="M6.5 17.5 17.5 6.5" />
+      <circle cx="6" cy="18" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="6" r="1.7" fill="currentColor" stroke="none" />
+    </>
+  ),
+  skArc: (
+    <>
+      <path d="M5 16.5a9.6 9.6 0 0 1 14 0" />
+      <circle cx="5" cy="16.5" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="16.5" r="1.7" fill="currentColor" stroke="none" />
+    </>
+  ),
+  skBezier: (
+    <>
+      <path d="M5 18c0-10 14-2 14-12" />
+      <path d="M5 18h6.5M19 6h-6.5" strokeWidth={1.2} />
+      <circle cx="12" cy="18" r="1.4" />
+      <circle cx="12" cy="6" r="1.4" />
+    </>
+  ),
+  skSmooth: (
+    <>
+      <path d="M3.5 13c3-8 5.5-8 8.5 0s5.500 8 8.500 0" />
+      <circle cx="3.5" cy="13" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="13" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="20.5" cy="13" r="1.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  skPoint: (
+    <>
+      <path d="M4 19 13 10" />
+      <circle cx="8.5" cy="14.5" r="2" fill="currentColor" stroke="none" />
+      <path d="M17.500 4v7M14 7.500h7" />
+    </>
+  ),
+  eraser: <path d="M9 19.500h11M4.500 15 13.500 6l5 5-8.500 8.500H8.500z M9.500 10 14.500 15" />,
   select: <path d="M5 3.5 18.5 12l-6 1.6 3.4 6.4-2.6 1.3-3.3-6.4L5 19z" fill="currentColor" stroke="none" />,
   panel: (
     <>

@@ -10,8 +10,11 @@ import type { PieceCopy } from '../model/pack';
 import { applyX, polygonContour } from '../geom/vec';
 import { outlineText } from '../text/outline';
 import { fmtNum } from '../i18n';
+import { seamNumbers } from '../model/assembly';
+import { edgeInwardLocal, edgeLocal } from '../model/frame';
+import { findEdge } from '../model/edges';
 
-export type Annotation = { text: string; at: P2; size: number; kind: 'name' | 'size' | 'glue' };
+export type Annotation = { text: string; at: P2; size: number; kind: 'name' | 'size' | 'glue' | 'seam' };
 
 /** A piece's annotations, piece-local (its box from (0, 0) to (w, h)); `name` gives a board's label. */
 export function annotations(d: Design, c: PieceCopy, name: (panelId: string) => string, unit = 'mm'): Annotation[] {
@@ -42,9 +45,34 @@ export function annotations(d: Design, c: PieceCopy, name: (panelId: string) => 
           out.push({ text: 'glue', at: shift(applyX(n.xf, m)), size: 2, kind: 'glue' });
         }
   }
+  // a made model's seams (milestone 131): each flap and its partner edge carry the seam's number
+  const nums = d.make ? seamNumbers(d) : null;
+  if (nums?.size) {
+    const where = new Map(c.panels.map((n) => [n.panelId, n.xf]));
+    for (const [cid, num] of nums) {
+      const conn = d.connections[cid];
+      if (!conn) continue;
+      const flap = conn.geom?.adds.find((a) => a.panelId === conn.a.panelId && a.poly.length >= 3);
+      const xa = where.get(conn.a.panelId);
+      if (xa && flap) {
+        const m = flap.poly.reduce((s, q) => ({ x: s.x + q.x / flap.poly.length, y: s.y + q.y / flap.poly.length }), { x: 0, y: 0 });
+        out.push({ text: String(num), at: shift(applyX(xa, m)), size: 3, kind: 'seam' });
+      } else if (xa) out.push({ text: String(num), at: shift(applyX(xa, edgeMark(d.panels[conn.a.panelId], conn.a.edge))), size: 3, kind: 'seam' });
+      const xb = where.get(conn.b.panelId);
+      if (xb) out.push({ text: String(num), at: shift(applyX(xb, edgeMark(d.panels[conn.b.panelId], conn.b.edge))), size: 3, kind: 'seam' });
+    }
+  }
   // the blank's overall size, at its bottom left, inside it
   out.push({ text: `${fmtNum(c.w)} × ${fmtNum(c.h)} ${unit}`, at: { x: 2, y: 2 }, size: 2.5, kind: 'size' });
   return out;
+}
+
+/** A point 5 mm inside the middle of a board's edge, where its seam number goes. */
+function edgeMark(p: Design['panels'][string], edge: string): P2 {
+  if (!p || !findEdge(p, edge)) return { x: 0, y: 0 };
+  const [a, b] = edgeLocal(p, edge);
+  const i = edgeInwardLocal(p, edge);
+  return { x: (a.x + b.x) / 2 + i.x * 5, y: (a.y + b.y) / 2 + i.y * 5 };
 }
 
 /** The annotations as outlined text on the GUIDE layer (LightBurn must not need the font). */

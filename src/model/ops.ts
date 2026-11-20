@@ -8,7 +8,7 @@ import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape, TrayBottom, TrayTop } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape, TrayBottom, TrayTop, V3 } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
@@ -258,7 +258,8 @@ function solveOnce(d: Design) {
       delete c.thin;
       continue;
     }
-    if (!c.grown && !c.wing && c.kind !== 'closure' && !c.bandEnd) {
+    // a made model's seam keeps the kind it was made with (milestone 123)
+    if (!c.grown && !c.wing && c.kind !== 'closure' && !c.bandEnd && !c.seam) {
       const ok = pairKinds(d, c);
       const g = jointGroup(c);
       fitKind(c, ok, g ? designKind(d, g, ok, ownerMaterial(d, c).kind) : undefined);
@@ -1944,6 +1945,8 @@ export function setConnection(d: Design, connectionId: string, patch: ConnPatch)
 function applyKind(d: Design, c: Connection, kind: ConnectionKind, keepOffset = false) {
   c.kind = kind;
   c.pref = kind;
+  // a made model's joint picked by the student (milestone 125): kept through a change of material
+  if (c.src) c.picked = true;
   if (c.grown && c.kind !== 'tabslot' && !keepOffset && c.offset > 0 && !isDividerOffset(d, c)) c.offset = 0;
   if (c.grown && c.kind === 'tabslot' && c.offset === 0) c.offset = defaultOffset(d, 'tabslot', c.a.panelId);
 }
@@ -2362,4 +2365,74 @@ export function deleteLine(d: Design, lineId: string) {
     p.lines = p.lines.filter((l) => l.id !== lineId && !(g && l.group === g));
     if (!p.lines.length) delete p.lines;
   }
+}
+
+/** A free board (milestone 123): any outline, on any plane in 3D. */
+export type FreePanelSpec = {
+  /** A stable id (a made model derives it from the face's key), else a new one. */
+  id?: string;
+  name?: string;
+  /** The face's plane: `o` on it, `u` and `v` in it (unit, at right angles). */
+  frame: { o: V3; u: V3; v: V3 };
+  /** Which side of the plane the material is on: 1 along u × v, -1 against it. */
+  side: 1 | -1;
+  /** The outline in (u, v), edge i from point i to point i + 1; either winding. */
+  outer: P2[];
+  /** Holes through it, each made a cut-out shape. */
+  holes?: P2[][];
+  /** The face of a shape it was made from. */
+  src?: string;
+};
+
+/**
+ * Add a free board (SHAPES_TO_DIELINES_PLAN.md §4.3, E1 and E5): a root polygon on the
+ * given plane, its material side up (v turned round when the material is against u × v),
+ * edge i of the outline as given always named `e<i>`, its holes cut-out shapes. Not
+ * solved: the caller solves once when every board is in. Null when the outline crosses itself.
+ */
+export function addFreePanel(d: Design, spec: FreePanelSpec): string | null {
+  let pts = spec.outer.map((p) => ({ x: p.x, y: p.y }));
+  let holes = (spec.holes ?? []).map((h) => h.map((p) => ({ x: p.x, y: p.y })));
+  let v = spec.frame.v;
+  if (pts.length < 3 || !isSimplePolygon(pts)) return null;
+  // the material side up (side 1), as every board the app makes: its folds turn towards the scored face
+  if (spec.side === -1) {
+    pts = pts.map((p) => ({ x: p.x, y: -p.y }));
+    holes = holes.map((h) => h.map((p) => ({ x: p.x, y: -p.y })));
+    v = [-v[0], -v[1], -v[2]];
+  }
+  // counter-clockwise, each edge keeping its name (edge i runs from point i to point i + 1 as given)
+  let edgeIds = pts.map((_, i) => `e${i}`);
+  if (polygonArea(pts) < 0) {
+    const n = pts.length;
+    pts = pts.map((_, j) => pts[(n - j) % n]);
+    edgeIds = pts.map((_, j) => `e${(2 * n - j - 1) % n}`);
+  }
+  const side = 1 as const;
+  const id = spec.id && !d.panels[spec.id] ? spec.id : newId('p');
+  const p: Panel = {
+    id,
+    name: spec.name ?? `${d.order.length + 1}`,
+    w: 10,
+    h: 10,
+    sketch: { kind: 'poly', pts, edgeIds },
+    frame: { o: [...spec.frame.o] as V3, u: [...spec.frame.u] as V3, v: [...v] as V3, side },
+    details: [],
+    ...(spec.src ? { src: { face: spec.src } } : {}),
+  };
+  d.panels[id] = p;
+  d.order.push(id);
+  d.pieces[id] = { quantity: 1 };
+  // the outline's own corner at (0, 0): the frame moves, not the board
+  const minX = Math.min(...pts.map((q) => q.x)), minY = Math.min(...pts.map((q) => q.y));
+  normalizeSketch(p);
+  holes.forEach((h, i) => {
+    const hx = h.map((q) => q.x - minX), hy = h.map((q) => q.y - minY);
+    const x0 = Math.min(...hx), x1 = Math.max(...hx), y0 = Math.min(...hy), y1 = Math.max(...hy);
+    const w = x1 - x0, hh = y1 - y0;
+    if (w < 1e-6 || hh < 1e-6) return;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    p.details.push({ id: `${id}-h${i}`, shape: 'polygon', op: 'cut', cx, cy, w, h: hh, path: { polys: [hx.map((x, k) => ({ x: (x - cx) / w, y: (hy[k] - cy) / hh }))] } });
+  });
+  return id;
 }

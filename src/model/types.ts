@@ -173,6 +173,8 @@ export type Panel = {
    * `place.x/y` and `w` are derived; this record is what the student drew.
    */
   divider?: DividerRec;
+  /** Milestone 123 (SHAPES_TO_DIELINES_PLAN.md §4.3): a free board made from a face of a shape (`FaceKey`). Absent: a hand-made board. */
+  src?: { face: string };
 };
 
 /**
@@ -337,6 +339,22 @@ export type Connection = {
   split?: true;
   /** Derived (milestone 70): a divider's end on a tray corner's band (that corner's wing connection id); `b` is the wall carrying the band. */
   bandEnd?: string;
+  /**
+   * Milestone 123 (SHAPES_TO_DIELINES_PLAN.md §4.3): a seam of a made model, between two free
+   * boards whose edges meet along a line, at any angle from 5° to 355°. A seam fold is kind
+   * 'fold' with `hingeOf` its child (the board laid flat off the other in the net); a cut seam
+   * is 'glue' or 'lock' (`a` carries the flap). Its kind is set by whoever made it and is never
+   * re-fitted by `solve`. Absent: an ordinary joint.
+   */
+  seam?: true;
+  /** Milestone 124: a seam flap's taper, how far it narrows at each end along its edge (mm). Absent: its depth (45°). */
+  flapTaper?: number;
+  /** Milestone 125: why the chooser picked this joint (an i18n key), shown on the joint card. */
+  why?: string;
+  /** Milestone 125: the student picked this joint's kind; a change of material keeps it. */
+  picked?: true;
+  /** Milestone 123: the edge of the face graph this seam was made from (`EdgeKey`). */
+  src?: string;
 };
 
 /** How tab-and-slot tabs hold: flush, through and folded under, self-locking barbs, or bolts in captive nuts. */
@@ -469,7 +487,114 @@ export type Design = {
    * glue flap width (mm) replacing the automatic one. Absent: the material's.
    */
   joints?: JointChoices;
+  /**
+   * The design type (milestone 120, ported from `claude/guided-mode`'s milestone 49).
+   * Absent: a box design (every file made before). 'waffle' is read as *has shapes*
+   * (`isSculpture`): the design is made of shapes, and its `outcome` says what they
+   * became. The stored value keeps its old name so the waffle can join with no migration.
+   */
+  kind?: 'waffle';
+  /** Sculpture designs: the shapes the solid is built from. */
+  sculpt?: Sculpt;
+  /**
+   * A sculpture design's outcome: what its shapes were made into (folded card,
+   * boards, or later the waffle's slices). Absent: not made yet (SHAPES_TO_DIELINES_PLAN.md decision 11).
+   */
+  outcome?: OutcomeKind;
+  /** Milestone 126: how the shapes were made into boards (the Make card's settings and the student's choices by key). Absent: not made. */
+  make?: MakeSpec;
 };
+
+/** How a sculpture is made (SHAPES_TO_DIELINES_PLAN.md §4.5). Keys are the face graph's (`FaceKey`, `EdgeKey`). */
+export type MakeSpec = {
+  as: 'fold' | 'boards';
+  /** Faces around a curve: the default for card or boards, and per shape. */
+  facets?: { card?: number; boards?: number; byShape?: Record<string, number> };
+  /** Fewest pieces, or fewer cuts. */
+  prefer?: 'pieces' | 'cuts';
+  /** Fold it: how cut seams close (absent: the chooser's). */
+  seams?: 'glue' | 'lock' | 'tabslot';
+  /** Faces left out (openings). */
+  open?: string[];
+  /** Card: the student's fold or cut by edge. */
+  edges?: Record<string, 'fold' | 'cut'>;
+  /** A joint kind the student picked, by edge. */
+  joints?: Record<string, ConnectionKind>;
+  /** Milestone 130: a lid by a cut, this far below the top (mm); the lid is made beside the box, both open at the cut. */
+  lid?: number;
+  /** Milestone 129: the shapes' key when this was made (*Update from shape* shows when it differs). */
+  shapeKey?: string;
+};
+
+/** What a sculpture's shapes become (SHAPES_TO_DIELINES_PLAN.md decision 1). */
+export type OutcomeKind = 'fold' | 'boards' | 'waffle';
+
+/** A sculpture design's shapes (WAFFLE_MODE.md §4 on `claude/guided-mode`). */
+export type Sculpt = {
+  shapes: Record<string, Shape3>;
+  /** Top-level shapes, in creation order (group members are listed by their group). */
+  order: string[];
+};
+
+export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'wedge' | 'roof' | 'gem' | 'extrude' | 'revolve' | 'group';
+
+/** A unit quaternion [x, y, z, w]. */
+export type Quat = [number, number, number, number];
+
+export type Shape3 = {
+  id: string;
+  name: string;
+  kind: ShapeKind;
+  /** Tinkercad's Hole: inside a group it is subtracted from the group's solids; outside one it cuts nothing. */
+  hole?: true;
+  /** Position of its local origin (mm, world; a member's is in its group's frame) and its turn. */
+  at: V3;
+  q: Quat;
+  /** Size before turning (mm): x, up, z. Not for groups, extrudes or revolves. */
+  size?: V3;
+  /** Prism and pyramid sides (3–12). */
+  n?: number;
+  /** Cone and pyramid: top size as a fraction of the base (0 = a point). */
+  top?: number;
+  /** Torus: tube diameter (mm). */
+  tube?: number;
+  /** Box and prism (milestone 121): the top's width and depth as fractions of the base's (a frustum). Absent: [1, 1]. */
+  taper?: [number, number];
+  /** Diamond (milestone 121): the crown's height (mm, the rest of the height is the pavilion) and the table's width as a fraction of the girdle's. */
+  crown?: number;
+  table?: number;
+  /** Group (milestone 121): the hull of its solid members, not their union. */
+  hull?: true;
+  /** Box and prism: footprint corner radii by corner index (absent or 0 = sharp). */
+  corners?: number[];
+  /** Extrude and revolve: the outline. */
+  sketch?: ShapeSketch;
+  /** Extrude: height (mm; negative = the other side of an upright plane). */
+  height?: number;
+  /** Revolve: degrees (360 default) and axis (the plane's axis line, or a straight segment of the sketch). */
+  angle?: number;
+  axis?: { kind: 'plane' } | { kind: 'seg'; id: string };
+  /** Group: its members (each still a Shape3 with its own Solid/Hole). */
+  children?: string[];
+  color?: string;
+  /** Stretch along the shape's own axes (x, up, z), applied to the built body before it is placed. Absent = [1, 1, 1]. */
+  stretch?: V3;
+  /**
+   * Faces (3–64): a cylinder, cone, sphere, half sphere, ring or revolve goes round in this many
+   * flat pieces, and an extrusion's arcs and curves are cut into this many per quarter turn,
+   * in place of the 0.02 mm rule. Absent: smooth.
+   */
+  facets?: number;
+};
+
+/**
+ * A point of a primitive's footprint outline: a Corner (neither field), a Curve (`curve: 'auto'`),
+ * or a Round corner (`r` > 0 mm, a tangent arc).
+ */
+export type SculptPt = { x: number; y: number; curve?: 'auto'; r?: number };
+
+/** A shape's sketch, in the shape's local XY. */
+export type ShapeSketch = { plane: 'floor' | 'upright'; v: 2 } & SketchGraph;
 
 /**
  * How a lid closes (milestone 67, PACKAGING_PLAN.md §7): a tuck lip inside the

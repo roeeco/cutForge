@@ -1,4 +1,5 @@
 // Pre-export checks, explained in plain language by the UI.
+import { outcomeHooks } from './pieces';
 import { lineOutside, lineSplits } from './lines';
 import type { Design, P2, Panel, V3 } from './types';
 import { allFoldOvers, foldOverDims } from './foldover';
@@ -32,7 +33,7 @@ import { closureCovers } from './closures';
 import { FLAP_MIN_FAR, edgeJoined, flapFarWidth } from './edgeFeatures';
 import { bestReach } from './bendPatterns';
 
-export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
+export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string } | { kind: 'shape'; id: string } | { kind: 'none'; id: string };
 /** `pair`: the two panels a joint message is about (both are selected when it is clicked). */
 export type Issue = { key: MsgKey; vars: Record<string, string | number>; target: IssueTarget; pair?: [string, string] };
 
@@ -41,6 +42,9 @@ export function minWeb(d: Design, panelId?: string): number {
 }
 
 export function validate(d: Design): Issue[] {
+  // a sculpture with its own hooks runs their checks only (milestone 120)
+  const hooks = d.kind === 'waffle' ? outcomeHooks(d) : null;
+  if (hooks) return hooks.checks?.(d) ?? [];
   const issues: Issue[] = [];
   const name = (id: string) => d.panels[id]?.name ?? '?';
   const guides = constructionSet(d);

@@ -1,3 +1,5 @@
+import { sculptKey, sketchKey } from '../sculpt/ui/commands';
+import { isSculpture } from '../sculpt/ops';
 import { TOOL_KEYS } from '../ui/Toolbar';
 import { QUICK_KEYS, startAction } from '../easy/QuickRail';
 import { useEffect } from 'react';
@@ -87,15 +89,21 @@ export function handleKey(e: KeyboardEvent) {
     {
       const s = useStore.getState();
       const mod = e.ctrlKey || e.metaKey;
+      // the sketch view has its own history and keys (milestone 120, from claude/guided-mode)
+      const sketching = s.view === 'sketch' && !!s.sketch;
       if (mod && !isTyping(e) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
+        if (sketching) return e.shiftKey ? s.sketchRedo() : s.sketchUndo();
         return e.shiftKey ? s.redo() : s.undo();
       }
       if (mod && !isTyping(e) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
-        return s.redo();
+        return sketching ? s.sketchRedo() : s.redo();
       }
       if (isTyping(e)) return;
+      if (sketching) return void sketchKey(e);
+      // a sculpture's shape stage has its own keys; once made, stage 2 and the cut plan use the box keys
+      if (isSculpture(s.design) && s.view === '3d' && (s.sculpt.stage === 'shape' || !s.design.outcome)) return void sculptKey(e);
       const sel = s.selection;
       const ids = selectedDetailIds(sel);
       // Guided (milestone 105) has no clipboard: a paste would wait for ✓, which Guided never asks for

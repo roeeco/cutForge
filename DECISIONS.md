@@ -610,3 +610,78 @@ Defaults chosen where the brief left room. Each is reversible.
 ## Before a deploy (20 November)
 - **The crash-lock is held back by one switch** (`CRASH_LOCK_OFFERED` in `src/model/cartons.ts`), not removed: the patent question is the owner's (SENTENCE_STYLES_PLAN.md §0). Hidden: the sentence's word, its style, the tray card's option for a tray without one. The engine, its tests and its golden stay.
 - **The plan dock wraps** rather than losing buttons under the card; *Fit* reads the dock's height.
+
+## Milestone 120 (Shapes R1): the port
+- **From `claude/guided-mode` at `e450c6b`**, which has the commit after PR #6 (`claude/waffle-mode` on the remote lacks it), by path.
+- **Absent `outcome` is *not made yet***, not the waffle: a waffle file from PR #6 opens here as shapes, its `waffle` field kept for when the waffle joins.
+- **The one-click buttons live on the stage bar** in the top bar, beside *1 Shape*, in place of *2 Waffle*; there is no *2 Make* step to pass through. A made outcome's button shows it pressed and goes back to it.
+- **Outcomes made of boards register no piece hooks**: `buildPieces` and `validate` fall through to the boards, so the cut plan, the checks and the export need nothing new.
+- **The sculpture keeps the top bar's 3D / Cut plan tabs**; the level switch is hidden on a sculpture (as on PR #6).
+- **`.wasm` is typed by the Worker** (`wasmTyped`) as well as by the static assets, so the kernel streams in every deployment.
+
+## Milestone 123 (Shapes R4): free boards and seam folds
+- **A seam fold is a tray corner made a fold** (`hingeOf` its child) with its own fit (`seamFit`, 5°–355° except 175–185°), not a new kind of fold: the net, the fold view and the cut plan already handled those.
+- **A seam fold is never cut back.** A tray's hinged wall was one; a made model's two faces are one creased board, so the crease's place takes up the thickness and the two outlines overlap by it in the net (their union is the piece).
+- **Free boards lie material side up** (side 1), as every board the app makes, so seam creases are scored, not perforated. Edges keep their names (`e<i>` as given) when the points are stored the other way round.
+- **A seam's kind belongs to its maker**: `solve` does not re-fit it and `autoConnect` leaves it alone (`auto: false`). R6's chooser sets it.
+- **The face graph's builders came forward from R3** (`src/model/polyhedron.ts`): pairing by vertex index, runs of collinear edges with one neighbour joined (their middle points dropped from both faces), no T-junction splitting (a manifold mesh has none).
+- **Face keys numbered with `*`** when one name covers two faces (never `~`, which marks a wall set's member in a board id).
+
+## Milestone 122 (Shapes R3): face keys
+- **Roles are read from directions in the shape's own frame** (its normal, and for facets its centre), never from manifold's `faceID`, which is per run and not stable across a resize.
+- **A box's sides are named `+x`, `-x`, `+z`, `-z`** by its footprint edges (front, right, back, left in its own frame), so a turned box keeps them.
+- **Curved shapes are cut into facets on a copy**; the shape stage keeps its smooth look and the student's *Faces* count, when set, wins.
+- **The shape cache includes the shape's id**: provenance needs one body per shape, and the lost sharing (two identical shapes) is rare.
+- **The sliver check uses twice the area over the outline's length** as a face's width (exact for a strip) at 1.5t, so a strip 3t wide is not listed.
+
+## Milestone 124 (Shapes R5): the unfolder
+- **Restarts are counted, not timed** (40, with a 2 s cap as a guard): the plan's *deterministic, the seed is the design id* holds only when the number of tries does not depend on the machine.
+- **Flaps are fitted while joining**: an edge a join closes inside an island needs room for its flap there, or the join is refused. Checking flaps only at the end left nets too tight to glue.
+- **A dropped flap counts as a piece**, so the search prefers two pieces that glue to one that does not.
+- **A flap may narrow steeply at its ends** (its taper stored on the seam, `flapTaper`) before it is made shallower: a steep taper keeps the glue area, a shallow flap loses it.
+- **The largest face roots each piece** (`islandOrder`), so the net is laid out from it.
+- **Weights**: bend × (0.5 convex, 1 concave) − 0.05 × length / average length (0.3 with *Fewer cuts*); jitter ±0.175 after the first pass.
+
+## Milestone 125 (Shapes R6): the joint chooser
+- **The rules of R6's table, as written, are the starting values**, and every flap depth, tab width, finger count and the lock's 25 mm minimum is **unverified on real stock** (as the pin hinge's, 81). They are tuned against the goldens only.
+- **The face that closes last is the largest facing up** (outward normal at least 0.5 up); its seams get a slit lock on card and its board carries the tabs on plywood (`a` is the tab owner, so it drops in from outside).
+- **A seam's tabs and slots are the ordinary corner tabs** (`cornerTabs`): corrugated nets get them without a new joint.
+- **The unfolder's flap size wins** over the chooser's: it fitted the net with it.
+- **A change of material keeps folds as folds** (the net is not re-cut) and keeps every joint the student picked (`picked`, set whenever the joint card changes a made joint's kind).
+- **Flaps keep a board's thickness clear** of the faces round them in the unfolder, since a crease moves a board by up to that much.
+
+## Milestone 126 (Shapes R7): the one click
+- **Stage 2 is the Workshop's own 3D view** of the made boards (decision 2), with the fold slider; the shape stage's view comes back with *1 Shape*.
+- **A net split into pieces is said, not listed as a problem**: it cuts and folds as it is. The problems are the plan's: a face bigger than the sheet, a flap with no room, a tiny face, too many faces.
+- **The fixes make the model again** with the changed spec (one undo step each), so a fix can never leave the made model half-changed.
+- **The material each design was made with is kept in memory, not in the file**: after a reload, the material it opens with is the baseline for *the material changed*.
+- **The Make card's outcome chooser is gone**: the stage bar's two buttons choose, and a click on the other one makes the other outcome.
+
+## Milestone 127 (Shapes R8): boards
+- **A through-hole's walls are left out of a board model** and listed: their edges lie on the hole's rim, a cut-out in the boards round it, where no corner joint can be cut. The hole itself is cut.
+- **Boards are added largest first, the one that closes last at the end**, so the cut plan and the assembly animation put it last.
+- **Size is: Inside** waits: a board model with the shape as its inside needs an outward offset of the solid, not a flip of the boards' sides.
+
+## Milestone 121 (Shapes R2): flat-faced shapes and the workplane
+- **A wedge, a roof and a diamond are each the hull of their corners** (`Manifold.hull`): every face flat by construction, one code path.
+- **The diamond's girdle is fitted to its width and depth** (`ngon`, as a prism's footprint), so its size fields read what was typed.
+- **A hull is a group marked `hull`**: grouping, ungrouping, turning and scaling work as for any group, and its body is a new original so its faces are keyed by the hull.
+- **A taper is two fractions on a box or prism** (the extrusion's top scale), not a new kind.
+- **Nudge 1 mm, Shift 5 mm**, a held key one transaction (the plan's SketchForge behaviour, through CutForge's history).
+- **The workplane is view state, not saved**; *D* without one drops onto the floor.
+
+## Milestone 129 (Shapes R10): linked
+- **The student's joint picks and fold cuts are folded into the spec on every remake** (`joints`, `edges` by key), so they survive any number of remakes and a save; work on boards (shapes, text, lines, flaps) is carried board by board.
+- ***Update from shape* compares the shapes' solid key** (geometry and ids, with the cache's key), stored in the spec when made.
+- **Detach keeps `seam` on the joints**: a detached model still lays out its folds and flaps as made; only the keys, the spec and the shapes go.
+
+## Milestone 130 (Shapes R11): openings and the lid
+- **The lid is cut by the kernel** (`splitByPlane`), and each half keyed as before, the lid's keys prefixed `lid/`: the student's work on the lid carries across remakes as on any face.
+- **Leave open is on a made board's card**, the Workshop's place for a board's choices, rather than a face picker on the shape stage.
+- **A flap's clearance keeps its base on its edge's ends**: corners are where neighbours meet and creases shift them anyway; the export check allows made boards a 4t² corner sliver for the same reason.
+- **A seam kind the student picked keeps its edge cut** across remakes (milestone 129's carry-over, found while changing the unfolder): a slit lock never turns into a fold.
+
+## Milestone 131 (Shapes R12): assembly
+- **Steps are seams, numbered once each**, the face that closes last at the end; folds are not steps (they are all creased first).
+- **Seam numbers are annotations** (milestone 89's), so they show on the cut plan with *Dimensions* and go to the GUIDE layer only when the export is asked for annotations: files and goldens do not change.
+- **The steps live on the Make card** and select the seam's two boards in the Workshop's 3D view, rather than a separate steps layer.

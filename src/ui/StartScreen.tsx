@@ -10,6 +10,7 @@ import { chooseMaterial, type Change } from '../sentence/resolve';
 import type { SentenceValue } from '../sentence/model';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
+import { createWaffleDesign } from '../sculpt/ops';
 import { Library } from './Library';
 import type { MaterialProfile } from '../model/types';
 import { Icon, Logo } from './icons';
@@ -74,7 +75,9 @@ export function StartScreen() {
   const offered = useStore((s) => s.viewPrefs.missions);
   const missions = quick ? MISSIONS.filter((m) => !offered || offered.includes(m.id)) : [];
   const mat = MATERIALS.find((m) => m.id === matId)!;
-  const tplOk = (id: string) => !id || id === 'sentence' || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
+  // milestone 120: a sculpture design (Workshop only)
+  const shapesOk = shown(useFeature('start.shapes'));
+  const tplOk = (id: string) => !id || id === 'sentence' || (id === 'shapes' && shapesOk) || (id.startsWith('mission:') ? !!missionById(id.slice(8))?.materials.includes(mat.kind) : !!templateById(id)?.materials.includes(mat.kind));
   const effTpl = tplOk(tpl) ? tpl : '';
   // step 1 sets what the sentence can say: a word this material cannot make becomes what it can, with a note
   const pickMaterial = (id: string) => {
@@ -88,7 +91,8 @@ export function StartScreen() {
     const s = useStore.getState();
     const ms = effTpl.startsWith('mission:') ? missionById(effTpl.slice(8)) : undefined;
     const tp = effTpl === 'sentence' ? templateById(sentence.id) : null;
-    if (ms) s.replaceDesign(startMission(ms, mat), false);
+    if (effTpl === 'shapes') s.replaceDesign(createWaffleDesign(mat), false);
+    else if (ms) s.replaceDesign(startMission(ms, mat), false);
     else if (tp) s.replaceDesign(generate(tp, mat, sentence.params), false);
     else if (s.design.order.length) {
       // from the library with a design open: a new one beside it (the open one is saved)
@@ -166,6 +170,16 @@ export function StartScreen() {
             <small>{t('start.blankDesc')}</small>
           </span>
         </button>
+        {shapesOk && (
+          // milestone 120: build a form from shapes, then fold it or build it from boards
+          <button className="pick-row" role="radio" aria-checked={effTpl === 'shapes'} onClick={() => setTpl('shapes')} onDoubleClick={start} data-testid="tpl-shapes">
+            <span className="dot" aria-hidden />
+            <span className="cap">
+              <strong>{t('start.shapes')}</strong>
+              <small>{t('start.shapesDesc')}</small>
+            </span>
+          </button>
+        )}
         {/* milestone 98: presets said instead of picked (SENTENCE_BUILDER_PLAN.md); milestone C1: or picked from cards of named styles */}
         {cardsOk && (
           <div className="start-view" role="group" aria-label={t('start.view')}>

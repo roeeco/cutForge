@@ -1994,6 +1994,209 @@ Verified
 - `classroom.spec.ts` with the real Worker (`wrangler dev`, a local D1 and R2): 5 passed. The production build (`npm run build`) succeeds and ships no WASM (the shape kernel is used only by the R0 spike's test).
 - Unit suite (1265 passed) and typecheck green; goldens byte-identical.
 
+## Milestone 120 (Shapes R1) — the shape modeller on this branch ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R1. Brought **by path** from `claude/guided-mode` at `e450c6b` (*after milestone 60: hands-on fixes to the sketch and shape tools*), never merged: `src/sculpt/**` (the kernel, primitives, Solid / Hole, Combine, scale, turn, rounded corners, sketches on the floor and on upright planes extruded or revolved, the 2D sketch view, `faces.ts`, the outcome registry), `src/views/polyDraw.ts`, `src/ui/SketchTopBar.tsx`, and the tests `sculptkernel`, `sculptscale`, `sculptsketch`, `sculptfaces`, `outcomes`. `src/waffle/**`, the `waffle` field and the waffle tests stay on PR #6.
+- **The design fields** `kind?: 'waffle'` (read as *has shapes*, `isSculpture`), `sculpt?` and `outcome?: 'fold' | 'boards' | 'waffle'` (`src/model/types.ts`). **Absent `outcome` means not made yet** (decision 11); on PR #6 it meant the waffle, so a waffle file opened here opens as shapes not made yet, its `waffle` field kept untouched. No schema bump; `checkSculpt` reads the shapes on load and drops an unknown outcome.
+- **The outcome hooks** (`registerOutcome`, `outcomeHooks` in `pieces.ts`) only for an outcome whose parts are not the design's boards; `partOf` is generic (`{ group, id, label }`). *Fold it* and *Build from boards* will make ordinary panels and connections, so they register no hooks: their pieces and checks are the boards'.
+- **The stage bar** (`src/ui/ShapeStageBar.tsx`, in the top bar instead of the level switch): *1 Shape · Fold it · Build from boards*. An outcome's button works once its code registers `make` with `registerOutcomeUi`; until then it is greyed, *· Coming next*.
+- **The welcome screen's *Shapes*** row (feature `'start.shapes'`: Workshop only, `'hide'` in Quick build and Guided).
+- The store's sculpt state, the sketch session and its own history, `clickShape`, the `'shape'` selection and the sculpt keys; `src/sculpt/load.ts` loads the kernel when a sculpture opens (box designs never download it); the Worker serves `.wasm` as `application/wasm` whatever the static assets say (`wasmTyped`, the check `WAFFLE_MODE.md` §12 left open).
+- `src/sketch/**` was already here (102) and is used as it is; the branch's older copy was not brought.
+
+Verified
+- The ported sculpt tests (98) pass. `outcomes.test.ts` rewritten for this branch: nothing in `src/sculpt` imports `src/waffle` and `src/waffle` is absent; a sculpture with no outcome has no pieces and no checks; an outcome with hooks gives both; every known outcome survives a save and load and an unknown one is dropped. `worker/api.test.ts`: a `.wasm` file comes back as `application/wasm`.
+- `tests/e2e/shapes-port.spec.ts`: *Shapes* from the welcome screen, a box sized 80 × 80 × 40, a cylinder made a hole, both combined; *Fold it* and *Build from boards* greyed with *Coming next*; no level switch; no page errors.
+- Unit suite and typecheck green; goldens byte-identical. A look in the dev server at 1400 px: the top bar fits.
+
+Limitations
+- `sculptscale`'s percent test was cut to this branch's `evalNumber` (milestone 97 reads a percent only as the whole entry; `50%+5` is not read).
+- The shape stage's cards and the sketch view keep the waffle branch's look; R2 and R13 change the workplane.
+
+## Milestone 121 (Shapes R2) — the Tinkercad-style workplane ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R2. `src/sculpt/build.ts` (`flatCorners`, taper, hull), `src/sculpt/ops.ts` (`PRIMITIVES`, `hullShapes`), `src/sculpt/workplane.ts` (new: `upTo`, `dropOffset`), `src/sculpt/ui/commands.ts`, `src/sculpt/ui/SculptView3D.tsx`, `src/sculpt/ui/SculptCard.tsx`, `src/sculpt/polyhedron.ts` (roles); `Shape3.taper`, `crown`, `table`, `hull` and the kinds `wedge`, `roof`, `gem` (optional, checked on load).
+- **Flat-faced shapes**, each a tile on the Shapes card: a **wedge** (full height at the back, a slope to the front edge), a **roof** (a triangular prism, its ridge along its width) and a **diamond** (`gem`: sides 5–12, default 8; width, depth and height; crown height; table as a share of the width, default 55%; a pavilion to a point, a girdle fitted to the width and depth, a crown up to a flat table). Each is the hull of its corners, so every face is flat.
+- **Taper** on a box and a prism: *Top width* and *Top depth* as a percentage of the base, making a frustum (a tapered planter).
+- **Hull**: with several solids selected, *Wrap in a hull* (beside *Combine*) makes one flat-faced body round them, a group marked `hull`, so ungrouping gives them back. The quickest way to a low-poly form that folds well.
+- **Typed sizes** were already on the handles (*W*, *D*, *H* labels open a number box) and the card.
+- **Nudges**: arrow keys move the selection 1 mm, Shift 5 mm (was 10); **a key held down is one undo step** (a transaction committed when the key comes up), along the workplane's own axes when there is one.
+- **The workplane**: *W*, then a click on a face, sets it (Shift takes the face's other side; a click on the floor puts it back on the floor). It is drawn as a blue square with a grid. New shapes from the tiles stand on it, turned to it. *D* drops the selection onto it (onto the floor when there is none): its lowest point comes to the plane.
+- **Face roles**: a wedge's `bottom`, `+x`, `-x`, `-z`, `slope`; a roof's `bottom`, `+x`, `-x`, `slopeFront`, `slopeBack`; a diamond's `table`, `crown<k>`, `pavilion<k>`; a hull's `h<azimuth>.<elevation>`.
+
+Verified
+- `tests/flatshapes.test.ts` (12, with the kernel): a wedge and a roof have 5 flat faces, a diamond 17, a tapered box 6; an 8-sided diamond's face graph has a table, 8 crown and 8 pavilion faces; a wedge and a roof name their slopes; a gem as the hull of a prism and an upside-down pyramid is one body keyed by the hull; a tapered hexagonal planter keeps 8 faces and folds from card; the new fields survive a save and load and a bad taper is dropped; a shape placed on a workplane stands on it; *D* drops a raised box onto a level and a sloped plane; the plane's axes lie in it.
+- `tests/sculptkernel.test.ts`: the wedge's, roof's and diamond's volumes within 0.5% of their formulas.
+- `tests/e2e/shapes-port.spec.ts` updated: since 126 *Fold it* and *Build from boards* work once there is a shape.
+- A look in the dev server: the eleven tiles, a diamond with its sides, crown and table, the workplane's hint.
+
+Limitations
+- **ΔX and ΔZ readouts** that stay after a move and can be typed into, with Tab, are not built (132 adds the second half of the workplane).
+- A shape dragged from its tile does not yet lie down on the face under the pointer; the tiles place it on the workplane.
+- The workplane is not saved with the design; turns do not yet follow it.
+
+## Milestone 122 (Shapes R3) — the face graph with stable keys ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R3 (§4.2). New `src/sculpt/polyhedron.ts` (the bridge: `shapePolyhedron`, `facetedCopy`, `DEFAULT_FACETS`); `polyIssues` and `MAX_FACES` in `src/model/polyhedron.ts` (its builders came with 123).
+- **The bridge**: the solid is built with Make's facet counts on a copy (12 per full turn for card, 8 for boards; a shape's own *Faces* or a per-shape count wins; an extrusion's curves get a quarter of it), its mesh merged, each triangle named by the shape its run came from and its **role in that shape's own frame**, and the face graph made from them. Adjacent coplanar triangles are one face, across shapes too (keys joined with `+`).
+- **Roles** (§4.2's table): a box's `top`, `bottom`, `+x`, `-x`, `+z`, `-z`; a prism's and a pyramid's `side<k>` by the footprint edge whose outward normal is nearest (a rounded corner's facets `corner<k>/a<deg>`); a cylinder's and a cone's `cap0`, `cap1` and `f<i>` by angle round; a sphere's `f<i>.<j>`, a torus's `f<i>.<j>` round and across the tube; an extrusion's `top`, `bottom`, `seg:<segment id>` over a straight line and `seg:<id>/f<k>` along a curve. A Hole's faces are `hole:<shape>:<role>`. Facets of curves are marked `ruled` or `curved`.
+- **Checks** (`polyIssues(P, t)`): faces narrower than about 1.5t across (twice their area over their outline), faces under 4t², more than 200 faces (119's limit), and the graph's own (an open or non-manifold edge).
+- **Fix found on the way** (`src/sculpt/build.ts`): the shape cache was keyed by geometry only, so two shapes alike shared one body and its faces were credited to the first one built. The key now includes the shape's id.
+
+Verified
+- `tests/sculptpolyhedron.test.ts` (8, with the kernel): a box gives 6 faces keyed by role and 12 edges at 90°; an L-extrusion 8 faces, 6 of them `seg:` walls, one edge at 270°; two boxes flush merge their top, bottom and two long sides (keyed by both); a box with a through-hole has a top and a bottom with one hole each and 12 `hole:` walls, its rim 24 edges at 90°; a cylinder at 12 facets 14 faces, 12 edges at 150°, the shape's own `facets` untouched; resizing and moving a box, and moving an extrusion's sketch points, keep every key; 8 and 12 facets keep every key but the facets'; a 1 mm slab is a sliver at 3 mm, a 32-facet sphere is too many faces.
+- The ported sculpt tests and `outcomes` still pass; typecheck green.
+
+Limitations
+- A diamond's roles (`table`, `crown<i>`, `pavilion<i>`) come with its primitive (121).
+- A revolve's facets are keyed by direction (`f<i>.<j>`), not by its profile's segments.
+
+## Milestone 123 (Shapes R4) — free boards and seam folds in the engine ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R4 (§4.3). New `src/model/seamFold.ts` (`seamFit`, `seamGlue`), `src/model/seamNet.ts` (`addSeamNet`), `src/model/polyhedron.ts` (the face graph's types and builders, written now because R4's solids need them; R3 adds the kernel bridge); `addFreePanel` in `src/model/ops.ts`; `Panel.src`, `Connection.seam` and `Connection.src` (optional, checked on load, no schema bump).
+- **Free boards** (E1, E5): `addFreePanel` puts a polygon on any plane, **material side up** (v turned round when the material lies against u × v), so its creases are scored on the face that ends up inside, as every board the app makes. Edge *i* of the outline as given is always `e<i>`, even when the points are stored in the other order. Holes become cut-out shapes.
+- **Seam folds** (E2): a fold between two free boards whose edges lie on one line, at **any dihedral from 5° to 355°** (175–185° are one plane). It is a tray corner made a fold (`hingeOf` its child), with `seamFit` in place of `cornerFit` in `cornerFoldXform`, `foldBand` and the fold view's hinge (which now turns past 180° the right way for an inside corner). **Nothing is cut back**: the crease's place (`foldLay`, the overhaul's rule) takes up the thickness. Valley or mountain from the dihedral's side.
+- **Seam glue and slit locks at any angle** (E4): a tapered flap on the owner's edge, scored, folded onto the receiver's inside face; recorded for the fold view as tray corners' flaps are. A slit lock is made from it by the existing `slitLock`.
+- **`solve` never re-fits a seam's kind** (the maker chose it), and seams are `auto: false`, so `autoConnect` after an edit neither removes nor adds one.
+- `netOverlaps` leaves out the strip two boards of a seam fold share along their crease (one board, counted twice).
+- `addSeamNet(d, polyhedron, plan)`: a board per face, seam folds along the plan's fold tree (walked from each island's first face), glue (or `plan.seam`'s kind) on every other edge, ids from keys (`f:<face>`, `s:<edge>`).
+
+Verified
+- `tests/seamfold.test.ts` (25), on hand-written solids (`tests/solids.ts`: a box, prisms, a pyramid, a diamond, an L-prism, a house): the face graphs are closed with the expected angles (90°, 120°, about 56° and 108°, 150°, one 270°); a cube, a hexagonal prism, a square pyramid and a 12-sided tube each fold into one piece with no overlap, every seam laid out; at fold 1 the fold view is where the boards are, at 0 they lie in one plane; every glue flap is drawn folded with the area it has in the net; the cube's flaps lie on their receivers' inside faces, inside their outlines; slit locks on a cube, the tube and the pyramid have their tongues and slits; `autoConnect` changes no seam; boards and seams survive a save and load.
+- **Four new goldens**: `seam-cube-card`, `seam-hexprism-card`, `seam-pyramid-card`, `seam-tube12-card` (the tube's net does not fit the card sheet, so milestone 69 cuts its top off with flaps). Every old golden byte-identical. Unit suite and typecheck green.
+
+Limitations
+- Neighbouring boards at a shared corner overlap by under 1 mm² in the flat net (the crease strips meet there); cut as one outline it only stops a V-gap short of its corner. The tests take 1 mm² as their floor for seam nets.
+- Edges on a face's holes are left unjoined (openings, 130). The goldens' nets are a simple breadth-first tree; the unfolder (124) chooses real ones.
+- The seam flap's depth and taper are R6's to choose; for now 8–15 mm by thickness, at most a third of the seam, tapered at 45°.
+
+## Milestone 124 (Shapes R5) — the unfolder ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R5 (§4.4). New `src/model/unfold.ts` (`unfold`, `islandOrder`, `ringsOverlap`, `fitsSheet`, `flapTaperLen`); `Connection.flapTaper`; `addSeamNet` takes the unfolder's flap depths and tapers.
+- **The pipeline** of `MODEL_MODES_RESEARCH.md` §3, written fresh from R0's spike: edges in order of weight (flat and long first; *Fewer cuts* weights length six times more), a greedy join with union-find refused when the island would overlap itself or no longer fit the sheet in any of 8 turns, then restarts with seeded jitter, keeping the fewest pieces, then the shortest cut.
+- **Flaps are in the overlap test.** When a join closes an edge inside the island (one that will never fold), that edge's flap must fit there or the join is refused. A flap goes on the face with the smaller area-to-perimeter ratio (on a near tie, the one carrying fewer flaps, so they alternate round a chain), at full depth at 45°, then narrowing more steeply at its ends (2.5× and 5× its depth along the edge), then at 60% and 35% depth, on either face. The edges between pieces get theirs last; one that still does not fit is dropped and listed. **A dropped flap counts as a piece** when restarts are compared.
+- **Fixed edges first**: a fixed fold is joined before anything else (listed if it cannot be); a fixed cut is never folded. **Open faces** are left out.
+- **Deterministic**: the seed is a string (the design's id); restarts are counted (40 by default), not timed, with a 2 s safety cap, so the same design gives the same net on any machine. The pieces are listed largest first, each face's place in its piece's flat layout returned.
+- **Issues**: a face larger than the sheet; a split, saying why (the sheet, an overlap, the student's cuts); a dropped flap; a fixed fold that could not be made.
+
+Verified
+- `tests/unfold.test.ts` (21): a cube, a hexagonal prism, a square pyramid, an 8-sided diamond, an L-prism, a house and a 12-sided tube each unfold on A4 with no face or flap overlapping and every flap placed, each piece fitting; a cube is one piece with 7 flaps; the same seed gives the same folds and flaps; a fixed cut is not folded and a fixed fold is; a 270 × 30 × 150 box is split to fit A4 with *split: sheet*, and a face larger than the sheet is named; open faces are left out; *Fewer cuts* cuts no more; through the engine (`addSeamNet` with the unfolder's folds, flap sides, depths and tapers), each fixture cuts as many pieces as islands with no overlap and no broken seam.
+- Timing (Node, the card sheet): 14 faces 1 ms, a 32-face sphere 8 ms, a 72-face sphere 10 ms (one piece, no restarts); a 144-face torus 35 ms first pass, 505 ms with 40 restarts, 9 pieces. Unit suite and typecheck green.
+
+Limitations
+- A dense, saddle-shaped form (the torus) splits into many pieces: the flap rule is strict. Its net is still cuttable and glueable.
+- Edges on a face's holes are not joined or flapped (openings, 130); a through-hole's walls come out as a tube of their own.
+- No merge pass after the restarts: a greedy pass already tries every edge, so it would find none.
+
+## Milestone 125 (Shapes R6) — joints chosen for the material and its thickness ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R6 and decision 12. New `src/model/jointChoice.ts` (`chooseJoint`, `closingFace`, `flapDepthFor`, `tabsFor`, `fingersFor`); `src/model/reassemble.ts` (`reassemble`, `rechooseJoints`, `clearMade`; the engine half of 126 and 127); `Design.make` (`MakeSpec`), `Connection.why` and `Connection.picked` (optional, checked on load, no schema bump); 14 *why* strings in English and Hebrew.
+- **One pure chooser** for every seam: a fold kept in a net, a cut seam in a net, or a corner between boards, by material, thickness, length, angle, the faces' spans and whether the seam is on the face that closes last. Each choice says why (`joint.why.*`).
+  - **Card up to 1 mm**: folds folded; cut seams a glue flap, 8–15 mm by thickness and never deeper than a third of the smaller face; a **slit lock** on the face that closes last when the seam is 25 mm or more. Greyboard over 1 mm: nothing folds; seams glued.
+  - **Corrugated**: folds creased, a **cut-crease** on 4 mm board folding under 30°; seams of 30 mm or more (3 tabs' worth on 4 mm) **tabs and slots**, tabs max(8, 5t) wide; shorter ones glued (12–20 mm on 1.6, 18–25 mm on 4); board corners outside 30–150° glued.
+  - **Plywood**: **fingers** at 60–120°, an odd count about max(3t, 10 mm) wide; **tabs and slots** at 30–60° and 120–150°; **butt and glue** under 4t or outside 30–150°; **the board that closes last** (the largest facing up) carries tabs into the others, so it drops in from outside.
+- **A seam's tabs and slots** use the ordinary corner geometry (`cornerTabs`), so corrugated nets get them with no new joint code.
+- **A change of material or thickness** (`rechooseJoints`) chooses again every made joint the student did not pick (a kind set on the joint card marks it `picked`) and says how many changed; a fold stays a fold.
+- **The reassembler** (§4.5): clears what the last Make made (hand-made boards stay), then *Fold it* (the unfolder with the chooser's flap depths and the material's thickness as the flaps' clearance, `addSeamNet`, the chooser's kind and sizes on each seam, the unfolder's flap size kept) or *Build from boards* (a board on each face, material inward, corners found by `autoConnect`, each given the chooser's joint and its edge's key; corners it could not join listed). Ids from keys; the design's id seeds the unfolder.
+
+Verified
+- `tests/jointChoice.test.ts` (16): one test per rule above, the board that closes last, and a change of material that re-chooses every joint but the one the student picked (a pyramid from card to corrugated; a plywood box 3 to 6 mm).
+- `tests/reassemble.test.ts` (11): a cube, a hexagonal prism, a pyramid, a diamond, an L-prism and a house folded from card cut as many pieces as the unfolder made, with no overlap, nothing broken, ids from keys, every joint with a *why*; the same shapes give the same design twice; Make again replaces only what it made; a corrugated cube folds with tabs on its long seams; the spec survives a save and load; a plywood box is six boards, eight finger corners and a lid on four tab corners it carries; a diamond's corners outside 30–150° are listed in plywood; a corrugated 4 mm house has tabs where the corners allow.
+- **Six new goldens**: `make-cube-card-0.5`, `make-cube-corr-1.6`, `make-cube-corr-4`, `make-cube-ply-3`, `make-house-card`, `make-house-ply-3`. Every old golden byte-identical. Unit suite and typecheck green.
+- `netOverlaps` now leaves out the corners where creased neighbours meet (four times the crease's width), as the export check runs it at 0.5 mm².
+
+Limitations
+- **Every flap depth, tab width, finger size and the slit lock's minimum are starting values, unverified on real stock** (the owner's testers check one cube per material before 133).
+- The house folds in two pieces on the card sheet: the unfolder's flap rule is strict.
+- Board corners outside 30–150° are left unjoined and listed; their one-click fixes come with 127's Make card.
+
+## Milestone 126 (Shapes R7) — *Fold it*, in one click ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R7, decision 0. New `src/make/` (`run.ts`: `makeNow`, `canMake`, `materialFor`, `polyOf`; `MakeCard.tsx`; `register.ts`; `unfold.worker.ts`), registered with the shape kernel's loader (`App.tsx`); `MakeSpec.seams`; the stage-2 outcome chooser removed from the shape card (the stage bar has the two buttons).
+- **The click**: *Fold it* on the stage bar makes the face graph (12 faces round a curve), unfolds it (in a **Worker** over 40 faces, R0's decision; on the main thread under), reassembles it as one undo step, switches to stage 2 on the **Workshop's own 3D view of the made boards** and plays the fold from flat to closed over 1.5 s. The material is the design's when it folds, else card. No dialog comes first.
+- **The Make card** (only to refine): the material pill (a change re-chooses every joint not set by hand and says how many changed; a material that cannot fold offers *Build from boards*), *N pieces · N folds · N flaps*, *Seams* (Automatic · Glue · Slit locks · Tab and slot), *Pieces* (Fewest pieces · Fewer cuts), *Faces around a curve* when a curved shape is there, how the net was split (said, not listed as a problem), the problems with their fixes, and *Make again*.
+- **Problems and fixes**: a face larger than the sheet (*Make it smaller*: every shape 80%); a flap with no room (*Tab and slot instead*, *Fold it here*); too many faces, a tiny face or a sliver (*Fewer faces*); an open shape. Each fix makes the model again with the change.
+- *1 Shape* on the stage bar goes back to the shapes with nothing lost; the made boards stay in the design.
+
+Verified
+- `tests/e2e/make-fold.spec.ts`: *Shapes* in card, a house drawn as a gable end extruded 60 mm, one click on *Fold it*: the design is folded (7 boards, 5 or more folds), no problem listed, the exported SVG has as many outer outlines as the net has pieces, *1 Shape* returns to the shapes with the boards kept; no page errors.
+- A look in the dev server: the house folds up from its net and closes, slit locks on the roof's last face.
+- The engine tests of 125 (`reassemble.test.ts`) cover the cube, prism, pyramid, diamond, L-prism and house folded from card; unit suite and typecheck green.
+
+Limitations
+- **Leave open** (faces clicked in 3D) and **fold / cut by edge** in 3D are not built yet: the spec carries them (`open`, `edges`) and 130 adds the picking. Edges and faces in 3D are not highlighted with the Net view.
+- **Seam numbers** on the guide layer come with the assembly steps (131).
+- *Make it smaller* scales every shape by 80%; it does not split a face.
+- A sharp fold (under 20°) is not yet warned about.
+
+## Milestone 127 (Shapes R8) — *Build from boards*, in one click ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R8. `src/model/reassemble.ts` (boards: the walls round a through-hole, *no board goes in last*), `src/make/run.ts`, `src/make/MakeCard.tsx`.
+- **The click**: *Build from boards* makes a board on each face (material inward, so the shape is the outside), joins the corners as for any box (`autoConnect`), gives each the chooser's joint and its reason, and shows the boards coming in one after another, **the board that closes last last** (milestone 40's assembly animation). The material is the design's when it makes boards, else plywood 3 mm.
+- **Holes stay cut-outs.** A through-hole's walls meet the boards round it along the hole's rim, where no corner joint can be cut: they are left out and listed (*A hole's 12 walls are left out*).
+- **Problems**: a corner outside 30–150° (*Glue it* on corrugated, *Fold it instead*, *Fewer faces*); no face facing up, so no board can go in last (*Fold it instead*); the face graph's own (tiny, sliver, too many faces).
+
+Verified
+- `tests/e2e/make-boards.spec.ts`: *Shapes* in plywood, the house, one click on *Build from boards*: 7 boards, 15 corners, none broken, fingers and tabs, no problem listed, 7 outlines in the SVG, *1 Shape* keeps everything; no page errors.
+- `tests/reassemble.test.ts` (17): a plywood box's boards span the shape's outside sizes exactly (100 × 80 × 90); an L-shelf and a hexagonal planter join every corner with nothing listed; a tall spire has no board to put in last; and 125's box, diamond and house cases.
+- A look in the dev server: the plywood house, fingers on the walls and angled tabs on the roof.
+
+Limitations
+- **Size is: Inside** is not offered for made boards: it needs the solid offset outwards by the thickness, which is left for later.
+- *Square this corner* (the protractor, 132) is not among the fixes yet; *Merge into neighbour* is not built.
+- The boards' assembly animation is the Workshop's (pieces drop in from above in order), not a path per board.
+
+## Milestone 129 (Shapes R10) — linked to the shape ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R10, decision 3. `src/model/reassemble.ts` (`gather`, `applyCarry`, `detach`, `Lost`), `src/make/run.ts` (`shapesChanged`), `src/make/MakeCard.tsx`; `MakeSpec.shapeKey`.
+- **Ids from keys** (since 123), and **the spec is stored** with the shapes' key when made.
+- **Carried across a remake by key** (§4.5 step 3): every hand-added shape, text, line, edge flap and fold-over on a board whose face still exists; every joint kind the student picked (the joint card marks it) with its options (finger and tab counts, crease, tab lock); every fold the student cut or kept in the cut plan (milestone 69's choice), which becomes a fixed cut or fold for the unfolder.
+- **What has no face or edge left is listed once** (*2 of your changes could not be kept*) and dropped from the spec.
+- ***Update from shape*** replaces *Make again* on the Make card when the shapes changed since they were made; *Fold it* or *Build from boards* on the stage bar does the same.
+- ***Detach from the shapes*** (one way, asked first): the shapes, the spec and every key go; the boards and joints stay as they are (a seam keeps laying out as a seam). Undo brings the link back.
+
+Verified
+- `tests/linked.test.ts` (3): a slit lock (set on the joint card), a cut fold and an engraved text on the house are all kept when it is made again 20 mm taller, and the walls are taller; with the roof deleted, the wall's cut-out stays and the roof's engraving and the roof seam's lock are listed (one face, one edge) and dropped from the spec; *Detach* leaves a plain box design whose boards and seams lay out exactly as before.
+- Goldens byte-identical; the engine tests of 125–127 unchanged.
+
+Limitations
+- A shape moved so that a face's role changes (a box turned on its side keeps its roles; a prism given more sides renames its sides past the old count) loses the work on the faces that changed name.
+- Hand-added boards (not made from a face) are kept but not checked for whether they still touch anything.
+
+## Milestone 130 (Shapes R11) — openings, and a lid by a cut ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R11. `src/sculpt/polyhedron.ts` (`splitPolyhedra`, the cut keyed `cut`), `src/model/polyhedron.ts` (`movePoly`, `mergePoly`, `prefixPoly`, `polyBounds`), `src/model/reassemble.ts` (the lid's hem), `src/make/run.ts` (`polyOf` with a lid, `LID_OPEN`), `src/make/MakeCard.tsx`, `src/make/MadeFace.tsx` (new), `src/model/unfold.ts`, `src/model/pieces.ts`; `MakeSpec.lid`.
+- **Leave open**: a made board's own card has *Leave this face open*; the model is made again without it. On card the edges round an open face are cut and get no flap; on boards its corners go. The Make card says how many faces are open, with *Close them all*.
+- **A lid by a cut**: *A lid by a cut* on the Make card, *Lid, from the top* (20 mm by default). The kernel splits the solid with a level plane (`splitByPlane`); each half becomes its own face graph with the cut face keyed `cut` and left open, the lid's keys prefixed `lid/`, and the lid is set down beside the box, 20 mm clear, its cut on the floor. Both halves are made as one model (two nets, or two sets of boards).
+- **On card, the lid gets a hem** round its rim (a scored edge flap folded in at 180°, 6–10 mm), so it keeps its shape. The lid and the box have the same outline at the cut, so the lid sits on the box flush.
+- **The unfolder's flap clearance** (from 125) now grows a flap deeper and its far corners further along its edge, but keeps its base on the edge's ends: past them is the corner the neighbouring faces share. Before, almost every closing flap at a corner was refused, and an open box came out in two pieces. **The house now folds in one piece.**
+- **`netOverlaps` allows made boards a corner sliver under 4t²** (1 mm² on card), where the creases shift neighbours by up to a thickness.
+
+Verified
+- `tests/openings.test.ts` (5, with the kernel): a cube with its top open folds as one piece of five boards with four flaps and no overlap; in plywood it is five boards and eight corners; a cube split 20 mm below its top gives a box and a lid, each with five faces and the cut; on card the box is 40 mm and the lid 20 mm tall, the same width within 0.5 mm, four hems round the lid, two pieces; in plywood ten boards and sixteen corners, none broken.
+- **Two goldens changed on purpose** (125's `make-cube-card-0.5` and `make-house-card`): the unfolder's new clearance gives a different net, the house in one piece. Every older golden byte-identical. The engine tests of 123–129 pass.
+
+Limitations
+- **Board lids have no lip**: a plywood lid sits on its box flush (the plan's lip sized by the clearance is left for later).
+- The card lid's hem strengthens its rim; it does not plug into the box.
+- Faces are left open from a board's card, not by clicking faces in the shape stage.
+
+## Milestone 131 (Shapes R12) — assembly: seam numbers, the order, the steps ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R12. New `src/model/assembly.ts` (`assemblySteps`, `seamNumbers`) and `src/make/Steps.tsx`; `src/export/annotate.ts` (kind `seam`), `src/export/spec.ts` (`SpecText.seams`), `src/ui/printPlan.ts`, `src/make/MakeCard.tsx`.
+- **The order**: a made model's cut seams (or a board model's corners) piece by piece, then by how far their boards are from the piece's first board along its folds; **the seams of the face that closes last come last**: the boards round an opening when there is one, else the chooser's closing face (R6).
+- **Paired seam numbers**: each flap (or, for tabs and fingers, its board's edge) and its partner edge carry the seam's number, on the cut plan's annotations (milestone 89, shown with *Dimensions*) and on the GUIDE layer when the export is asked for them (off by default, so files do not change).
+- **The steps**, on the Make card: *Putting it together: N steps*, *Start*, *Next*, *Back*; each step says its seam's kind and boards (*3: slit lock, Roof to Gable*) and selects the two boards on the 3D stage with the model folded up.
+- **The printed plan** (90) lists each page's seams in order (*Seams, in order: 1 glue · 2 glue · 3 slit lock*).
+
+Verified
+- `tests/assembly.test.ts` (5): the house's cut seams are each one step, numbered 1…n, the roof's (the face that closes last) at the end; an open box's four seams; a plywood box's twelve corners with the lid board's last; each seam number twice on the plan (flap and partner edge); the printed plan's seam line. `spec.test.ts` and the i18n tests unchanged.
+
+Limitations
+- **Glue areas are not shaded** on the guide layer; the word *glue* on each flap (89) stays as it was.
+- The steps view is a list on the Make card with the seam's boards selected in 3D, not a view of its own with the fold slider stepping per seam.
+- The house closes in 9 seams on the card sheet (its net is one piece with 6 folds), not the plan's 6.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

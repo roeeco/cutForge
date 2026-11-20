@@ -7,6 +7,7 @@ import type { MsgKey } from '../i18n';
 import { Icon } from './icons';
 import { shown, useFeature } from '../easy/features';
 import { QuickRail } from '../easy/QuickRail';
+import { LazySculptRail } from '../sculpt/ui/lazy';
 import { LINE_TYPES } from '../model/lines';
 
 /** The Shapes tool's footprints (milestone 75), in the menu's order. */
@@ -49,7 +50,12 @@ function targetPanel(): string | null {
 
 /** The tool rail: Workshop's tools, or Quick build's five actions (milestone 37). */
 export function Toolbar() {
-  return shown(useFeature('rail.tools')) ? <WorkshopRail /> : <QuickRail />;
+  // a sculpture's shape stage has its own rail (milestone 120); once made, stage 2 and the cut plan use the box tools
+  const shapes = useStore((s) => s.design.kind === 'waffle' && (s.sculpt.stage === 'shape' || !s.design.outcome) && s.view !== '2d' && s.view !== 'solo');
+  const view = useStore((s) => s.view);
+  const workshop = shown(useFeature('rail.tools'));
+  if (shapes) return view === 'sketch' ? null : <LazySculptRail />;
+  return workshop ? <WorkshopRail /> : <QuickRail />;
 }
 
 function WorkshopRail() {

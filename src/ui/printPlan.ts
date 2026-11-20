@@ -3,6 +3,8 @@
 import type { Design } from '../model/types';
 import { specHtml, specPages, type Paper, type SpecText } from '../export/spec';
 import { panelLabel } from '../model/names';
+import { assemblySteps } from '../model/assembly';
+import { pieceCopies } from '../model/pack';
 import { fmtNum, type MsgKey } from '../i18n';
 import type { Lang } from '../i18n';
 
@@ -23,6 +25,14 @@ export function specText(d: Design, t: T, lang: Lang): SpecText {
     glueWord: t('ann.glue'),
     unit: t('unit.mm'),
     name: (id) => panelLabel(d, id, t),
+    // a made model (milestone 131): its seams in order, on each piece's page
+    seams: (pieceKey) => {
+      const steps = assemblySteps(d);
+      if (!steps.length) return null;
+      const here = new Set(pieceCopies(d).find((c) => c.pieceKey === pieceKey)?.panels.map((n) => n.panelId) ?? []);
+      const mine = steps.filter((s) => here.has(s.a) || here.has(s.b));
+      return mine.length ? t('spec.seams', { list: mine.map((s) => `${s.n} ${t(`make.step.${s.kind === 'lock' ? 'lock' : s.kind === 'tabslot' ? 'tabs' : s.kind === 'finger' ? 'fingers' : 'glue'}`)}`).join(' · ') }) : null;
+    },
   };
 }
 

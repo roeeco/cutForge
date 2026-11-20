@@ -15,6 +15,12 @@ import { MissionPanel } from './easy/InsideUI';
 import { joinClassFromLink } from './easy/mode';
 import { shown, useFeature, useMode } from './easy/features';
 import { View3D } from './views/View3D';
+import { LazySculptView, LazySketchView } from './sculpt/ui/lazy';
+import { isSculpture } from './sculpt/ops';
+import { loadShapes, registerOutcomeLoader } from './sculpt/load';
+
+// Fold it and Build from boards (milestones 126, 127): their code loads with the shape kernel
+registerOutcomeLoader(() => import('./make/register'));
 
 // Loaded when first used (code splitting, 20 November): the cut plan and face-on view with the 2D editing, the
 // download dialog with the export and print code, the teacher's view, and the sentence's development page.
@@ -57,6 +63,18 @@ export function App() {
   const netsShown = shown(useFeature('plan.nets'));
   const planNets = useStore((s) => s.viewPrefs.planMode === 'nets') && netsShown;
   useAutosave(() => setLoaded(true));
+  // a sculpture design loads the shape kernel (milestone 120); box designs never do
+  const sculpture = useStore((s) => isSculpture(s.design));
+  const sketching = useStore((s) => !!s.sketch);
+  // a made sculpture's stage 2 is the Workshop's own 3D view of its boards
+  const shapeStage = useStore((s) => s.sculpt.stage === 'shape' || !s.design.outcome);
+  useEffect(() => {
+    if (!sculpture || useStore.getState().sculpt.ready) return;
+    loadShapes().then(
+      () => useStore.getState().setSculpt({ ready: true, failed: false }),
+      () => useStore.getState().setSculpt({ failed: true }),
+    );
+  }, [sculpture]);
   useKeyboard();
   // the parts loaded when first used are fetched once the editor is up, so they are there offline too
   useEffect(() => {
@@ -100,7 +118,11 @@ export function App() {
       <div className="main">
         <EditorBoundary>
           <main className="viewport">
-            {view === '3d' ? (
+            {view === 'sketch' && sketching ? (
+              <LazySketchView />
+            ) : view === '3d' && sculpture && shapeStage ? (
+              <LazySculptView />
+            ) : view === '3d' ? (
               <View3D />
             ) : (
               <Suspense fallback={<Loading />}>{view === 'solo' && soloPanel && soloExists ? <Plan2D key={soloPanel} soloPanel={soloPanel} /> : view === '2d' && planNets ? <NetView /> : <Plan2D />}</Suspense>
