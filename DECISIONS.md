@@ -520,3 +520,12 @@ Defaults chosen where the brief left room. Each is reversible.
 - **`blocked` is optional** and filled in 112, when there are reasons to give (today `canFoldOver` answers yes or no).
 - **A fold-over and a flap may still share an edge** in 111 (as before); 112 refuses new ones.
 - **`edgeFlapGeom` and `flapOn` live in the registry's file** and `geometry.ts` re-exports them, which avoids an import cycle (`geometry.ts` → registry → `foldover.ts`).
+
+## Milestone 112: shaped flaps (DIELINE_DNA_PLAN.md D3b)
+- **Plain flaps stay as they were** (crease on the edge, no `toward`): a file made before 112 exports byte for byte. Only shaped flaps that fold crease half a thickness in; a plain flap can be made a *Glue flap* to get that.
+- **Defaults are not stored**: a flap keeps only `shape`, `len` and what the student changed; a new shape starts again from its own defaults (its slopes, insets, radius, angle), keeping the length only when one is given.
+- **The dust flap's numbers differ from a closure's on purpose**: 0.45 of the edge, at least 12 and at most 40 mm, no rounding. A hand flap has no lid to measure.
+- **The folded slab is a `Flap3d`** drawn by the joints' `Flaps` renderer and unfolded by `flapMatrix`: no second renderer and no second fold maths.
+- **One feature per edge** from now on; old files with a fold-over and a flap on one edge keep both.
+- **The flap block stays under *More…*** on the grow card (the rail and the card stay quiet); it is reached from the flat in 113–114.
+- **Quick build shows a shaped flap's board read-only** (`WorkshopWhy` `'flap'`), as it does fold-overs.

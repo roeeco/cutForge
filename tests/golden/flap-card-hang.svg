@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="500mm" height="300mm" viewBox="0 0 500 300">
+  <g id="CUT" fill="none" stroke="#FF0000" stroke-width="0.1">
+    <path d="M5 156 A4 4 0 0 0 9 160 L71 160 A4 4 0 0 0 75 156 L75 9 A4 4 0 0 0 71 5 L9 5 A4 4 0 0 0 5 9 Z"/>
+    <path d="M27 12 A3 3 0 0 0 24 15 A3 3 0 0 0 27 18 L53 18 A3 3 0 0 0 56 15 A3 3 0 0 0 53 12 Z"/>
+    <path d="M40 153 A3 3 0 0 0 43 150 A3 3 0 0 0 40 147 L40 147 A3 3 0 0 0 37 150 A3 3 0 0 0 40 153 Z"/>
+  </g>
+</svg>

@@ -107,6 +107,11 @@ const PICS = {
   tuck: 'M6 4 L34 4 L34 28 L6 28 Z M6 22 L34 22 M10 22 Q20 30 30 22',
   /** Four flaps glued, from below. */
   flaps: 'M6 4 L34 4 L34 28 L6 28 Z M6 16 L34 16 M20 4 L20 28',
+  /** Flap shapes on a board's edge (milestone 112): plain, dust, glue, hang tab. */
+  flapPlain: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L12 8 L30 8 L36 18',
+  flapDust: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L9 5 L33 5 L36 18',
+  flapGlue: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L12 10 L30 10 L36 18 M14 14 L28 14',
+  flapHang: 'M6 18 L36 18 L36 30 L6 30 Z M14 18 L14 6 Q14 3 17 3 L25 3 Q28 3 28 6 L28 18 M19 8 A2 2 0 1 0 23 8 A2 2 0 1 0 19 8',
 } as const;
 
 export type PicName = keyof typeof PICS;

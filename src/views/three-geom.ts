@@ -6,7 +6,8 @@ import { flattenContour, pointInPolygon } from '../geom/vec';
 import { holeCuts, ownOutline } from '../model/outline';
 import polygonClipping from 'polygon-clipping';
 import { throughRegions } from '../model/through';
-import { edgeFlapGeom, panelExtras, panelNotches, panelOutlines } from '../model/geometry';
+import { panelExtras, panelNotches, panelOutlines } from '../model/geometry';
+import { flapGeom, flapIsFlat } from '../model/edgeFeatures';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
 import { profileOf, tOf } from '../model/materials';
@@ -64,7 +65,7 @@ export function panelShape(d: Design, p: Panel, opts: { joints?: boolean } = {})
   // material a joint adds in the panel's own plane (a locking tab's barbs), and plain flaps on free
   // edges (milestone 67): they hold nothing and fold whichever way the student likes, so they show
   // flat in the board's plane, as the cut plan has them (they were missing from the stage)
-  const flatAdds = opts.joints === false ? [] : [...jointFlatAdds(d, p), ...(p.edgeFlaps ?? []).map((f) => edgeFlapGeom(d, p, f)?.poly).filter((x): x is Vec2[] => !!x)];
+  const flatAdds = opts.joints === false ? [] : [...jointFlatAdds(d, p), ...(p.edgeFlaps ?? []).filter((f) => flapIsFlat(d, p, f)).map((f) => flapGeom(d, p, f)?.adds[0]).filter((x): x is Vec2[] => !!x)];
   if (flatAdds.length) {
     const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
     const res = polygonClipping.union(rings.map((r) => [ring(r)]), ...flatAdds.map((k) => [ring(k)]));

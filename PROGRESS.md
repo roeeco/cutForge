@@ -1746,6 +1746,28 @@ Verified
 - `tests/edgefeatures.test.ts` (5): the fold-over hits equal `allFoldOvers` field for field (scores keep `toward`; the slots are in the base); the flap hits equal `edgeFlapGeom`; `extrasByPanel`, whole and for every board, deep-equals a copy of the old function on a corrugated fold-over, a card board with plain flaps, a card tray and a closed card box; the base still gets its slots; a flap on a joined edge gives nothing.
 - Unit suite and typecheck green.
 
+## Milestone 112 (Dieline D3b) — shaped flaps: tuck, dust, glue, hang ✅
+
+`DIELINE_DNA_PLAN.md` D3, step 2; `HANDOFF_105-118.md` §112. `src/model/edgeFeatures.ts` (`FLAP_DEFAULTS`, `flapSpec`, `flapOutline`, `flapGeom`, the hinged part), `src/model/types.ts` (`EdgeFlap`, `FlapShape`), `src/model/check.ts`, `src/model/ops.ts` (`addEdgeFlap`, `setEdgeFlap`, `canFoldOver`), `src/model/validate.ts` (`val.flapNarrow`), `src/easy/fix.ts`, `src/easy/mode.ts`, `src/easy/features.ts` (`'flap.shape'`), `src/ui/EdgeBar.tsx`, `src/ui/Pictures.tsx`, `src/views/View3D.tsx`, `src/views/three-geom.ts`.
+- **Five shapes on a free edge**, on the grow card's flap block (Workshop, under *More…*): **Plain** (milestone 67's lip, unchanged), **Tuck** (inset t + 0.5 at both ends, rounded 4 mm, 30 % of the board's depth, 12–22 mm), **Dust flap** (sloped 15° and 8°, 0.45 of the edge, 12–40 mm), **Glue flap** (the material's glue flap width) and **Hang tab** (25 mm, flat, a round 6 mm hole or a 32 × 6 mm euro slot 10 mm from its far edge).
+- **Each has its settings** below the pictures: how far it folds (0–180°, 90 for the folding shapes), *In* or *Out*, the two slopes, the corner radius and, for a hang tab, its hole. A field not set takes its shape's default, so a file stores only what the student changed.
+- **They fold in 3D** with the fold slider: a flap at more than 0° is a slab turned about its crease (half a thickness inside the edge, where folding shapes crease), drawn by the joints' flap renderer; a plain flap and a hang tab at 0° stay in the board's plane.
+- **A flap folding *out* is cut as a perforation** (the fold overhaul's rule for folds away from the scored face); the card says so.
+- **One feature per edge**: a flap is refused on an edge with a fold-over and a fold-over on an edge with a flap (`flap.why.taken`), and the button says why it is greyed (plywood, joined, taken). Old files with both keep both.
+- **A check**: *the flap is wider than its edge allows* (`val.flapNarrow`) when its slopes would leave less than 4 mm of far edge (the outline clamps them); **Fix** makes it a plain flap.
+- **Quick build** shows a board with a shaped flap read-only (*it has a shaped flap*), as it does fold-overs.
+
+Verified
+- `tests/flapshapes.test.ts` (10): each shape's outline, far edge and crease; a tuck's inset, radius and length; a hang tab flat with one hole in its own board, the euro slot cut as a hole; a flap with no shape equal to `flapOn` byte for byte; slopes clamped to 4 mm with the check and its fix; at fold 0 the slab lies on the net's outline and at 1 its far edge stands 15 mm off the board on the material side (*Out*: the other side); *Out* perforated and *In* scored; one feature per edge both ways; plywood refused; a new shape resets the slopes; a file with a bad slope, angle or shape keeps its flap.
+- New goldens `flap-card-tuck-dust` and `flap-card-hang` (looked at); every older golden, `flap-card-plain` and `foldover-corr` included, byte-identical.
+- `tests/e2e/flaps.spec.ts` (English and Hebrew): a tray wall's top edge, *Add a flap*, *Tuck* (folds 90°), the fold slider unfolds and folds it, *Hang tab* (0°) with a euro slot, the cut plan still one piece. `foldover.spec.ts` passes. Looked at in the browser: the tuck folded into the box, the dust flap turning with its wall at half fold.
+- Unit suite and typecheck green; `quickTable.test.ts` lists `'flap.shape'` as hidden in Quick build and Guided.
+
+Limitations
+- The 3D slab of a folded flap turns about the crease's mid-plane; where it meets another board it may pass through it (no collision is checked).
+- The glue areas of shaped glue flaps are not yet named on the cut plan's *Dimensions* or the spec sheet.
+- Hang hole sizes are starting values until checked against the school's hooks.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -96,6 +96,8 @@ export const FEATURES = {
   bend: 'auto',
   /** *Add a flap* on a free edge (67). */
   edgeFlap: 'hide',
+  /** A flap's shape pictures, fold angle, tapers, radius and hang hole (112). */
+  'flap.shape': 'hide',
   /** *Match top with*, *Own outline*, *Copy outline from* (71). */
   match: 'hide',
   /** A fold's *Automatic · Keep whole · Cut here*, and the design's split setting (69): only when it must. */
@@ -195,6 +197,7 @@ export const GUIDED = {
   'tray.corners': 'auto',
   bend: 'auto',
   edgeFlap: 'hide',
+  'flap.shape': 'hide',
   match: 'hide',
   split: 'auto',
   yield: 'hide',
@@ -267,6 +270,7 @@ export const SECTIONS: Record<string, Feature | null> = {
   'edges-section': null,
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
+  'flap-shape': 'flap.shape',
   // milestone 104: the outline being edited in the 2D view
   'edit2d-section': 'edit2d',
   // milestone 77: a grow that closes the box, what ✓ makes (Workshop; Quick build makes the box's lid)

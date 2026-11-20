@@ -14,6 +14,7 @@ import { hingeText } from '../ui/AngleDial';
 import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
 import { edgeLength, edgeLocal, frameNormal, growFrame, matDir, toLocal, toWorld } from '../model/frame';
 import { detailBBox, detailContour, detailContours, detailCorners } from '../model/geometry';
+import { edgeFeatures } from '../model/edgeFeatures';
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
 import { v3add, v3dot, v3mul } from '../geom/v3';
@@ -1396,8 +1397,14 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
         if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
       });
     }
+    // shaped flaps folded about their crease (milestone 112)
+    for (const h of edgeFeatures(d))
+      h.out.hinged.forEach((f, i) => {
+        const p = d.panels[f.panelId];
+        if (p) out.push({ key: `${h.panelId}:${h.key}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(p.id), owner: p.id, on: p.id });
+      });
     return out;
-  }, [d.connections, d.panels, xf, foldT]);
+  }, [d.connections, d.panels, d.order, xf, foldT]);
   useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
   return (
     <>

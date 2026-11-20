@@ -3,10 +3,12 @@
 // sheet. `fixIssue` changes only what its issue is about.
 import type { Design } from '../model/types';
 import type { Issue } from '../model/validate';
-import { findDetail, setConnection, setPanelSize, setPointRound, solve } from '../model/ops';
+import { findDetail, setConnection, setEdgeFlap, setPanelSize, setPointRound, solve } from '../model/ops';
 import { bandOf, foldRadius } from '../model/bands';
 import { cornerOf } from '../model/wings';
-import { matOf } from '../model/materials';
+import { matOf, tOf } from '../model/materials';
+import { findEdge } from '../model/edges';
+import { FLAP_MIN_FAR, flapFarWidth } from '../model/edgeFeatures';
 import { fitShape } from './guard';
 import { validate } from '../model/validate';
 import { pieceCopies } from '../model/pack';
@@ -97,7 +99,7 @@ import { NOTE_KEYS } from './notes';
 export { NOTE_KEYS };
 export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 
-const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend']);
+const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend', 'val.flapNarrow']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
@@ -126,6 +128,17 @@ export function fixIssue(d: Design, i: Issue): boolean {
       if (!ok || validate(work).some((x) => !NOTE_KEYS.has(x.key) && !had.has(x.key))) return false;
       replaceWith(d, work);
       return true;
+    }
+    case 'val.flapNarrow': {
+      // make every too-narrow shaped flap on the board a plain one (milestone 112)
+      const p = i.target.kind === 'panel' ? d.panels[i.target.id] : undefined;
+      if (!p?.edgeFlaps) return false;
+      const t = tOf(d, p.id);
+      for (const f of [...p.edgeFlaps]) {
+        const e = findEdge(p, f.edge);
+        if (e && f.shape && f.shape !== 'plain' && flapFarWidth(e, f, t) < FLAP_MIN_FAR - 1e-6) setEdgeFlap(d, p.id, f.edge, { shape: undefined });
+      }
+      return !validate(d).some((x) => x.key === 'val.flapNarrow' && x.target.id === p.id);
     }
     case 'val.tooBigGrain':
       // it fits turned: let the packer turn pieces against the grain

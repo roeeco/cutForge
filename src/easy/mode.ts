@@ -42,7 +42,7 @@ export function applyClassMode(mode: Mode | null, locked: boolean) {
   else if (st.viewPrefs.modeLocked) st.setPrefs({ modeLocked: false });
 }
 
-export type WorkshopWhy = 'angle' | 'foldover' | 'through' | 'material' | 'construction';
+export type WorkshopWhy = 'angle' | 'foldover' | 'flap' | 'through' | 'material' | 'construction';
 
 /**
  * Why a panel can only be changed in Workshop (Quick build shows it read-only),
@@ -55,6 +55,8 @@ export function workshopOnly(d: Design, panelId: string): WorkshopWhy | null {
   const c = Object.values(d.connections).find((x) => x.grown && x.b.panelId === panelId);
   if (c && Math.abs(c.angle - 90) > 1e-6) return 'angle';
   if (p.foldOvers?.length) return 'foldover';
+  // a shaped flap (milestone 112) is set on Workshop's card
+  if (p.edgeFlaps?.some((f) => f.shape && f.shape !== 'plain')) return 'flap';
   if (p.details.some((dt) => dt.through) || throughHits(d).has(panelId)) return 'through';
   if (p.material && p.material !== d.material.id) return 'material';
   // an open tray's base (milestone 68) is not a guide the student drew: its box's card is Quick build's own

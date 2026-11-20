@@ -20,7 +20,9 @@ import { PictureChoice, type PicName } from './Pictures';
 import type { CloseAs } from '../store/store';
 import type { MsgKey } from '../i18n';
 import { addEdgeFlap, setEdgeFlap } from '../model/ops';
-import { matOf as matOfEB } from '../model/materials';
+import { matOf as matOfEB, tOf as tOfEB } from '../model/materials';
+import { edgeFeatureKind, flapSpec } from '../model/edgeFeatures';
+import type { FlapShape } from '../model/types';
 
 export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const t = useT();
@@ -142,7 +144,9 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   );
 }
 
-/** A plain flap on this free edge (milestone 67): add it, set its length, take it off. */
+const FLAP_PICS: Record<FlapShape, PicName> = { plain: 'flapPlain', tuck: 'tuck', dust: 'flapDust', glue: 'flapGlue', hang: 'flapHang' };
+
+/** A flap on this free edge (milestone 67): add it, set its length, take it off; its shape, fold, slopes, radius and hole (112). */
 function EdgeFlapField({ panelId, edge }: { panelId: string; edge: string }) {
   const t = useT();
   const design = useStore((s) => s.design);
@@ -150,16 +154,64 @@ function EdgeFlapField({ panelId, edge }: { panelId: string; edge: string }) {
   const p = design.panels[panelId];
   const f = p?.edgeFlaps?.find((x) => x.edge === edge);
   const fe = shown(useFeature('edgeFlap'));
+  const shapes = shown(useFeature('flap.shape'));
   if (!fe) return null;
-  if (!f)
+  if (!f) {
+    const why = p ? edgeFeatureKind('flap').blocked!(design, p, edge) : null;
     return (
-      <button onClick={() => apply((d) => void addEdgeFlap(d, panelId, edge))} title={t('flap.addHelp')} data-testid="edge-add-flap">
+      <button onClick={() => apply((d) => void addEdgeFlap(d, panelId, edge))} title={why ? t(why) : t('flap.addHelp')} disabled={!!why} data-testid="edge-add-flap">
         {t('flap.add')}
       </button>
     );
+  }
+  const spec = flapSpec(f, tOfEB(design, panelId));
+  const set = (patch: Parameters<typeof setEdgeFlap>[3]) => apply((d) => setEdgeFlap(d, panelId, edge, patch));
   return (
     <div className="subsection" data-testid="edge-flap">
-      <NumField label={t('flap.len')} value={f.len} unit={t('unit.mm')} min={2} max={200} onCommit={(v) => apply((d) => setEdgeFlap(d, panelId, edge, v))} testId="edge-flap-len" />
+      {shapes && (
+        <div className="subsection" data-testid="flap-shape">
+          <PictureChoice
+            label={t('flap.shape')}
+            value={spec.shape}
+            options={(['plain', 'tuck', 'dust', 'glue', 'hang'] as FlapShape[]).map((v) => ({ value: v, label: t(`flap.shape.${v}` as MsgKey), pic: FLAP_PICS[v], testId: `flap-shape-${v}` }))}
+            onChange={(v) => set({ shape: v === 'plain' ? undefined : v })}
+          />
+        </div>
+      )}
+      <NumField label={t('flap.len')} value={f.len} unit={t('unit.mm')} min={2} max={200} onCommit={(v) => set(v)} testId="edge-flap-len" />
+      {shapes && spec.shape !== 'plain' && (
+        <>
+          <NumField label={t('flap.angle')} value={spec.angle} unit="°" min={0} max={180} decimals={0} onCommit={(v) => set({ angle: v })} testId="flap-angle" />
+          {spec.angle > 0 && (
+            <div className="field">
+              <span className="label">{t('flap.dir')}</span>
+              <span className="seg" role="group" aria-label={t('flap.dir')}>
+                {(['in', 'out'] as const).map((v) => (
+                  <button key={v} type="button" aria-pressed={spec.dir === v} className={spec.dir === v ? 'on' : ''} onClick={() => set({ dir: v === 'in' ? undefined : v })} data-testid={`flap-dir-${v}`}>
+                    {t(`flap.dir.${v}` as MsgKey)}
+                  </button>
+                ))}
+              </span>
+              {spec.dir === 'out' && <p className="note">{t('flap.dirHelp')}</p>}
+            </div>
+          )}
+          <NumField label={t('flap.taperA')} value={spec.taper[0]} unit="°" min={0} max={60} decimals={0} onCommit={(v) => set({ taper: [v, spec.taper[1]] })} testId="flap-taper-a" />
+          <NumField label={t('flap.taperB')} value={spec.taper[1]} unit="°" min={0} max={60} decimals={0} onCommit={(v) => set({ taper: [spec.taper[0], v] })} testId="flap-taper-b" />
+          <NumField label={t('flap.r')} value={spec.r} unit={t('unit.mm')} min={0} max={50} onCommit={(v) => set({ r: v })} testId="flap-r" />
+          {spec.shape === 'hang' && (
+            <div className="field">
+              <span className="label">{t('flap.hole')}</span>
+              <span className="seg" role="group" aria-label={t('flap.hole')} data-testid="flap-hole">
+                {(['round', 'euro'] as const).map((v) => (
+                  <button key={v} type="button" aria-pressed={spec.hole === v} className={spec.hole === v ? 'on' : ''} onClick={() => set({ hole: v === 'round' ? undefined : v })} data-testid={`flap-hole-${v}`}>
+                    {t(`flap.hole.${v}` as MsgKey)}
+                  </button>
+                ))}
+              </span>
+            </div>
+          )}
+        </>
+      )}
       <button className="link" onClick={() => apply((d) => setEdgeFlap(d, panelId, edge, null))} data-testid="edge-flap-remove">
         {t('flap.remove')}
       </button>

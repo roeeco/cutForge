@@ -2,7 +2,7 @@
 import '../src/templates/registry';
 // Hand-built designs for the golden export tests (tests/golden.test.ts).
 // `E(n)` names rectangle edge n (bottom 0, right 1, top 2, left 3).
-import { addEdgeFlap, addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
+import { addEdgeFlap, setEdgeFlap, addLine, setLidHasps, addDetail, addDivider, addDividerLine, addRootPanel, addSideWalls, addText, autoConnect, connectSeams, createDesign, growPanel, setClosure, setConnection, setPanelSize, solve } from '../src/model/ops';
 import { setArray } from '../src/model/edit';
 import { MATERIALS } from '../src/model/materials';
 import { sealOf } from '../src/model/closures';
@@ -248,5 +248,25 @@ export function plainFlapBoard(): Design {
   const p = addRootPanel(d, 0, 0, 80, 50);
   addEdgeFlap(d, p, 'e2', 15);
   addEdgeFlap(d, p, 'e1');
+  return d;
+}
+
+/** A card lid board with a tuck on its front edge and a dust flap on each side (milestone 112). */
+export function tuckDustBoard(): Design {
+  const d = createDesign(CARD);
+  const p = addRootPanel(d, 0, 0, 90, 60);
+  addEdgeFlap(d, p, 'e2', { shape: 'tuck' });
+  addEdgeFlap(d, p, 'e1', { shape: 'dust' });
+  addEdgeFlap(d, p, 'e3', { shape: 'dust' });
+  return d;
+}
+
+/** A card board with a hang tab: a round hole on one, a euro slot on another (milestone 112). */
+export function hangTabBoard(): Design {
+  const d = createDesign(CARD);
+  const p = addRootPanel(d, 0, 0, 70, 100);
+  addEdgeFlap(d, p, 'e2', { shape: 'hang', len: 30 });
+  setEdgeFlap(d, p, 'e2', { hole: 'euro' });
+  addEdgeFlap(d, p, 'e0', { shape: 'hang' });
   return d;
 }

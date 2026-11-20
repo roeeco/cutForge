@@ -29,6 +29,7 @@ import { constructionSet } from './place';
 import { bandOf, foldRadius } from './bands';
 import { cornerOf, wingBands } from './wings';
 import { closureCovers } from './closures';
+import { FLAP_MIN_FAR, edgeJoined, flapFarWidth } from './edgeFeatures';
 import { bestReach } from './bendPatterns';
 
 export type IssueTarget = { kind: 'panel'; id: string } | { kind: 'detail'; id: string };
@@ -91,6 +92,16 @@ export function validate(d: Design): Issue[] {
     }
   }
   issues.push(...foldOverIssues(d));
+  // a shaped flap wider than its edge allows (milestone 112): its tapers are clamped, so it is not what was asked
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.edgeFlaps?.length || guides.has(id)) continue;
+    for (const f of p.edgeFlaps) {
+      const e = findEdge(p, f.edge);
+      if (!e || !f.shape || f.shape === 'plain' || edgeJoined(d, p, f.edge)) continue;
+      if (flapFarWidth(e, f, tOf(d, id)) < FLAP_MIN_FAR - 1e-6) issues.push({ key: 'val.flapNarrow', vars: { panel: p.name }, target: { kind: 'panel', id } });
+    }
+  }
   for (const c of Object.values(d.connections)) {
     if (guides.has(c.a.panelId) || guides.has(c.b.panelId)) continue;
     if (c.broken && c.thin) issues.push({ key: 'val.littleContact', vars: { a: name(c.a.panelId), b: name(c.b.panelId) }, target: { kind: 'panel', id: c.a.panelId }, pair: [c.a.panelId, c.b.panelId] });

@@ -148,7 +148,7 @@ export type Panel = {
   /** Fold-over (double-wall) reinforcement on free edges (card and corrugated). */
   foldOvers?: FoldOver[];
   /** Milestone 67: plain flaps on free edges (card and corrugated): a scored lip, `len` mm, tapered at its ends. */
-  edgeFlaps?: { id: string; edge: string; len: number }[];
+  edgeFlaps?: EdgeFlap[];
   /** Lines drawn on the board (milestone 83, LIDS_LINES_PROJECTS_PLAN.md Part B): open, in its local coordinates. */
   lines?: BoardLine[];
   /** A one-board lid of a box (milestone 79): its box's tray and its kind. A *Flat* lid rests on the walls' tops, held by their tabs through its slots; a *Drop-in* lid (milestone 80) lies inside the walls on the dividers. */
@@ -354,6 +354,30 @@ export type P2 = { x: number; y: number };
  * cut net, to where it is folded. Older files without them draw it on the
  * receiver.
  */
+/** A flap's shape (milestone 112): plain (milestone 67's lip), a tuck, a dust flap, a glue flap or a hang tab. */
+export type FlapShape = 'plain' | 'tuck' | 'dust' | 'glue' | 'hang';
+/**
+ * A flap on a free edge (milestone 67; shaped in 112). Only `id`, `edge` and
+ * `len` are stored for a plain flap made by hand; every other field, when
+ * absent, takes its shape's default (`FLAP_DEFAULTS`).
+ */
+export type EdgeFlap = {
+  id: string; edge: string; len: number;
+  shape?: FlapShape;
+  /** Slope of its two ends (degrees from square, at the edge's start and end). */
+  taper?: [number, number];
+  /** How far in from the edge's two ends it starts (mm). */
+  inset?: [number, number];
+  /** Radius of its two far corners (mm). */
+  r?: number;
+  /** How far it is folded in the model (degrees; 0: flat beside its board). */
+  angle?: number;
+  /** Folded towards the board's material side (`in`) or away from it (`out`, cut as a perforation). */
+  dir?: 'in' | 'out';
+  /** A hang tab's hole. */
+  hole?: 'round' | 'euro';
+};
+
 export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame; /** The board whose plane and coordinates `frame` is, when it is one (a dust flap under its lid, milestone 76). */ planeOf?: string };
 
 /** Geometry a connection contributes to its panels (all in panel-local mm). */

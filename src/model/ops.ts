@@ -8,7 +8,7 @@ import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
@@ -16,6 +16,7 @@ import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
 import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
+import { edgeFeatureKind, flapDefaultLen } from './edgeFeatures';
 import { DEFAULT_MATERIAL, bendOf, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
@@ -1683,6 +1684,8 @@ export function canFoldOver(d: Design, wallId: string, edge: string): boolean {
   const p = d.panels[wallId];
   if (!p || matOf(d, wallId).kind === 'plywood' || !parentConnection(d, wallId) || !findEdge(p, edge)) return false;
   if (edge === 'e0' || edgeConnection(d, wallId, edge)) return false;
+  // one feature per edge (milestone 112): not where a flap is
+  if ((p.edgeFlaps ?? []).some((f) => findEdge(p, f.edge)?.key === findEdge(p, edge)?.key)) return false;
   return !(p.foldOvers ?? []).some((f) => f.edge === edge);
 }
 
@@ -2195,22 +2198,53 @@ export function setClosure(d: Design, lidId: string, patch: Partial<Closure>) {
   autoConnect(d);
 }
 
-/** Add a plain flap on a free edge of a card or corrugated board (milestone 67); returns its id. */
-export function addEdgeFlap(d: Design, panelId: string, edge: string, len?: number): string | null {
+/**
+ * Add a flap on a board's free edge (milestone 67; shaped in 112): a number is
+ * its length (a plain flap, as before), or a shape with an optional length.
+ * Refused on plywood, on a joined edge and on an edge with a fold-over. A flap
+ * already on the edge is replaced.
+ */
+export function addEdgeFlap(d: Design, panelId: string, edge: string, opt?: number | { shape?: FlapShape; len?: number }): string | null {
   const p = d.panels[panelId];
-  if (!p || !findEdge(p, edge) || matOf(d, panelId).kind === 'plywood') return null;
+  const e = p && findEdge(p, edge);
+  if (!p || !e || edgeFeatureKind('flap').blocked!(d, p, edge)) return null;
+  const o = typeof opt === 'number' ? { len: opt } : (opt ?? {});
+  const shape = o.shape && o.shape !== 'plain' ? o.shape : undefined;
   const id = newId('fl');
-  p.edgeFlaps = [...(p.edgeFlaps ?? []).filter((f) => f.edge !== edge), { id, edge, len: len ?? Math.max(12, autoFlap(matOf(d, panelId))) }];
+  const f: EdgeFlap = { id, edge, len: o.len ?? flapDefaultLen(d, p, e, shape ?? 'plain'), ...(shape ? { shape } : {}) };
+  p.edgeFlaps = [...(p.edgeFlaps ?? []).filter((x) => x.edge !== edge), f];
   solve(d);
   return id;
 }
 
-/** Change a plain flap's length, or remove it (null). */
-export function setEdgeFlap(d: Design, panelId: string, edge: string, len: number | null) {
+/**
+ * Change a flap (milestone 67; 112): a number is its length, null removes it,
+ * an object patches its fields (undefined clears one back to its shape's
+ * default). A new shape starts from that shape's defaults, keeping the length
+ * only when it is given.
+ */
+export function setEdgeFlap(d: Design, panelId: string, edge: string, patch: number | null | Partial<Omit<EdgeFlap, 'id' | 'edge'>>) {
   const p = d.panels[panelId];
   if (!p?.edgeFlaps) return;
-  if (len === null) p.edgeFlaps = p.edgeFlaps.filter((f) => f.edge !== edge);
-  else p.edgeFlaps = p.edgeFlaps.map((f) => (f.edge === edge ? { ...f, len: Math.max(2, len) } : f));
+  if (patch === null) p.edgeFlaps = p.edgeFlaps.filter((f) => f.edge !== edge);
+  else
+    p.edgeFlaps = p.edgeFlaps.map((f) => {
+      if (f.edge !== edge) return f;
+      if (typeof patch === 'number') return { ...f, len: Math.max(2, patch) };
+      let next: EdgeFlap = { ...f };
+      if ('shape' in patch && (patch.shape ?? 'plain') !== (f.shape ?? 'plain')) {
+        const e = findEdge(p, edge);
+        const shape = patch.shape && patch.shape !== 'plain' ? patch.shape : undefined;
+        next = { id: f.id, edge: f.edge, len: patch.len ?? (e ? flapDefaultLen(d, p, e, shape ?? 'plain') : f.len), ...(shape ? { shape } : {}) };
+      }
+      for (const [k, v] of Object.entries(patch)) {
+        if (k === 'shape') continue;
+        if (v === undefined) delete (next as Record<string, unknown>)[k];
+        else (next as Record<string, unknown>)[k] = k === 'len' ? Math.max(2, v as number) : v;
+      }
+      if (next.shape === undefined) for (const k of ['taper', 'inset', 'r', 'angle', 'dir', 'hole'] as const) delete next[k];
+      return next;
+    });
   if (!p.edgeFlaps.length) delete p.edgeFlaps;
   solve(d);
 }

@@ -135,6 +135,7 @@ describe('the feature table (rule 3)', () => {
       'edgeFlap',
       'edit2d',
       'exportCheck',
+      'flap.shape',
       'foldover',
       'hints',
       'keys.tools',

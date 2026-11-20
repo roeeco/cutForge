@@ -192,7 +192,20 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {
     if (!Array.isArray(x.edgeFlaps)) delete x.edgeFlaps;
-    else x.edgeFlaps = x.edgeFlaps.filter((f: any) => isObj(f) && typeof f.id === 'string' && typeof f.edge === 'string' && Number.isFinite(f.len) && f.len > 0 && f.len < 1000);
+    else {
+      x.edgeFlaps = x.edgeFlaps.filter((f: any) => isObj(f) && typeof f.id === 'string' && typeof f.edge === 'string' && Number.isFinite(f.len) && f.len > 0 && f.len < 1000);
+      // milestone 112: a bad optional field is dropped, the flap kept
+      const pair = (v: any, lo: number, hi: number) => Array.isArray(v) && v.length === 2 && v.every((n: any) => Number.isFinite(n) && n >= lo && n <= hi);
+      for (const f of x.edgeFlaps as any[]) {
+        if (f.shape !== undefined && !['plain', 'tuck', 'dust', 'glue', 'hang'].includes(f.shape)) delete f.shape;
+        if (f.taper !== undefined && !pair(f.taper, 0, 60)) delete f.taper;
+        if (f.inset !== undefined && !pair(f.inset, 0, 1000)) delete f.inset;
+        if (f.r !== undefined && !(Number.isFinite(f.r) && f.r >= 0 && f.r < 1000)) delete f.r;
+        if (f.angle !== undefined && !(Number.isFinite(f.angle) && f.angle >= 0 && f.angle <= 180)) delete f.angle;
+        if (f.dir !== undefined && f.dir !== 'in' && f.dir !== 'out') delete f.dir;
+        if (f.hole !== undefined && f.hole !== 'round' && f.hole !== 'euro') delete f.hole;
+      }
+    }
   }
   if (x.foldOvers !== undefined) {
     arr(x.foldOvers, `${where}.foldOvers`).forEach((f, i) => {

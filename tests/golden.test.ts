@@ -8,7 +8,7 @@
 // code and are never regenerated: they check the v5 → v6 migration.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { plainFlapBoard, linesBoard, haspBox, dropinBox, lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
+import { tuckDustBoard, hangTabBoard, plainFlapBoard, linesBoard, haspBox, dropinBox, lidKindBox, cartonDesign, lockTray, closedBox, roundBoxDesign, roundedTray, bandLidBox, cardTray, corrDividers, plyBox, plyLean, v6CardGable, v6CorrFoldover, v6PlyHexThrough } from './goldenDesigns';
 import { serializeProject } from '../src/model/serialize';
 import { MATERIALS } from '../src/model/materials';
 import { prepareExport, type KerfMode } from '../src/export/prepare';
@@ -87,6 +87,9 @@ CASES.push({ name: 'lines-card', make: linesBoard });
 // milestone 111: a fold-over and plain flaps, generated before the edge-feature registry
 CASES.push({ name: 'foldover-corr', make: v6CorrFoldover });
 CASES.push({ name: 'flap-card-plain', make: plainFlapBoard });
+// milestone 112: shaped flaps
+CASES.push({ name: 'flap-card-tuck-dust', make: tuckDustBoard });
+CASES.push({ name: 'flap-card-hang', make: hangTabBoard });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);
