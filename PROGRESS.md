@@ -2265,6 +2265,24 @@ A glue flap or slit lock was sized only against the flat net, so folded it could
 - Where no flap of a useful depth fits the receiver on either side, the flap is fitted to the net alone, as before.
 - Over 670 flaps on 11 solids in card and corrugated: the overhang went from 170 mm² (5 flaps over 1 mm², the worst 44 mm²) to none, with no flap dropped; the flap area changed by −2% (only flaps that overhung shrank). `tests/foldNet.test.ts` checks it. The goldens: `make-house-card` changes by 1e-4 mm (tapers now stored at both ends).
 
+## Milestone 134 (QA fix round Q0) — safety nets first ✅
+
+`QA_FIX_PLAN.md` Q0, from the browser QA of 20 November (`docs/cutforge-browser-qa-2026-11-20/REPORT.md`). Tests only: no app code changed. The failing tests are the to-do list for 135–145.
+- **QA repros** (`tests/qa/`, in `npm test`): one test per finding that shows in the model, written as `it.fails` (it states what should hold, fails today, and counts as a pass); the fixing milestone flips it to `it`. 18 today:
+  - joints (135): walls standing on the base turn the corners into half-laps behind the list; a corner choice then changes 0 joints; a mixed group shows one kind; a kind offered that only another material's boards take; *Wall to base* changes dividers' joints and a tuck lid's fold; the count on an open carton; a hand-set joint lost on a material round trip;
+  - status (137): an empty design has no blocking problem (card and plywood);
+  - curves (138): the card's minimum bend radius (21.5 mm) and the export check (19 mm passes) disagree; *Hinged* is offered on a rounded box;
+  - Guided (139, 142): a name, a sticker and a window land on top of each other; a pyramid's name is dropped by *Sides 4 → 3*;
+  - Quick build (143): *Use less board* adds glue joints under *No glue*;
+  - the promise gate: 8 seeded op sequences break the joint promises.
+- **Promise checks** (`tests/qa/promises.ts`): `changeGroup` runs a joint change as the Workshop editor does (`setAllJoints`, `solve`, `autoConnect`) and lists the promised joints that ended otherwise; `shownLies` lists the joints a group's list does not show truly. Joints are followed by the two boards they join: `autoConnect` makes joints again under new ids, sometimes on other edges.
+- **The fuzzer** (`tests/fuzz/fuzz.ts`) runs the promise checks after every joint op (`promises` option; `FUZZ_PROMISES=0` leaves them out). Over 40 seeds it reports `promise:listTrue:base` on 10 and `promise:listTrue:corner` on 2. It still reports `idem:solve` and `roundtrip` on seed 6, which were there before.
+- **Copy ratchet** (`tests/qa/copy.test.ts`, list in `copy-ratchet.json`): fails on a new offender and on a fixed one still listed. Today 4 strings with "(s)", 47 counts with no singular, 8 files using the browser's own `confirm` / `alert` / `prompt`.
+- Not reproduced in the model, left to the truth spec (milestone 145): an arched lid offered and then not made (I9); *Hinged → None* leaving the back wall invisible (C2) — the model restores the walls' sizes, so it is a drawing or Quick-build path.
+- Corrections to the report found while writing the repros: the first of two tabs does show "changed in another tab" (the faults are the false alarm on opening and the *Saving…* label); the template card does note that a hinged lid removed the spaces (its reason is vague).
+
+Verified: typecheck; `npm test` (1572 passed, 18 expected fail; `wings.test.ts`'s timing test failed once under the full parallel run and passes alone, three times out of three).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -159,7 +159,7 @@ The plans name their milestones by letter; **this table is the only place that n
 
 The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and 93 (and 102 for Decorate, which can rebase either way); the 2D editing (101–104) needs nothing before it; the sentence (94–100) needs 92 and 93.
 
-**Status (20 November):** 92–114 and 116 built, C1–C5, and **119–133, the shapes plan, built** (see `PROGRESS.md`); next: 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
+**Status (20 November):** 92–114 and 116 built, C1–C5, and **119–133, the shapes plan, built** (see `PROGRESS.md`); next: **the QA fix round, 134–145 (§5.4)**, then 115, 117, 118. Guided is in the level switch for everyone; Workshop stays the default (the owner, 20 November). The pillow box of Die Cut Studio's twenty styles is not planned (curved creases).
 
 **Next:** `HANDOFF_105-118.md` has a brief for each of 105–118, checked against the code on 20 November, and corrects rows 12 and 13 of §5.2 below (card thickness for folding; plain flaps score on the edge). `next-session-prompt.md` is the prompt to start the next session from.
 
@@ -210,3 +210,38 @@ The three plans' blocks can move as blocks: Guided (105–110) needs only 92 and
 
 - **The one-click core is 119–127.** 120 and 123 can run side by side (`src/sculpt` against `src/model`).
 - **Nothing here waits for 110–118.** 126 shows its net in the Net view (113) when that is built, and in the Cut plan otherwise. 128 adds two things to Guided's gallery (106).
+
+### 5.4 Milestones 134–145: the QA fix round (plan of 20 November, evening)
+
+`QA_FIX_PLAN.md` (Q0–Q11), from the three browser passes in `docs/cutforge-browser-qa-2026-11-20/REPORT.md`, with the
+owner's decisions of the same day (its §4: every recommendation taken). Bugs before features (rule 1.2): **this round
+comes before 115, 117 and 118.**
+- **The causes:** controls that show a stored wish instead of the model; one rule kept in several copies; side effects
+  nobody is told about; checks that run late; modes nobody owns; stage overlays that don't know about each other;
+  curved walls bolted on (plan §1).
+- **The structural answers:** outcome reports from every operation touched; one rulebook for "can this be made?";
+  controls that show the model; one owner for modes; one placement service and stage layout; curved combinations
+  gated with a reason until a structural plan (plan §2).
+- **The safety nets:** promise checks in the fuzzer, copy checks, a capability snapshot, and one truth spec run only
+  when the UI changes (light testing routine).
+
+| # | Milestone | Plan | Status |
+| --- | --- | --- | --- |
+| **134** | Safety nets first: promise checks, copy checks, failing repros for every high finding | Q0 | ✅ (18 repros in `tests/qa`) |
+| **135** | Joint changes made rigid (`jointPlan.ts`) | Q1 | |
+| **136** | Saving and two tabs | Q2 | |
+| **137** | Truthful status: empty designs, notes, names, plurals | Q3 | |
+| **138** | One rulebook for lids and curves, and the gate; live check in Workshop | Q4 | |
+| **139** | Placement and the stage layout | Q5 | |
+| **140** | Modes and the level switch; *Joints* and *Outlines* in the card | Q6 | |
+| **141** | Gizmos | Q7 | |
+| **142** | Guided specifics | Q8 | |
+| **143** | Quick build and Shapes specifics | Q9 | |
+| **144** | Accessibility | Q10 | |
+| **145** | Verification of 134–144 | Q11 | |
+
+- **Order:** 134 first; 135 and 136 next (lying controls and lost data). 137–139 can run side by side after 134
+  (model and validate, rules and lids, placement and stage). 140 and 141 share the stage overlays: one after the other.
+  142–144 fit anywhere after 137.
+- **Not in this round:** structural curved walls (a plan of their own), the teacher view (F) and offline (G3), which
+  the browser passes could not test.

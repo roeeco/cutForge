@@ -1,4 +1,5 @@
-// Fuzz driver. Env: FUZZ_FROM, FUZZ_N (seeds), FUZZ_STEPS (ops per design), FUZZ_OUT (json report path), FUZZ_SHRINK=1.
+// Fuzz driver. Env: FUZZ_FROM, FUZZ_N (seeds), FUZZ_STEPS (ops per design), FUZZ_OUT (json report path), FUZZ_SHRINK=1,
+// FUZZ_PROMISES=0 (leave out the promise checks).
 import { it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { genOp, mulberry32, runSeq, shrink, type Op } from './fuzz';
@@ -11,6 +12,8 @@ const SHRINK = process.env.FUZZ_SHRINK === '1';
 const EVERY = Number(process.env.FUZZ_EVERY ?? 1);
 const SKIP = (process.env.FUZZ_SKIP ?? '').split(',').filter(Boolean);
 const AUTOIDEM = process.env.FUZZ_AUTOIDEM === '1';
+// the promise checks (milestone 134): reported like any other class; FUZZ_PROMISES=0 leaves them out
+const PROMISES = process.env.FUZZ_PROMISES !== '0';
 
 export function seqFor(seed: number, steps = STEPS): { seq: Op[]; mat: number } {
   const r = mulberry32(seed * 7919 + 13);
@@ -35,7 +38,7 @@ it('fuzz', () => {
   for (let s = FROM; s < FROM + N; s++) {
     const { seq, mat } = seqFor(s);
     const skip = (cls: string) => !SKIP.some((k) => cls.startsWith(k));
-    const res = withRandom(s, () => runSeq(seq, mat, { every: EVERY, only: skip, autoIdem: AUTOIDEM }));
+    const res = withRandom(s, () => runSeq(seq, mat, { every: EVERY, only: skip, autoIdem: AUTOIDEM, promises: PROMISES }));
     iters++;
     ops += seq.length;
     const seen = new Set<string>();
@@ -49,7 +52,7 @@ it('fuzz', () => {
   }
   if (SHRINK)
     for (const [cls, e] of classes) {
-      const fails = (q: Op[]) => withRandom(e.seed, () => runSeq(q, e.mat, { stopAtFirst: true, only: (c) => c === cls, autoIdem: AUTOIDEM }).failures.length > 0);
+      const fails = (q: Op[]) => withRandom(e.seed, () => runSeq(q, e.mat, { stopAtFirst: true, only: (c) => c === cls, autoIdem: AUTOIDEM, promises: PROMISES }).failures.length > 0);
       if (fails(e.seq)) e.shrunk = shrink(e.seq, fails);
     }
   const report = [...classes.entries()].sort((a, b) => b[1].count - a[1].count).map(([cls, e]) => ({ cls, ...e, seq: SHRINK ? undefined : e.seq.length }));

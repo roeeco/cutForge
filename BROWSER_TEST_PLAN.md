@@ -39,6 +39,62 @@ A test fails when:
 - text is cut off or overlaps at the tested size;
 - an undo does not bring back the earlier state.
 
+### The UI sweep: on every screen, in every test
+
+Functional tests miss most visual and consistency bugs. While you run any test, check each new screen and state against
+this list, and record what you find as a **UI issue** with the screen, the window size, the language and a screenshot.
+A UI issue does not fail the test it was found in. List it separately in the report, ranked *high* (wrong or misleading),
+*medium* (gets in the way) or *low* (cosmetic).
+
+1. **Fit.**
+   - No text is cut off or ellipsed where the full word matters: names, chips, font previews, button labels.
+   - No label is wider than its button.
+   - No horizontal scroll.
+   - Check at 1366, at 1024 and in Hebrew.
+2. **Overlap.** Nothing covers anything else unless it is meant to. Look in particular at:
+   - tooltips over panels;
+   - stage labels over gizmos or over each other;
+   - warning chips over size labels;
+   - pop-ups over the hint bar;
+   - the right-hand card over the model;
+   - floating buttons over the sheet.
+3. **One visible state.**
+   - Exactly one tool looks active on the rail.
+   - A toggle clearly shows whether it is on.
+   - A mode that stays on (Joints, Outlines, Follow, Frame) is visible while it is on.
+   - Every mode has a visible way out (a *Done* or the same button), and Esc behaves the same everywhere.
+4. **Truthful status.**
+   - Badges, ticks, goals and *Ready to cut* match what is on the stage. For example, an empty design is never *ready*.
+   - Counts use the right number form (*1 piece*, not *1 pieces*).
+   - A greyed control says why when tapped.
+5. **Same thing, same word.** The same action, size or object has the same name in every level and panel. Check these pairs against each other:
+   - *Joints* / *How it's built*;
+   - *Download* / *Download for laser*;
+   - *Width · Depth · Height* / *W · H* / *Width · Height*;
+   - the design's name in the top bar, in Guided and in *Your designs*;
+   - the level's name in the switch and in menus.
+6. **No duplicates.**
+   - One action has one main place. Note any action reachable from two places on the same screen, such as *Edit outline* in the card and *Outlines* in the bottom bar.
+   - The same help text should not appear in both the tool panel and the hint bar.
+   - A sentence or card should not repeat itself.
+7. **One meaning per icon.** No icon is used for two different tools (for example, the pentagon for both *Sketch* and *Outlines*).
+8. **No flashes or jumps.**
+   - No blank screen longer than about ⅓ s after a level, view or step change.
+   - No layout jump when pictures load.
+   - The camera does not jump on a plain selection.
+   - A new object appears in view, not under the card, off-screen or inside another object.
+9. **Handles and gizmos.**
+   - Handles are large enough to grab (about 24 px or more) and scale sensibly with zoom.
+   - Each axis has its own colour.
+   - Handles are not hidden by the object they move.
+   - A live number (distance, angle, size) shows while dragging, and the card can type the same value.
+10. **Drawn text on the stage.**
+    - Measurements, snap labels and seam numbers are legible at the closest and farthest zoom.
+    - They have no blotchy halos and do not collide with engravings or piece names.
+11. **Accessible names.** Every control has a unique accessible name that says what it does. Read the page's accessibility tree once per screen: no unnamed buttons, and no several radios sharing one name.
+
+---
+
 ### Test format
 
 Each test has:
@@ -606,3 +662,248 @@ The teacher key comes from the owner. Do not record it anywhere.
 **G4. No console errors**
 - Steps: across all sections, read the console.
 - Expected: no uncaught errors. Warnings about three.js `Clock` can be ignored.
+
+---
+
+## H. UI bugs and consistency (targeted)
+
+These tests hunt UI problems on purpose. Run them after A–G, at 1366 × 768 unless marked otherwise, and apply the UI sweep
+above to every step.
+
+**H1. Where the level switch lives [1024] [HE]**
+- Steps:
+  1. In each level (Guided, Quick build, Workshop) and on the Shapes stage, with an empty design and then with one part, note where the level switch is.
+  2. Use it to go to each other level.
+- Expected:
+  - The switch is in the same place in every level and state, and the current level is marked.
+  - Changing level keeps the design, its name and the current view (3D or cut plan), with no blank screen.
+
+**H2. Empty design in every level**
+- Steps: start a *Blank design*, then visit Guided (Build, Decorate, Send), Quick build and Workshop without adding anything.
+- Expected:
+  - Each level says what to do first. Guided offers its gallery.
+  - Nothing says *Ready to cut*, and *Download* is greyed with a reason.
+
+**H3. Modes that stay on**
+- Steps:
+  1. Turn on *Joints*, *Outlines*, *Follow* and *Frame* one at a time.
+  2. Press Esc twice, select another part, change level, and start a new design.
+- Expected:
+  - Each mode shows that it is on.
+  - Each has a visible way out.
+  - The modes do not carry silently into a new design.
+
+**H4. Terms audit**
+- Steps: for one box, read every label naming its sizes, its joints, the download and the design, in Guided, Quick build, Workshop and the Shapes stage.
+- Expected: one word per thing (see the UI sweep, item 5). List every pair that differs.
+
+**H5. Icon audit**
+- Steps: hover every icon on the rails, the bottom bars and the cards, in all levels, and list icon → tooltip.
+- Expected: no icon stands for two different things.
+
+**H6. Overlap at the extremes [1024] [HE]**
+- Steps:
+  1. Select a small board (20 × 20 mm) and a large one; zoom fully in and fully out.
+  2. Repeat with joint labels on (*Joints*) and with a warning showing.
+- Expected: gizmo, stage labels, warning chips and the card never cover each other or the part being edited.
+
+**H7. Where new things appear**
+- Steps:
+  1. On the Shapes stage with one shape in the middle, add a shape from each tile.
+  2. Draw a new sketch and press *Finish sketch*.
+  3. In Workshop, add a board with the Shapes tool by a single click.
+- Expected:
+  - Each new object is fully visible, not under the card and not inside an existing shape (a sketch lands beside the shapes already there).
+  - *Frame* shows it.
+
+**H8. Gizmo usability (Shapes stage and Workshop)**
+- Steps:
+  1. With *Move*, drag each arrow and the square.
+  2. With *Turn*, turn the shape a quarter turn about each axis.
+  3. With *Size*, drag a corner.
+  4. Repeat on a Workshop board.
+- Expected:
+  - Each axis is told apart by colour.
+  - A live readout shows the distance or angle.
+  - A small drag makes a small change (no 60° jumps).
+  - The handle is not hidden by the shape.
+  - The card shows the resulting value.
+
+**H9. Drawn labels in the sketch editor**
+- Steps:
+  1. In a sketch, draw lines with *Show measurements* on.
+  2. Select an edge.
+  3. Zoom fully in and out.
+- Expected: the live length and angle, the snap labels and the selected edge's size are crisp, with no white blotches, at every zoom.
+
+**H10. Loading and switching flashes**
+- Steps: reload, open the Guided gallery, open a face-on view in Decorate, open a sketch, and switch levels, watching the first second each time.
+- Expected:
+  - No blank screen longer than about ⅓ s.
+  - No layout jump when pictures arrive; placeholders keep their size.
+
+**H11. Status words**
+- Steps: read every badge, count and goal after each of B2, C1, E9 and E10.
+- Expected:
+  - Counts read naturally (*1 piece*, *2 pieces*).
+  - Instructions fit the material (no *fold every crease* on plywood boards).
+  - Goals tick as soon as they are met.
+
+**H12. Accessible names**
+- Steps: on the welcome screen, the editor in each level and the Shapes stage, read the accessibility tree.
+- Expected:
+  - Every button and field has a name that says its purpose.
+  - Each material radio is named by its material.
+
+---
+
+## I. Curved edges everywhere (living hinges, rounded and round boxes, curved lids)
+
+Curved walls show up in many places: the Quick build *Box* footprints (*Rounded*, *Round*), Workshop's round shapes
+(`R` · `U` · `C`: rounded rectangle, circle / oval / stadium), *Edit outline* points set to *Curve* or *Round*, a wall's
+*Bend radius*, *Hinged* lids (a living hinge on plywood, a fold on card), *Arched* lids, Guided's *Round box*, and
+*Faces around a curve* on the Shapes stage.
+
+Run every test in **plywood 3 mm** and again in **card**. On each result:
+- check it from four sides with the lid open and closed, and through the fold slider;
+- open the cut plan and the SVG;
+- apply the UI sweep.
+
+A test fails if:
+- a part goes through another, or a gap shows where parts should meet;
+- a part is shown in the cut plan but not in 3D (or the other way round);
+- a wall is kept that no longer has an edge to stand on;
+- the card's sizes disagree with the cut plan's;
+- *Ready to cut* shows over any of these.
+
+**I1. Rounded box from scratch (Quick build)**
+- Steps:
+  1. *Box* → *Rounded*.
+  2. Set the corner radius below the material's minimum, then draw and press ✓.
+- Expected:
+  - The radius field shows the radius that will actually be used, or refuses the lower value with a reason.
+  - Walls bend round every corner with hinge slits (plywood) or glued lips (card).
+  - The straight walls and the bends meet without gaps or overlap.
+  - The ghost shows the curved corners while drawing.
+
+**I2. Round and oval boxes**
+- Steps: make a *Round* box in Quick build, an *Oval* and a *Stadium* in Workshop (`C`), and Guided's *Round box*; extrude each.
+- Expected:
+  - One continuous bent wall with a single closing seam, and no stray nub or tab at the seam.
+  - Pulling a size arrow changes the size smoothly (no jump to the sheet's maximum on a short drag).
+
+**I3. Hinged lid on a rectangular box**
+- Steps:
+  1. On a box's card choose *Lid: Hinged*.
+  2. Press *Close* and *Open*, and move the fold slider through the whole range.
+  3. Select the lid part of the hinged panel.
+- Expected:
+  - The closed lid covers the whole opening and rests on the walls.
+  - While opening, nothing passes through a side wall; the bend unrolls rather than turning as a rigid block.
+  - The lid part can be selected.
+  - The hinge slits cover only the bend, not the whole back wall, unless the card says why.
+
+**I4. Hinged lid on a rounded box**
+- Steps: on a rounded-corner box, choose *Hinged*, then *Close*.
+- Expected: either the lid follows the rounded outline and closes the whole opening, or *Hinged* is greyed with a reason (as it is for round and oval boxes). A rectangular lid covering part of the opening is a fail.
+
+**I5. Lid switching on curved boxes**
+- Steps: on a rounded box and on a round box, cycle *None → Lifts off → Hinged → None*, undoing once after each step.
+- Expected:
+  - Each lid fits.
+  - The inside height does not change unless the card says why.
+  - *None* restores the walls exactly as they were: same sizes in the card and the cut plan, visible from every side.
+  - No lid part is left behind.
+
+**I6. Convert a straight box to rounded corners**
+- Steps:
+  1. On a finished rectangular box, try to round one corner (*Edit outline* → corner → *Round*), in Workshop and in Quick build.
+  2. If it is refused, follow the reason it gives (remove the joints or walls), round the corner, then *Wall it* / *Extrude walls* again.
+  3. Try the same on all four corners.
+- Expected:
+  - There is a clear way to do it, either a single action (for example *Round the corners* on the box's card) or steps the app explains.
+  - The rebuilt walls bend round the new corners.
+  - No old straight wall is kept, and nothing ends up inside out or invisible.
+  - Undo returns the box exactly.
+
+**I7. Change a curved box after it is made**
+- Steps: on rounded, round and oval boxes:
+  1. change the width, depth, height and corner radius;
+  2. add a divider across, and one along;
+  3. add a hole and a text on a bent wall.
+- Expected:
+  - Walls, hinge slits and lips follow every change.
+  - Dividers end on the curved wall, or a note says why they cannot.
+  - Shapes on a bent wall stay off the hinge slits.
+
+**I8. Bend radius on a fold (card)**
+- Steps: on a card box, set one corner's *Bend radius* to 5, then 20, and try each bend pattern.
+- Expected:
+  - The fold curves in 3D and in the net.
+  - A pattern that cannot reach that radius is greyed with a reason.
+  - The scored lines in the SVG follow the bend.
+
+**I9. Arched lid**
+- Steps: on boxes of several sizes and shapes, try *Lid: Arched*.
+- Expected:
+  - Where it is offered it fits.
+  - Where it is greyed, tapping says why, and the reason names a change that would make it possible.
+
+**I10. Curves on the Shapes stage**
+- Steps: place a cylinder, then press *Fold it* and *Build from boards*; set *Faces around a curve* to 6, 8 and 16.
+- Expected:
+  - Both outcomes use the same default number of faces, or say why they differ.
+  - The summary follows each change.
+  - A plain prism lies flat in one piece, or the card's reason holds up when you look at the net.
+
+**I11. Curves in the files**
+- Steps: download the SVG and DXF of I1, I2, I3 and I8.
+- Expected:
+  - Arcs are true arcs.
+  - Hinge slits stay inside the bend zone and away from joints and edges.
+  - Nothing overlaps on the sheet.
+
+---
+
+## J. Changing joint types
+
+Each test compares three things after every change: what the dropdown or label says, what the cut plan and the 3D
+*Joints* view show, and the note ("N joints changed"). In the dev build, `window.__cutforge.store.getState().design.connections`
+lists every joint's actual kind; read it before and after each step. Run on card and on plywood 3 mm, on a box with a
+lid and two crossing dividers.
+
+A test fails if:
+- a dropdown or label shows a kind that some of its joints don't have;
+- a change touches joints outside the group it names, or changes another group's joints;
+- the note's count differs from the joints that really changed, or a kept joint isn't named with its reason;
+- a choice is stored but not applied, or applied later by an unrelated change.
+
+**J1. Design-wide groups**
+- Steps: in *Design settings → Joints*, set *Wall to base* to each kind in turn, then *Corners* to each kind, in both
+  orders.
+- Expected: exactly the joints of that group change, every time; the other group never changes; the note counts them.
+
+**J2. A kind that forces another**
+- Steps: set *Wall to base* to *Tabs and slots* (walls on the base's face), then choose each *Corners* kind.
+- Expected: either the corner kind is applied, or the corner dropdown shows the forced kind (for example *Half-lap*,
+  greyed) with the reason, and the other choices are greyed with it. Never "0 joints changed" with the dropdown showing
+  the new kind.
+
+**J3. Mixed joints**
+- Steps: change one corner by its label in the *Joints* view, then open *Design settings*.
+- Expected: the *Corners* dropdown says *Mixed*; choosing any kind (including the one shown before) changes all corners.
+
+**J4. The tray's own card and the design card agree**
+- Steps: on a base's card, change *Walls* and *Corners*; compare with *Design settings*.
+- Expected: the same groups, the same kinds offered (no *Fold* on plywood), the same joints changed, and both cards show
+  the same value afterwards.
+
+**J5. Joints that belong to no group**
+- Steps: with a lid and crossing dividers, change every group.
+- Expected: lid joints and divider crossings are either in a named group or listed as "not changed: …" with the reason.
+
+**J6. Choices survive rebuilding**
+- Steps: after J1, change the box's width, add and remove a divider, change the lid, change the material and back,
+  press *Make again* on a made model.
+- Expected: every joint keeps the chosen kind, or one note says which changed and why. Dividers are never deleted by a
+  lid change without a note.

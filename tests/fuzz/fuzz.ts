@@ -12,6 +12,7 @@ import { edgePieces, findEdge, panelEdges, segLength } from '../../src/model/edg
 import { flattenContour, polygonArea, pointInPolygon } from '../../src/geom/vec';
 import { ownOutline } from '../../src/model/outline';
 import type { ConnectionKind, Design, P2 } from '../../src/model/types';
+import { broken, promisedJoints, shownLies } from '../qa/promises';
 
 export function mulberry32(a: number) {
   return () => {
@@ -478,7 +479,10 @@ export function selfCrossing(pts: P2[]): [number, number] | null {
   return null;
 }
 
-export type CheckOpts = { idem?: boolean; roundtrip?: boolean; pieces?: boolean; overlaps?: boolean; autoIdem?: boolean };
+export type CheckOpts = { idem?: boolean; roundtrip?: boolean; pieces?: boolean; overlaps?: boolean; autoIdem?: boolean; promises?: boolean };
+
+/** The ops that change joint kinds: after them, the promise checks run (milestone 134, QA_FIX_PLAN.md O1). */
+const JOINT_OPS = new Set(['setAllJoints', 'setTrayKinds', 'setConnection', 'setMaterial', 'setPanelMaterial']);
 
 export function check(d: Design, o: CheckOpts = {}): Failure[] {
   const out: Failure[] = [];
@@ -663,6 +667,8 @@ export function runSeq(seq: Op[], material = 3, opts: CheckOpts & { every?: numb
   const every = opts.every ?? 1;
   for (let i = 0; i < seq.length; i++) {
     const o = seq[i];
+    // what a design-wide joint change promises, taken before it (tests/qa/promises.ts)
+    const promised = opts.promises && o.op === 'setAllJoints' ? promisedJoints(d, o.a[0], o.a[1]) : null;
     try {
       applyOp(d, o);
       ops.solve(d);
@@ -675,6 +681,18 @@ export function runSeq(seq: Op[], material = 3, opts: CheckOpts & { every?: numb
       }
       // the store would discard the edit: keep going on whatever is left
       continue;
+    }
+    if (opts.promises && JOINT_OPS.has(o.op)) {
+      const fs: Failure[] = [];
+      if (promised) {
+        const b = broken(d, promised, o.a[1]);
+        if (b.wrong.length || b.gone.length) fs.push({ cls: `promise:jointGroup:${o.a[0]}`, msg: `${o.a[0]} → ${o.a[1]}: not applied ${[...b.wrong, ...b.gone.map((k) => k + '=gone')].join(' ')}` });
+      }
+      for (const g of ['base', 'corner'] as const) {
+        const lies = shownLies(d, g);
+        if (lies.length) fs.push({ cls: `promise:listTrue:${g}`, msg: `after ${o.op}: the ${g} list shows one kind, joints ${lies.join(' ')}` });
+      }
+      for (const x of fs.filter((x) => !opts.only || opts.only(x.cls))) failures.push({ ...x, step: i, op: o.op });
     }
     if ((i + 1) % every === 0 || i === seq.length - 1) {
       const fs = check(d, opts).filter((x) => !opts.only || opts.only(x.cls));
