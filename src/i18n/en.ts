@@ -14,6 +14,8 @@ export const en = {
   'top.more': 'More',
   'top.view3d': '3D workspace',
   'top.view2d': 'Cut plan',
+  'top.view3dShort': '3D',
+  'top.view2dShort': 'Plan',
   'top.material': 'Material',
   'top.designName': 'Design name',
   'top.untitled': 'Untitled design',
@@ -1470,6 +1472,8 @@ export const en = {
   'start.cards': "Packaging styles",
   'start.cardsNone': "Nothing in this list can be made in this material.",
   // the welcome screen as one composer (20 November)
+  'stage.ppHint': "Drag to resize · click to type",
+  'stage.ppField': "Size in millimetres (↑ ↓ for 1 mm)",
   'start.continue': "Continue",
   'start.edited': "edited {date}",
   'start.openNow': "Open now · {material}",

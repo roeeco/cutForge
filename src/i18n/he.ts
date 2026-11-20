@@ -16,6 +16,8 @@ export const he: Record<MsgKey, string> = {
   'top.more': 'עוד',
   'top.view3d': 'סביבת עבודה תלת־ממדית',
   'top.view2d': 'תוכנית חיתוך',
+  'top.view3dShort': 'תלת־ממד',
+  'top.view2dShort': 'חיתוך',
   'top.material': 'חומר',
   'top.designName': 'שם העיצוב',
   'top.untitled': 'עיצוב ללא שם',
@@ -1472,6 +1474,8 @@ export const he: Record<MsgKey, string> = {
   'start.cards': "סגנונות אריזה",
   'start.cardsNone': "אי אפשר להכין שום דבר מהרשימה בחומר הזה.",
   // the welcome screen as one composer (20 November)
+  'stage.ppHint': "גררו לשינוי הגודל · לחצו להקלדה",
+  'stage.ppField': "גודל במילימטרים (↑ ↓ למילימטר)",
   'start.continue': "המשך",
   'start.edited': "נערך {date}",
   'start.openNow': "פתוח עכשיו · {material}",

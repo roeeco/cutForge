@@ -29,6 +29,20 @@ export function TopBar() {
   // narrow windows (BUGFIX_PLAN U1): the less-used items move into a ⋯ menu
   const [more, setMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  // the level as one menu (the editor review, 20 November: three buttons of it crowded the bar)
+  const [level, setLevel] = useState(false);
+  const levelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!level) return;
+    const close = (e: PointerEvent) => !levelRef.current?.contains(e.target as Node) && setLevel(false);
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setLevel(false);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', key);
+    };
+  }, [level]);
   useEffect(() => {
     if (!more) return;
     const close = (e: PointerEvent) => !moreRef.current?.contains(e.target as Node) && setMore(false);
@@ -65,7 +79,6 @@ export function TopBar() {
     <header className="topbar" inert={s.needsMaterial || undefined}>
       <div className="brand">
         <Logo />
-        <span className="hide-narrow">{t('app.name')}</span>
       </div>
       <span className="sep" />
       <div className="proj" ref={menuRef}>
@@ -166,60 +179,81 @@ export function TopBar() {
       {/* one place for the level switch in every level and state, the Shapes stage included (milestone 140,
           REPORT.md #3, H1: it moved into ⋯ once Quick build's badge showed, and the Shapes stage had none) */}
       {!s.viewPrefs.modeLocked && (
-        <div className="seg mode-seg" role="radiogroup" aria-label={t('mode.label')} data-testid="mode-toggle">
-          {levels(s.viewPrefs).map((m) => (
-            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} title={t(MODE_HELP[m])} onClick={() => setMode(m)} data-testid={`mode-${m}`}>
-              {t(MODE_NAME[m])}
-            </button>
-          ))}
+        <div className="level-wrap" ref={levelRef}>
+          <button className="level-btn" aria-haspopup="menu" aria-expanded={level} title={t('mode.label')} onClick={() => setLevel((v) => !v)} data-testid="mode-toggle">
+            {t(MODE_NAME[mode])}
+            <Icon name="chevDown" size={16} />
+          </button>
+          {/* kept in the page while closed, so the level chosen can be read (aria-checked) */}
+          <div className="menu level-menu" role="menu" aria-label={t('mode.label')} hidden={!level}>
+            {levels(s.viewPrefs).map((m) => (
+              <button
+                key={m}
+                role="menuitemradio"
+                aria-checked={mode === m}
+                onClick={() => {
+                  setLevel(false);
+                  setMode(m);
+                }}
+                data-testid={`mode-${m}`}
+              >
+                <span className="tick" aria-hidden>
+                  {mode === m && <Icon name="check" size={16} />}
+                </span>
+                <span className="cap">
+                  <strong>{t(MODE_NAME[m])}</strong>
+                  {/* the help without its level's name before it (*Guided: pick a thing…*) */}
+                  <small>{t(MODE_HELP[m]).replace(/^[^:]+:\s*/, '')}</small>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
-      {badge ? <ReadyBadge /> : mode === 'workshop' && <ReadyBadge problemsOnly />}
+      <div className="spacer" />
       {sketching ? (
         <SketchTopBar />
       ) : (
-        <>
-          <div className="seg" role="tablist">
-            <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
-              {t('top.view3d')}
-            </button>
-            <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
-              {t('top.view2d')}
-            </button>
-          </div>
+        <div className="seg view-seg" role="tablist">
+          <button role="tab" aria-selected={s.view === '3d'} className={s.view === '3d' ? 'on' : ''} onClick={() => s.setView('3d')} data-testid="view-3d">
+            <span className="full">{t('top.view3d')}</span>
+            <span className="short">{t('top.view3dShort')}</span>
+          </button>
+          <button role="tab" aria-selected={s.view === '2d'} className={s.view === '2d' ? 'on' : ''} onClick={() => s.setView('2d')} data-testid="view-2d">
+            <span className="full">{t('top.view2d')}</span>
+            <span className="short">{t('top.view2dShort')}</span>
+          </button>
+        </div>
+      )}
+      <div className="spacer" />
+      {badge ? <ReadyBadge /> : mode === 'workshop' && <ReadyBadge problemsOnly />}
+      {!sketching && (
+        <span className="undo-pair">
           <button className="ghost icon-btn" onClick={s.undo} disabled={!s.past.length} title="Ctrl+Z" aria-label={t('top.undo')} data-testid="undo">
             <Icon name="undo" />
           </button>
           <button className="ghost icon-btn" onClick={s.redo} disabled={!s.future.length} title="Ctrl+Shift+Z" aria-label={t('top.redo')} data-testid="redo">
             <Icon name="redo" />
           </button>
-        </>
+        </span>
       )}
-      <div className="spacer" />
       <span className={`save-state ${s.saveState}`} role="status" title={saveText} aria-label={saveText} data-testid="save-state">
         {s.saveState !== 'idle' && <Icon name={saveIcon} />}
         <span className="sr-only">{s.saveState !== 'idle' ? saveText : ''}</span>
       </span>
-      <button className="submit-btn tablet-hide" onClick={() => setSubmitOpen(true)} title={t('sub.button')} aria-label={t('sub.button')} data-testid="open-submit">
-        <Icon name="send" />
-        <span className="full">{t('sub.button')}</span>
-        <span className="short">{t('sub.short')}</span>
-      </button>
       <button className="primary dl-btn" onClick={() => s.set({ exportOpen: true })} title={t('top.download')} aria-label={t('top.download')} data-testid="open-export">
         <span className="full">{t('top.download')}</span>
         <span className="short">{t('top.downloadShort')}</span>
       </button>
       {submitOpen && <SubmitDialog onClose={() => setSubmitOpen(false)} />}
-      <button className="lang tablet-hide" onClick={() => s.setLang(s.lang === 'en' ? 'he' : 'en')} title={t('lang.toggleTitle')} data-testid="lang-toggle" lang={s.lang === 'en' ? 'he' : 'en'}>
-        {t('lang.toggle')}
-      </button>
-      <div className="more-wrap tablet-only" ref={moreRef}>
+      {/* Submit and the language: in ⋯ at every width (the editor review, 20 November) */}
+      <div className="more-wrap" ref={moreRef}>
         <button className="ghost icon-btn" aria-haspopup="menu" aria-expanded={more} aria-label={t('top.more')} title={t('top.more')} onClick={() => setMore((m) => !m)} data-testid="top-more">
           <Icon name="more" />
         </button>
         {more && (
           <div className="menu more-menu" role="menu">
-            <button role="menuitem" onClick={() => (setMore(false), setSubmitOpen(true))} data-testid="more-submit">
+            <button role="menuitem" onClick={() => (setMore(false), setSubmitOpen(true))} data-testid="open-submit">
               <Icon name="send" /> {t('sub.button')}
             </button>
             <hr />

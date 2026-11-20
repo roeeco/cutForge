@@ -380,6 +380,12 @@ textarea { width: 100%; resize: vertical; }
 .w-dim.ghost { background: var(--accent-bright); color: #062623; border-color: var(--accent); }
 .w-dim input { width: 56px; border: none; padding: 0; min-height: 0; text-align: center; font: inherit; background: transparent; box-shadow: none; }
 .w-dim .k { color: var(--ink-faint); font-weight: 400; }
+/* the size arrow's hover hint and its click-to-type field (20 November) */
+.pp-hint { display: inline-block; transform: translate(14px, -50%); white-space: nowrap; font-size: 12px; padding: 4px 9px; border-radius: 8px; background: var(--rail-bg); color: #fff; box-shadow: var(--shadow-soft); pointer-events: none; }
+[dir='rtl'] .pp-hint { transform: translate(calc(-100% - 14px), -50%); }
+.w-dim.pp-field { display: inline-flex; align-items: center; gap: 4px; transform: translate(-50%, -150%); border: 2px solid var(--accent-bright); box-shadow: var(--shadow-float); padding: 3px 8px; }
+.w-dim.pp-field input { width: 52px; font-weight: 600; font-size: 14px; }
+.w-dim.pp-field .unit { color: var(--ink-faint); font-size: 12px; }
 .w-dim.hinge-label { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .w-dim.hinge-label.zone-support { background: #f6c75c; border-color: #c27c0e; color: #3d2702; }
 .w-dim.hinge-label.zone-bad { background: #f3b4a2; border-color: var(--danger); color: #4a1503; }
@@ -783,7 +789,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .design-name { width: 140px; }
   .topbar:has(.ready-wrap) .design-name { width: 110px; }
 }
-@media (max-width: 1300px) {
+@media (max-width: 1000px) {
   .mat-pill .mat-name { display: none; }
   .mat-pill { padding-inline-end: 8px; }
 }
@@ -811,7 +817,7 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
   .topbar:has(.ready-wrap) .mat-pill > svg { display: none; }
   .topbar:has(.ready-wrap) .design-name { width: 64px; }
 }
-@media (max-width: 1500px) {
+@media (max-width: 1100px) {
   .topbar:has(.ready-wrap) .mat-pill .mat-name { display: none; }
   .topbar:has(.ready-wrap) .mat-pill { padding-inline-end: 8px; }
 }
@@ -1381,4 +1387,36 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   .composer-actions .go { flex: 1; }
   .keep-strip .art { width: 72px; height: 48px; }
   .cs .start-foot { flex-direction: column; align-items: flex-start; }
+}
+
+/* ---------- the top bar in three zones (editor review, 20 November) ----------
+   left: logo, design name, material, level menu · centre: 3D / Cut plan · right: ready, undo/redo, save, Download, ⋯ */
+.menu[hidden] { display: none; }
+.level-wrap { position: relative; }
+.level-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 8px 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13.5px; font-weight: 500; }
+.level-btn:hover { border-color: var(--line-strong); }
+.level-btn[aria-expanded='true'] { border-color: var(--accent-bright); }
+.level-menu { min-width: 300px; }
+.level-menu button { align-items: flex-start; padding: 9px 10px; }
+.level-menu button[aria-checked='true'] strong { color: var(--accent); }
+.level-menu .tick { width: 16px; flex: none; color: var(--accent); padding-top: 2px; }
+.level-menu .cap { display: flex; flex-direction: column; gap: 2px; white-space: normal; }
+.level-menu .cap strong { font-weight: 600; font-size: 14px; }
+.level-menu .cap small { color: var(--ink-muted); font-size: 12.5px; line-height: 1.35; }
+.view-seg button { padding-inline: 16px; }
+.undo-pair { display: inline-flex; gap: 2px; }
+.topbar .more-wrap { display: inline-flex; }
+@media (max-width: 900px) {
+  .topbar { gap: 4px; }
+  .topbar .spacer { min-width: 2px; }
+  .view-seg button { padding-inline: 12px; }
+  .view-seg .full { display: none; }
+  .view-seg .short { display: inline; }
+  .level-btn { padding-inline: 8px 4px; font-size: 12.5px; }
+  .design-name, .topbar:has(.ready-wrap) .design-name { width: 72px; }
+  .topbar .save-state { display: none; }
+  /* the Ready badge as its mark alone (its words stay its accessible name) */
+  .topbar .ready-badge { font-size: 0; padding-inline: 10px; }
+  .topbar .ready-badge.ok::after { content: '✓'; font-size: 15px; }
+  .topbar .ready-badge.warn::after { content: '! ' attr(data-n); font-size: 13px; font-weight: 600; }
 }

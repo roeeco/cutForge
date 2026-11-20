@@ -146,7 +146,8 @@ test('vertical slice', async ({ page }) => {
     expect(widths.filter((w: number) => w === 120)).toHaveLength(2);
   }
 
-  await page.getByTestId('lang-toggle').click();
+  await page.getByTestId('top-more').click();
+  await page.getByTestId('more-lang').click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
   expect(errors).toEqual([]);
 });

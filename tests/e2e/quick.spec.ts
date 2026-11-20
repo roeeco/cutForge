@@ -283,6 +283,7 @@ test.describe('Workshop to Quick build', () => {
     await page.getByTestId('panel-w').fill('92');
     await page.getByTestId('panel-w').press('Enter');
     await expect.poll(() => S<number>(page, (id: string) => (window as any).__cutforge.store.getState().design.panels[id].w, p)).toBe(92);
+    await page.getByTestId('mode-toggle').click();
     await page.getByTestId('mode-quick').click();
     await expect(page.getByTestId('ready-badge')).toHaveAttribute('data-n', '1');
     await expect(page.getByTestId('ready-badge')).toHaveText('1 thing to fix');
@@ -379,6 +380,7 @@ test.describe('a new browser', () => {
     await page.getByTestId('start-go').click();
     await expect(page.getByTestId('mode-workshop')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('tool-divider')).toBeVisible();
+    await page.getByTestId('mode-toggle').click();
     await page.getByTestId('mode-quick').click();
     await expect(page.getByTestId('quick-rail')).toBeVisible();
   });

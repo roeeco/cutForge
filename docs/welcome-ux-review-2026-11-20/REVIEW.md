@@ -210,3 +210,75 @@ Each prompt stands alone. They share this base, which is already written into ea
 - Name prompts to run only those, for example `P1a P8`.
 - `--ref` sends the current welcome screenshot along as a "redesign this" reference.
 - `--models` lists the image models your key can use. Pick one with `GEMINI_IMAGE_MODEL` (default `gemini-2.5-flash-image`).
+
+## 7. The editor (2026-11-21)
+
+### 7.1 Done
+
+- **Top bar in three zones.**
+  - Left: logo · design name ▾ · material · **level menu** ("Workshop ▾"; each level with one line of help).
+  - Centre: **3D workspace / Cut plan**.
+  - Right: Ready badge · undo/redo · save state · **Download** · **⋯**. Submit to class and the language switch are always in ⋯.
+  - Below 900 px the view tabs get short labels and the Ready badge shows only its mark. `topbar.spec` passes at every size it checks, in Workshop and Quick build, in both languages.
+- **Size arrows** (`PushPull`, so every one of them: panel width and height, the ghost's height, Guided, Shapes):
+  - A flat **double-headed arrow** (↕ / ↔) on a white rim, always facing the screen and turned to the axis's direction on screen. Seen from above, a wall's height arrow used to flatten into a diamond.
+  - Hover: "Drag to resize · click to type".
+  - **Click without dragging** opens a field with the size: type it, or use ↑/↓ for 1 mm (Shift for 10). The model follows as you go; Enter or clicking away keeps it, Esc puts it back. Each change is one undo step.
+
+### 7.2 Still to change (seen in shots `e04`/`e05` and §3)
+
+| # | What | Suggestion |
+|---|------|------------|
+| E10 | The part card for a selected wall is long: a **Name** field repeating the title; Width with a note; the angle dial; Own height; Match top with; Copy outline from; Edit outline. | Rename by clicking the title. Show size and angle by default; put *Match top*, *Copy outline* and *Edit outline* under one "More" section. |
+| E11 | Two floating cards stacked on the right (part card, then a Joints/Outlines card). | One card with the Joints/Outlines toggle in its header. |
+| E12 | The view cube is two flat grey squares in a large empty frame above four unlabelled icons. | A real shaded cube at about 70 px, with the four view buttons as one labelled group (hover labels at least). |
+| E13 | The hint bar at the bottom always shows a full sentence. | Show it on the first use of each tool, then fade it; keep it under a "?" button. |
+| E14 | The rail is icons only. | Labels under the icons (as in the Guided mock), or a label on hover with the shortcut key. |
+| E15 | The angle chip (`90°`) and its turn knob sit on the wall face, near the H dimension. | Place them at the hinge line's end, outside the wall. |
+| E16 | Cut plan: three stacked toolbars, and the laser legend overlaps the sheet's corner. | One bar: zoom · Repack/Nest · summary · Sheets/Nets. Move the legend off the sheet. |
+| E17 | Walls share one tan, so inside and outside are hard to tell apart (Simple quality). | Check *Rich* on a Chromebook. A slightly darker inside face would help in Simple. |
+| E18 | Guided's own bar is 898 px wide at 768 px (already so before this change). | Its step labels need short forms, like the view tabs. |
+
+## 8. Welcome screen assets
+
+The pictures on the three way-in cards and the material chips are hand-drawn SVG placeholders. To replace them I need **seven images**, saved to `public/welcome/` with these names; I'll then wire them in.
+
+| File | Used as | Size | Background |
+|------|---------|------|------------|
+| `way-blank.png` | Start blank card | 1200 × 460 | flat **#EEF1F5** to the edges |
+| `way-shapes.png` | Build from shapes card | 1200 × 460 | flat **#EEF1F5** |
+| `way-mission.png` | Follow a mission card | 1200 × 460 | flat **#EEF1F5** |
+| `mat-card.png` | Card chip | 512 × 512 | the material fills the frame |
+| `mat-corr16.png` | Corrugated 1.6 chip | 512 × 512 | the material fills the frame |
+| `mat-corr4.png` | Corrugated 4 chip | 512 × 512 | the material fills the frame |
+| `mat-ply3.png` | Plywood 3 mm chip | 512 × 512 | the material fills the frame |
+
+**Rules for all seven:**
+- No text and no logos.
+- The subject stays in the middle 60% of the card images: the card art box is about 2.6 : 1 and shrinks on small screens.
+- Image models can't make transparent backgrounds, hence the flat background colour, which the page uses too.
+- Generate the three card images in one session so their light and angle match.
+
+**Style lock** (end every prompt with this):
+> Soft, clean product render, 3/4 isometric view from about 30° above, soft studio light from the upper left, gentle contact shadow, light birch plywood and kraft cardboard with real texture, crisp laser-cut edges with slightly darker burnt edges, deep teal #15706B and bright teal #1FB8AC only as small accents, calm and friendly, no people, no text, no logos.
+
+**W1: Start blank** (`way-blank.png`, 1200 × 460)
+> A wide banner image on a perfectly flat, plain #EEF1F5 background. In the centre, a single square sheet of light birch plywood lies flat, seen from 30° above, with a faint bright-teal engraved grid on its surface, like an empty workshop floor. Just above the centre of the sheet floats one rounded deep-teal plus sign, thick and friendly, casting a soft shadow on the plywood. Lots of empty background on both sides. [style lock]
+
+**W2: Build from shapes** (`way-shapes.png`, 1200 × 460)
+> A wide banner image on a perfectly flat, plain #EEF1F5 background. In the centre, three simple solid shapes made of light birch plywood stand together on a thin plywood base: a cube, a short cylinder and a square pyramid, each with visible laminated plywood layers on its cut edges. A thin bright-teal outline traces the cube, as if it has just been shaped. Lots of empty background on both sides. [style lock]
+
+**W3: Follow a mission** (`way-mission.png`, 1200 × 460)
+> A wide banner image on a perfectly flat, plain #EEF1F5 background. In the centre, a small open birch-plywood box with finger-jointed corners and three compartments, and leaning against it a white rounded card with three teal checkboxes, the first two ticked with white check marks and short grey lines for text. Lots of empty background on both sides. [style lock]
+
+**M1: Card** (`mat-card.png`, 512 × 512)
+> Macro close-up filling the whole square frame: a corner of a sheet of thick white card stock, 0.5 mm thick, seen from slightly above, with a clean laser-cut edge and one crisp fold line pressed into it. Soft paper texture, warm white. [style lock]
+
+**M2: Corrugated 1.6 mm** (`mat-corr16.png`, 512 × 512)
+> Macro close-up filling the whole square frame: a corner of a sheet of thin brown kraft corrugated cardboard (E-flute, 1.6 mm), seen from slightly above, the small regular flutes visible along the laser-cut edge. [style lock]
+
+**M3: Corrugated 4 mm** (`mat-corr4.png`, 512 × 512)
+> Macro close-up filling the whole square frame: a corner of a sheet of thick brown kraft corrugated cardboard (C-flute, 4 mm), seen from slightly above, large round flutes clearly visible along the laser-cut edge. [style lock]
+
+**M4: Plywood 3 mm** (`mat-ply3.png`, 512 × 512)
+> Macro close-up filling the whole square frame: a corner of a sheet of 3 mm light birch plywood, seen from slightly above, three thin laminated layers visible along the laser-cut edge, the edge slightly darkened by the laser, fine wood grain on the face. [style lock]

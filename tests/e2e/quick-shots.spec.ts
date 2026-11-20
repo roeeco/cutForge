@@ -168,6 +168,7 @@ for (const lang of ['en', 'he']) {
     await page.getByTestId('fit-view').click();
     await page.waitForTimeout(500);
     await shot(page, lang, '41-quick');
+    await page.getByTestId('mode-toggle').click();
     await page.getByTestId('mode-workshop').click();
     await page.waitForTimeout(400);
     await shot(page, lang, '41-workshop');

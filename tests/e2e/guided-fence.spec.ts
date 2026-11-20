@@ -18,7 +18,7 @@ for (const [name, state] of [['Workshop', WORKSHOP_STATE], ['Quick build', QUICK
       await page.getByTestId('mat-ply-3').click();
       await page.getByTestId('start-sentence').click();
       await expect(page.getByTestId('view3d')).toBeVisible();
-      await expect(page.getByTestId('mode-guided')).toBeVisible();
+      await expect(page.getByTestId('mode-toggle')).toBeVisible();
       await expect(page.getByTestId(name === 'Workshop' ? 'mode-workshop' : 'mode-quick')).toHaveAttribute('aria-checked', 'true');
       await expect(page.getByTestId('view-cluster')).toBeVisible();
       expect(errors).toEqual([]);
@@ -32,7 +32,8 @@ for (const [name, state] of [['Workshop', WORKSHOP_STATE], ['Quick build', QUICK
       const design = () => page.evaluate(() => JSON.stringify((window as any).__cutforge.store.getState().design));
       const before = await design();
       const back = name === 'Workshop' ? 'workshop' : 'quick';
-      await page.getByTestId('mode-guided').click();
+      await page.getByTestId('mode-toggle').click();
+    await page.getByTestId('mode-guided').click();
       await expect(page.getByTestId('g-topbar')).toBeVisible();
       await expect(page.getByTestId('view-cluster')).toHaveCount(0);
       await page.getByTestId('g-menu').click();

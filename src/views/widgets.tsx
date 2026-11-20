@@ -11,7 +11,7 @@ import type { V3 } from '../model/types';
 import { evalNumber } from '../ui/NumField';
 import { fmtNum } from '../i18n';
 import { snapHinge } from '../model/hinge';
-import { noSmartSnap, turnStep } from '../store/store';
+import { noSmartSnap, turnStep, useT } from '../store/store';
 
 export const HTML_Z: [number, number] = [5, 0];
 
@@ -231,6 +231,17 @@ export function priorityRaycast(this: THREE.Mesh, rc: THREE.Raycaster, out: THRE
 }
 
 /** Arrow handle at `at`, pointing along `axis`; dragging changes `value` (the distance from at − axis·value). */
+/** The size arrow, flat, along +y in screen pixels: a head each way and a stem; and the same a little larger (its rim). */
+const arrowShape = (k: number) => {
+  // k: how much wider than the arrow itself (0 for the arrow, ~2.5 for its white rim)
+  const w = 9 + k, s = 3 + k;
+  const pts: [number, number][] = [[0, 2 - k * 1.6], [w, 14], [s, 14], [s, 30], [w, 30], [0, 42 + k * 1.6], [-w, 30], [-s, 30], [-s, 14], [-w, 14]];
+  return new THREE.ShapeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))));
+};
+const ARROW = arrowShape(0);
+const ARROW_RIM = arrowShape(2.6);
+const ARROW_HALO = new THREE.CircleGeometry(26, 24).translate(0, 22, 0);
+
 export function PushPull(props: {
   at: V3;
   axis: V3;
@@ -245,52 +256,140 @@ export function PushPull(props: {
   onCancel: () => void;
   testId?: string;
 }) {
+  // A double-headed arrow (out and in) with a white rim, so it reads as "drag to resize" on wood and on the grey
+  // stage alike (the editor review, 20 November: a 14 px cone was not clear). A click without a drag opens a field
+  // with the size: type it, or ↑/↓ for a millimetre (Shift: ten), the model following; Enter or leaving keeps it,
+  // Esc puts it back.
+  const t = useT();
   const ray = useRayFromScreen();
   const [hover, setHover] = useState(false);
+  const [typing, setTyping] = useState<string | null>(null);
   const axis = useMemo(() => new THREE.Vector3(...props.axis).normalize(), [props.axis[0], props.axis[1], props.axis[2]]);
-  const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis), [axis]);
-  const start = useRef<{ base: THREE.Vector3; grab: number } | null>(null);
+  const start = useRef<{ base: THREE.Vector3; grab: number; x: number; y: number; moved: boolean } | null>(null);
+  // drawn flat, facing the camera and turned to where the axis goes on screen: seen nearly end-on (a wall's
+  // height from above) a 3D arrow flattened into a diamond
+  const g = useRef<THREE.Group>(null);
+  const angle = useRef(0);
+  const { size: viewSize } = useThree();
+  useFrame(({ camera }) => {
+    const grp = g.current;
+    if (!grp) return;
+    const P = new THREE.Vector3(...props.at);
+    const a = P.clone().project(camera), b = P.clone().add(axis).project(camera);
+    const dx = (b.x - a.x) * viewSize.width, dy = (b.y - a.y) * viewSize.height;
+    // straight at the camera: keep the last direction
+    if (Math.hypot(dx, dy) > 1e-6) angle.current = Math.atan2(dy, dx) - Math.PI / 2;
+    grp.position.copy(P);
+    grp.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle.current));
+    grp.scale.setScalar(mmPerPx(camera, viewSize.height, P));
+  });
+  // the field changed the size (a preview to commit or put back)
+  const previewed = useRef(false);
+  const clamp = (v: number) => Math.min(props.max ?? Infinity, Math.max(props.min ?? 5, v));
   const down = useHandleDrag({
     move: (ev) => {
       const s = start.current;
       if (!s) return;
+      // a few pixels of wobble is still a click
+      if (!s.moved && Math.hypot(ev.clientX - s.x, ev.clientY - s.y) < 4) return;
+      s.moved = true;
       const v = closestOnLine(ray(ev.clientX, ev.clientY), s.base, axis) - s.grab;
-      props.onPreview(Math.min(props.max ?? Infinity, Math.max(props.min ?? 5, Math.round(v))));
+      props.onPreview(clamp(Math.round(v)));
     },
     end: (cancel) => {
+      const clicked = !!start.current && !start.current.moved;
       start.current = null;
       if (cancel) props.onCancel();
       else props.onCommit();
+      if (clicked && !cancel) {
+        previewed.current = false;
+        setTyping(fmtNum(props.value));
+      }
     },
   });
-  const color = hover ? '#0f5d59' : (props.color ?? '#1fb8ac');
+  const typingOpen = useRef(false);
+  typingOpen.current = typing !== null;
+  const close = (keep: boolean, raw?: string) => {
+    // once: Enter closes the field, and its blur as it goes must not close it again
+    if (!typingOpen.current) return;
+    typingOpen.current = false;
+    setTyping(null);
+    if (keep && raw !== undefined) {
+      const v = evalNumber(raw, props.value);
+      if (v !== null && Math.abs(clamp(v) - props.value) > 1e-9) {
+        props.onPreview(clamp(Math.round(v * 10) / 10));
+        previewed.current = true;
+      }
+    }
+    if (!previewed.current) return;
+    previewed.current = false;
+    if (keep) props.onCommit();
+    else props.onCancel();
+  };
+  const color = hover || typing !== null ? '#0f5d59' : (props.color ?? '#1fb8ac');
   return (
-    <ScreenSized position={props.at} quaternion={q}>
-      <group
-        onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
-        onPointerOut={() => setHover(false)}
-        onPointerDown={(e) => {
-          const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value - (props.offset ?? 0));
-          const grab = closestOnLine(e.ray, base, axis) - props.value;
-          start.current = { base, grab };
-          down(e);
-        }}
-        userData={{ noAO: true, testId: props.testId }}
-      >
-        <mesh position={[0, 8, 0]} renderOrder={20} raycast={priorityRaycast}>
-          <coneGeometry args={[7, 14, 18]} />
-          <meshBasicMaterial color={color} {...onTop} />
-        </mesh>
-        <mesh position={[0, -1, 0]} renderOrder={20} raycast={priorityRaycast}>
-          <cylinderGeometry args={[2.2, 2.2, 6, 10]} />
-          <meshBasicMaterial color={color} {...onTop} />
-        </mesh>
-        <mesh renderOrder={19} raycast={priorityRaycast}>
-          <sphereGeometry args={[14, 12, 10]} />
-          <meshBasicMaterial color="white" opacity={hover ? 0.55 : 0} {...onTop} />
-        </mesh>
+    <>
+      <group ref={g}>
+        <group
+          onPointerOver={(e) => (e.stopPropagation(), setHover(true))}
+          onPointerOut={() => setHover(false)}
+          onPointerDown={(e) => {
+            const base = new THREE.Vector3(...props.at).addScaledVector(axis, -props.value - (props.offset ?? 0));
+            const grab = closestOnLine(e.ray, base, axis) - props.value;
+            start.current = { base, grab, x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, moved: false };
+            down(e);
+          }}
+          userData={{ noAO: true, testId: props.testId }}
+        >
+          {/* the arrow on a white rim, and a soft halo while hovered */}
+          <mesh geometry={ARROW_HALO} renderOrder={18} raycast={priorityRaycast}>
+            <meshBasicMaterial color="white" opacity={hover ? 0.5 : 0} side={THREE.DoubleSide} {...onTop} />
+          </mesh>
+          <mesh geometry={ARROW_RIM} renderOrder={19} raycast={priorityRaycast}>
+            <meshBasicMaterial color="white" side={THREE.DoubleSide} {...onTop} />
+          </mesh>
+          <mesh geometry={ARROW} renderOrder={20} raycast={priorityRaycast}>
+            <meshBasicMaterial color={color} side={THREE.DoubleSide} {...onTop} />
+          </mesh>
+        </group>
       </group>
-    </ScreenSized>
+      {(hover || typing !== null) && (
+        <StageHtml position={props.at} zIndexRange={HTML_Z}>
+          {typing === null ? (
+            <span className="pp-hint" data-testid={props.testId ? `${props.testId}-hint` : undefined}>
+              {t('stage.ppHint')}
+            </span>
+          ) : (
+            <span className="w-dim pp-field" dir="ltr">
+              <input
+                autoFocus
+                inputMode="decimal"
+                value={typing}
+                aria-label={t('stage.ppField')}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setTyping(e.target.value)}
+                onBlur={(e) => close(true, e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') close(true, e.currentTarget.value);
+                  else if (e.key === 'Escape') close(false);
+                  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const cur = evalNumber(e.currentTarget.value, props.value) ?? props.value;
+                    const v = clamp(Math.round(cur) + (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1));
+                    setTyping(fmtNum(v));
+                    props.onPreview(v);
+                    previewed.current = true;
+                  }
+                }}
+                data-testid={props.testId ? `${props.testId}-input` : undefined}
+              />
+              <span className="unit">mm</span>
+            </span>
+          )}
+        </StageHtml>
+      )}
+    </>
   );
 }
 

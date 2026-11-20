@@ -17,6 +17,7 @@ async function student(browser: Browser, material: string, name: string, code: s
   await startTemplate(page, 'organiser', material);
   await page.getByLabel('Design name').fill(title);
   await page.getByLabel('Design name').blur();
+  await page.getByTestId('top-more').click();
   await page.getByTestId('open-submit').click();
   await page.getByTestId('sub-code').fill(code);
   await page.getByTestId('sub-name').fill(name);
@@ -98,6 +99,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   const st = await ctx.newPage();
   await st.goto('/');
   await startTemplate(st, 'organiser', 'ply-3');
+  await st.getByTestId('top-more').click();
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);
   await st.getByTestId('sub-name').fill('Omer');
@@ -112,6 +114,7 @@ test('a class profile mismatch is explained; a failed submission offers the down
   // server unreachable: plain message, download offered, nothing lost
   const before = await st.evaluate(() => JSON.stringify((window as any).__cutforge.store.getState().design));
   await st.route('**/api/**', (r) => r.abort());
+  await st.getByTestId('top-more').click();
   await st.getByTestId('open-submit').click();
   await st.getByTestId('submit-go').click();
   await expect(st.getByTestId('submit-error')).toContainText('Could not reach the class server');
@@ -159,7 +162,7 @@ test('a class that locks Quick build: a student from its link starts there and c
   await st2.getByTestId('mat-ply-3').click();
   await st2.getByTestId('start-go').click();
   await expect(st2.getByTestId('quick-rail')).toBeVisible();
-  await expect(st2.getByTestId('mode-workshop')).toBeVisible();
+  await expect(st2.getByTestId('mode-toggle')).toBeVisible();
   await ctx2.close();
 });
 
@@ -193,6 +196,7 @@ test('a class offers one mission; the submission shows it and its goals met (mil
   await st.getByTestId('mission-pencil-box').click();
   await st.getByTestId('start-mission').click();
   await expect(st.getByTestId('mission-panel')).toBeVisible();
+  await st.getByTestId('top-more').click();
   await st.getByTestId('open-submit').click();
   await st.getByTestId('sub-code').fill(code);
   await st.getByTestId('sub-name').fill('Noa');

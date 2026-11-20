@@ -95,6 +95,7 @@ test.describe('between levels', () => {
     await expect(page.getByTestId('quick-rail')).toBeVisible();
     await expect(page.getByTestId('mode-quick')).toHaveAttribute('aria-checked', 'true');
     expect(await design()).toBe(before);
+    await page.getByTestId('mode-toggle').click();
     await page.getByTestId('mode-guided').click();
     await expect(page.getByTestId('g-topbar')).toBeVisible();
     await expect(page.getByTestId('g-sheet-inside')).toBeVisible();
