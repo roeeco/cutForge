@@ -1843,6 +1843,23 @@ Limitations
 - The ghost of a band fold (a fold with a radius) has not been checked against ✓ (no free edge in the golden designs to try).
 - Hand-grown walls in Nets do not offer *Closes the box* (D4, waiting for the owner): start from a tray.
 
+## Milestone C3 (Styles) — the crash-lock (auto) bottom ✅
+
+`SENTENCE_STYLES_PLAN.md` C3. `src/model/cartons.ts` (a `crash` end), `src/model/types.ts` (`TrayBottom`, `ConnGeom.glueAt`), `src/export/annotate.ts`, `src/templates/structures/carton.ts`, `src/templates/styles.ts`, `src/ui/CornersUI.tsx`.
+- **A crash-lock bottom** for a carton (ECMA B40): the front and back flaps half the depth deep, each with a 45° crease from its hinge corner to the middle that cuts off a right-angled glue triangle, at diagonally opposite corners; the side flaps meet in the middle. Glued flat at the triangles, it locks itself when the carton is squared up. In 3D it is shown erected and closed.
+- **Card only**: the sentence's *bottom* word offers *a bottom that locks itself* on card; the tray card's *Bottom* list has *Crash-lock (auto) bottom*.
+- **Glue where it goes**: the triangles carry the word *glue* on the cut plan's *Dimensions* and the spec sheet (a joint's `glueAt`), and so, now, do 112's glue-shaped flaps.
+- **One more style**: *Auto-bottom (crash-lock)*, a tuck top and a crash-lock bottom.
+
+Verified
+- `tests/c3.test.ts` (5): a crash-lock carton builds with nothing blocking; each major flap has one diagonal crease with equal legs of about half the inside depth, two glue places; folded, the flaps leave less than 2 % of the bottom uncovered (slivers along the walls); card offers it and corrugated never does, and the style is listed on card only; the triangles are named *glue* on the cut plan.
+- New golden `carton-card-crash` (looked at); every older golden byte-identical. Unit suite and typecheck green.
+
+Limitations
+- The major flaps' free edges are straight: a real crash-lock interlocks them with a stepped edge. The triangles do the gluing; the lock's shape is to try on stock.
+- Die Cut Studio's two auto-bottom cards differ in which wall the top tuck folds from; CutForge's top tuck always folds off the back, so they are one style here.
+- The sizes are starting values until cut and tried.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -104,6 +104,7 @@ export function TrayEnds({ tray }: { tray: Tray }) {
             <option value="tuckBack">{t('carton.tuckBack')}</option>
             <option value="seal">{t('carton.seal')}</option>
             <option value="rsc">{t('carton.rsc')}</option>
+            <option value="crash">{t('carton.crash')}</option>
           </select>
         </div>
       )}

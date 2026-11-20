@@ -392,6 +392,8 @@ export type ConnGeom = {
   scores: { panelId: string; a: P2; b: P2; toward?: 1 | -1 }[];
   /** Glue flaps folded in 3D: polygon in the receiving panel's local coords, slab z range there. */
   flaps3d: Flap3d[];
+  /** Where glue goes on a part that is not a glue flap of its own (milestone C3: a crash-lock bottom's glue triangles), named on the cut plan. */
+  glueAt?: { panelId: string; at: P2 }[];
   /** Material a joint removes from a panel's outline (layer 7), e.g. a sliver past a corner joint. */
   cuts?: { panelId: string; poly: P2[] }[];
   /** Bolts in captive nuts the joint uses (each a screw and a nut to buy). */
@@ -529,7 +531,7 @@ export type Tray = {
   base?: 'open';
   /** Milestone 68: how the top closes: a tuck lid folded off the back wall (`tuck`), or four flaps (`seal`); C2: a regular slotted container's flaps (`rsc`); absent: open. */
   top?: TrayTop;
-  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`, off the front wall); C2: a straight tuck (`tuckBack`, off the back wall, as the top's) or RSC flaps (`rsc`); absent: open (a sleeve). */
+  /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`, off the front wall); C2: a straight tuck (`tuckBack`, off the back wall, as the top's) or RSC flaps (`rsc`); C3: a crash-lock (auto) bottom (`crash`); absent: open (a sleeve). */
   bottom?: TrayBottom;
   /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
   curveKind?: 'teeth' | 'tabslot' | 'none';
@@ -542,9 +544,9 @@ export type Tray = {
 /** How a carton's top closes (milestones 68, C2). */
 export type TrayTop = 'tuck' | 'seal' | 'rsc';
 /** How a carton's open base closes (milestones 68, C2). */
-export type TrayBottom = 'seal' | 'snap' | 'tuck' | 'tuckBack' | 'rsc';
+export type TrayBottom = 'seal' | 'snap' | 'tuck' | 'tuckBack' | 'rsc' | 'crash';
 export const TRAY_TOPS: TrayTop[] = ['tuck', 'seal', 'rsc'];
-export const TRAY_BOTTOMS: TrayBottom[] = ['seal', 'snap', 'tuck', 'tuckBack', 'rsc'];
+export const TRAY_BOTTOMS: TrayBottom[] = ['seal', 'snap', 'tuck', 'tuckBack', 'rsc', 'crash'];
 
 /** How a tray wall was changed so its net lies flat: its glue flap trimmed, hinged off its neighbour, or cut as its own piece. */
 export type TrayFix = 'trim' | 'hinge' | 'own';

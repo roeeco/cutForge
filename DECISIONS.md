@@ -557,3 +557,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Handles capture the pointer** so a drag that ends over the folded preview still ends.
 - **Board handles only where the board grows away from its anchor**; the other edges would move the board too, and trays are sized on their own cards.
 - **Nets building is Workshop only** (the plan's §7 question 1; hidden in Quick build and Guided).
+
+## Milestone C3: the crash-lock bottom (SENTENCE_STYLES_PLAN.md)
+- **Built from public descriptions of the generic ECMA B40 bottom** (straight-edged major flaps, 45° glue triangles), not from any other tool's code. The patent named in Die Cut Studio's notes (US 6,386,437) is for the owner to confirm before this ships (`SENTENCE_STYLES_PLAN.md` §0).
+- **One auto-bottom style, not two**: the two differ only in the wall the top tuck folds from, which CutForge does not offer.
+- **Card only**, as the plan says: corrugated's flaps are too thick to glue flat and spring.
+- **`ConnGeom.glueAt`** names glue on parts that are not glue flaps of their own; the annotations read it, and the exports are unchanged (annotations are an option of the plan, not of the file).

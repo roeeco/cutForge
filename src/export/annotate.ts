@@ -3,6 +3,7 @@
 // word *glue* on each glue flap — in the piece's own coordinates. The cut
 // plan draws them as text behind *Dimensions*; the export outlines them onto
 // the GUIDE layer when asked (off by default, so files do not change).
+import { edgeFeatures } from '../model/edgeFeatures';
 import type { Design, P2 } from '../model/types';
 import type { TaggedContour } from '../geom/types';
 import type { PieceCopy } from '../model/pack';
@@ -30,6 +31,16 @@ export function annotations(d: Design, c: PieceCopy, name: (panelId: string) => 
         out.push({ text: 'glue', at: shift(applyX(n.xf, m)), size: 2, kind: 'glue' });
       }
     }
+    // milestone C3: glue on a part of another joint (a crash-lock bottom's triangles)
+    for (const conn of Object.values(d.connections))
+      for (const g of conn.geom?.glueAt ?? []) if (g.panelId === p.id) out.push({ text: 'glue', at: shift(applyX(n.xf, g.at)), size: 2, kind: 'glue' });
+    // milestone 112's glue-shaped flaps
+    for (const h of edgeFeatures(d, p.id))
+      if (h.panelId === p.id && h.kind === 'flap' && p.edgeFlaps?.find((f) => f.id === h.key)?.shape === 'glue')
+        for (const a of h.out.adds) {
+          const m = a.reduce((s2, q) => ({ x: s2.x + q.x / a.length, y: s2.y + q.y / a.length }), { x: 0, y: 0 });
+          out.push({ text: 'glue', at: shift(applyX(n.xf, m)), size: 2, kind: 'glue' });
+        }
   }
   // the blank's overall size, at its bottom left, inside it
   out.push({ text: `${fmtNum(c.w)} × ${fmtNum(c.h)} ${unit}`, at: { x: 2, y: 2 }, size: 2.5, kind: 'size' });

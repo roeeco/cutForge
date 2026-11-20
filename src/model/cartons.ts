@@ -238,6 +238,24 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
     // 4: the front flap, with a tongue that locks under the back flap's notch
     const hf = depth * 0.5, tw = notch - 2;
     flap(F, [{ x: tW, y: -0.01 }, { x: LF - tW, y: -0.01 }, { x: LF - tW, y: hf }, { x: LF / 2 + tw / 2, y: hf }, { x: LF / 2 + tw / 2 - 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2 + 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2, y: hf }, { x: tW, y: hf }]);
+  } else if (style === 'crash') {
+    // a crash-lock (auto) bottom (ECMA B40, milestone C3): the front and back flaps half the depth deep, each with a 45°
+    // crease from its hinge corner to the middle that cuts off a glue triangle (at diagonally opposite corners); the side
+    // flaps meet in the middle. Glued in the flat at the triangles, it locks itself when the carton is squared up.
+    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 0.5, tW + 0.5, Math.max(8, width / 2 - tW - 1), 3));
+    const h = Math.max(8, depth / 2 - 0.5);
+    g.glueAt = [];
+    for (const P of [B, F]) {
+      const L = along(P);
+      const corner = L - 0.5, leg = Math.min(h, corner - 0.5);
+      flap(P, rect(L, 0.5, 0.5, h));
+      const e = findEdge(P, 'e0');
+      if (!e) continue;
+      const sx = (e.b.x - e.a.x) / segLength(e), sy = (e.b.y - e.a.y) / segLength(e);
+      const at = (q: P2): P2 => ({ x: e.a.x + sx * q.x, y: e.a.y + sy * q.x - q.y });
+      g.scores.push({ panelId: P.id, a: at({ x: corner, y: 0 }), b: at({ x: corner - leg, y: leg }) });
+      g.glueAt.push({ panelId: P.id, at: at({ x: corner - leg / 3, y: (2 * leg) / 3 }) });
+    }
   } else if (style === 'rsc') {
     // a regular slotted container (FEFCO 0201, C2): every flap half the box's smaller side deep, straight slots between them;
     // the long sides' flaps meet in the middle, the short sides' leave a gap

@@ -23,7 +23,7 @@ export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBotto
 }
 
 /** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
-const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : folds(m, 2));
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' ? m.kind === 'card' : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
 const folds = (m: MaterialProfile, most: number) => m.kind === 'card' || (m.kind === 'corrugated' && m.thickness <= most);
@@ -112,7 +112,7 @@ export const carton: TemplateDef = {
     },
     {
       key: 'bottom', label: 'sen.bottom', type: 'choice', default: 'snap',
-      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }, { value: 'rsc', label: 'sen.bottom.rsc' }],
+      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }, { value: 'rsc', label: 'sen.bottom.rsc' }, { value: 'crash', label: 'sen.bottom.crash' }],
       allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'bottom', v),
       why: () => 'sen.why.engine',
       affects: ['base'],

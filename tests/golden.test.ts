@@ -95,6 +95,8 @@ CASES.push({ name: 'flap-card-hang', make: hangTabBoard });
 CASES.push({ name: 'carton-card-straight-tuck', make: () => styleCarton(MATERIALS[0], 'tuck', 'tuckBack') });
 CASES.push({ name: 'carton-corr4-rsc', make: () => styleCarton(MATERIALS[2], 'rsc', 'rsc', 150, 100, 100) });
 CASES.push({ name: 'drawer-card', make: () => templateDesign('drawer', MATERIALS[0]) });
+// milestone C3: a crash-lock (auto) bottom
+CASES.push({ name: 'carton-card-crash', make: () => styleCarton(MATERIALS[0], 'tuck', 'crash') });
 
 function exportsOf(d: Design, kerf: KerfMode = 'nominal') {
   const prep = prepareExport(d, kerf);
