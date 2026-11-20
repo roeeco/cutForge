@@ -645,3 +645,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The unfolder's flap size wins** over the chooser's: it fitted the net with it.
 - **A change of material keeps folds as folds** (the net is not re-cut) and keeps every joint the student picked (`picked`, set whenever the joint card changes a made joint's kind).
 - **Flaps keep a board's thickness clear** of the faces round them in the unfolder, since a crease moves a board by up to that much.
+
+## Milestone 126 (Shapes R7): the one click
+- **Stage 2 is the Workshop's own 3D view** of the made boards (decision 2), with the fold slider; the shape stage's view comes back with *1 Shape*.
+- **A net split into pieces is said, not listed as a problem**: it cuts and folds as it is. The problems are the plan's: a face bigger than the sheet, a flap with no room, a tiny face, too many faces.
+- **The fixes make the model again** with the changed spec (one undo step each), so a fix can never leave the made model half-changed.
+- **The material each design was made with is kept in memory, not in the file**: after a reload, the material it opens with is the baseline for *the material changed*.
+- **The Make card's outcome chooser is gone**: the stage bar's two buttons choose, and a click on the other one makes the other outcome.

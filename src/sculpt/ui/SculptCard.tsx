@@ -15,8 +15,7 @@ import { shapeColor } from './geom';
 import { shapeTile } from './tiles';
 import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, ungroupSelected } from './commands';
 import { RadiusToolCard, SketchShapeFields, SketchToolCard, stageCamera } from './SketchCard';
-import { outcomeIds, outcomeOf, outcomeUi, type OutcomeId } from '../outcomes';
-import type { MsgKey } from '../../i18n';
+import { outcomeOf, outcomeUi } from '../outcomes';
 
 type T = ReturnType<typeof useT>;
 const st = () => useStore.getState();
@@ -292,25 +291,11 @@ function Overview() {
   );
 }
 
-/** Stage 2's card: the design's outcome's own card, with a chooser once there are two outcomes. */
+/** Stage 2's card: the design's outcome's own card (the stage bar chooses the outcome, milestone 126). */
 function OutcomeCard() {
-  const t = useT();
   const id = useStore((s) => outcomeOf(s.design));
-  const ids = outcomeIds();
   const C = id ? outcomeUi(id)?.Card : undefined;
-  return (
-    <>
-      {ids.length > 1 && (
-        <Segmented
-          label={t('outcome.choose')}
-          value={id ?? ''}
-          options={ids.map((o) => ({ value: o, label: t((outcomeUi(o)?.nameKey ?? 'stage.make') as MsgKey), testId: `outcome-${o}` }))}
-          onChange={(v) => edit((d) => void (d.outcome = v as OutcomeId))}
-        />
-      )}
-      {C ? <C /> : null}
-    </>
-  );
+  return C ? <C /> : null;
 }
 
 export function SculptCard() {

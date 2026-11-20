@@ -2075,6 +2075,25 @@ Limitations
 - The house folds in two pieces on the card sheet: the unfolder's flap rule is strict.
 - Board corners outside 30–150° are left unjoined and listed; their one-click fixes come with 127's Make card.
 
+## Milestone 126 (Shapes R7) — *Fold it*, in one click ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R7, decision 0. New `src/make/` (`run.ts`: `makeNow`, `canMake`, `materialFor`, `polyOf`; `MakeCard.tsx`; `register.ts`; `unfold.worker.ts`), registered with the shape kernel's loader (`App.tsx`); `MakeSpec.seams`; the stage-2 outcome chooser removed from the shape card (the stage bar has the two buttons).
+- **The click**: *Fold it* on the stage bar makes the face graph (12 faces round a curve), unfolds it (in a **Worker** over 40 faces, R0's decision; on the main thread under), reassembles it as one undo step, switches to stage 2 on the **Workshop's own 3D view of the made boards** and plays the fold from flat to closed over 1.5 s. The material is the design's when it folds, else card. No dialog comes first.
+- **The Make card** (only to refine): the material pill (a change re-chooses every joint not set by hand and says how many changed; a material that cannot fold offers *Build from boards*), *N pieces · N folds · N flaps*, *Seams* (Automatic · Glue · Slit locks · Tab and slot), *Pieces* (Fewest pieces · Fewer cuts), *Faces around a curve* when a curved shape is there, how the net was split (said, not listed as a problem), the problems with their fixes, and *Make again*.
+- **Problems and fixes**: a face larger than the sheet (*Make it smaller*: every shape 80%); a flap with no room (*Tab and slot instead*, *Fold it here*); too many faces, a tiny face or a sliver (*Fewer faces*); an open shape. Each fix makes the model again with the change.
+- *1 Shape* on the stage bar goes back to the shapes with nothing lost; the made boards stay in the design.
+
+Verified
+- `tests/e2e/make-fold.spec.ts`: *Shapes* in card, a house drawn as a gable end extruded 60 mm, one click on *Fold it*: the design is folded (7 boards, 5 or more folds), no problem listed, the exported SVG has as many outer outlines as the net has pieces, *1 Shape* returns to the shapes with the boards kept; no page errors.
+- A look in the dev server: the house folds up from its net and closes, slit locks on the roof's last face.
+- The engine tests of 125 (`reassemble.test.ts`) cover the cube, prism, pyramid, diamond, L-prism and house folded from card; unit suite and typecheck green.
+
+Limitations
+- **Leave open** (faces clicked in 3D) and **fold / cut by edge** in 3D are not built yet: the spec carries them (`open`, `edges`) and 130 adds the picking. Edges and faces in 3D are not highlighted with the Net view.
+- **Seam numbers** on the guide layer come with the assembly steps (131).
+- *Make it smaller* scales every shape by 80%; it does not split a face.
+- A sharp fold (under 20°) is not yet warned about.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -24,6 +24,16 @@ export const sheetOf = (d: Pick<Design, 'sheetMargin'>, m: MaterialProfile) => (
 /** How far a face reaches back from one of its edges, on average: its area over the edge's length. */
 const span = (P: Polyhedron, f: FaceKey, e: PEdge) => Math.abs(P.faces[f].area) / Math.max(1e-6, e.len);
 
+/** The chooser's choice for a cut seam in a net, with the Make card's *Seams* setting over it where the seam allows. */
+function seamChoice(P: Polyhedron, e: PEdge, mat: MaterialProfile, last: FaceKey | null, seams: MakeSpec['seams']) {
+  const ch = chooseJoint(seamCtx(P, e, mat, 'seam', last));
+  if (!seams || seams === ch.kind) return ch;
+  const flap = (ch.params.flap ?? chooseJoint(seamCtx(P, e, mat, 'seam', null)).params.flap) || undefined;
+  if (seams === 'tabslot') return e.dihedral >= 30 && e.dihedral <= 150 && e.len >= 18 ? { kind: 'tabslot' as const, params: {}, why: 'joint.why.asked' as MsgKey } : { kind: 'glue' as const, params: { flap }, why: 'joint.why.outsideAngle' as MsgKey };
+  if (seams === 'lock' && e.len < 25) return { kind: 'glue' as const, params: { flap }, why: 'joint.why.short' as MsgKey };
+  return { kind: seams, params: { flap }, why: 'joint.why.asked' as MsgKey };
+}
+
 /** The chooser's context for one edge. */
 export function seamCtx(P: Polyhedron, e: PEdge, mat: MaterialProfile, role: SeamRole, last: FaceKey | null): SeamCtx {
   return { mat, role, len: e.len, dihedral: e.dihedral, spanA: span(P, e.a, e), spanB: span(P, e.b, e), closesLast: !!last && (e.a === last || e.b === last) };
@@ -68,7 +78,7 @@ export function reassemble(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?:
   const last = closingFace(faces.map((f) => ({ key: f.key, n: f.n, area: f.area })));
   if (spec.as === 'fold') {
     const flapOf = (e: PEdge) => {
-      const ch = chooseJoint(seamCtx(P, e, mat, 'seam', last));
+      const ch = seamChoice(P, e, mat, last, spec.seams);
       return ch.kind === 'glue' || ch.kind === 'lock' ? (ch.params.flap ?? 0) : 0;
     };
     const u = unfolding ?? unfold(P, { sheet: sheetOf(d, mat), flap: flapOf, prefer: spec.prefer, fixed: spec.edges, open: spec.open, seed: d.id, clearance: mat.thickness });
@@ -80,13 +90,13 @@ export function reassemble(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?:
       flapTaper: u.flapTaper,
       open,
       order: islandOrder(P, u),
-      seam: (e) => chooseJoint(seamCtx(P, e, mat, 'seam', last)).kind,
+      seam: (e) => seamChoice(P, e, mat, last, spec.seams).kind,
     });
     for (const e of Object.values(P.edges)) {
       const c = d.connections[seamId(e.key)];
       if (!c) continue;
       const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
-      const ch = chooseJoint(seamCtx(P, e, mat, role, last));
+      const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
       // the unfolder's flap size (it fitted the net with it) wins over the chooser's
       const params = { ...ch.params, ...(c.flap !== null ? { flap: c.flap } : {}) };
       if (role === 'fold') applyChoice(c, ch.kind === 'fold' ? 'fold' : 'fold', ch.kind === 'fold' ? params : {}, ch.why);

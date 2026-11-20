@@ -512,6 +512,8 @@ export type MakeSpec = {
   facets?: { card?: number; boards?: number; byShape?: Record<string, number> };
   /** Fewest pieces, or fewer cuts. */
   prefer?: 'pieces' | 'cuts';
+  /** Fold it: how cut seams close (absent: the chooser's). */
+  seams?: 'glue' | 'lock' | 'tabslot';
   /** Faces left out (openings). */
   open?: string[];
   /** Card: the student's fold or cut by edge. */
