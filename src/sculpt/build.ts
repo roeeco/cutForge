@@ -144,7 +144,14 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
       const top = s.kind === 'pyramid' ? Math.max(0, Math.min(1, s.top ?? 0)) : 1;
       // a box or prism tapered to a frustum (milestone 121): its top scaled in width and depth
       const tp: [number, number] = s.kind !== 'pyramid' && s.taper ? [Math.max(0, s.taper[0]), Math.max(0, s.taper[1])] : [top, top];
-      return footprintSection(k, footprint(s)).extrude(h, 0, 0, tp);
+      let body = footprintSection(k, footprint(s)).extrude(h, 0, 0, tp);
+      // chamfered edges (milestone 132): each cut off by a plane through the two lines d in from the edge
+      if (s.kind !== 'pyramid' && !s.taper && s.chamfers?.length) for (const pl of chamferPlanes(s)) body = body.trimByPlane(pl.n as never, pl.off);
+      return body;
+    }
+    case 'loft': {
+      if (!ok(w) || !ok(h) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
+      return Manifold.hull(loftCorners(s) as never);
     }
     // milestone 121: flat-faced shapes, each the hull of its corners (z up, the footprint in XY, y towards the back)
     case 'wedge':
@@ -230,6 +237,62 @@ export function flatCorners(s: Shape3): V3[] {
   return [[0, 0, 0], ...ring(1, h - crown), ...ring(table, h)];
 }
 
+/** A loft's corners (milestone 132): its base outline at the floor, its top outline at its height (z up), each fitted to the width and depth. */
+export function loftCorners(s: Shape3): V3[] {
+  const [w, h, d] = s.size ?? [40, 40, 40];
+  const k = Math.max(0.05, Math.min(4, s.top ?? 1));
+  return [...ngon(clampLoft(s.n ?? 4), w, d).map((p) => [p.x, p.y, 0] as V3), ...ngon(clampLoft(s.n2 ?? 8), w * k, d * k).map((p) => [p.x, p.y, h] as V3)];
+}
+const clampLoft = (n: number) => Math.max(3, Math.min(32, Math.round(n)));
+
+/** The faces of a box or prism in its body's coordinates (z up): each role's outward normal and offset (dot(n, x) = h on the face). */
+export function bodyFaces(s: Shape3): Record<string, { n: V3; h: number }> {
+  const [, H] = s.size ?? [40, 40, 40];
+  const foot = footprint({ ...s, corners: undefined }).map((p) => ({ x: p.x, y: p.y }));
+  const out: Record<string, { n: V3; h: number }> = { top: { n: [0, 0, 1], h: H }, bottom: { n: [0, 0, -1], h: 0 } };
+  const ccw = area2(foot) >= 0 ? 1 : -1;
+  foot.forEach((p, i) => {
+    const q = foot[(i + 1) % foot.length];
+    const dx = q.x - p.x, dy = q.y - p.y, l = Math.hypot(dx, dy) || 1;
+    const n: V3 = [(ccw * dy) / l, (-ccw * dx) / l, 0];
+    const role = s.kind === 'box' ? (['+z', '+x', '-z', '-x'][i] ?? `side${i}`) : `side${i}`;
+    out[role] = { n, h: n[0] * p.x + n[1] * p.y };
+  });
+  return out;
+}
+
+/** The planes a box's or prism's chamfers cut along (milestone 132): `trimByPlane(n, off)` keeps the body behind each. */
+export function chamferPlanes(s: Shape3): { n: V3; off: number; m: V3 }[] {
+  const F = bodyFaces(s);
+  const out: { n: V3; off: number; m: V3 }[] = [];
+  const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  for (const c of s.chamfers ?? []) {
+    const A = F[c.a], B = F[c.b];
+    if (!A || !B || !(c.d > 0)) continue;
+    const e = cross(A.n, B.n);
+    const le = Math.hypot(...e);
+    if (le < 1e-6) continue;
+    const eu: V3 = [e[0] / le, e[1] / le, e[2] / le];
+    // a point on the edge: on both faces, with no component along it
+    const M = [A.n, B.n, eu];
+    const det = dot(M[0], cross(M[1], M[2]));
+    const X0: V3 = [0, 1, 2].map((i) => (A.h * cross(M[1], M[2])[i] + B.h * cross(M[2], M[0])[i]) / det) as V3;
+    // in each face, d away from the edge (away from the other face)
+    const inA = cross(A.n, eu), inB = cross(B.n, eu);
+    const sa = dot(inA, B.n) > 0 ? -1 : 1, sb = dot(inB, A.n) > 0 ? -1 : 1;
+    const PA: V3 = [X0[0] + inA[0] * sa * c.d, X0[1] + inA[1] * sa * c.d, X0[2] + inA[2] * sa * c.d];
+    const PB: V3 = [X0[0] + inB[0] * sb * c.d, X0[1] + inB[1] * sb * c.d, X0[2] + inB[2] * sb * c.d];
+    let m = cross([PB[0] - PA[0], PB[1] - PA[1], PB[2] - PA[2]], eu);
+    const lm = Math.hypot(...m) || 1;
+    m = [m[0] / lm, m[1] / lm, m[2] / lm];
+    if (dot(m, [A.n[0] + B.n[0], A.n[1] + B.n[1], A.n[2] + B.n[2]]) < 0) m = [-m[0], -m[1], -m[2]];
+    // keep what lies behind the chamfer's plane (its outward normal m)
+    out.push({ n: [-m[0], -m[1], -m[2]], off: -dot(m, PA), m });
+  }
+  return out;
+}
+
 function emptyMesh(k: Kernel) {
   return new k.Mesh({ numProp: 3, vertProperties: new Float32Array(0), triVerts: new Uint32Array(0) });
 }
@@ -261,7 +324,7 @@ export function clearShapeCache() {
 }
 export const shapeCacheSize = () => cache.size;
 
-const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch', 'facets', 'taper', 'crown', 'table', 'hull'] as const;
+const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch', 'facets', 'taper', 'crown', 'table', 'hull', 'chamfers', 'n2'] as const;
 
 /** The stable key of a shape's geometry in its parent's frame (its subtree for a group). */
 export function shapeKey(sc: Sculpt, id: string, seen = new Set<string>()): string {

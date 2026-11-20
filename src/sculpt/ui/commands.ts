@@ -154,6 +154,16 @@ export function sculptKey(e: KeyboardEvent): boolean {
     e.preventDefault();
     return true;
   }
+  // milestone 132: E edits a group in place, P measures the angle between two faces
+  if (!mod && key === 'e' && s.selection?.kind === 'shape' && s.design.sculpt?.shapes[s.selection.id]?.kind === 'group') {
+    s.setSculpt({ focus: s.selection.id });
+    s.select(null);
+    return true;
+  }
+  if (!mod && key === 'p' && s.sculpt.stage === 'shape') {
+    s.setSculpt({ protractor: s.sculpt.protractor ? null : {} });
+    return true;
+  }
   // the workplane (milestone 121): W picks a face, D drops the selection onto it
   if (!mod && key === 'w' && s.sculpt.stage === 'shape') {
     s.setSculpt({ picking: !s.sculpt.picking });

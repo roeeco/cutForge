@@ -193,8 +193,14 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
       const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
       // the unfolder's flap size (it fitted the net with it) wins over the chooser's; a lock's less its tongue
-      const fitted = c.flap !== null ? (ch.kind === 'lock' && !spec.joints?.[e.key] ? Math.max(3, c.flap - tongue) : c.flap) : null;
+      // a lock squeezed below the room its tongue needs is glued with the flap the net has room for
+      const squeezed = ch.kind === 'lock' && !spec.joints?.[e.key] && c.flap !== null && c.flap - tongue < 3;
+      const fitted = c.flap !== null ? (ch.kind === 'lock' && !spec.joints?.[e.key] && !squeezed ? c.flap - tongue : c.flap) : null;
       const params = { ...ch.params, ...(fitted !== null ? { flap: fitted } : {}) };
+      if (squeezed) {
+        applyChoice(c, 'glue', params, 'joint.why.short');
+        continue;
+      }
       if (role === 'fold') applyChoice(c, ch.kind === 'fold' ? 'fold' : 'fold', ch.kind === 'fold' ? params : {}, ch.why);
       else {
         const picked = spec.joints?.[e.key];

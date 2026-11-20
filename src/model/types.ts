@@ -538,7 +538,7 @@ export type Sculpt = {
   order: string[];
 };
 
-export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'wedge' | 'roof' | 'gem' | 'extrude' | 'revolve' | 'group';
+export type ShapeKind = 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus' | 'wedge' | 'roof' | 'gem' | 'loft' | 'extrude' | 'revolve' | 'group';
 
 /** A unit quaternion [x, y, z, w]. */
 export type Quat = [number, number, number, number];
@@ -565,6 +565,10 @@ export type Shape3 = {
   /** Diamond (milestone 121): the crown's height (mm, the rest of the height is the pavilion) and the table's width as a fraction of the girdle's. */
   crown?: number;
   table?: number;
+  /** Box and prism (milestone 132): straight edges chamfered, each between two faces by role, `d` mm along each face. */
+  chamfers?: { a: string; b: string; d: number }[];
+  /** Loft (milestone 132): the top outline's sides (the base's are `n`). */
+  n2?: number;
   /** Group (milestone 121): the hull of its solid members, not their union. */
   hull?: true;
   /** Box and prism: footprint corner radii by corner index (absent or 0 = sharp). */

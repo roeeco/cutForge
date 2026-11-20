@@ -7,7 +7,7 @@
 // moved sketch point keeps every key; a new facet count changes only the facets'.
 import type { P2, Sculpt, Shape3, V3 } from '../model/types';
 import { polyFromTriangles, prefixPoly, type PFace, type Polyhedron } from '../model/polyhedron';
-import { buildSolid, footprint, shapeMatrix, shapeOfOriginal } from './build';
+import { buildSolid, chamferPlanes, footprint, shapeMatrix, shapeOfOriginal } from './build';
 import { scope, type Kernel } from './kernel';
 import { parentMatrix } from './tree';
 import { m4Apply, m4InvAffine, m4Mul } from './xform';
@@ -69,6 +69,12 @@ function roleOf(s: Shape3, n: V, c: V, N: number, segPts: { id: string; pts: P2[
     case 'box':
     case 'prism':
     case 'pyramid': {
+      // a chamfer's face (milestone 132): named by the two faces it lies between
+      if (s.chamfers?.length && s.kind !== 'pyramid')
+        for (let i = 0; i < s.chamfers.length; i++) {
+          const pl = chamferPlanes({ ...s, chamfers: [s.chamfers[i]] })[0];
+          if (pl && n[0] * pl.m[0] + n[1] * pl.m[1] + n[2] * pl.m[2] > 1 - 1e-6) return { role: `ch:${s.chamfers[i].a}|${s.chamfers[i].b}` };
+        }
       if (up > 1 - 1e-6) return { role: 'top' };
       if (up < -1 + 1e-6) return { role: 'bottom' };
       const h = norm([n[0], n[1], 0]);
@@ -83,6 +89,11 @@ function roleOf(s: Shape3, n: V, c: V, N: number, segPts: { id: string; pts: P2[
       if (s.kind === 'box') return { role: ['+z', '+x', '-z', '-x'][best] ?? `side${best}` };
       return { role: `side${best}` };
     }
+    // milestone 132: a loft's base, top and walls
+    case 'loft':
+      if (up > 1 - 1e-6) return { role: 'top' };
+      if (up < -1 + 1e-6) return { role: 'bottom' };
+      return { role: `w${Math.round(deg(az))}` };
     // milestone 121's flat-faced shapes
     case 'wedge':
     case 'roof': {

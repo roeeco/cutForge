@@ -691,3 +691,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Always card, whatever the student chose**: the plan's *always folded from card in Guided*.
 - **The unfolder now models the engine's crease overlap and fits nets square to their first board**; a corner sliver under 3t² is allowed (the export check's 4t² less a margin). These were found by sweeping every size Guided's sliders offer: the guard refuses any new net overlap, so a slider must never make one.
 - **A slit lock's flap is fitted with its tongue** (5 mm on card, t + 4 on corrugated), the flap made that much shallower.
+
+## Milestone 132 (Shapes R13): the workplane, second part
+- **A loft is the hull of its two outlines**: straight walls and flat faces by construction (the plan's *round ends faceted*), for convex outlines.
+- **Chamfers are chosen by groups of edges** (top, upright, bottom) with one distance, and stored per edge by its two faces' roles: the plan's storage, a simpler control.
+- **The protractor reads the joint chooser**, so it says what *Build from boards* or *Fold it* would make there.
+- **A lock with no room for its tongue becomes glue** with the flap the net fitted.

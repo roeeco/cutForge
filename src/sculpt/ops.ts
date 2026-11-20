@@ -13,7 +13,7 @@ export { alignedAxes };
 export { parentMatrix, parentOf, worldPose };
 export { freeSpot } from './box';
 
-export const PRIMITIVES = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus', 'wedge', 'roof', 'gem'] as const;
+export const PRIMITIVES = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'sphere', 'halfsphere', 'torus', 'wedge', 'roof', 'gem', 'loft'] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
 
 /** A new waffle design: no boards, an empty set of shapes. */
@@ -65,13 +65,16 @@ export function primitiveShape(kind: Primitive, foot: { x: number; z: number; w:
       return { ...base, size: [w, h, d] };
     case 'gem':
       return { ...base, size: [w, h, d], n: 8, crown: Math.round(h * 0.27 * 100) / 100, table: 0.55 };
+    // milestone 132: a loft from one outline to another with straight walls (a square to an octagon)
+    case 'loft':
+      return { ...base, size: [w, h, d], n: 4, n2: 8, top: 1 };
   }
 }
 
 /** The heights the last confirmed shapes of each kind used (milestone 55). */
 export type Heights = Partial<Record<Primitive | 'extrude', number>>;
 /** Kinds whose height is remembered; a sphere, half sphere and ring never store or read one. */
-export const HEIGHT_KINDS: readonly (Primitive | 'extrude')[] = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'wedge', 'roof', 'gem', 'extrude'];
+export const HEIGHT_KINDS: readonly (Primitive | 'extrude')[] = ['box', 'cylinder', 'cone', 'prism', 'pyramid', 'wedge', 'roof', 'gem', 'loft', 'extrude'];
 /** The height a new shape of this kind starts at: the remembered one, else min(w, d) (20 for an extrusion). */
 export function startHeight(kind: Primitive | 'extrude', heights: Heights, w = 40, d = 40): number {
   const h = HEIGHT_KINDS.includes(kind) ? heights[kind] : undefined;

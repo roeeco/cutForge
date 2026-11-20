@@ -16,6 +16,7 @@ import { shapeTile } from './tiles';
 import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, hullSelected, ungroupSelected } from './commands';
 import { RadiusToolCard, SketchShapeFields, SketchToolCard, stageCamera } from './SketchCard';
 import { outcomeOf, outcomeUi } from '../outcomes';
+import { alignShapes, mirrorShapes } from '../arrange';
 
 type T = ReturnType<typeof useT>;
 const st = () => useStore.getState();
@@ -209,6 +210,48 @@ function TaperFields({ s }: { s: Shape3 }) {
   );
 }
 
+/** A loft's two outlines (milestone 132): base sides, top sides, top size. */
+function LoftFields({ s }: { s: Shape3 }) {
+  const t = useT();
+  return (
+    <div className="field-grid" data-testid="shape-loft">
+      <Stepper label={t('sculpt.sides')} value={s.n ?? 4} min={3} max={32} onCommit={(v) => edit((x) => updateShape(x, s.id, { n: v }))} testId="shape-sides" />
+      <Stepper label={t('sculpt.topSides')} value={s.n2 ?? 8} min={3} max={32} onCommit={(v) => edit((x) => updateShape(x, s.id, { n2: v }))} testId="shape-top-sides" />
+      <NumField label={t('sculpt.topSize')} value={Math.round((s.top ?? 1) * 100)} unit="%" min={5} max={400} decimals={0} onCommit={(v) => edit((x) => updateShape(x, s.id, { top: v / 100 }))} testId="shape-top-size" />
+    </div>
+  );
+}
+
+/** Chamfered edges (milestone 132): the top edges, the upright ones or the bottom ones, d mm along each face. */
+function ChamferFields({ s }: { s: Shape3 }) {
+  const t = useT();
+  const sides = s.kind === 'box' ? ['+z', '+x', '-z', '-x'] : Array.from({ length: clampSides(s.n) }, (_, i) => `side${i}`);
+  const groups = {
+    top: sides.map((r) => ({ a: 'top', b: r })),
+    up: sides.map((r, i) => ({ a: r, b: sides[(i + 1) % sides.length] })),
+    bottom: sides.map((r) => ({ a: 'bottom', b: r })),
+  } as const;
+  const has = (g: keyof typeof groups) => groups[g].every((p) => s.chamfers?.some((c) => c.a === p.a && c.b === p.b));
+  const d = s.chamfers?.[0]?.d ?? 5;
+  const set = (g: keyof typeof groups, on: boolean, dd = d) =>
+    edit((x) => {
+      const cur = (x.sculpt!.shapes[s.id].chamfers ?? []).filter((c) => !groups[g].some((p) => p.a === c.a && p.b === c.b));
+      const next = on ? [...cur, ...groups[g].map((p) => ({ ...p, d: dd }))] : cur;
+      updateShape(x, s.id, { chamfers: next.length ? next.map((c) => ({ ...c, d: dd })) : undefined });
+    });
+  return (
+    <details className="subsection" open={!!s.chamfers?.length} data-testid="shape-chamfer">
+      <summary>{t('sculpt.chamfer')}</summary>
+      {(['top', 'up', 'bottom'] as const).map((g) => (
+        <label key={g} className="check">
+          <input type="checkbox" checked={has(g)} onChange={(e) => set(g, e.target.checked)} data-testid={`shape-chamfer-${g}`} /> {t(g === 'top' ? 'sculpt.chamferTop' : g === 'up' ? 'sculpt.chamferSides' : 'sculpt.chamferBottom')}
+        </label>
+      ))}
+      {!!s.chamfers?.length && <NumField label={t('sculpt.chamfer')} value={d} unit={t('unit.mm')} min={0.5} onCommit={(v) => edit((x) => updateShape(x, s.id, { chamfers: (x.sculpt!.shapes[s.id].chamfers ?? []).map((c) => ({ ...c, d: v })) }))} testId="shape-chamfer-d" />}
+    </details>
+  );
+}
+
 /** A diamond's sides, crown and table (milestone 121). */
 function GemFields({ s }: { s: Shape3 }) {
   const t = useT();
@@ -253,6 +296,8 @@ function ShapeCard({ id }: { id: string }) {
       {(s.kind === 'cone' || s.kind === 'pyramid') && <NumField label={t('sculpt.top')} value={Math.round((s.top ?? 0) * 100)} unit="%" min={0} max={100} decimals={0} onCommit={(v) => edit((x) => updateShape(x, id, { top: Math.max(0, Math.min(1, v / 100)) }))} testId="shape-top" />}
       {(s.kind === 'box' || s.kind === 'prism') && <TaperFields s={s} />}
       {s.kind === 'gem' && <GemFields s={s} />}
+      {s.kind === 'loft' && <LoftFields s={s} />}
+      {(s.kind === 'box' || s.kind === 'prism') && !s.taper && <ChamferFields s={s} />}
       {(s.kind === 'box' || s.kind === 'prism') && <CornerFields s={s} t={t} />}
       <SketchShapeFields s={s} />
       {s.kind === 'group' && (
@@ -278,8 +323,33 @@ function ShapeCard({ id }: { id: string }) {
   );
 }
 
+/** Line up (min, middle, max on each axis, to the last shape clicked) and mirror (milestone 132). */
+function AlignMirror({ ids, anchor }: { ids: string[]; anchor: string }) {
+  const t = useT();
+  const axes = [['x', 0], ['y', 1], ['z', 2]] as const;
+  return (
+    <div className="subsection" data-testid="shapes-align">
+      <h4 title={t('sculpt.alignHelp')}>{t('sculpt.align')}</h4>
+      {axes.map(([name, ax]) => (
+        <div key={name} className="row-buttons">
+          <b dir="ltr">{name.toUpperCase()}</b>
+          {(['min', 'mid', 'max'] as const).map((at) => (
+            <button key={at} className="ghost" onClick={() => edit((x) => alignShapes(x, ids, anchor, ax, at))} data-testid={`align-${name}-${at}`}>
+              {at === 'min' ? '⇤' : at === 'mid' ? '↔' : '⇥'}
+            </button>
+          ))}
+          <button className="ghost" onClick={() => edit((x) => mirrorShapes(x, ids, ax))} title={t('sculpt.mirror')} data-testid={`mirror-${name}`}>
+            ⇋
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MultiCard({ ids }: { ids: string[] }) {
   const t = useT();
+  const sel = useStore((s) => s.selection);
   const d = useStore((s) => s.design);
   const holes = ids.every((id) => d.sculpt?.shapes[id]?.hole);
   const anyHole = ids.some((id) => d.sculpt?.shapes[id]?.hole);
@@ -312,6 +382,7 @@ function MultiCard({ ids }: { ids: string[] }) {
       <XformMode />
       <SolidHole hole={holes} onChange={(h) => edit((x) => setHole(x, ids, h))} testId="multi" />
       <ScaleFields ids={ids} />
+      <AlignMirror ids={ids} anchor={sel?.kind === 'shape' ? sel.id : ids[ids.length - 1]} />
     </section>
   );
 }

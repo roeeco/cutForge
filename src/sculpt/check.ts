@@ -18,6 +18,9 @@ function shapeOk(s: any, id: string): s is Shape3 {
   // milestone 121: a taper, a hull
   if (s.taper !== undefined && !(vec(s.taper, 2) && s.taper.every((v: number) => v >= 0 && v <= 4))) delete s.taper;
   if (s.hull !== undefined && (s.hull !== true || s.kind !== 'group')) delete s.hull;
+  // milestone 132: chamfers, a loft's top sides
+  if (s.chamfers !== undefined && !(Array.isArray(s.chamfers) && s.chamfers.every((c: any) => isObj(c) && typeof c.a === 'string' && typeof c.b === 'string' && finite(c.d) && c.d > 0))) delete s.chamfers;
+  if (s.n2 !== undefined && !finite(s.n2)) delete s.n2;
   if (s.corners !== undefined && !(Array.isArray(s.corners) && s.corners.every((r: unknown) => finite(r) && (r as number) >= 0))) delete s.corners;
   if (s.sketch !== undefined) {
     const k = s.sketch;

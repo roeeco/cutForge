@@ -93,7 +93,8 @@ export function scaleShape(d: Design, id: string, f: V3, anchor: V3): void {
     case 'halfsphere':
     case 'wedge':
     case 'roof':
-    case 'gem': {
+    case 'gem':
+    case 'loft': {
       const size = s.size ?? [40, 40, 40];
       s.size = [r6(size[0] * f[0]), r6(size[1] * f[1]), r6(size[2] * f[2])];
       if (s.crown !== undefined) s.crown = r6(s.crown * f[1]);

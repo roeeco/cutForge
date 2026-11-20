@@ -54,6 +54,8 @@ describe('primitives', () => {
     // milestone 121: half a box each; a diamond is a pyramid (the pavilion) under a frustum (the crown)
     wedge: (W * D * H) / 2,
     roof: (W * D * H) / 2,
+    // milestone 132: a loft is checked in flatshapes.test.ts (its faces and its folding), not by a formula
+    loft: 0,
     gem: (() => {
       // a regular octagon fitted to W × D (flat sides at the box's sides): 2(√2 − 1) of the box
       const A = 2 * (Math.SQRT2 - 1) * W * D, c = Math.round(H * 0.27 * 100) / 100, t = 0.55;
@@ -62,7 +64,7 @@ describe('primitives', () => {
   };
   // a hexagon fitted to a W × D box: its area is 3/4 of the box's
   formulas.prism = 0.75 * W * D * H;
-  it.each(PRIMITIVES)('%s volume is within 0.5% of its formula', (kind) => {
+  it.each(PRIMITIVES.filter((k) => k !== 'loft'))('%s volume is within 0.5% of its formula', (kind) => {
     // a 0.02 mm chord error is 0.4% of a 5 mm tube: the torus is checked with a 20 mm tube
     const patch = kind === 'torus' ? { size: [100, 20, 100], tube: 20 } : kind === 'sphere' ? { size: [W, H, D] } : kind === 'halfsphere' ? { size: [W, H, D] } : {};
     const { d, id } = design(kind, H, patch);

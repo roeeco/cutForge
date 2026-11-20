@@ -23,6 +23,7 @@ import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
 import { outcomeOf, outcomeUi } from '../outcomes';
 import { upTo } from '../workplane';
+import { protractorReading } from '../protractor';
 
 /** The shapes on the stage: the top level, or the members of the group being worked inside. */
 export function visibleShapes(d: Design, focus: string | null): { id: string; dim: boolean }[] {
@@ -363,6 +364,16 @@ function SculptScene() {
   const onShapeDown = (id: string, dim: boolean) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0 || e.intersections[0]?.object !== e.object) return;
     const st = useStore.getState();
+    // the protractor (milestone 132): two faces, then the angle between them and its joint
+    const pr = st.sculpt.protractor;
+    if (pr) {
+      const n = e.face?.normal.clone().transformDirection(e.object.matrixWorld).normalize();
+      if (!n) return;
+      e.stopPropagation();
+      const v: V3 = [n.x, n.y, n.z];
+      if (!pr.n1 || pr.read) return st.setSculpt({ protractor: { n1: v } });
+      return st.setSculpt({ protractor: { n1: pr.n1, read: protractorReading(pr.n1, v, st.design.material) } });
+    }
     // W, then a face: the workplane (milestone 121); Shift takes the face's other side
     if (st.sculpt.picking) {
       const n = e.face?.normal.clone().transformDirection(e.object.matrixWorld).normalize();
@@ -588,7 +599,8 @@ export function SculptView3D() {
   }, []);
   const overlay = useRef<HTMLDivElement>(null);
   const picking = useStore((s) => !!s.sculpt.picking);
-  const hint = picking ? 'sculpt.workplane' : ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'make.hint' : empty ? 'sculpt.empty' : nSel > 1 ? 'sculpt.hint.multi' : nSel === 1 ? (`sculpt.hint.${xform}` as const) : 'sculpt.hint.select';
+  const prot = useStore((s) => s.sculpt.protractor);
+  const hint = prot ? 'sculpt.protractor' : picking ? 'sculpt.workplane' : ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'make.hint' : empty ? 'sculpt.empty' : nSel > 1 ? 'sculpt.hint.multi' : nSel === 1 ? (`sculpt.hint.${xform}` as const) : 'sculpt.hint.select';
   return (
     <div className="view3d sculpt-view" dir="ltr" data-testid="sculpt-view">
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>
@@ -627,8 +639,8 @@ export function SculptView3D() {
           <Icon name="fit" /> {t('view.frame')}
         </button>
       </div>
-      <div className="view-hint" dir="auto">
-        {t(hint as 'sculpt.empty')}
+      <div className="view-hint" dir="auto" data-testid="sculpt-hint">
+        {prot?.read ? t('sculpt.protractorRead', { deg: Math.round(prot.read.deg), joint: t(`make.step.${prot.read.kind === 'tabslot' ? 'tabs' : prot.read.kind === 'finger' ? 'fingers' : prot.read.kind === 'lock' ? 'lock' : prot.read.kind === 'butt' ? 'butt' : 'glue'}`) }) : t(hint as 'sculpt.empty')}
       </div>
     </div>
   );

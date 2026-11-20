@@ -1969,6 +1969,21 @@ export const en = {
   'g.solid.width': "Width",
   'g.solid.height': "Height",
   'g.solid.sides': "Sides",
+  // milestone 132: the workplane, second part
+  'sculpt.kind.loft': "Loft",
+  'sculpt.topSides': "Top sides",
+  'sculpt.topSize': "Top size",
+  'sculpt.chamfer': "Chamfer",
+  'sculpt.chamferTop': "Top edges",
+  'sculpt.chamferSides': "Upright edges",
+  'sculpt.chamferBottom': "Bottom edges",
+  'sculpt.chamferOff': "None",
+  'sculpt.align': "Line up",
+  'sculpt.alignHelp': "To the last shape clicked",
+  'sculpt.mirror': "Mirror",
+  'sculpt.protractor': "Protractor: click two faces",
+  'sculpt.protractorRead': "{deg}° — {joint}",
+  'sculpt.editGroup': "Edit group (E)",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -304,6 +304,8 @@ export type SculptUi = {
   /** The workplane new shapes stand on (milestone 121), or null for the floor; `picking`: the next click on a face sets it. */
   work?: { o: V3; n: V3 } | null;
   picking?: boolean;
+  /** The protractor (milestone 132): picking its faces, the first face's normal, and the reading. */
+  protractor?: { n1?: V3; read?: { deg: number; kind: ConnectionKind } } | null;
 };
 
 type State = {

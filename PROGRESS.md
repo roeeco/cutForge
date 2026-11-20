@@ -2214,6 +2214,26 @@ Limitations
 - The steps view is a list on the Make card with the seam's boards selected in 3D, not a view of its own with the fold slider stepping per seam.
 - The house closes in 9 seams on the card sheet (its net is one piece with 6 folds), not the plan's 6.
 
+## Milestone 132 (Shapes R13) — the workplane, second part ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R13. New `src/sculpt/arrange.ts` (`alignShapes`, `mirrorShapes`) and `src/sculpt/protractor.ts`; `src/sculpt/build.ts` (`chamferPlanes`, `bodyFaces`, `loftCorners`), `src/sculpt/polyhedron.ts` (roles), `src/sculpt/ui/SculptCard.tsx`, `src/sculpt/ui/SculptView3D.tsx`, `src/sculpt/ui/commands.ts`; `Shape3.chamfers` and `n2`, the kind `loft` (checked on load); `src/model/reassemble.ts`.
+- **Chamfer** on a box or a prism: *Top edges*, *Upright edges*, *Bottom edges*, and the distance. Stored as `chamfers: { a, b, d }[]` (the two faces by role) and rebuilt with the shape: each edge cut off by a plane through the two lines `d` in from it. The chamfer faces are named by their two faces (`ch:top|+x`).
+- **Loft**: a new tile, from one outline to another with straight walls: base sides, top sides (a square to an octagon by default) and top size. Each outline is fitted to the width and depth; the loft is their hull, so every face is flat.
+- **Line up and mirror** (several shapes selected): per axis, min, middle or max to the last shape clicked, and mirror across the selection's middle. A mirrored extrusion's outline turns the other way (its arcs and handles with it).
+- **Edit group**: *E* opens the selected group in place (as a double-click does).
+- **Protractor**: *P*, then two faces: *90° — fingers* in plywood, *160° — edge to edge*, *90° — glue* in card; its words are the joint chooser's (125).
+- **Snapping to other shapes' edges and middles while moving** came with the port (`snapMove`).
+- Found on the way: a slit lock squeezed below the room its tongue needs is glued with the flap the net has room for, not given a flap deeper than the net allows.
+
+Verified
+- `tests/workplane2.test.ts` (6, with the kernel): a box with its top edges chamfered has 10 flat faces named as above, about the volume a 45° chamfer takes, and **folds in one click** with nothing broken and no overlap; a hexagonal prism with chamfered upright edges has 14 faces; **a square-to-octagon loft** has a 4-sided base, an 8-sided top, every face flat, and **folds in one click**; lining up to min, middle and max on each axis; mirroring two boxes swaps their sides, and an L extrusion mirrors in place with its outline turned; the protractor's readings in plywood and card.
+- The engine tests of 123–131 pass; goldens unchanged; unit suite and typecheck green. A look in the dev server: the loft and its fields.
+
+Limitations
+- No guide line is drawn while a move snaps to another shape; Alt pauses snapping as before.
+- Line up has no dots on the stage (its buttons are on the card); a mirror is exact for shapes square to the world (a turned shape's own asymmetry is not reflected).
+- Chamfers on a tapered box or prism, and on an extrusion's edges, are not offered.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
