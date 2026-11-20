@@ -373,7 +373,8 @@ type State = {
   lang: Lang;
   grow: GrowOptions;
   needsMaterial: boolean;
-  saveState: 'idle' | 'saving' | 'saved' | 'failed';
+  /** `paused`: another tab changed this design, and nothing is saved until the student chooses (milestone 136). */
+  saveState: 'idle' | 'saving' | 'saved' | 'failed' | 'paused';
   exportOpen: boolean;
   /** Copy on the cut plan the student last clicked or moved (for rotate). */
   sheetCopy: string | null;

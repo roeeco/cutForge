@@ -67,7 +67,10 @@ export function GuidedStart() {
   const lang = useStore((s) => s.lang);
   const prefs = useStore((s) => s.viewPrefs);
   const hasOpen = useStore((s) => s.design.order.length > 0);
-  const m = guidedMaterial(prefs);
+  // the open design's board while the student has not picked one here (milestone 137, REPORT.md B1: a plywood
+  // design opened the gallery on card)
+  const open = useStore((s) => (s.design.order.length ? s.design.material : null));
+  const m = !prefs.classMaterial && !prefs.guidedMaterial && open ? (MATERIALS.find((x) => x.id === open.id) ?? guidedMaterial(prefs)) : guidedMaterial(prefs);
   const things = useMemo(() => thingsFor(prefs.missions), [prefs.missions]);
   const [recent, setRecent] = useState<DesignMeta[]>([]);
   const [all, setAll] = useState(false);

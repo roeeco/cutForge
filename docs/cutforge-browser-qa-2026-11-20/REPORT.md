@@ -432,8 +432,7 @@ kinds for the same joint. The browser routine now has matching checks as plan se
 - **Quick build card for a box is the Workshop part card.** It shows "Base", *Edit outline*, *Extrude walls* (while
   drawing) and the jargon note "Corners can't be creased: the walls already fold from the base, so a crease would close
   a loop. Glue one side." A carton's card is titled *Panel 3*; a wall's card says "follows the edge of panel Panel 5".
-- **Template boxes have numbered parts.** A box from the welcome sentence names its parts *1, 2, 3 …*, and the lid and
-  a divider are both named **6**.
+- ~~**Template boxes have numbered parts.**~~ *Corrected while fixing:* the numbers were the stored names, read from the model; the editor shows role names over them (*Base*, *Front wall*). The real naming faults were a second box's base (*Panel 3*) and a pyramid's net (a side called *Base*), fixed in milestone 137.
 - **Wall / lid picks the wrong edge (C3).** Clicking the open box's back top edge took the front wall of the carton
   behind it ("Front wall · top edge").
 - **Kind resets in the Box tool (C2).** After *Regular* + *Open box*, going back to *Rectangle* selected *Carton* again.

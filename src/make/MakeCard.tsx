@@ -104,7 +104,7 @@ export function MakeCard() {
   const t = useT();
   const d = useStore((s) => s.design);
   const spec = d.make;
-  const { issues, busy, changed, lost } = useMake();
+  const { issues, busy, changed, changedFor, lost } = useMake();
   const changedShape = shapesChanged(d);
   const matName = useMatName();
   // a change of material re-chooses every joint not set by hand (R6)
@@ -121,7 +121,7 @@ export function MakeCard() {
     let n = 0;
     st.apply((x) => void (n = rechooseJoints(x as Design, P)));
     madeWith.set(dd.id, key);
-    useMake.setState({ changed: n });
+    useMake.setState({ changed: n, changedFor: useStore.getState().design });
   }, [key]);
   const pieces = useMemo(() => buildPieces(d).length, [d]);
   const curved = useMemo(() => Object.values(d.sculpt?.shapes ?? {}).some((s) => CURVED.has(s.kind)), [d.sculpt]);
@@ -141,7 +141,7 @@ export function MakeCard() {
         <span className="mat-name">{matName}</span>
         <Icon name="chevDown" size={16} />
       </button>
-      {changed !== null && <p className="note" data-testid="make-changed">{t('make.changed', { n: changed })}</p>}
+      {changed !== null && changedFor === d && <p className="note" data-testid="make-changed">{t('make.changed', { n: changed })}</p>}
       {wrongMaterial && (
         <div className="combine-box" data-testid="make-wrong-material">
           <p className="note">{t(spec.as === 'fold' ? 'make.noFold' : 'make.noBoards')}</p>

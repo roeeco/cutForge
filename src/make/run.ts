@@ -16,7 +16,8 @@ import { create } from 'zustand';
 import { playAssembly } from '../easy/assemble';
 
 /** What the last Make left for the card: its issues, and whether it is still working. */
-export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null; lost: Lost | null }>(() => ({ issues: [], busy: false, changed: null, lost: null }));
+/** `changedFor`: the design the material note is about; the next edit makes it old, and it is not shown (milestone 137). */
+export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null; changedFor?: unknown; lost: Lost | null }>(() => ({ issues: [], busy: false, changed: null, lost: null }));
 
 /** The shapes changed since they were made: *Update from shape* (milestone 129). */
 export const shapesChanged = (d: Design) => !!d.make && !!d.sculpt && d.make.shapeKey !== undefined && d.make.shapeKey !== solidKey(d.sculpt);

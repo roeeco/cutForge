@@ -12,6 +12,7 @@ import { GuidedLayer } from './GuidedLayer';
 import { ViewButtons } from './ViewButtons';
 import { guidedCamera } from './camera';
 import { GuidedStart } from './GuidedStart';
+import { isSculpture } from '../sculpt/ops';
 import { Build } from './steps/Build';
 import { Decorate } from './steps/Decorate';
 import { Send } from './steps/Send';
@@ -36,6 +37,8 @@ export function GuidedApp() {
   const soloExists = useStore((s) => !!(s.soloPanel && s.design.panels[s.soloPanel]));
   const needsMaterial = useStore((s) => s.needsMaterial);
   const step = useStore((s) => s.guidedStep);
+  // nothing to build yet (milestone 137, REPORT.md #1): Guided opens its gallery, not an empty Build step
+  const empty = useStore((s) => !s.design.order.length && !isSculpture(s.design));
   const key = useStore(frameKey);
   // the opening view: seen from above and in front, re-centred when the thing changes size
   // (and when the stage comes back from the sheet or the face-on view)
@@ -73,7 +76,7 @@ export function GuidedApp() {
           {view === '3d' && <MissionPanel />}
         </EditorBoundary>
       </div>
-      {needsMaterial && <GuidedStart />}
+      {(needsMaterial || empty) && <GuidedStart />}
     </>
   );
 }

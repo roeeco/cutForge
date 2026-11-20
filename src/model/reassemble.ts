@@ -252,7 +252,10 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       issues.push({ kind: 'unfold', issue });
     }
     const split = u.issues.find((i) => i.kind === 'split');
-    if (pieces > 1) issues.push({ kind: 'unfold', issue: { kind: 'split', n: pieces, why: split?.kind === 'split' ? split.why : 'overlap' } });
+    // a lid by a cut is a second body, not a split of the first (milestone 137: "lies flat in 2 pieces" was the box
+    // and its lid)
+    const bodies = spec.lid ? 2 : 1;
+    if (pieces > bodies) issues.push({ kind: 'unfold', issue: { kind: 'split', n: pieces, why: split?.kind === 'split' ? split.why : 'overlap' } });
     return { unfolding: u, issues };
   }
   return buildBoards(d, P, spec, mat, faces, last, issues);

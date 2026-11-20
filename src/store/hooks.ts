@@ -14,6 +14,19 @@ import { featureState, shown } from '../easy/features';
 import { isDivider } from '../model/dividers';
 import { isBad, rememberGood } from './goodDesign';
 
+/** A design as saved, as text: two designs with the same text are the same save. */
+export const savedText = (d: unknown) => JSON.stringify(d);
+
+/** A short hash of a saved text (FNV-1a), sent with each save so other tabs can tell a save of what they have. */
+export function hashOf(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 /** Load the autosaved design once, then save every committed change. */
 export function useAutosave(onLoaded: () => void) {
   useEffect(() => {
@@ -33,12 +46,20 @@ export function useAutosave(onLoaded: () => void) {
       }
       if (cancelled) return;
       onLoaded();
-      // another tab saved the design open here (milestone 86): say so, never overwrite it silently
+      // what this tab last loaded or saved, as text (milestone 136): a change that leaves it the same is not saved,
+      // so opening a design in a second tab does not tell the first that it changed
+      let base = savedText(designToSave(useStore.getState()));
+      // another tab saved the design open here (milestone 86): say so, never overwrite it silently. A save of the
+      // very content this tab has as its base is not a change (milestone 136, REPORT.md A10).
       const ch = libraryChannel();
       if (ch)
         ch.onmessage = (ev: MessageEvent) => {
-          const m = ev.data as { saved?: string; by?: string };
-          if (m?.saved && m.by !== TAB && m.saved === useStore.getState().design.id) useStore.setState({ otherTab: true });
+          const m = ev.data as { saved?: string; by?: string; hash?: number };
+          if (!m?.saved || m.by === TAB || m.saved !== useStore.getState().design.id) return;
+          if (m.hash !== undefined && m.hash === hashOf(base)) return;
+          useStore.setState({ otherTab: true });
+          // autosave waits for the student's choice (Reload or Keep mine): the label says so
+          if (useStore.getState().saveState === 'saving') useStore.getState().set({ saveState: 'paused' });
         };
       unsub = useStore.subscribe((s, prev) => {
         // a drag commits by ending its transaction without a new design object: save then too
@@ -51,7 +72,17 @@ export function useAutosave(onLoaded: () => void) {
         timer = setTimeout(async () => {
           timer = undefined;
           const d = designToSave(useStore.getState());
-          if (useStore.getState().otherTab) return;
+          // another tab changed this design: nothing is saved until the student chooses (milestone 136: not
+          // "Saving…" for ever)
+          if (useStore.getState().otherTab) {
+            useStore.getState().set({ saveState: 'paused' });
+            return;
+          }
+          const text = savedText(d);
+          if (text === base) {
+            useStore.getState().set({ saveState: 'saved' });
+            return;
+          }
           // only a design that validates and that the editor could draw is saved (BUGFIX_PLAN B4)
           try {
             if (isBad(d)) throw new Error('not drawable');
@@ -62,7 +93,8 @@ export function useAutosave(onLoaded: () => void) {
           }
           rememberGood(d);
           try {
-            await saveLocal(d);
+            await saveLocal(d, undefined, hashOf(text));
+            base = text;
             useStore.getState().set({ saveState: 'saved' });
           } catch {
             useStore.getState().set({ saveState: 'failed' });

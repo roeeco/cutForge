@@ -122,6 +122,9 @@ export function validate(d: Design): Issue[] {
   }
   issues.push(...contactIssues(d, issues));
   issues.push(...bendIssues(d, guides));
+  // nothing to cut (milestone 137, REPORT.md #1 and H2): an empty design is never *Ready to cut*
+  // (a sculpture not made yet is a shape on the Shapes stage, with its own steps: not an empty design)
+  if (!d.sculpt && !d.order.some((id) => d.panels[id] && !guides.has(id))) issues.push({ key: 'val.empty', vars: {}, target: { kind: 'none', id: '' } });
   return issues;
 }
 

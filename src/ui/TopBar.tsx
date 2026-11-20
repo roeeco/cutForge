@@ -59,8 +59,8 @@ export function TopBar() {
     setMenu(false);
     fn();
   };
-  const saveIcon = s.saveState === 'failed' ? 'alert' : s.saveState === 'saving' ? 'saving' : 'saved';
-  const saveText = s.saveState === 'saving' ? t('top.saving') : s.saveState === 'failed' ? t('top.saveFailed') : t('top.saved');
+  const saveIcon = s.saveState === 'failed' || s.saveState === 'paused' ? 'alert' : s.saveState === 'saving' ? 'saving' : 'saved';
+  const saveText = s.saveState === 'saving' ? t('top.saving') : s.saveState === 'failed' ? t('top.saveFailed') : s.saveState === 'paused' ? t('top.savePaused') : t('top.saved');
   return (
     <header className="topbar">
       <div className="brand">

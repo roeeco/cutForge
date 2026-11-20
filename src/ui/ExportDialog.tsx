@@ -255,7 +255,7 @@ export function ExportDialog() {
         <div className="modal-actions">
           <button onClick={close} data-testid="export-cancel">{t('export.cancel')}</button>
           <button className="primary" onClick={go} data-testid="export-go" disabled={!d.order.length || blocked}>
-            {issues.length ? t('export.anyway') : t('export.go')}
+            {issues.length && d.order.length ? t('export.anyway') : t('export.go')}
           </button>
         </div>
       </div>

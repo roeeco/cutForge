@@ -78,7 +78,7 @@ export function libraryChannel(): BroadcastChannel | null {
 }
 
 /** Save the open design (autosave): into the library, its card, and as the one to open next time. */
-export async function saveLocal(d: Design, thumb?: string): Promise<void> {
+export async function saveLocal(d: Design, thumb?: string, hash?: number): Promise<void> {
   const plain = JSON.parse(JSON.stringify(d)) as Design;
   await tx([KV, DESIGNS, META], 'readwrite', async (t) => {
     const old = await get<DesignMeta>(t, META, d.id);
@@ -86,7 +86,7 @@ export async function saveLocal(d: Design, thumb?: string): Promise<void> {
     t.objectStore(META).put({ ...metaOf(d, thumb ?? old?.thumb), ...(old?.projectId ? { projectId: old.projectId } : {}) }, d.id);
     t.objectStore(KV).put(d.id, OPEN_KEY);
   });
-  libraryChannel()?.postMessage({ saved: d.id, by: TAB });
+  libraryChannel()?.postMessage({ saved: d.id, by: TAB, ...(hash !== undefined ? { hash } : {}) });
 }
 
 /** The design to open: the one open last; a design saved before the library is moved into it first (once). */

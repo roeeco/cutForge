@@ -62,8 +62,18 @@ export function panelLabel(d: Design, id: string, t: T): string {
   if (p.divider) return t('part.divider', { n: d.order.filter((x) => d.panels[x]?.divider).indexOf(id) + 1 });
   const parentC = conns.find((c) => c.grown && c.b.panelId === id);
   if (!parentC) {
-    const roots = d.order.filter((x) => !d.panels[x]?.divider && !conns.some((c) => c.grown && c.b.panelId === x));
-    return roots[0] === id ? t('part.base') : t('part.panel', { n: roots.indexOf(id) + 1 });
+    // every box's base is a *Base* (milestone 137: a second box's was "Panel 3"), numbered when there are several
+    const bases = Object.values(d.trays ?? {}).filter((x) => !x.lidOf && d.panels[x.baseId]).map((x) => x.baseId);
+    if (bases.includes(id)) return bases.length > 1 ? t('part.baseN', { n: bases.indexOf(id) + 1 }) : t('part.base');
+    const roots = d.order.filter((x) => !d.panels[x]?.divider && !conns.some((c) => c.grown && c.b.panelId === x) && !bases.includes(x));
+    // a model made from shapes: *Base* is the face it stands on, if any (milestone 137: a pyramid's net called a
+    // side *Base* and its base *Panel 6*); the other faces are numbered
+    if (d.make) {
+      const floor = floorFace(d, roots);
+      const rest = roots.filter((x) => x !== floor);
+      return id === floor ? t('part.base') : t('part.panel', { n: rest.indexOf(id) + 1 });
+    }
+    return roots[0] === id && !bases.length ? t('part.base') : t('part.panel', { n: roots.indexOf(id) + 1 });
   }
   if (parentC.kind === 'lean') return t('part.leaning');
   const isDivider = (c: (typeof conns)[number]) => c.offset > defaultOffset(d, c.kind) + 1e-6;
@@ -137,4 +147,22 @@ export function issueVars(d: Design, i: { vars: Record<string, string | number>;
   }
   swap('panel', targetPanel);
   return v;
+}
+
+/** The face a made model stands on: a level board whose middle is the lowest of all; null when none is (a diamond). */
+function floorFace(d: Design, ids: string[]): string | null {
+  const mid = (id: string) => {
+    const p = d.panels[id];
+    const f = p.frame;
+    return [0, 1, 2].map((i) => f.o[i] + (f.u[i] * p.w) / 2 + (f.v[i] * p.h) / 2);
+  };
+  const level = (id: string) => {
+    const f = d.panels[id].frame;
+    const ny = f.u[2] * f.v[0] - f.u[0] * f.v[2];
+    return Math.abs(ny) > 0.99;
+  };
+  const all = d.order.filter((id) => d.panels[id]).map((id) => mid(id)[1]);
+  const low = Math.min(...all);
+  const cand = ids.filter((id) => d.panels[id] && level(id) && mid(id)[1] < low + 1);
+  return cand[0] ?? null;
 }

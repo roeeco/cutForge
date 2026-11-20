@@ -2297,6 +2297,26 @@ The owner's report: "when I change joint types, usually not all of them change, 
 
 Verified: typecheck; `npm test` (1583 passed, 7 expected fail; `foldNet.test.ts`'s sphere test timed out once under the full parallel run and passes alone); in the dev server, the report's sequence on a card tray (*Corners → Slit lock*, *Wall to base → Tabs and slots*, *Corners → Glue flap*) changes 4 joints each time with true lists, and a hand-set corner shows *Mixed (3 Glue flap, 1 Slit lock)* until *Glue flap* changes the one left.
 
+## Milestone 136 (QA fix round Q2) — saving with two tabs ✅
+
+`REPORT.md` A10 (as corrected): opening a design in a second tab told the first it "was changed in another tab", and the first then showed *Saving…* for ever while nothing was saved.
+- Each tab keeps the text of what it last loaded or saved; a change that leaves it the same is not saved, so opening a design saves nothing.
+- Each save tells other tabs its hash (FNV-1a of the saved text, `hashOf` in `store/hooks.ts`); a tab that already has that content ignores it.
+- While the conflict waits for *Reload* or *Keep mine*, the save label is a new state, `paused`: *Not saved: this design was changed in another tab. Choose Reload or Keep mine.*
+
+Verified in the dev server with two tabs: opening the second raises nothing in the first; a change in the first is saved and warns the second; an edit in the second then shows the paused label.
+
+## Milestone 137 (QA fix round Q3) — truthful status, names and counts ✅
+
+- **Nothing to cut** (`REPORT.md` #1, H2): `validate` reports `val.empty` for a design with no board to cut (a shape on the Shapes stage, not made yet, is not one). *Ready to cut* never shows for it; the download dialog says why its *Download* is greyed (and no longer offers *Download anyway* for an empty design).
+- **Guided on an empty design** opens its gallery, not an empty Build step, and the gallery's board follows the open design's until the student picks one (B1).
+- **Counts** (H11): `translate` reads `{n|piece|pieces}` (`plurals` in `src/i18n`); 17 strings in English and Hebrew use it (*1 piece · 8 folds*, *1 sheet, 0 pieces*, *1 face left open*, *1 shape*). The four "(s)" strings are gone; the copy ratchet's list went from 46 counts to 30.
+- **Names:** every box's base is *Base* (*Base 2* … with several boxes); a model made from shapes calls the face it stands on *Base* (a pyramid's square or pentagon; a diamond has none); "Width follows the edge of panel Panel 5" lost its first "panel". Guided's untitled design is *Untitled design*, as in the other levels (it was *My thing*).
+- **Notes that go stale:** the joint note (135) and the Make card's *The material changed* belong to the design they were made for; the next edit hides them.
+- **A lid by a cut** is not reported as *It lies flat in 2 pieces*: the lid is a second body, not a split.
+
+Verified: typecheck; the QA repros for empty designs flipped to `it`; in the dev server, an empty plywood design's download dialog and Guided's gallery as above.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

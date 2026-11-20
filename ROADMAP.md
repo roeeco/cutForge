@@ -229,8 +229,8 @@ comes before 115, 117 and 118.**
 | --- | --- | --- | --- |
 | **134** | Safety nets first: promise checks, copy checks, failing repros for every high finding | Q0 | ✅ (18 repros in `tests/qa`) |
 | **135** | Joint changes made rigid | Q1 | ✅ (the cause was tray geometry; no separate `jointPlan.ts` was needed) |
-| **136** | Saving and two tabs | Q2 | |
-| **137** | Truthful status: empty designs, notes, names, plurals | Q3 | |
+| **136** | Saving and two tabs | Q2 | ✅ |
+| **137** | Truthful status: empty designs, notes, names, plurals | Q3 | ✅ |
 | **138** | One rulebook for lids and curves, and the gate; live check in Workshop | Q4 | |
 | **139** | Placement and the stage layout | Q5 | |
 | **140** | Modes and the level switch; *Joints* and *Outlines* in the card | Q6 | |
