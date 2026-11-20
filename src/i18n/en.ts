@@ -1924,6 +1924,19 @@ export const en = {
   'make.again': "Make again",
   'make.p.noLast': "No board faces up, so none can go in last from outside",
   'make.p.holeWall': "A hole's {n} walls are left out: a board joint cannot be cut round a hole's rim (the hole is cut)",
+  // milestone 121: flat-faced shapes and the workplane
+  'sculpt.kind.wedge': "Wedge",
+  'sculpt.kind.roof': "Roof",
+  'sculpt.kind.gem': "Diamond",
+  'sculpt.topWidth': "Top width",
+  'sculpt.topDepth': "Top depth",
+  'sculpt.crown': "Crown",
+  'sculpt.table': "Table",
+  'sculpt.hull': "Wrap in a hull",
+  'sculpt.hullHelp': "One flat-faced shape round the selected ones: it folds well",
+  'sculpt.workplane': "Workplane: click a face (Shift: the other side; the floor: back to the floor)",
+  'sculpt.workplaneOn': "On the workplane",
+  'sculpt.drop': "Drop to the workplane",
 } as const;
 
 export type MsgKey = keyof typeof en;

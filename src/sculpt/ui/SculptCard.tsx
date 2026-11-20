@@ -13,7 +13,7 @@ import { scaleSelection, selectionFrame } from './ScaleFrame';
 import { placePrimitive } from './SculptView3D';
 import { shapeColor } from './geom';
 import { shapeTile } from './tiles';
-import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, ungroupSelected } from './commands';
+import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, hullSelected, ungroupSelected } from './commands';
 import { RadiusToolCard, SketchShapeFields, SketchToolCard, stageCamera } from './SketchCard';
 import { outcomeOf, outcomeUi } from '../outcomes';
 
@@ -190,6 +190,38 @@ function CornerFields({ s, t }: { s: Shape3; t: T }) {
   );
 }
 
+/** A box's or prism's top as a share of its base (milestone 121): a frustum. */
+function TaperFields({ s }: { s: Shape3 }) {
+  const t = useT();
+  const [tx, tz] = s.taper ?? [1, 1];
+  const set = (i: 0 | 1, v: number) =>
+    edit((d) => {
+      const cur = d.sculpt!.shapes[s.id].taper ?? [1, 1];
+      const next: [number, number] = [cur[0], cur[1]];
+      next[i] = Math.max(0, Math.min(4, v / 100));
+      updateShape(d, s.id, { taper: Math.abs(next[0] - 1) < 1e-9 && Math.abs(next[1] - 1) < 1e-9 ? undefined : next });
+    });
+  return (
+    <div className="field-grid" data-testid="shape-taper">
+      <NumField label={t('sculpt.topWidth')} value={Math.round(tx * 100)} unit="%" min={0} max={400} decimals={0} onCommit={(v) => set(0, v)} testId="shape-taper-w" />
+      <NumField label={t('sculpt.topDepth')} value={Math.round(tz * 100)} unit="%" min={0} max={400} decimals={0} onCommit={(v) => set(1, v)} testId="shape-taper-d" />
+    </div>
+  );
+}
+
+/** A diamond's sides, crown and table (milestone 121). */
+function GemFields({ s }: { s: Shape3 }) {
+  const t = useT();
+  const h = s.size?.[1] ?? 40;
+  return (
+    <div className="field-grid" data-testid="shape-gem">
+      <Stepper label={t('sculpt.sides')} value={clampSides(s.n ?? 8)} min={5} max={12} onCommit={(v) => edit((x) => updateShape(x, s.id, { n: v }))} testId="shape-sides" />
+      <NumField label={t('sculpt.crown')} value={Math.round((s.crown ?? h * 0.27) * 10) / 10} unit={t('unit.mm')} min={0.5} max={Math.max(1, h - 0.5)} onCommit={(v) => edit((x) => updateShape(x, s.id, { crown: v }))} testId="shape-crown" />
+      <NumField label={t('sculpt.table')} value={Math.round((s.table ?? 0.55) * 100)} unit="%" min={10} max={95} decimals={0} onCommit={(v) => edit((x) => updateShape(x, s.id, { table: v / 100 }))} testId="shape-table" />
+    </div>
+  );
+}
+
 function ShapeCard({ id }: { id: string }) {
   const t = useT();
   const d = useStore((s) => s.design);
@@ -219,6 +251,8 @@ function ShapeCard({ id }: { id: string }) {
       <ScaleFields ids={[id]} torus={s.kind === 'torus'} />
       {(s.kind === 'prism' || s.kind === 'pyramid') && <Stepper label={t('sculpt.sides')} value={clampSides(s.n)} min={3} max={12} onCommit={(v) => edit((x) => updateShape(x, id, { n: v }))} testId="shape-sides" />}
       {(s.kind === 'cone' || s.kind === 'pyramid') && <NumField label={t('sculpt.top')} value={Math.round((s.top ?? 0) * 100)} unit="%" min={0} max={100} decimals={0} onCommit={(v) => edit((x) => updateShape(x, id, { top: Math.max(0, Math.min(1, v / 100)) }))} testId="shape-top" />}
+      {(s.kind === 'box' || s.kind === 'prism') && <TaperFields s={s} />}
+      {s.kind === 'gem' && <GemFields s={s} />}
       {(s.kind === 'box' || s.kind === 'prism') && <CornerFields s={s} t={t} />}
       <SketchShapeFields s={s} />
       {s.kind === 'group' && (
@@ -267,6 +301,12 @@ function MultiCard({ ids }: { ids: string[] }) {
             <Icon name="group" /> {t(anyHole && !holes ? 'sculpt.combineCutBtn' : 'sculpt.combineBtn')}
           </button>
           {!anyHole && <p className="note">{t('sculpt.combineTip')}</p>}
+          {/* milestone 121: the hull, the quickest way to a low-poly form that folds well */}
+          {!anyHole && (
+            <button onClick={hullSelected} title={t('sculpt.hullHelp')} data-testid="multi-hull">
+              {t('sculpt.hull')}
+            </button>
+          )}
         </div>
       )}
       <XformMode />

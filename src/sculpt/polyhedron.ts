@@ -83,6 +83,26 @@ function roleOf(s: Shape3, n: V, c: V, N: number, segPts: { id: string; pts: P2[
       if (s.kind === 'box') return { role: ['+z', '+x', '-z', '-x'][best] ?? `side${best}` };
       return { role: `side${best}` };
     }
+    // milestone 121's flat-faced shapes
+    case 'wedge':
+    case 'roof': {
+      if (up < -1 + 1e-6) return { role: 'bottom' };
+      if (Math.abs(n[0]) > 1 - 1e-6) return { role: n[0] > 0 ? '+x' : '-x' };
+      if (s.kind === 'wedge') return { role: Math.abs(n[1] - 1) < 1e-6 ? '-z' : 'slope' };
+      return { role: n[1] < 0 ? 'slopeFront' : 'slopeBack' };
+    }
+    case 'gem': {
+      if (up > 1 - 1e-6) return { role: 'table' };
+      const sides = Math.max(3, Math.min(12, Math.round(s.n ?? 8)));
+      const st = (2 * Math.PI) / sides;
+      // face k lies between girdle points k and k + 1 (the girdle starts a half side past −y, as `ngon` lays it)
+      return { role: `${up > 0 ? 'crown' : 'pavilion'}${wrap(Math.round((az + Math.PI / 2) / st) - 1, sides)}` };
+    }
+    case 'group': {
+      // a hull: its faces by direction in the group's frame (y up there: a group is built in its parent's axes)
+      const el = Math.asin(Math.max(-1, Math.min(1, n[1])));
+      return { role: `h${Math.round(deg(Math.atan2(n[2], n[0])))}.${Math.round(deg(el))}` };
+    }
     case 'cylinder':
     case 'cone':
       if (up > 1 - 1e-6) return { role: 'cap1' };

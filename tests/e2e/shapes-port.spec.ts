@@ -1,12 +1,13 @@
 // Milestone 120 (Shapes R1): the shape modeller on this branch. Start *Shapes*, place
-// a box and a cylinder, make the cylinder a hole, combine them; the stage bar offers
-// *Fold it* and *Build from boards* greyed, *coming next*, until their code registers.
+// a box and a cylinder, make the cylinder a hole, combine them. The stage bar's *Fold it*
+// and *Build from boards* are greyed while there is nothing to make (since 126 they work
+// once there is a shape).
 import { test, expect, type Page } from '@playwright/test';
 
 const S = <T,>(page: Page, fn: (arg: any) => T, arg?: unknown) => page.evaluate(fn as any, arg) as Promise<T>;
 const shapes = (page: Page) => S<{ kind: string; hole?: boolean }[]>(page, () => Object.values((window as any).__cutforge.store.getState().design.sculpt?.shapes ?? {}).map((s: any) => ({ kind: s.kind, hole: s.hole })));
 
-test('shapes: a box with a cylinder hole, combined; the two Make buttons wait', async ({ page }) => {
+test('shapes: a box with a cylinder hole, combined; the two Make buttons wait for a shape', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
@@ -42,10 +43,9 @@ test('shapes: a box with a cylinder hole, combined; the two Make buttons wait', 
   expect(after.some((s) => s.kind === 'group')).toBe(true);
   expect(after.some((s) => s.kind === 'cylinder' && s.hole)).toBe(true);
 
-  // still greyed, with "coming next"
-  await expect(page.getByTestId('make-fold')).toBeDisabled();
-  await expect(page.getByTestId('make-fold')).toContainText(/coming next/i);
-  await expect(page.getByTestId('make-boards')).toBeDisabled();
+  // something to make: both buttons work (126, 127)
+  await expect(page.getByTestId('make-fold')).toBeEnabled();
+  await expect(page.getByTestId('make-boards')).toBeEnabled();
   // no level switch on a sculpture
   await expect(page.getByTestId('mode-toggle')).toHaveCount(0);
   expect(errors).toEqual([]);

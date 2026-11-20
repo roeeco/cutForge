@@ -142,7 +142,16 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
     case 'pyramid': {
       if (!ok(w) || !ok(h) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
       const top = s.kind === 'pyramid' ? Math.max(0, Math.min(1, s.top ?? 0)) : 1;
-      return footprintSection(k, footprint(s)).extrude(h, 0, 0, [top, top]);
+      // a box or prism tapered to a frustum (milestone 121): its top scaled in width and depth
+      const tp: [number, number] = s.kind !== 'pyramid' && s.taper ? [Math.max(0, s.taper[0]), Math.max(0, s.taper[1])] : [top, top];
+      return footprintSection(k, footprint(s)).extrude(h, 0, 0, tp);
+    }
+    // milestone 121: flat-faced shapes, each the hull of its corners (z up, the footprint in XY, y towards the back)
+    case 'wedge':
+    case 'roof':
+    case 'gem': {
+      if (!ok(w) || !ok(h) || !ok(d)) return Manifold.ofMesh(emptyMesh(k));
+      return Manifold.hull(flatCorners(s) as never);
     }
     case 'cylinder':
     case 'cone': {
@@ -199,6 +208,28 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
   }
 }
 
+/** The corners of a wedge, a roof or a diamond in its body's coordinates (z up, footprint centred in XY). */
+export function flatCorners(s: Shape3): V3[] {
+  const [w, h, d] = s.size ?? [40, 40, 40];
+  const x = w / 2, y = d / 2;
+  if (s.kind === 'wedge') {
+    // full height at the back, nothing at the front: a slope from the front edge up to the back's top
+    return [[-x, -y, 0], [x, -y, 0], [x, y, 0], [-x, y, 0], [-x, y, h], [x, y, h]];
+  }
+  if (s.kind === 'roof') {
+    // a ridge along x over the middle of the depth
+    return [[-x, -y, 0], [x, -y, 0], [x, y, 0], [-x, y, 0], [-x, 0, h], [x, 0, h]];
+  }
+  // a diamond: a pavilion to a point, the girdle, a crown up to a flat table
+  const n = clampSides(s.n ?? 8);
+  const crown = Math.max(0.5, Math.min(h - 0.5, s.crown ?? h * 0.27));
+  const table = Math.max(0.1, Math.min(0.95, s.table ?? 0.55));
+  // the girdle fitted to the width and depth, as a prism's footprint is
+  const girdle = ngon(n, w, d);
+  const ring = (k: number, z: number): V3[] => girdle.map((p) => [k * p.x, k * p.y, z]);
+  return [[0, 0, 0], ...ring(1, h - crown), ...ring(table, h)];
+}
+
 function emptyMesh(k: Kernel) {
   return new k.Mesh({ numProp: 3, vertProperties: new Float32Array(0), triVerts: new Uint32Array(0) });
 }
@@ -230,7 +261,7 @@ export function clearShapeCache() {
 }
 export const shapeCacheSize = () => cache.size;
 
-const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch', 'facets'] as const;
+const GEOM_FIELDS = ['kind', 'size', 'n', 'top', 'tube', 'corners', 'sketch', 'height', 'angle', 'axis', 'stretch', 'facets', 'taper', 'crown', 'table', 'hull'] as const;
 
 /** The stable key of a shape's geometry in its parent's frame (its subtree for a group). */
 export function shapeKey(sc: Sculpt, id: string, seen = new Set<string>()): string {
@@ -254,6 +285,12 @@ export function buildShape(k: Kernel, sc: Sculpt, id: string): Manifold {
       const kids = (s.children ?? []).filter((c) => sc.shapes[c] && c !== id);
       const solids = kids.filter((c) => !sc.shapes[c].hole).map((c) => buildShape(k, sc, c));
       const holes = kids.filter((c) => sc.shapes[c].hole).map((c) => buildShape(k, sc, c));
+      // a hull (milestone 121): the hull of its solids, a new body of its own (its faces are the hull's)
+      if (s.hull && solids.length) {
+        const body = k.Manifold.hull(solids).asOriginal();
+        originals.set(body.originalID(), s.id);
+        return body.transform(poseMatrix(s) as never);
+      }
       // a group of holes only is one complex hole: its holes joined
       let m = solids.length ? k.Manifold.union(solids) : holes.length ? k.Manifold.union(holes) : k.Manifold.ofMesh(emptyMesh(k));
       if (solids.length && holes.length) m = m.subtract(k.Manifold.union(holes));

@@ -657,3 +657,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **A through-hole's walls are left out of a board model** and listed: their edges lie on the hole's rim, a cut-out in the boards round it, where no corner joint can be cut. The hole itself is cut.
 - **Boards are added largest first, the one that closes last at the end**, so the cut plan and the assembly animation put it last.
 - **Size is: Inside** waits: a board model with the shape as its inside needs an outward offset of the solid, not a flip of the boards' sides.
+
+## Milestone 121 (Shapes R2): flat-faced shapes and the workplane
+- **A wedge, a roof and a diamond are each the hull of their corners** (`Manifold.hull`): every face flat by construction, one code path.
+- **The diamond's girdle is fitted to its width and depth** (`ngon`, as a prism's footprint), so its size fields read what was typed.
+- **A hull is a group marked `hull`**: grouping, ungrouping, turning and scaling work as for any group, and its body is a new original so its faces are keyed by the hull.
+- **A taper is two fractions on a box or prism** (the extrusion's top scale), not a new kind.
+- **Nudge 1 mm, Shift 5 mm**, a held key one transaction (the plan's SketchForge behaviour, through CutForge's history).
+- **The workplane is view state, not saved**; *D* without one drops onto the floor.

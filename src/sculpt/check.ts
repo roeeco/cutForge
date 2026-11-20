@@ -14,7 +14,10 @@ function shapeOk(s: any, id: string): s is Shape3 {
   if (typeof s.name !== 'string') s.name = '';
   if (s.size !== undefined && !(vec(s.size, 3) && s.size.every((v: number) => v > 0))) delete s.size;
   if (s.kind !== 'group' && s.kind !== 'extrude' && s.kind !== 'revolve' && !s.size) s.size = [40, 40, 40];
-  for (const f of ['n', 'top', 'tube', 'height', 'angle'] as const) if (s[f] !== undefined && !finite(s[f])) delete s[f];
+  for (const f of ['n', 'top', 'tube', 'height', 'angle', 'crown', 'table'] as const) if (s[f] !== undefined && !finite(s[f])) delete s[f];
+  // milestone 121: a taper, a hull
+  if (s.taper !== undefined && !(vec(s.taper, 2) && s.taper.every((v: number) => v >= 0 && v <= 4))) delete s.taper;
+  if (s.hull !== undefined && (s.hull !== true || s.kind !== 'group')) delete s.hull;
   if (s.corners !== undefined && !(Array.isArray(s.corners) && s.corners.every((r: unknown) => finite(r) && (r as number) >= 0))) delete s.corners;
   if (s.sketch !== undefined) {
     const k = s.sketch;

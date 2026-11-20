@@ -1926,4 +1926,17 @@ export const he: Record<MsgKey, string> = {
   'make.again': "להכין שוב",
   'make.p.noLast': "אף לוח לא פונה למעלה, אז אף אחד לא יכול להיכנס אחרון מבחוץ",
   'make.p.holeWall': "{n} הדפנות של חור נשארו בחוץ: אי אפשר לחתוך חיבור לוחות סביב שפת חור (החור נחתך)",
+  // milestone 121: flat-faced shapes and the workplane
+  'sculpt.kind.wedge': "טריז",
+  'sculpt.kind.roof': "גג",
+  'sculpt.kind.gem': "יהלום",
+  'sculpt.topWidth': "רוחב למעלה",
+  'sculpt.topDepth': "עומק למעלה",
+  'sculpt.crown': "כתר",
+  'sculpt.table': "שולחן",
+  'sculpt.hull': "לעטוף במעטפת",
+  'sculpt.hullHelp': "צורה אחת עם פאות שטוחות סביב הצורות הנבחרות: מתקפלת היטב",
+  'sculpt.workplane': "משטח עבודה: לוחצים על פאה (Shift: הצד השני; הרצפה: חזרה לרצפה)",
+  'sculpt.workplaneOn': "על משטח העבודה",
+  'sculpt.drop': "להוריד אל משטח העבודה",
 };

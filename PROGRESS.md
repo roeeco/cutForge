@@ -2000,6 +2000,28 @@ Limitations
 - `sculptscale`'s percent test was cut to this branch's `evalNumber` (milestone 97 reads a percent only as the whole entry; `50%+5` is not read).
 - The shape stage's cards and the sketch view keep the waffle branch's look; R2 and R13 change the workplane.
 
+## Milestone 121 (Shapes R2) — the Tinkercad-style workplane ✅
+
+`SHAPES_TO_DIELINES_PLAN.md` R2. `src/sculpt/build.ts` (`flatCorners`, taper, hull), `src/sculpt/ops.ts` (`PRIMITIVES`, `hullShapes`), `src/sculpt/workplane.ts` (new: `upTo`, `dropOffset`), `src/sculpt/ui/commands.ts`, `src/sculpt/ui/SculptView3D.tsx`, `src/sculpt/ui/SculptCard.tsx`, `src/sculpt/polyhedron.ts` (roles); `Shape3.taper`, `crown`, `table`, `hull` and the kinds `wedge`, `roof`, `gem` (optional, checked on load).
+- **Flat-faced shapes**, each a tile on the Shapes card: a **wedge** (full height at the back, a slope to the front edge), a **roof** (a triangular prism, its ridge along its width) and a **diamond** (`gem`: sides 5–12, default 8; width, depth and height; crown height; table as a share of the width, default 55%; a pavilion to a point, a girdle fitted to the width and depth, a crown up to a flat table). Each is the hull of its corners, so every face is flat.
+- **Taper** on a box and a prism: *Top width* and *Top depth* as a percentage of the base, making a frustum (a tapered planter).
+- **Hull**: with several solids selected, *Wrap in a hull* (beside *Combine*) makes one flat-faced body round them, a group marked `hull`, so ungrouping gives them back. The quickest way to a low-poly form that folds well.
+- **Typed sizes** were already on the handles (*W*, *D*, *H* labels open a number box) and the card.
+- **Nudges**: arrow keys move the selection 1 mm, Shift 5 mm (was 10); **a key held down is one undo step** (a transaction committed when the key comes up), along the workplane's own axes when there is one.
+- **The workplane**: *W*, then a click on a face, sets it (Shift takes the face's other side; a click on the floor puts it back on the floor). It is drawn as a blue square with a grid. New shapes from the tiles stand on it, turned to it. *D* drops the selection onto it (onto the floor when there is none): its lowest point comes to the plane.
+- **Face roles**: a wedge's `bottom`, `+x`, `-x`, `-z`, `slope`; a roof's `bottom`, `+x`, `-x`, `slopeFront`, `slopeBack`; a diamond's `table`, `crown<k>`, `pavilion<k>`; a hull's `h<azimuth>.<elevation>`.
+
+Verified
+- `tests/flatshapes.test.ts` (12, with the kernel): a wedge and a roof have 5 flat faces, a diamond 17, a tapered box 6; an 8-sided diamond's face graph has a table, 8 crown and 8 pavilion faces; a wedge and a roof name their slopes; a gem as the hull of a prism and an upside-down pyramid is one body keyed by the hull; a tapered hexagonal planter keeps 8 faces and folds from card; the new fields survive a save and load and a bad taper is dropped; a shape placed on a workplane stands on it; *D* drops a raised box onto a level and a sloped plane; the plane's axes lie in it.
+- `tests/sculptkernel.test.ts`: the wedge's, roof's and diamond's volumes within 0.5% of their formulas.
+- `tests/e2e/shapes-port.spec.ts` updated: since 126 *Fold it* and *Build from boards* work once there is a shape.
+- A look in the dev server: the eleven tiles, a diamond with its sides, crown and table, the workplane's hint.
+
+Limitations
+- **ΔX and ΔZ readouts** that stay after a move and can be typed into, with Tab, are not built (132 adds the second half of the workplane).
+- A shape dragged from its tile does not yet lie down on the face under the pointer; the tiles place it on the workplane.
+- The workplane is not saved with the design; turns do not yet follow it.
+
 ## Milestone 122 (Shapes R3) — the face graph with stable keys ✅
 
 `SHAPES_TO_DIELINES_PLAN.md` R3 (§4.2). New `src/sculpt/polyhedron.ts` (the bridge: `shapePolyhedron`, `facetedCopy`, `DEFAULT_FACETS`); `polyIssues` and `MAX_FACES` in `src/model/polyhedron.ts` (its builders came with 123).

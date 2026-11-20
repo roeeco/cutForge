@@ -51,6 +51,14 @@ describe('primitives', () => {
     sphere: (4 / 3) * Math.PI * (W / 2) * (D / 2) * (H / 2),
     halfsphere: (2 / 3) * Math.PI * (W / 2) * (D / 2) * H,
     torus: 0,
+    // milestone 121: half a box each; a diamond is a pyramid (the pavilion) under a frustum (the crown)
+    wedge: (W * D * H) / 2,
+    roof: (W * D * H) / 2,
+    gem: (() => {
+      // a regular octagon fitted to W × D (flat sides at the box's sides): 2(√2 − 1) of the box
+      const A = 2 * (Math.SQRT2 - 1) * W * D, c = Math.round(H * 0.27 * 100) / 100, t = 0.55;
+      return (A * (H - c)) / 3 + (c * A * (1 + t + t * t)) / 3;
+    })(),
   };
   // a hexagon fitted to a W × D box: its area is 3/4 of the box's
   formulas.prism = 0.75 * W * D * H;

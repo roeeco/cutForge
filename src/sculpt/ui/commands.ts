@@ -1,9 +1,10 @@
 // Waffle commands shared by the rail, the card and the keyboard (WAFFLE_MODE.md §5).
 import { selectedShapeIds, shapeSel, useStore } from '../../store/store';
-import type { Design } from '../../model/types';
+import type { Design, V3 } from '../../model/types';
+import { dropOffset } from '../workplane';
 import { outcomeOf, outcomeUi } from '../outcomes';
 
-import { deleteShapes, duplicateShapes, groupShapes, moveShapes, parentOf, setHole, ungroupShape } from '../ops';
+import { deleteShapes, duplicateShapes, groupShapes, hullShapes, moveShapes, parentOf, setHole, ungroupShape } from '../ops';
 
 const st = () => useStore.getState();
 
@@ -24,6 +25,14 @@ export function groupSelected() {
   if (!canGroup(st().design, ids)) return;
   let g: string | null = null;
   st().apply((d) => void (g = groupShapes(d as Design, ids)));
+  if (g) st().select(shapeSel([g]));
+}
+/** Wrap the selected shapes in their hull (milestone 121). */
+export function hullSelected() {
+  const ids = selectedShapeIds(st().selection);
+  if (!canGroup(st().design, ids) || ids.some((id) => st().design.sculpt?.shapes[id]?.hole)) return;
+  let g: string | null = null;
+  st().apply((d) => void (g = hullShapes(d as Design, ids)));
   if (g) st().select(shapeSel([g]));
 }
 export function ungroupSelected() {
@@ -50,6 +59,45 @@ export function deleteSelected() {
   const ids = selectedShapeIds(st().selection);
   if (ids.length) st().apply((d) => deleteShapes(d as Design, ids));
 }
+/** A nudge as part of a held key: one transaction, committed when the key comes up. */
+let held: { ids: string; off: V3 } | null = null;
+function nudgeHeld(ids: string[], dx: number, dz: number) {
+  const key = ids.join(',');
+  if (!held || held.ids !== key) {
+    if (st().txnBase) st().commit();
+    held = { ids: key, off: [0, 0, 0] };
+    const up = () => {
+      window.removeEventListener('keyup', up);
+      held = null;
+      st().commit();
+    };
+    window.addEventListener('keyup', up);
+  }
+  // along the workplane's own axes when there is one
+  const w = st().sculpt.work;
+  const [u, v] = w ? planeAxes(w.n) : [[1, 0, 0] as V3, [0, 0, 1] as V3];
+  held.off = [held.off[0] + u[0] * dx + v[0] * dz, held.off[1] + u[1] * dx + v[1] * dz, held.off[2] + u[2] * dx + v[2] * dz];
+  const off = held.off;
+  st().preview((d) => moveShapes(d as Design, ids, off));
+}
+/** Two axes in a plane with normal n: x as near the world's x as it can be. */
+export function planeAxes(n: V3): [V3, V3] {
+  const ref: V3 = Math.abs(n[0]) > 0.9 ? [0, 0, 1] : [1, 0, 0];
+  const d0 = ref[0] * n[0] + ref[1] * n[1] + ref[2] * n[2];
+  let u: V3 = [ref[0] - n[0] * d0, ref[1] - n[1] * d0, ref[2] - n[2] * d0];
+  const l = Math.hypot(...u) || 1;
+  u = [u[0] / l, u[1] / l, u[2] / l];
+  const v: V3 = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+  return [u, [-v[0], -v[1], -v[2]]];
+}
+/** Drop the selection onto the workplane (the floor when there is none). */
+export function dropSelected() {
+  const ids = selectedShapeIds(st().selection);
+  const w = st().sculpt.work ?? { o: [0, 0, 0] as V3, n: [0, 1, 0] as V3 };
+  const off = dropOffset(st().design, ids, w);
+  if (off) st().apply((d) => moveShapes(d as Design, ids, off));
+}
+
 export function nudgeSelected(dx: number, dz: number, dy = 0) {
   const ids = selectedShapeIds(st().selection);
   if (ids.length) st().apply((d) => moveShapes(d as Design, ids, [dx, dy, dz]));
@@ -100,9 +148,19 @@ export function sculptKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (e.key.startsWith('Arrow') && s.selection?.kind === 'shape') {
-    const step = e.shiftKey ? 10 : 1;
-    nudgeSelected(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0);
+    // 1 mm, Shift 5 mm; a key held down is one undo step (milestone 121)
+    const step = e.shiftKey ? 5 : 1;
+    nudgeHeld(s.selection.ids, e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0);
     e.preventDefault();
+    return true;
+  }
+  // the workplane (milestone 121): W picks a face, D drops the selection onto it
+  if (!mod && key === 'w' && s.sculpt.stage === 'shape') {
+    s.setSculpt({ picking: !s.sculpt.picking });
+    return true;
+  }
+  if (!mod && key === 'd' && s.selection?.kind === 'shape') {
+    dropSelected();
     return true;
   }
   if (e.altKey || e.key.length !== 1) return false;

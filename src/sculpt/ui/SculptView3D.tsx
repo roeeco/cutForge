@@ -22,6 +22,7 @@ import { SketchLayer } from './SketchLayer';
 import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
 import { outcomeOf, outcomeUi } from '../outcomes';
+import { upTo } from '../workplane';
 
 /** The shapes on the stage: the top level, or the members of the group being worked inside. */
 export function visibleShapes(d: Design, focus: string | null): { id: string; dim: boolean }[] {
@@ -246,8 +247,11 @@ export function placePrimitive(kind: Primitive, at: V3) {
   const st = useStore.getState();
   let id = '';
   st.cancelPending();
+  // on the workplane (milestone 121): standing on it, turned to it
+  const w = st.sculpt.work;
   st.apply((x) => {
-    id = addShape(x as Design, { ...defaultPrimitive(kind, at, st.sculpt.heights), color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length), ...(st.sculpt.nextHole ? { hole: true as const } : {}) }, st.sculpt.focus);
+    const base = defaultPrimitive(kind, w ? w.o : at, st.sculpt.heights);
+    id = addShape(x as Design, { ...base, ...(w ? { at: [...w.o] as V3, q: upTo(w.n) } : {}), color: shapeColor(Object.keys(x.sculpt?.shapes ?? {}).length), ...(st.sculpt.nextHole ? { hole: true as const } : {}) }, st.sculpt.focus);
   });
   if (!id) return;
   st.setTool('select');
@@ -267,6 +271,20 @@ function OutcomeBar() {
 }
 
 type Draw = { y: number; a: THREE.Vector3; b: THREE.Vector3; moved: boolean; px: { x: number; y: number }; into: string | null };
+
+/** The workplane (milestone 121): a see-through square on it, with its normal. */
+function WorkplaneMark({ o, n }: { o: V3; n: V3 }) {
+  const q = upTo(n);
+  return (
+    <group position={o} quaternion={new THREE.Quaternion(q[0], q[1], q[2], q[3])} renderOrder={6}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]} raycast={() => null}>
+        <planeGeometry args={[120, 120]} />
+        <meshBasicMaterial color="#2f6feb" transparent opacity={0.12} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <gridHelper args={[120, 12, '#2f6feb', '#8fb0f0']} position={[0, 0.06, 0]} raycast={() => null} />
+    </group>
+  );
+}
 
 function SculptScene() {
   const d = useStore((s) => s.design);
@@ -345,6 +363,15 @@ function SculptScene() {
   const onShapeDown = (id: string, dim: boolean) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0 || e.intersections[0]?.object !== e.object) return;
     const st = useStore.getState();
+    // W, then a face: the workplane (milestone 121); Shift takes the face's other side
+    if (st.sculpt.picking) {
+      const n = e.face?.normal.clone().transformDirection(e.object.matrixWorld).normalize();
+      if (!n) return;
+      e.stopPropagation();
+      const k = e.nativeEvent.shiftKey ? -1 : 1;
+      st.setSculpt({ picking: false, work: { o: [e.point.x, e.point.y, e.point.z], n: [n.x * k, n.y * k, n.z * k] } });
+      return;
+    }
     if (tool === 'shapes') {
       // on a shape's top: the footprint is drawn there, so the new shape stands on it
       const n = e.face?.normal.clone().transformDirection(e.object.matrixWorld);
@@ -375,7 +402,12 @@ function SculptScene() {
   const footBox = draw && draw.moved ? { x0: Math.min(draw.a.x, draw.b.x), x1: Math.max(draw.a.x, draw.b.x), z0: Math.min(draw.a.z, draw.b.z), z1: Math.max(draw.a.z, draw.b.z) } : null;
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} visible={false} onPointerDown={(e) => tool === 'shapes' && e.intersections[0]?.object === e.object && startDraw(e, 0)} onClick={(e) => tool === 'select' && e.delta < 4 && e.intersections[0]?.object === e.object && useStore.getState().select(null)} data-testid="sculpt-floor">
+      <mesh rotation={[-Math.PI / 2, 0, 0]} visible={false} onPointerDown={(e) => tool === 'shapes' && e.intersections[0]?.object === e.object && startDraw(e, 0)} onClick={(e) => {
+          if (e.delta >= 4 || e.intersections[0]?.object !== e.object) return;
+          // picking a workplane: the floor puts it back on the floor (milestone 121)
+          if (useStore.getState().sculpt.picking) return void useStore.getState().setSculpt({ picking: false, work: null });
+          if (tool === 'select') useStore.getState().select(null);
+        }} data-testid="sculpt-floor">
         <planeGeometry args={[6000, 6000]} />
         <meshBasicMaterial />
       </mesh>
@@ -396,6 +428,7 @@ function SculptScene() {
       {ghostIds.length === 1 && <ShapeGhostBar d={d} id={ghostIds[0]} />}
       {ui.stage === 'shape' && <SketchLayer />}
       {ui.stage === 'make' && <OutcomeLayer />}
+      {ui.work && ui.stage === 'shape' && <WorkplaneMark o={ui.work.o} n={ui.work.n} />}
     </>
   );
 }
@@ -554,7 +587,8 @@ export function SculptView3D() {
     return () => window.removeEventListener('keydown', key);
   }, []);
   const overlay = useRef<HTMLDivElement>(null);
-  const hint = ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'make.hint' : empty ? 'sculpt.empty' : nSel > 1 ? 'sculpt.hint.multi' : nSel === 1 ? (`sculpt.hint.${xform}` as const) : 'sculpt.hint.select';
+  const picking = useStore((s) => !!s.sculpt.picking);
+  const hint = picking ? 'sculpt.workplane' : ghost ? 'sculpt.hint.ghost' : tool === 'shapes' ? 'sculpt.hint.shapes' : tool === 'sketch' ? 'sketch.hint.draw' : tool === 'radius' ? 'radius.hint' : stage === 'make' ? 'make.hint' : empty ? 'sculpt.empty' : nSel > 1 ? 'sculpt.hint.multi' : nSel === 1 ? (`sculpt.hint.${xform}` as const) : 'sculpt.hint.select';
   return (
     <div className="view3d sculpt-view" dir="ltr" data-testid="sculpt-view">
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>

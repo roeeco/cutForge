@@ -285,7 +285,7 @@ export type SculptUi = {
   /** The stage: 1 Shape, or 2 Make (what the design's outcome makes). */
   stage: 'shape' | 'make';
   /** The Shapes tool's next shape, and whether it is a Hole. */
-  next: 'box' | 'cylinder' | 'cone' | 'prism' | 'pyramid' | 'sphere' | 'halfsphere' | 'torus';
+  next: import('../sculpt/ops').Primitive;
   nextHole: boolean;
   /** A shape being dragged from its tile onto the stage, or null. */
   dragKind: SculptUi['next'] | null;
@@ -301,6 +301,9 @@ export type SculptUi = {
   failed: boolean;
   /** The sketch tool's plane. */
   plane: { kind: 'floor' } | { kind: 'upright'; o: V3; ang: number };
+  /** The workplane new shapes stand on (milestone 121), or null for the floor; `picking`: the next click on a face sets it. */
+  work?: { o: V3; n: V3 } | null;
+  picking?: boolean;
 };
 
 type State = {
