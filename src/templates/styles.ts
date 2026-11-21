@@ -56,6 +56,11 @@ export const STYLES: StyleDef[] = [
   { id: 'sturdyBookend', structure: 'bookend', words: { ends: 'one', hang: 'none', clamp: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   // milestone 172 (StorageRack): a shelf whose levels between its lowest and highest are rails, for trays to slide in
   { id: 'rack', structure: 'shelf', words: { rails: 'rails' }, sizes: { shelves: 4 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 177 (E6, plywood): boxes that stack on feet: a crate with handle slots (Crate), an open-front box
+  // (NotesHolder) and a rack (StorageRack)
+  { id: 'crate', structure: 'box', words: { lid: 'none', handles: 'slots', stack: 'feet' }, sizes: { width: 200, depth: 150, height: 100 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'stackNotes', structure: 'frontOpen', words: { stack: 'feet' }, sizes: { width: 100, depth: 100, height: 40 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'stackRack', structure: 'shelf', words: { rails: 'rails', stack: 'feet' }, sizes: { shelves: 4 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

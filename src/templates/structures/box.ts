@@ -17,7 +17,7 @@ import { trayRing } from '../../model/cartons';
 import { addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
 import { tOf } from '../../model/materials';
 import { largestOk } from '../../sentence/resolve';
-import { addStack, stackFor, stackMinWidth } from '../../model/stack';
+import { addStack, stackLeast } from '../../model/stack';
 
 export type Shape = 'rect' | 'rounded' | 'round' | 'poly';
 
@@ -113,7 +113,7 @@ const sizeLimit = (m: MaterialProfile): number => Math.min(m.sheetW, m.sheetH) -
 const SHAPES: Shape[] = ['rect', 'rounded', 'round', 'poly'];
 
 /** Room for stacking feet (milestone 177): every wall at least as wide as both feet and a tongue between them take. */
-export const stackRoom = (m: MaterialProfile, p: Params) => Math.min(Number(p.width), Number(p.depth)) >= stackMinWidth(stackFor(m)) && Number(p.height) >= 20;
+export const stackRoom = (m: MaterialProfile, p: Params) => Math.min(Number(p.width), Number(p.depth)) >= stackLeast(m) && Number(p.height) >= 20;
 
 /** The parameters a box and a tray share (keys shared across structures: SENTENCE_BUILDER_PLAN.md §3.2). */
 function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finger' | 'handles')[] }): ParamDef[] {

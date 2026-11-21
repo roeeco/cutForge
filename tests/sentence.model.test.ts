@@ -22,9 +22,9 @@ describe('the sentence as text', () => {
   it('clauses follow the words: a polygon has its sides, an add-on on has its clause, off is in + more', () => {
     const p = { ...defaults(box), shape: 'poly', lid: 'liftoff' };
     expect(clausesOf(box, PLY, p).map((c) => c.key)).toEqual(['sides', 'lid']);
-    // milestone 153: a box has handles too; milestone 171: a lid that lifts off has its depth (`rim`) on plywood
-    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'spacesBy', 'window', 'finger', 'handles']);
-    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles']);
+    // milestone 153: a box has handles too; milestone 171: a lid that lifts off has its depth (`rim`) on plywood; milestone 177: stacking feet
+    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'spacesBy', 'window', 'finger', 'handles', 'stack']);
+    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles', 'stack']);
     expect(clausesOf(box, PLY, { ...p, spacesBy: 'size' }).find((c) => c.key === 'spacesBy')!.text).toBe('sen.add.spaces.size');
   });
 });

@@ -29,6 +29,9 @@ export function stackMinWidth(s: PanelStack): number {
   return 2 * (s.inset + s.w + s.play) + 2 * (s.h - s.play) * RUN + s.h;
 }
 
+/** The least width (mm, whole) a box's walls take with stacking edges on this board: its sizes' least with the word on. */
+export const stackLeast = (m: Pick<MaterialProfile, 'thickness' | 'clearance'>) => Math.ceil(stackMinWidth(stackFor(m)));
+
 /** A board's feet and tongue as polygons in its own coordinates (counter-clockwise), or none where they do not fit. */
 export function stackPolys(p: Pick<Panel, 'w' | 'h' | 'stack'>): P2[][] {
   const s = p.stack;
