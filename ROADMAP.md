@@ -267,7 +267,7 @@ only once the pictures can tell them apart.
 | **154** | Engine: corner rules (gusset, inward ear) | §7, analysis §3.3 | ✅ the gusset (the inward ear deferred) |
 | **155** | New cards on the engine as it is | §7 | ✅ |
 | **156** | Engine: strip and wrap builders | §7, analysis §3.1 | ✅ (and the insert) |
-| **157** | New cards that need engine work (beta) | §7 | |
+| **157** | New cards that need engine work (beta) | §7 | ✅ (magazine file, dice tower, mailer box) |
 | **158** | Engine: custom presets | §7, analysis §4 | |
 | **159** | Words and pictures | §7 | |
 | **160** | Verification | §7 | |

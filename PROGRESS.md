@@ -2462,6 +2462,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `src/model/builders.ts`: `addStrip`, `addWrap`; `src/templates/structures/insert.ts`: the insert; styles `uLiner`, `zProfile`, `angleGuard`, `accordionPad` and the *Insert* card; records' `strip`, `folds`, `accordion`.
 - `tests/builders.test.ts`: U, Z, L and accordion strips fold as asked and cut as one clean piece; a wrapper's root lies flat with glued flanges; every insert profile on card, 1.6 and 4 mm board builds clean and is recognised.
 
+## Milestone 157 (presets overhaul) — new presets that needed engine work (beta) ✅
+
+- `src/templates/structures/shaped.ts`: the magazine file (sloped side walls to a low front, a finger pull in the back), the dice tower (2–4 slanted baffles, a way out at the bottom of the front) and the mailer box (one wrap, its lid tucked behind the front); three beta cards; records' `slope`, `baffles`, `wrap`; English and Hebrew words.
+- `tests/shaped.test.ts`: each cuts clean in every board it is offered in and is recognised as its own card; the magazine file's front is low and its sides slope (also at a 50 mm front); every dice tower baffle is joined to both side walls, at every depth and height and as many baffles as have room; each starts clean from the sizes the sentence carries over from another card; the mailer opens its lid and the dice tower ghosts its near walls in their pictures; the mailer is seven boards, its tuck just behind the front and narrower than it; none is an open box.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

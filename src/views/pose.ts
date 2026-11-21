@@ -14,7 +14,7 @@ import { applyLidPoses } from './lidPose';
 import { boxLid, lidParts } from '../easy/lid';
 import { trayRing } from '../model/cartons';
 import { edgeFeatures } from '../model/edgeFeatures';
-import { matDir, toWorld } from '../model/frame';
+import { edgeWorld, matDir, toWorld } from '../model/frame';
 import { frameMatrix } from './three-geom';
 
 export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter' | 'cup' | 'product';
@@ -34,6 +34,8 @@ export type Pose = {
   ghost?: string[];
   /** Laid on its side: an open tube's axis turned level, its open end towards the viewer (a sleeve). */
   lay?: boolean;
+  /** A wrap's lid (milestone 157's mailer) opened this many degrees from shut. */
+  lidOpen?: number;
 };
 
 /** The trays that are boxes (not a lid of their own). */
@@ -73,7 +75,74 @@ export function autoPose(d: Design): Pose {
     pose.prop = 'soap';
     pose.lay = true;
   }
+  if (wrapLid(d)) pose.lidOpen = 115;
+  // boards at a slant inside a box (a dice tower's baffles): the walls in front of them drawn as a ghost
+  const near = slantWalls(d);
+  if (near.length) pose.ghost = near;
   return pose;
+}
+
+/** A wrap's lid (milestone 157): in a folded piece with glued corners and no box, the board folded off a board folded off the root, that has a board folded off it in turn (base → back → lid → tuck). */
+export function wrapLid(d: Design): { lid: string; hinge: string } | null {
+  if (trays(d).length || !Object.values(d.connections).some((c) => !c.grown && c.kind === 'glue')) return null;
+  const grown = Object.values(d.connections).filter((c) => c.grown);
+  const kids = (id: string) => grown.filter((c) => c.a.panelId === id);
+  const root = d.order.find((id) => !grown.some((c) => c.b.panelId === id));
+  if (!root) return null;
+  for (const c1 of kids(root))
+    for (const c2 of kids(c1.b.panelId)) if (kids(c2.b.panelId).length) return { lid: c2.b.panelId, hinge: c2.id };
+  return null;
+}
+
+/** The walls of a box that stand between the viewer and boards at a slant inside it (a dice tower's baffles). */
+function slantWalls(d: Design): string[] {
+  const out: string[] = [];
+  for (const t of trays(d)) {
+    const ring = trayRing(d, t);
+    const walls = new Set(ring.map((r) => r.wall));
+    const slanted = Object.values(d.panels).some((p) => {
+      if (walls.has(p.id) || p.id === t.baseId || p.lidOf) return false;
+      const up = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
+      return up > 0.2 && up < 0.98 && Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === p.id && walls.has(c.b.panelId)) || (c.b.panelId === p.id && walls.has(c.a.panelId))));
+    });
+    if (!slanted) continue;
+    const base = d.panels[t.baseId];
+    if (!base) continue;
+    const mid = new THREE.Vector3(...toWorld(base.frame, base.w / 2, base.h / 2, 0));
+    for (const r of ring) {
+      const w = d.panels[r.wall];
+      if (!w) continue;
+      const c = new THREE.Vector3(...toWorld(w.frame, w.w / 2, w.h / 2, 0));
+      const out2 = c.sub(mid).setY(0);
+      if (out2.lengthSq() > 1e-6 && out2.normalize().dot(new THREE.Vector3(PICTURE_VIEW.x, 0, PICTURE_VIEW.z).normalize()) > 0.3) out.push(w.id);
+    }
+  }
+  return out;
+}
+
+/** The lid of a wrap opened `deg` from shut, about its fold with the board it comes off (it and what folds off it). */
+function openWrapLid(d: Design, shown: Posed, deg: number) {
+  const w = wrapLid(d);
+  const c = w && d.connections[w.hinge];
+  if (!w || !c) return;
+  const parent = d.panels[c.a.panelId];
+  if (!parent) return;
+  const M = shown.xf.get(parent.id) ?? new THREE.Matrix4();
+  const [a, b] = edgeWorld(parent, c.a.edge).map((q) => new THREE.Vector3(...q).applyMatrix4(M));
+  const axis = b.clone().sub(a).normalize();
+  // it and every board folded off it
+  const sub: string[] = [];
+  const walk = (id: string) => {
+    sub.push(id);
+    for (const x of Object.values(d.connections)) if (x.grown && x.a.panelId === id) walk(x.b.panelId);
+  };
+  walk(w.lid);
+  const lid = d.panels[w.lid];
+  const centre = new THREE.Vector3(...toWorld(lid.frame, lid.w / 2, lid.h / 2, 0)).applyMatrix4(shown.xf.get(lid.id) ?? new THREE.Matrix4());
+  // the way that lifts the lid
+  const turn = (sign: number) => new THREE.Matrix4().makeTranslation(a.x, a.y, a.z).multiply(new THREE.Matrix4().makeRotationAxis(axis, (sign * deg * Math.PI) / 180)).multiply(new THREE.Matrix4().makeTranslation(-a.x, -a.y, -a.z));
+  const R = centre.clone().applyMatrix4(turn(1)).y >= centre.clone().applyMatrix4(turn(-1)).y ? turn(1) : turn(-1);
+  for (const id of sub) shown.xf.set(id, R.clone().multiply(shown.xf.get(id) ?? new THREE.Matrix4()));
 }
 
 export type Posed = ReturnType<typeof foldDisplay> & {
@@ -199,6 +268,7 @@ export function posedDisplay(d: Design, pose: Pose = autoPose(d)): Posed {
     if (pick) shown.flapT.set(pick.key, Math.max(-0.2, 1 - pose.backFlap / (pick.f.angle ?? 180)));
   }
   if (pose.drawer !== undefined) assembleDrawer(d, shown, pose.drawer);
+  if (pose.lidOpen !== undefined) openWrapLid(d, shown, pose.lidOpen);
   if (pose.lay) layDown(d, shown);
   return shown;
 }

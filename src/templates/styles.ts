@@ -117,6 +117,6 @@ export const styleWord = (s: StyleDef) => `style.${s.id}.word` as MsgKey;
 export const styleDesc = (s: StyleDef) => `style.${s.id}.desc` as MsgKey;
 export const GROUPS: (StyleGroup | 'more')[] = ['boxes', 'cartons', 'shipping', 'flat', 'more'];
 /** Where each structure sits in the first word's list (a structure not named here goes last). */
-export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more', insert: 'more' };
+export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more', insert: 'more', magazineFile: 'boxes', diceTower: 'more', mailer: 'cartons' };
 /** A style whose words are all its structure's own (no word fixed): the structure's entry stands for it. */
 export const isAlias = (s: StyleDef) => Object.keys(s.words).length === 0;

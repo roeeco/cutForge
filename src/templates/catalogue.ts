@@ -90,6 +90,8 @@ export const CATALOGUE: Card[] = [
   // milestone 155: a tall cup with sides, pencils standing in it; the dice tray (a low hexagon) is a challenge on it
   { id: 'penCup', title: 'card.penCup', group: 'boxes', status: 'stable', challenges: ['dice-tray'], view: { prop: 'cup' }, variants: [{ id: 'penCup', structure: 'box', style: 'penCup', match: { body: 'cross', footprint: 'poly', lid: 'none' } }] },
   { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
+  // milestone 157 (beta): a box whose side walls slope down to a low front
+  { id: 'magazineFile', title: 'card.magazineFile', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'magazineFile', structure: 'magazineFile', match: { body: 'cross', lid: 'none', slope: true } }] },
   // cartons
   // milestone 155: a carton with a window and what it holds behind it (before the tuck cartons: of two equally specific, the first)
   { id: 'windowCarton', title: 'card.windowCarton', group: 'cartons', status: 'stable', challenges: [], view: { prop: 'product' }, variants: [{ id: 'windowCarton', structure: 'carton', style: 'windowCarton', match: { body: 'tube', top: 'tuck', window: true } }] },
@@ -113,6 +115,8 @@ export const CATALOGUE: Card[] = [
     ],
   },
   { id: 'sleeve', title: 'card.sleeve', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'sleeve', structure: 'sleeve', match: { body: 'tube', top: null, bottom: null } }] },
+  // milestone 157 (beta): one wrap, its lid tucked in behind the front
+  { id: 'mailer', title: 'card.mailer', group: 'cartons', status: 'beta', challenges: [], variants: [{ id: 'mailer', structure: 'mailer', match: { body: 'folded', wrap: true } }] },
   // flat pieces
   {
     id: 'envelope', title: 'card.envelope', word: 'card.envelope.word', group: 'flat', status: 'stable', challenges: [],
@@ -133,6 +137,8 @@ export const CATALOGUE: Card[] = [
       { id: 'phoneStand', structure: 'stand', style: 'phoneStand', match: { body: 'stand', lean: true, supports: 1 } },
     ],
   },
+  // milestone 157 (beta): a tall box with slanted baffles between its side walls and a way out at the bottom
+  { id: 'diceTower', title: 'card.diceTower', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'diceTower', structure: 'diceTower', match: { body: 'cross', lid: 'none', baffles: true } }] },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],

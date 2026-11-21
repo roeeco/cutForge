@@ -39,6 +39,12 @@ export type PresetRecord = {
   strip?: boolean;
   folds?: string;
   accordion?: boolean;
+  /** Milestone 157: a box's walls slope (a wall's top corner lowered: a magazine file). */
+  slope?: boolean;
+  /** Milestone 157: boards set at a slant inside a box, joined to its walls (a dice tower's baffles). */
+  baffles?: boolean;
+  /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
+  wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
   flaps?: string;
   /** How many boards a folded piece is (a folder's covers and pockets, a holder's two faces). */
@@ -89,6 +95,26 @@ function hasWindow(d: Design, t: Tray): boolean {
   });
 }
 
+/** A wall of a box with its top sloping: a top corner lowered by more than a few mm (milestone 157). */
+function hasSlope(d: Design, t: Tray): boolean {
+  return trayRing(d, t).some((r) => {
+    const s = d.panels[r.wall]?.sketch;
+    return s?.kind === 'wall' && ['tl', 'tr'].some((k) => (s.corners?.[k as 'tl' | 'tr']?.dy ?? 0) < -5);
+  });
+}
+
+/** Boards at a slant inside a box (neither level nor upright), joined to its walls (milestone 157). */
+function hasBaffles(d: Design, t: Tray): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  return Object.values(d.panels).some((p) => {
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf) return false;
+    // how level it lies: its normal's upward part
+    const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
+    if (n < 0.2 || n > 0.98) return false;
+    return Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === p.id && walls.has(c.b.panelId)) || (c.b.panelId === p.id && walls.has(c.a.panelId))));
+  });
+}
+
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
@@ -109,6 +135,8 @@ export function recordOf(d: Design): PresetRecord {
     rec.relation = ts.length === 2 && ts.some((x) => x !== t && x.base === 'open' && !x.top && !x.bottom) ? 'drawer' : null;
     if (slits) rec.slits = true;
     if (hasWindow(d, t)) rec.window = true;
+    if (!tube && hasSlope(d, t)) rec.slope = true;
+    if (!tube && hasBaffles(d, t)) rec.baffles = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -119,6 +147,8 @@ export function recordOf(d: Design): PresetRecord {
   if (lean) return { body: 'stand', lean: true, supports: grown.filter((c) => c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1).length };
   if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue')) {
     const rec: PresetRecord = { body: 'folded', boards: ids.length, ...(slits ? { slits } : {}), ...(flaps ? { flaps } : {}) };
+    // a wrap: boards on a board's two ends, glued at their corners to the boards beside them
+    if (Object.values(d.connections).some((c) => !c.grown && c.kind === 'glue')) rec.wrap = true;
     // one strip: a chain, each board's children on one edge at most, no glue and no shaped flaps
     const kids = new Map<string, number>();
     for (const c of grown) kids.set(c.a.panelId, (kids.get(c.a.panelId) ?? 0) + 1);
@@ -136,7 +166,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {
