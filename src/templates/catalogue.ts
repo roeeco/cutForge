@@ -52,7 +52,7 @@ export type Card = {
   challenges: string[];
   status: 'stable' | 'beta' | 'planned';
   /** Milestone 151: how its pictures look at it (views/illustrate.ts): from where, and how far a tube's bottom flaps hang open. */
-  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number };
+  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number; /** What its pictures show inside it (milestone 155). */ prop?: 'cup' | 'product' };
 };
 
 const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
@@ -61,7 +61,7 @@ const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
 export const CATALOGUE: Card[] = [
   // boxes and trays
   {
-    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: ['dice-tray'],
+    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: [],
     variants: [
       { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
@@ -83,12 +83,16 @@ export const CATALOGUE: Card[] = [
     ],
   },
   {
-    // owner question 12 (milestone 106): the round box is 100 × 100 outside, its inside measured
+    // owner question 12 (milestone 106): the round box is 100 × 100 outside, its inside measured; milestone 155: in the sentence
     id: 'roundBox', title: 'card.roundBox', group: 'boxes', status: 'stable', challenges: [],
-    variants: [{ id: 'roundBox', structure: 'box', words: { shape: 'round' }, sentence: false, match: { body: 'cross', footprint: 'round', lid: 'none' }, guided: { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', words: { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' } } }],
+    variants: [{ id: 'roundBox', structure: 'box', style: 'roundBox', match: { body: 'cross', footprint: 'round', lid: 'none' }, guided: { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', words: { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' } } }],
   },
+  // milestone 155: a tall cup with sides, pencils standing in it; the dice tray (a low hexagon) is a challenge on it
+  { id: 'penCup', title: 'card.penCup', group: 'boxes', status: 'stable', challenges: ['dice-tray'], view: { prop: 'cup' }, variants: [{ id: 'penCup', structure: 'box', style: 'penCup', match: { body: 'cross', footprint: 'poly', lid: 'none' } }] },
   { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
   // cartons
+  // milestone 155: a carton with a window and what it holds behind it (before the tuck cartons: of two equally specific, the first)
+  { id: 'windowCarton', title: 'card.windowCarton', group: 'cartons', status: 'stable', challenges: [], view: { prop: 'product' }, variants: [{ id: 'windowCarton', structure: 'carton', style: 'windowCarton', match: { body: 'tube', top: 'tuck', window: true } }] },
   {
     id: 'tuckCarton', title: 'card.tuckCarton', word: 'card.tuckCarton.word', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
     variants: [
@@ -121,7 +125,14 @@ export const CATALOGUE: Card[] = [
   { id: 'folder', title: 'card.folder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'folder', structure: 'folder', match: { body: 'folded', boards: 4 } }] },
   { id: 'cardHolder', title: 'card.cardHolder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'cardHolder', structure: 'cardHolder', match: { body: 'folded', boards: 2, slits: true } }] },
   // stands
-  { id: 'stand', title: 'card.stand', group: 'more', status: 'stable', view: { dir: 'side34' }, challenges: ['card-stand'], variants: [{ id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } }] },
+  {
+    id: 'stand', title: 'card.stand', word: 'card.stand.word', group: 'more', status: 'stable', view: { dir: 'side34' }, challenges: ['card-stand'],
+    variants: [
+      { id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } },
+      // milestone 155: one support and a slot as thick as a phone
+      { id: 'phoneStand', structure: 'stand', style: 'phoneStand', match: { body: 'stand', lean: true, supports: 1 } },
+    ],
+  },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

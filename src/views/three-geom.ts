@@ -68,18 +68,20 @@ export function panelShape(d: Design, p: Panel, opts: { joints?: boolean } = {})
   const flatAdds = opts.joints === false ? [] : [...jointFlatAdds(d, p), ...(p.edgeFlaps ?? []).filter((f) => flapIsFlat(d, p, f)).map((f) => flapGeom(d, p, f)?.adds[0]).filter((x): x is Vec2[] => !!x)];
   if (flatAdds.length) {
     const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
-    const res = polygonClipping.union(rings.map((r) => [ring(r)]), ...flatAdds.map((k) => [ring(k)]));
-    rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
+    const res = robustClip('union', rings.map((r) => [ring(r)]), flatAdds.map((k) => [ring(k)]));
+    if (res) rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
   }
   const extraHoles: Vec2[][] = [];
   const cuts = opts.joints === false ? [] : [...panelExtras(d, p).cuts, ...throughRegions(d, p.id)];
   if (cuts.length) {
     // material a joint removes past a corner
     const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
-    const res = polygonClipping.difference(rings.map((r) => [ring(r)]), ...cuts.map((k) => [ring(k)]));
-    rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
-    // holes the subtraction made (a through-cut inside the panel)
-    for (const poly of res) for (const h of poly.slice(1)) extraHoles.push(h.slice(0, -1).map(([x, y]) => ({ x, y })));
+    const res = robustClip('difference', rings.map((r) => [ring(r)]), cuts.map((k) => [ring(k)]));
+    if (res) {
+      rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
+      // holes the subtraction made (a through-cut inside the panel)
+      for (const poly of res) for (const h of poly.slice(1)) extraHoles.push(h.slice(0, -1).map(([x, y]) => ({ x, y })));
+    }
   }
   const holes: Vec2[][] = [];
   for (const h of holeCuts(p)) for (const dc of h.contours) holes.push(flattenContour(dc, 0.05).slice().reverse());
@@ -87,6 +89,26 @@ export function panelShape(d: Design, p: Panel, opts: { joints?: boolean } = {})
   holes.push(...extraHoles);
   if (opts.joints !== false) holes.push(...panelExtras(d, p).holes);
   return { t, side: p.frame.side === -1 ? -1 : 1, rings, holes: holes.filter((h) => h.length >= 3) };
+}
+
+type Rings = [number, number][][];
+/**
+ * A union or difference of outlines that does not throw (milestone 155): polygon-clipping can fail to close a ring on
+ * near-degenerate input (an oval plywood base's corner slivers did, in the browser); it is tried again with the points
+ * rounded to 0.1 µm, and failing that the outline is kept as it was (null), rather than losing the whole board.
+ */
+function robustClip(op: 'union' | 'difference', a: Rings[], b: Rings[]): ReturnType<typeof polygonClipping.union> | null {
+  const run = (x: Rings[], y: Rings[]) => (op === 'union' ? polygonClipping.union(x as never, ...(y as never[])) : polygonClipping.difference(x as never, ...(y as never[])));
+  try {
+    return run(a, b);
+  } catch {
+    const r = (g: Rings[]) => g.map((poly) => poly.map((ring) => ring.map(([x, y]) => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4] as [number, number])));
+    try {
+      return run(r(a), r(b));
+    } catch {
+      return null;
+    }
+  }
 }
 
 /** A short fingerprint of a panel shape: equal fingerprints build the same slab. */

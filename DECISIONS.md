@@ -766,3 +766,11 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The inward diagonal ear is not built.** It is an ear (a glue flap) creased diagonally and tucked inside; in the analysis it serves telescope lids (FEFCO 0303, 0304, 0308), which cutForge's cap lid does with its own rim. It waits until a preset needs it; the gusset was the mechanism the analysis singled out.
 - **The fold slider does not unfold a gusset**: it stays drawn folded against its wall while the walls open (it has two creases, not one hinge).
 
+## Milestone 155 (presets overhaul): new presets on the engine as it is
+- **Four new styles, each a card or a card's variant:** *Round box* (a box's `shape: round`, no lid: now in the sentence, its own card, Guided's round box on it), *Pen cup* (six sides, no lid, 75 × 75 × 100 mm: a card of its own; the dice tray, a low hexagon, is now a challenge on it), *Window carton* (a tuck carton with a rectangular window, 70 × 40 × 110 mm: a card of its own, before the tuck cartons so a carton with a window is recognised as it), *Phone stand* (the stand with one support and an 11 mm slot: a variant of the stand card).
+- **A style can start at sizes of its own** (`StyleDef.sizes`), applied when it is chosen: a pen cup is not 160 × 110 × 45.
+- **Records gain a window and a stand's supports** (`window`: a rectangle or circle cut in a wall's lower part, not a handle or finger notch; `supports`: how many boards lean on a stand's base), so the patterns can tell these from their neighbours.
+- **What goes inside is the card's** (`Card.view.prop`): pencils standing in a pen cup, a product behind a window carton's window. An explicit prop (a mission's) still wins.
+- **The plywood box with a living-hinge lid already existed**: the hinged-lid tray on plywood (its lid a bent band, milestone 63); nothing new was needed.
+- **`panelShape` no longer throws on a clipping failure** (`robustClip`): an oval plywood base's corner slivers made polygon-clipping fail in the browser, losing the round box's picture; it retries with points rounded to 0.1 µm, else keeps the outline uncut there. The stage draws through the same function.
+

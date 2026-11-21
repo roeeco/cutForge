@@ -11,14 +11,14 @@ export const MISSION_PROP: Record<string, Prop> = { 'pencil-box': 'pencils', 'di
 export function designPicture(d: Design, w: number, h: number, opts: { prop?: Prop } & Pick<PictureOpts, 'view' | 'bottomOpen'> = {}): string | null {
   try {
     // milestone 151: the view the design's card asks for (a stand from the side, a carton's bottom flaps hanging open)
-    let view: Pick<PictureOpts, 'view' | 'bottomOpen'> = {};
+    let view: Pick<PictureOpts, 'view' | 'bottomOpen' | 'prop'> = {};
     try {
       const card = recognise(d)?.card.view;
-      if (card) view = { view: card.dir, bottomOpen: card.bottomOpen };
+      if (card) view = { view: card.dir, bottomOpen: card.bottomOpen, ...(card.prop ? { prop: card.prop } : {}) };
     } catch {
       view = {};
     }
-    const svg = illustrateDesign(d, w, h, { ...view, ...opts });
+    const svg = illustrateDesign(d, w, h, { ...view, ...Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined)) });
     if (svg) return svg;
   } catch {
     // fall back to the stage's look

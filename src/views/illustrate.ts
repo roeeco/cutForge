@@ -196,6 +196,8 @@ function block(o: THREE.Vector3, ax: THREE.Vector3, ay: THREE.Vector3, az: THREE
 /** What goes inside: on each compartment's floor, along its longer side. */
 function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: Face[]) {
   if (prop === 'soap') return soapFaces(d, xf, out);
+  if (prop === 'product') return productFaces(d, xf, out);
+  if (prop === 'cup') return cupFaces(d, xf, out);
   if (prop === 'letter') return letterFaces(d, xf, out);
   const baseId = boxBases(d)[0];
   if (!baseId) return;
@@ -328,6 +330,50 @@ function soapFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
   else lo.setComponent(k, lo.getComponent(k) - 0.45 * len);
   if (hi.x <= lo.x || hi.y <= lo.y || hi.z <= lo.z) return;
   block(lo, new THREE.Vector3(hi.x - lo.x, 0, 0), new THREE.Vector3(0, 0, hi.z - lo.z), new THREE.Vector3(0, hi.y - lo.y, 0), '#cdb9e6', '#5d4a78', out, '#dccdf0');
+}
+
+/** What a window carton holds (milestone 155): a coloured block filling most of its inside, seen through the window. */
+function productFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const t = Object.values(d.trays ?? {}).find((x) => !x.lidOf);
+  if (!t) return;
+  const walls = trayRing(d, t).map((r) => r.wall);
+  if (!walls.length) return;
+  const b = boxOf(d, walls, xf);
+  const th = matOf(d, walls[0]).thickness * 2 + 1;
+  const lo = new THREE.Vector3(b.min.x + th, b.min.y + 1, b.min.z + th), hi = new THREE.Vector3(b.max.x - th, b.min.y + (b.max.y - b.min.y) * 0.86, b.max.z - th);
+  if (hi.x <= lo.x || hi.y <= lo.y || hi.z <= lo.z) return;
+  block(lo, new THREE.Vector3(hi.x - lo.x, 0, 0), new THREE.Vector3(0, 0, hi.z - lo.z), new THREE.Vector3(0, hi.y - lo.y, 0), '#e2725b', '#6b2f22', out, '#ee8f78');
+}
+
+/** Pencils standing in a pen cup (milestone 155): a handful upright in its middle, each leaning a little, a third taller than it. */
+function cupFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const baseId = boxBases(d)[0];
+  const t = Object.values(d.trays ?? {}).find((x) => !x.lidOf && x.baseId === baseId);
+  if (!baseId || !t) return;
+  const walls = trayRing(d, t).map((r) => r.wall);
+  const b = boxOf(d, [baseId, ...walls], xf);
+  const c = b.getCenter(new THREE.Vector3());
+  const H = (b.max.y - b.min.y) * 1.35, r = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) * 0.18;
+  const COLS = ['#1fb8ac', '#f2b632', '#e4574b', '#3f7be0', '#7b5bd6'];
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + 0.4;
+    const foot = new THREE.Vector3(c.x + Math.cos(a) * r, b.min.y + 1, c.z + Math.sin(a) * r);
+    const lean = new THREE.Vector3(Math.cos(a) * 0.12, 1, Math.sin(a) * 0.12).normalize();
+    const ax = new THREE.Vector3().crossVectors(lean, new THREE.Vector3(0, 0, 1)).normalize().multiplyScalar(6.5);
+    const az = new THREE.Vector3().crossVectors(ax, lean).normalize().multiplyScalar(6.5);
+    const len = H * (0.92 + 0.08 * ((k * 37) % 5) / 4);
+    block(foot.clone().addScaledVector(ax, -0.5).addScaledVector(az, -0.5), ax, az, lean.clone().multiplyScalar(len - 14), COLS[k], '#3a3530', out);
+    // the sharpened end: bare wood to a lead point
+    const top = foot.clone().addScaledVector(lean, len - 14);
+    const apex = foot.clone().addScaledVector(lean, len);
+    const ring = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([i, j]) => top.clone().addScaledVector(ax, i).addScaledVector(az, j));
+    for (let i = 0; i < 4; i++) {
+      const p0 = ring[i], p1 = ring[(i + 1) % 4];
+      const n = new THREE.Vector3().crossVectors(p1.clone().sub(p0), apex.clone().sub(p0)).normalize();
+      if (n.dot(p0.clone().sub(top.clone().addScaledVector(lean, 0))) < 0) n.negate();
+      out.push({ pts: [p0, p1, apex], normal: n, fill: '#e8c79a', stroke: '#3a3530' });
+    }
+  }
 }
 
 /** A letter in an envelope (milestone 148): a sheet under its flaps, out past the opened back flap. */

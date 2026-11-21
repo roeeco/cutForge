@@ -2452,6 +2452,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `src/model/seams.ts`: `gussetFits`, `gussetGeom`, the gusset among card and corrugated corners; `src/model/jointDefaults.ts`: offered only where it fits; `src/model/types.ts` / `check.ts`: the kind; `src/templates/records.ts`: `corner` in the record; `conn.gusset` in both languages.
 - `tests/corners.test.ts`: offered on card and corrugated only, one uncut net with the creases and four folded gussets on card and 1.6 mm board, never offered on a hexagon, the record's slot.
 
+## Milestone 155 (presets overhaul) — new presets on the engine as it is ✅
+
+- `src/templates/styles.ts`: `roundBox`, `penCup`, `windowCarton`, `phoneStand`, `StyleDef.sizes`; `src/templates/catalogue.ts`: the Round box in the sentence, the Pen cup and Window carton cards, the Phone stand variant, `Card.view.prop`; `src/templates/records.ts`: `window`, `supports`; `src/views/illustrate.ts`: the cup's pencils and the window carton's product; `src/views/three-geom.ts`: `robustClip`.
+- Every new style is in the catalogue and record tests (membership, recognition in every board, each design once per list).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

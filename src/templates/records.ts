@@ -31,6 +31,10 @@ export type PresetRecord = {
   lean?: boolean;
   /** Cut slits on a board (a card holder's corners, a folder's card slits). */
   slits?: boolean;
+  /** Milestone 155: a window cut in a wall (a rectangle or circle in its lower part, not a handle or finger notch). */
+  window?: boolean;
+  /** Milestone 155: how many boards lean on a stand's base (a phone stand has one). */
+  supports?: number;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
   flaps?: string;
   /** How many boards a folded piece is (a folder's covers and pockets, a holder's two faces). */
@@ -73,6 +77,14 @@ function endOf(d: Design, t: Tray, end: 'top' | 'bottom'): string | null {
   return null;
 }
 
+/** A window in one of a tray's walls: a rectangle or circle cut in the lower part of a wall, 12 mm or more. */
+function hasWindow(d: Design, t: Tray): boolean {
+  return trayRing(d, t).some((r) => {
+    const P = d.panels[r.wall];
+    return !!P && P.details.some((x) => x.op === 'cut' && (x.shape === 'rect' || x.shape === 'circle') && Math.min(x.w, x.h) >= 12 && x.cy + x.h / 2 < P.h - 3);
+  });
+}
+
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
@@ -92,6 +104,7 @@ export function recordOf(d: Design): PresetRecord {
     }
     rec.relation = ts.length === 2 && ts.some((x) => x !== t && x.base === 'open' && !x.top && !x.bottom) ? 'drawer' : null;
     if (slits) rec.slits = true;
+    if (hasWindow(d, t)) rec.window = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -99,7 +112,7 @@ export function recordOf(d: Design): PresetRecord {
   if (ids.length === 1) return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}) };
   const grown = Object.values(d.connections).filter((c) => c.grown);
   const lean = grown.some((c) => c.kind !== 'fold' && c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1);
-  if (lean) return { body: 'stand', lean: true };
+  if (lean) return { body: 'stand', lean: true, supports: grown.filter((c) => c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1).length };
   if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue'))
     return { body: 'folded', boards: ids.length, ...(slits ? { slits } : {}), ...(flaps ? { flaps } : {}) };
   return { body: 'free' };
