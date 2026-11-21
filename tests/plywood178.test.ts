@@ -33,10 +33,18 @@ const CASES: [string, string, Params, string][] = [
   ['compartment box', 'slideBox', words('compartmentBox'), 'compartmentBox'],
   ['compartment box, 5 spaces', 'slideBox', { parts: 5 }, 'compartmentBox'],
   ['uneven file', 'magazineFile', words('unevenFile'), 'unevenFile'],
+  ['console', 'console', {}, 'console'],
+  ['wedge', 'console', words('wedge'), 'wedge'],
+  ['dispenser', 'dispenser', {}, 'dispenser'],
+  ['castle tower', 'castle', {}, 'castle'],
+  ['Gridfinity base', 'gridfinityBase', {}, 'gridfinityBase'],
+  ['Gridfinity base, 1 × 1', 'gridfinityBase', { nx: 1, ny: 1 }, 'gridfinityBase'],
+  ['cutlery caddy', 'caddy', {}, 'caddy'],
+  ['cutlery caddy, 4 spaces a side', 'caddy', { spaces: 4 }, 'caddy'],
 ];
 
 /** The new structures (cards of their own), and the new words on existing ones: [structure, key, value off plywood]. */
-const NEW_CARDS = ['dividerTray', 'scoopOrganiser'];
+const NEW_CARDS = ['dividerTray', 'scoopOrganiser', 'console', 'dispenser', 'castle', 'gridfinityBase', 'caddy'];
 const NEW_WORDS: [string, string, string | number][] = [
   ['scoopTray', 'scoops', 'both'],
   ['slideBox', 'parts', 3],
@@ -100,5 +108,25 @@ describe('the rest of §3.2 in plywood (milestone 178)', () => {
       return sk.kind === 'wall' && Object.values(sk.corners ?? {}).some((c) => c.dy < -5);
     });
     expect(sloped).toHaveLength(4);
+  });
+
+  it('a console’s slope too flat is refused with its reason; the dispenser’s front stands clear of the base', () => {
+    const c = templateById('console')!;
+    expect(c.accepts!(P3, { ...defaults(c), height: 90, depth: 250 })).toBe('sen.why.slopeLow');
+    expect(c.accepts!(P3, defaults(c))).toBeNull();
+    const d = generate(templateById('dispenser')!, P3, defaults(templateById('dispenser')!));
+    const front = d.panels['t:front'];
+    expect(front.frame.o[1]).toBeGreaterThan(d.panels['t:base'].frame.o[1] + P3.thickness + 5);
+    expect(Object.values(d.connections).some((x) => (x.a.panelId === 't:front' || x.b.panelId === 't:front') && (x.a.panelId === 't:base' || x.b.panelId === 't:base'))).toBe(false);
+  }, 60_000);
+
+  it('a Gridfinity base has a 38 mm opening on a 42 mm pitch for each cell', () => {
+    const t = templateById('gridfinityBase')!;
+    const d = generate(t, P3, { ...defaults(t), nx: 3, ny: 2 });
+    const o = d.panels['t:plate'].details.filter((x) => x.shape === 'roundrect');
+    expect(o).toHaveLength(6);
+    expect(o.every((x) => x.w === 38 && x.h === 38)).toBe(true);
+    const xs = [...new Set(o.map((x) => Math.round(x.cx * 10) / 10))].sort((a, b) => a - b);
+    expect(xs[1] - xs[0]).toBeCloseTo(42, 6);
   });
 });

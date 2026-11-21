@@ -79,6 +79,8 @@ export const STYLES: StyleDef[] = [
   { id: 'scoopBoth', structure: 'scoopTray', words: { scoops: 'both' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'compartmentBox', structure: 'slideBox', words: { parts: 3 }, group: 'boxes', uses: ['gift', 'stationery'], status: 'beta' },
   { id: 'unevenFile', structure: 'magazineFile', words: { uneven: 'uneven' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 178 (boxes.py's Ramp): the console with no front, its panel from the base's front edge up to the back
+  { id: 'wedge', structure: 'console', words: { frontWall: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
 ];
 
 export const styleById = (id: string) => STYLES.find((s) => s.id === id);

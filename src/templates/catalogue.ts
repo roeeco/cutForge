@@ -212,6 +212,19 @@ export const CATALOGUE: Card[] = [
   },
   // milestone 178 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.2): an organiser with a ramp in each space (boxes.py's SmallPartsTray2)
   { id: 'scoopOrganiser', title: 'card.scoopOrganiser', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'scoopOrganiser', structure: 'scoopOrganiser', match: { body: 'cross', lid: 'none', ramp: true, partitions: true } }] },
+  // milestone 178 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.2): boxes of boards with a shape of their own
+  {
+    // boxes.py's Console and Ramp: a top sloping from a low front to the back; with no front, a wedge
+    id: 'console', title: 'card.console', word: 'card.console.word', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [],
+    variants: [
+      { id: 'console', structure: 'console', match: { body: 'cross', lid: 'none', slope: true, baffles: true } },
+      { id: 'wedge', structure: 'console', style: 'wedge', match: { body: 'cross', lid: 'none', slope: true, ramp: true, open: 1 } },
+    ],
+  },
+  { id: 'dispenser', title: 'card.dispenser', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'dispenser', structure: 'dispenser', match: { body: 'cross', lid: 'none', open: 1, chute: true } }] },
+  { id: 'gridfinityBase', title: 'card.gridfinityBase', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridfinityBase', structure: 'gridfinityBase', match: { body: 'cross', lid: 'none', plate: true, openings: true } }] },
+  { id: 'caddy', title: 'card.caddy', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'caddy', structure: 'caddy', match: { body: 'cross', lid: 'none', partitions: true, carry: true } }] },
+  { id: 'castle', title: 'card.castle', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'castle', structure: 'castle', match: { body: 'cross', lid: 'none', crenels: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
