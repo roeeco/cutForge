@@ -16,6 +16,7 @@ import { trayRing } from '../model/cartons';
 import { edgeFeatures } from '../model/edgeFeatures';
 import { edgeWorld, matDir, toWorld } from '../model/frame';
 import { frameMatrix } from './three-geom';
+import { stacks } from '../model/stack';
 
 export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter' | 'cup' | 'product' | 'paper' | 'goods';
 
@@ -36,6 +37,8 @@ export type Pose = {
   lay?: boolean;
   /** A wrap's lid (milestone 157's mailer) opened this many degrees from shut. */
   lidOpen?: number;
+  /** Milestone 177: how many like it are drawn stacked on their feet, it the lowest (a box with stacking edges: 2). */
+  stack?: number;
 };
 
 /** The trays that are boxes (not a lid of their own). */
@@ -76,6 +79,8 @@ export function autoPose(d: Design): Pose {
     pose.lay = true;
   }
   if (wrapLid(d)) pose.lidOpen = 115;
+  // milestone 177: a box that stacks shows one like it standing on it
+  if (stacks(d)) pose.stack = 2;
   // boards at a slant inside a box (a dice tower's baffles): the walls in front of them drawn as a ghost
   const near = slantWalls(d);
   if (near.length) pose.ghost = near;

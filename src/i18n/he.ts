@@ -2314,4 +2314,13 @@ export const he: Record<MsgKey, string> = {
   'sen.slideBox': "קופסה עם מכסה נשלף",
   'sen.slideBox.desc': "מכסה שמחליק החוצה בתעלות שיוצרים פסים על הדפנות, מעל חזית נמוכה",
   'sen.s.slideBox': "אני רוצה להכין {structure} ברוחב {width}, בעומק {depth} ובגובה {height} מ״מ מתחת למכסה",
+  // milestone 177: stacking feet (BOXES_PLYWOOD_PLAN.md E6)
+  'sen.stack': "ערימה",
+  'sen.stack.none': "בלי רגליות לערימה",
+  'sen.stack.feet': "רגליות ולשוניות כדי שעוד אחת כמוה תעמוד עליה",
+  'sen.add.stack': "עם {stack}",
+  'sen.why.stackLid': "מכסה היה נח על הלשוניות: רגליות לערימה הן לקופסה בלי מכסה",
+  'sen.why.stackGrips': "הידיות הבולטות נמצאות איפה שהלשוניות: בחרו חריצי אחיזה",
+  'sen.why.stackShape': "רגליות לערימה צריכות קופסה עם ארבע פינות ישרות",
+  'sen.why.stackRoom': "קטנה מדי לרגליות: הגדילו את הרוחב והעומק",
 };

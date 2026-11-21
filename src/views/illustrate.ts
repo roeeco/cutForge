@@ -16,6 +16,7 @@ import { edgeFeatures } from '../model/edgeFeatures';
 import { allFoldOvers } from '../model/foldover';
 import { segDir, segInward } from '../model/edges';
 import { clippedLine } from '../model/lines';
+import { stackPitch } from '../model/stack';
 import type { Flap3d, P2 } from '../model/types';
 
 export type Prop = PoseProp;
@@ -488,7 +489,33 @@ function joinedIn(d: Design): (a: string, b: string) => boolean {
     pairs.add(`${c.a.panelId}|${c.b.panelId}`);
     pairs.add(`${c.b.panelId}|${c.a.panelId}`);
   }
-  return (a, b) => pairs.has(`${a}|${b}`);
+  // milestone 177: a stacked copy's boards (`<id>@@<k>`) are joined as the boards they copy, within the same copy
+  return (a, b) => {
+    const [a0, ka = ''] = a.split(COPY), [b0, kb = ''] = b.split(COPY);
+    return ka === kb && pairs.has(`${a0}|${b0}`);
+  };
+}
+
+/** How a stacked copy's boards are named in a picture's faces (milestone 177): `<board>@@<copy>`. */
+const COPY = '@@';
+
+/**
+ * Milestone 177: the faces of a box like the design standing on it `k` times over (`pose.stack`), each `pitch` higher
+ * on its feet, named as copies (`<board>@@<k>`) so the paint order keeps each copy's joints to itself.
+ */
+function stackedFaces(d: Design, shown: Posed, pitch: number, k: number): Face[] {
+  const T = new THREE.Matrix4().makeTranslation(0, pitch * k, 0);
+  const IDM = new THREE.Matrix4();
+  const xf = new Map<string, THREE.Matrix4>();
+  for (const id of Object.keys(d.panels)) xf.set(id, T.clone().multiply(shown.xf.get(id) ?? IDM));
+  const faces = designFaces(d, { ...shown, xf });
+  for (const f of faces) {
+    if (!f.board) continue;
+    if (shown.ghost.has(f.board)) shown.ghost.add(`${f.board}${COPY}${k}`);
+    f.board = `${f.board}${COPY}${k}`;
+    f.part = `${f.part}${COPY}${k}`;
+  }
+  return faces;
 }
 
 /** The faces and their paint order, for tests. */
@@ -717,6 +744,9 @@ export function illustrationSvg(design: Design, w: number, h: number, opts: Pict
   const shown = posedDisplay(d, pose);
   const faces = designFaces(d, shown);
   if (!faces.length) return null;
+  // milestone 177: a box that stacks is drawn with one like it standing on it
+  const pitch = (pose.stack ?? 1) > 1 ? stackPitch(d) : null;
+  if (pitch) for (let k = 1; k < pose.stack!; k++) faces.push(...stackedFaces(d, shown, pitch, k));
   const prop = opts.prop ?? pose.prop;
   if (prop) propFaces(d, shown.xf, prop, faces);
   const main = scene(d, shown, faces, w, h, opts.view ?? 'front34', true);

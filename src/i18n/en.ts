@@ -2312,6 +2312,15 @@ export const en = {
   'sen.slideBox': "a box with a sliding lid",
   'sen.slideBox.desc': "A lid that slides out in grooves made by rails on the side walls, over a low front",
   'sen.s.slideBox': "I'd like to make {structure} that is {width} wide, {depth} deep and {height} mm tall under the lid",
+  // milestone 177: stacking feet (BOXES_PLYWOOD_PLAN.md E6)
+  'sen.stack': "Stacking",
+  'sen.stack.none': "no stacking feet",
+  'sen.stack.feet': "feet and tongues so another like it stacks on top",
+  'sen.add.stack': "with {stack}",
+  'sen.why.stackLid': "A lid would rest on the tongues: stacking feet are for a box with no lid",
+  'sen.why.stackGrips': "Raised grips are where the tongues go: choose handle slots",
+  'sen.why.stackShape': "Stacking feet need a box with four square corners",
+  'sen.why.stackRoom': "Too small for stacking feet: make it wider and deeper",
 } as const;
 
 export type MsgKey = keyof typeof en;

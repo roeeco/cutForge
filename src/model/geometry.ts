@@ -9,6 +9,7 @@ import { normalizeNotches } from './seams';
 // the own outline (Add/Cut shapes) feeds the edge layer
 import './outline';
 import { edgeFeatures } from './edgeFeatures';
+import { stackPolys } from './stack';
 export { edgeFlapGeom, flapOn } from './edgeFeatures';
 import { memo } from './derived';
 import type { Polygon } from 'polygon-clipping';
@@ -78,6 +79,12 @@ export function extrasByPanel(d: Design, only?: string): Map<string, PanelExtras
     for (const a of h.out.adds) x.adds.push(a);
     for (const s of h.out.scores) x.scores.push(s);
     x.linerHoles.push(...h.out.linerHoles);
+  }
+  // milestone 177: stacking feet and tongues, material added after the joints (stack.ts)
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (!p?.stack || !want(id)) continue;
+    for (const poly of stackPolys(p)) at(id).adds.push(poly);
   }
   for (const c of Object.values(d.connections)) {
     if (!c.geom) continue;

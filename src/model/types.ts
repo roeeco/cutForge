@@ -177,7 +177,18 @@ export type Panel = {
   divider?: DividerRec;
   /** Milestone 123 (SHAPES_TO_DIELINES_PLAN.md §4.3): a free board made from a face of a shape (`FaceKey`). Absent: a hand-made board. */
   src?: { face: string };
+  /**
+   * Milestone 177 (BOXES_PLYWOOD_PLAN.md E6): stacking edges on an upright board. Feet reach `h` mm below its bottom
+   * edge (local y = 0) at each end, `w` mm along it and `inset` mm in from the end, their inner flanks at 60°; a tongue
+   * rises over the middle of its top edge (local y = the board's `h`) that fits between the feet of the same board on a
+   * box like it standing on top, `play` mm clear of them. Both are added after the joints (src/model/stack.ts): a
+   * joint's notch above a foot becomes a slot it closes. Absent: none.
+   */
+  stack?: PanelStack;
 };
+
+/** A board's stacking edges (milestone 177): see `Panel.stack`. */
+export type PanelStack = { h: number; w: number; inset: number; play: number };
 
 /**
  * A divider as drawn, in its base's local coordinates: a point on its
