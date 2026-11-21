@@ -2526,6 +2526,14 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Wall rack** (WallRack, plywood, new card): a back hung by keyholes with lipped shelves.
 - Every board of these is held by tabs in slots (lips and frames given the board round their slots); `tests/plywood172.test.ts`.
 
+## Milestone 178 (every doable boxes.py design in plywood) ✅ part 1: nineteen of §3.2
+
+- **New cards** (plywood, beta): *Scoop organiser* (SmallPartsTray2), *Console* with a *Wedge* style (Console, Ramp), *Dispenser*, *Castle tower*, *Gridfinity base*, *Cutlery caddy* (Silverware), *Record rack* (DiscRack), *Motor bracket* (NemaMount), *Pegboard* with a *Standing pegboard* style (SkadisBoard, SkadisStand), *Honeycomb rack* (WineRack: diamond cells).
+- **On existing cards**: *Divider tray* on the organiser card (loose dividers in half-slots), *Scoop at both ends* (scoop tray `scoops`), *Compartment box* (sliding-lid box `parts`), *Uneven file* (magazine file `uneven`, `low`), *Flyer stand* on the stand card (Display).
+- Records: `loose`, `partitions`, `bothEnds`, `uneven`, `chute`, `crenels`, `openings`, `carry`, `combs`, `motor`, `pegs`, `foot`.
+- `tests/plywood178.test.ts`; `tests/templates.test.ts` lists the flyer stand and pegboard among the designs of fewer than four boards.
+- Left for a later part: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, laser jigs, pizza peel, and the challenges (`DECISIONS.md`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

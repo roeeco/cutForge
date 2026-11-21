@@ -300,4 +300,6 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **173** | Face-glued joint; lids plug, brim, handle; base overhang | |
 | **174** | Tambour door; roll-top box | |
 | **175** | A wrap that opens, latch; flex-door box | |
-| **176–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **176–177** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **178** | The rest of §3.2 on today's engine | part 1 ✅: nineteen entries (eleven cards, eight variants and words); showcase, louvred box, can dispenser, bottle stack, jars, book cover, clock, jigs, peel and the challenges left |
+| **179–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |

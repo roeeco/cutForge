@@ -88,6 +88,14 @@ export type PresetRecord = {
   openings?: boolean;
   /** Milestone 178: a board of its own rising well above a box's walls with a hand hole (a caddy's handle). */
   carry?: boolean;
+  /** Milestone 178: a board with a row of long narrow slits (a record rack's). */
+  combs?: boolean;
+  /** Milestone 178: a board with a motor's hole pattern: a boss hole and four screw holes round it. */
+  motor?: boolean;
+  /** Milestone 178: a board with rows of small upright slots for pegboard hooks. */
+  pegs?: boolean;
+  /** Milestone 178: a slot body of two boards, one lying level that the other stands in (a flyer stand's foot). */
+  foot?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -296,6 +304,15 @@ function openWalls(d: Design, t: Tray): number {
   }).length;
 }
 
+/** Milestone 178: what a board's cuts make of it: long narrow slits, a motor's holes, pegboard slots. */
+function cutsOf(p: Design['panels'][string]): { combs: boolean; motor: boolean; pegs: boolean } {
+  const cuts = p.details.filter((x) => x.op === 'cut');
+  const slits = cuts.filter((x) => x.shape === 'roundrect' && Math.min(x.w, x.h) <= 15 && Math.max(x.w, x.h) >= 4 * Math.min(x.w, x.h));
+  const circles = cuts.filter((x) => x.shape === 'circle');
+  const pegs = cuts.filter((x) => x.shape === 'roundrect' && Math.min(x.w, x.h) < 8 && Math.max(x.w, x.h) < 4 * Math.min(x.w, x.h));
+  return { combs: slits.length >= 2, motor: circles.some((x) => x.w >= 20) && circles.filter((x) => x.w < 8).length >= 4, pegs: pegs.length >= 10 };
+}
+
 /** The joints a slot body is held by: half-slots, tabs in slots, and edges stopped at a face. */
 const SLOT_KINDS = new Set(['halflap', 'tabslot', 'slide', 'butt', 'finger', 'key']);
 
@@ -329,6 +346,12 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (ids.some((id) => !level(id) && d.panels[id].details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 20))) rec.holes = true;
   // milestone 172: it hangs on a wall (a bin rack's back, a wall rack's)
   if (hangs(d)) rec.hang = true;
+  // milestone 178: slits, a motor's holes, pegboard slots; a foot with one board standing in it
+  const cut = ids.map((id) => cutsOf(d.panels[id]));
+  if (cut.some((x) => x.combs)) rec.combs = true;
+  if (cut.some((x) => x.motor)) rec.motor = true;
+  if (cut.some((x) => x.pegs)) rec.pegs = true;
+  if (ids.length === 2 && ids.filter(level).length === 1) rec.foot = true;
   return rec;
 }
 
@@ -376,7 +399,11 @@ export function recordOf(d: Design): PresetRecord {
   }
   const ids = d.order.filter((id) => d.panels[id]);
   const flaps = ids.flatMap((id) => (d.panels[id].edgeFlaps ?? []).map((f) => f.shape ?? 'plain')).sort().join(',');
-  if (ids.length === 1) return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}) };
+  // milestone 178: a pegboard is one board too, its slots and keyholes said
+  if (ids.length === 1) {
+    const pegs = cutsOf(d.panels[ids[0]]).pegs, hang = hangs(d);
+    return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}), ...(pegs ? { pegs } : {}), ...(pegs && hang ? { hang } : {}) };
+  }
   const grown = Object.values(d.connections).filter((c) => c.grown);
   // milestone 165: boards of their own held together by slots and tabs, nothing grown off another (BOXES_PRESETS_PLAN.md)
   const slot = slotOf(d, ids);
@@ -404,7 +431,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

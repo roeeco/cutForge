@@ -81,6 +81,8 @@ export const STYLES: StyleDef[] = [
   { id: 'unevenFile', structure: 'magazineFile', words: { uneven: 'uneven' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   // milestone 178 (boxes.py's Ramp): the console with no front, its panel from the base's front edge up to the back
   { id: 'wedge', structure: 'console', words: { frontWall: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 178 (boxes.py's SkadisStand): the pegboard standing on two feet
+  { id: 'pegboardStand', structure: 'pegboard', words: { mount: 'feet' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
 ];
 
 export const styleById = (id: string) => STYLES.find((s) => s.id === id);

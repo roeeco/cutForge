@@ -41,10 +41,20 @@ const CASES: [string, string, Params, string][] = [
   ['Gridfinity base, 1 × 1', 'gridfinityBase', { nx: 1, ny: 1 }, 'gridfinityBase'],
   ['cutlery caddy', 'caddy', {}, 'caddy'],
   ['cutlery caddy, 4 spaces a side', 'caddy', { spaces: 4 }, 'caddy'],
+  ['record rack', 'recordRack', {}, 'recordRack'],
+  ['record rack, LPs', 'recordRack', { disc: 310, discs: 6 }, 'recordRack'],
+  ['flyer stand', 'flyerStand', {}, 'flyerStand'],
+  ['motor bracket', 'motorBracket', {}, 'motorBracket'],
+  ['motor bracket, NEMA 23', 'motorBracket', { motor: 23 }, 'motorBracket'],
+  ['pegboard', 'pegboard', {}, 'pegboard'],
+  ['standing pegboard', 'pegboard', words('pegboardStand'), 'pegboardStand'],
+  ['honeycomb rack', 'honeycombRack', {}, 'honeycombRack'],
+  ['honeycomb rack, 3 across, 1 high', 'honeycombRack', { columns: 3, rows: 1 }, 'honeycombRack'],
+  ['honeycomb rack, 4 × 3, small bottles', 'honeycombRack', { columns: 4, rows: 3, bottle: 60 }, 'honeycombRack'],
 ];
 
 /** The new structures (cards of their own), and the new words on existing ones: [structure, key, value off plywood]. */
-const NEW_CARDS = ['dividerTray', 'scoopOrganiser', 'console', 'dispenser', 'castle', 'gridfinityBase', 'caddy'];
+const NEW_CARDS = ['dividerTray', 'scoopOrganiser', 'console', 'dispenser', 'castle', 'gridfinityBase', 'caddy', 'recordRack', 'flyerStand', 'motorBracket', 'pegboard', 'honeycombRack'];
 const NEW_WORDS: [string, string, string | number][] = [
   ['scoopTray', 'scoops', 'both'],
   ['slideBox', 'parts', 3],
@@ -60,6 +70,8 @@ describe('the rest of §3.2 in plywood (milestone 178)', () => {
         expect(problems(d), `${name} ${m.id}`).toEqual([]);
         expect(recognise(d)?.v.id, `${name} ${m.id}`).toBe(v);
         expect(onlyResting(d), `${name} ${m.id}`).toEqual([]);
+        // every board joined to another, unless it is the only one (a pegboard hung on a wall) or a sliding lid
+        if (d.order.length > 1) for (const b of d.order.filter((x) => x !== 't:lid')) expect(Object.values(d.connections).some((c) => c.a.panelId === b || c.b.panelId === b), `${name} ${m.id} ${b}`).toBe(true);
       }
   }, 240_000);
 
@@ -128,5 +140,16 @@ describe('the rest of §3.2 in plywood (milestone 178)', () => {
     expect(o.every((x) => x.w === 38 && x.h === 38)).toBe(true);
     const xs = [...new Set(o.map((x) => Math.round(x.cx * 10) / 10))].sort((a, b) => a - b);
     expect(xs[1] - xs[0]).toBeCloseTo(42, 6);
+  });
+
+  it('a honeycomb rack’s slats cross at 60° in half-slots', () => {
+    const t = templateById('honeycombRack')!;
+    const d = generate(t, P3, defaults(t));
+    const slats = d.order.filter((id) => id.startsWith('t:slat-'));
+    expect(slats.length).toBeGreaterThan(3);
+    for (const id of slats) expect(Math.abs(d.panels[id].frame.u[1])).toBeCloseTo(Math.sin(Math.PI / 3), 6);
+    const laps = Object.values(d.connections).filter((c) => c.kind === 'halflap');
+    expect(laps.length).toBeGreaterThan(0);
+    for (const c of laps) expect(Math.sign(d.panels[c.a.panelId].frame.u[0])).toBe(-Math.sign(d.panels[c.b.panelId].frame.u[0]));
   });
 });

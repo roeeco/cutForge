@@ -166,6 +166,8 @@ export const CATALOGUE: Card[] = [
       { id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } },
       // milestone 155: one support and a slot as thick as a phone
       { id: 'phoneStand', structure: 'stand', style: 'phoneStand', match: { body: 'stand', lean: true, supports: 1 } },
+      // milestone 178 (beta, plywood; boxes.py's Display): a plate with rounded corners in a slotted foot
+      { id: 'flyerStand', structure: 'flyerStand', match: { body: 'slot', shelves: true, foot: true } },
     ],
   },
   // milestone 157 (beta): a tall box with slanted baffles between its side walls and a way out at the bottom
@@ -225,6 +227,19 @@ export const CATALOGUE: Card[] = [
   { id: 'gridfinityBase', title: 'card.gridfinityBase', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridfinityBase', structure: 'gridfinityBase', match: { body: 'cross', lid: 'none', plate: true, openings: true } }] },
   { id: 'caddy', title: 'card.caddy', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'caddy', structure: 'caddy', match: { body: 'cross', lid: 'none', partitions: true, carry: true } }] },
   { id: 'castle', title: 'card.castle', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'castle', structure: 'castle', match: { body: 'cross', lid: 'none', crenels: true } }] },
+  // milestone 178 (beta, plywood): boards of their own with no box
+  { id: 'recordRack', title: 'card.recordRack', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'recordRack', structure: 'recordRack', match: { body: 'slot', shelves: true, slant: true, combs: true } }] },
+  { id: 'motorBracket', title: 'card.motorBracket', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'motorBracket', structure: 'motorBracket', match: { body: 'slot', shelves: true, holes: true, motor: true } }] },
+  // boxes.py's WineRack: slats crossing at 60° in half-slots in a frame, diamond cells for bottles lying down
+  { id: 'honeycombRack', title: 'card.honeycombRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'honeycombRack', structure: 'honeycombRack', match: { body: 'slot', crossing: true, grid: true, shelves: true, slant: true, tiers: true } }] },
+  {
+    // boxes.py's SkadisBoard and SkadisStand: hung by keyholes, or standing on two feet
+    id: 'pegboard', title: 'card.pegboard', word: 'card.pegboard.word', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [],
+    variants: [
+      { id: 'pegboard', structure: 'pegboard', match: { body: 'flat', pegs: true, hang: true } },
+      { id: 'pegboardStand', structure: 'pegboard', style: 'pegboardStand', match: { body: 'slot', crossing: true, grid: true, pegs: true } },
+    ],
+  },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

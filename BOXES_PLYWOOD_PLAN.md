@@ -8,6 +8,7 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 
 - **171 ✅** (21 November): plywood 5 and 8 mm; picture fixes; the half box (bookend, wall shelf, clamping square); keyholes; box words *closed*, *rim*, *grips*; lidded box variants *Two-piece* and *Closed*. The lid handle and the base overhang moved to 173. Details in `DECISIONS.md`.
 - **172 ✅** (21 November): the shelf's *Rack*; the slanted shelf's lip, spaces, back and sloped sides; the *Bin rack* and the *Wall rack* (plywood, hung by keyholes).
+- **178, part 1 ✅** (21 November): divider tray (organiser variant), scoop tray *both ends*, ★ *Scoop organiser*, *Compartment box*, magazine file *uneven*, ★ *Console* (and *Wedge*), ★ *Dispenser*, ★ *Record rack*, ★ *Honeycomb rack* (diamond cells: slats at 60° in half-slots), stand *flyer*, ★ *Cutlery caddy*, ★ *Castle tower*, ★ *Gridfinity base*, ★ *Pegboard* (and standing), ★ *Motor bracket*. Left: CoinDisplay, StevensonScreenBox, CanStorage, BottleStack, SpicesRack, Folder, Clock, the jigs, PizzaShovel and the challenges. Details in `DECISIONS.md`.
 
 ## 0. In short
 
