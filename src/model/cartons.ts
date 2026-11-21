@@ -41,6 +41,11 @@ function edgeMid(base: Panel, key: string): P2 | null {
 export function planOpenTrays(d: Design) {
   for (const t of Object.values(d.trays ?? {})) {
     if (t.base !== 'open') continue;
+    // plywood does not fold (milestone 162): its open tray (a drawer's sleeve) is four boards of their own, fingered at the corners
+    if (d.panels[t.baseId] && matOf(d, t.baseId).kind === 'plywood') {
+      delete t.fixPlan;
+      continue;
+    }
     const base = d.panels[t.baseId];
     const ring = trayRing(d, t);
     if (!base || ring.length < 2) {

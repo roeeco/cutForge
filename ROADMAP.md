@@ -271,3 +271,20 @@ only once the pictures can tell them apart.
 | **158** | Engine: custom presets | §7, analysis §4 | ✅ (record editor, Your presets) |
 | **159** | Words and pictures | §7 | ✅ (after pictures in en and he, README) |
 | **160** | Verification | §7 | ✅ (no regressions; lid lips shown and opened on the stage) |
+
+### 5.6 Milestones 161–170: presets built from boards (plan of 21 November, `BOXES_PRESETS_PLAN.md`)
+
+Constructions read in boxes.py (a behaviour reference only), for plywood 3 and 4 mm board.
+
+| # | Milestone | Status |
+| --- | --- | --- |
+| **161** | The kit: boards, the census, the lane's tests | ✅ |
+| **162** | The plywood drawer; the open-front box | ✅ (closed lid, organiser heights open; book stand dropped) |
+| **163** | Angled tabs on 4 mm board | ✅ |
+| **164** | Pen holder, scoop tray, bird house | ✅ (bird house plywood only) |
+| **165** | The slot body: laptop stand, grid insert, shelf, bottle rack | ✅ |
+| **166** | Desk sign, slanted shelf, bookend | ✅ |
+| **167** | Frames and the game board | not built: frames need a face-glued joint; the game board is the game-parts generator (§4) |
+| **168** | Shapes: gear, knob, hole pattern, puzzle cut | not built: Shapes-tool work of its own |
+| **169** | Sliding lid and stacking feet | ✅ the sliding-lid box (stacking feet need walls below the base) |
+| **170** | Verification | |

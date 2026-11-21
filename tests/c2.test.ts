@@ -76,7 +76,18 @@ describe('C2', () => {
     expect(shellFront[0].details.filter((x) => x.shape === 'circle')).toHaveLength(2);
   });
 
-  it('plywood makes no drawer (it becomes a box with a lid)', () => {
-    expect(templateById('drawer')!.canMake!(MATERIALS.find((m) => m.kind === 'plywood')!)).toBe(false);
+  // milestone 162: plywood makes a drawer, its sleeve four boards fingered at the corners
+  it('plywood makes a drawer whose sleeve is boards fingered at their corners, with nothing folded', () => {
+    const def = templateById('drawer')!;
+    const ply = MATERIALS.find((m) => m.id === 'ply-3')!;
+    expect(templateById('drawer')!.canMake!(ply)).toBe(true);
+    const d = generate(def, ply, defaults(def));
+    const shell = drawerShell(d)!;
+    const corners = Object.values(d.connections).filter((c) => !c.grown && c.trayId === shell);
+    expect(corners.length).toBe(4);
+    for (const c of corners) expect(c.kind).toBe('finger');
+    expect(Object.values(d.connections).some((c) => c.kind === 'fold')).toBe(false);
+    expect(validate(d).filter((x) => !NOTE_KEYS.has(x.key))).toEqual([]);
+    expect(boxSize(d, shell, 'inside')!.w).toBeCloseTo(boxSize(d, mainTray(d)!, 'outside')!.w + 2 * ply.clearance, 6);
   });
 });

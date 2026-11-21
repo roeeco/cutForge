@@ -16,6 +16,8 @@ import { largestOk } from '../../sentence/resolve';
 import { foldsAsCarton } from '../../model/materials';
 
 const folds = (m: MaterialProfile) => foldsAsCarton(m, 4);
+/** Milestone 162: plywood makes it too, its sleeve four boards fingered at the corners (boxes.py's sliding drawer). */
+const makesDrawer = (m: MaterialProfile) => folds(m) || m.kind === 'plywood';
 
 
 const params: ParamDef[] = [
@@ -89,8 +91,8 @@ export const drawer: TemplateDef = {
   description: 'sen.drawer.desc',
   word: 'sen.drawer',
   status: 'stable',
-  materials: ['card', 'corrugated'],
-  canMake: folds,
+  materials: ['card', 'corrugated', 'plywood'],
+  canMake: makesDrawer,
   fallback: () => 'box',
   fallbackWords: { lid: 'liftoff' },
   params,

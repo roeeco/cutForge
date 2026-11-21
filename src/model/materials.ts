@@ -32,7 +32,18 @@ export function connectionsFor(m: MaterialProfile, angle: number): ConnectionKin
   const square = Math.abs(angle - 90) < 1e-6;
   // plywood folds only round a living hinge (milestone 63): offered last, never a default
   if (m.kind === 'plywood') return square ? ['finger', 'tabslot', 'butt', 'fold'] : angle < 90 ? ['lean', 'butt', 'fold'] : ['butt', 'fold'];
+  // milestone 163 (owner, 21 November): 4 mm board is rigid enough to hold a leaning board by angled tabs in side
+  // walls' slots, as plywood is; offered last, so a board grown at an angle still folds unless it is asked for
+  if (!square && angle < 90 && holdsLean(m)) return ['fold', 'glue', 'lock', 'lean'];
   return square ? ['fold', 'glue', 'lock', 'tabslot', 'butt'] : ['fold', 'glue', 'lock'];
+}
+
+/**
+ * Can a board of this material lean in angled slots cut in side walls (milestone 163)? Plywood, and corrugated of
+ * 3 mm or more: thinner board bends where the tabs bear on it.
+ */
+export function holdsLean(m: MaterialProfile): boolean {
+  return m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3 - 1e-9);
 }
 
 /** Smallest safe web of material between a cut and an edge (mm). */
@@ -83,13 +94,16 @@ export function sameMaterial(a: MaterialProfile, b: MaterialProfile): boolean {
 
 /**
  * Kinds a joint between boards of two materials may take, from the kinds the
- * feature-carrying board's material allows: fingers need both in plywood (and
- * leaning plywood too), folds both in the same card or corrugated material.
+ * feature-carrying board's material allows: fingers need both in plywood,
+ * leaning boards both rigid boards of one kind (milestone 163), folds both in
+ * the same card or corrugated material.
  */
 export function pairFilter(kinds: ConnectionKind[], own: MaterialProfile, other: MaterialProfile | undefined): ConnectionKind[] {
   if (!other || own === other) return kinds;
   return kinds.filter((k) => {
-    if (k === 'finger' || k === 'lean') return own.kind === 'plywood' && other.kind === 'plywood';
+    if (k === 'finger') return own.kind === 'plywood' && other.kind === 'plywood';
+    // a leaning board and the side walls holding it: both rigid boards, of one kind
+    if (k === 'lean') return own.kind === other.kind && holdsLean(own) && holdsLean(other);
     if (k === 'fold') return sameMaterial(own, other);
     return true;
   });

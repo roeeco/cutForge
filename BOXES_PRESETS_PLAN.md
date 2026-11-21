@@ -4,6 +4,14 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes) (191 generat
 
 Written 2026-11-21 against `claude/eloquent-brahmagupta-eip2fd` at `27bb61c` (presets overhaul, milestones 146–150 done). It replaces the first draft of this file, which proposed its own catalogue field and its own *More designs* screen.
 
+## Status (21 November, evening)
+
+Built: milestones 161–166 and the sliding-lid box of 169. Thirteen new cards, the plywood drawer and angled tabs on 4 mm board. What was built, what changed from this plan and why, and what is not built are in `DECISIONS.md` (*Milestones 161–166*, *Milestones 167–169*), `PROGRESS.md` and `ROADMAP.md` §5.6. In short:
+- each new construction is a card of its own, not a variant, because the sentence can't reach a variant on another structure;
+- the closed lid, organiser heights, the book stand and the uneven box are dropped or open;
+- the bird house is plywood only;
+- frames, the game board, the Shapes footprints and stacking feet are not built.
+
 ## 0. In short
 
 - **This is a lane of the presets overhaul, not a second preset system.** Every preset ported from boxes.py:
