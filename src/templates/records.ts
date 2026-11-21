@@ -9,6 +9,7 @@ import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
+import { isStripBand } from '../model/stripTrim';
 
 export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers';
 
@@ -82,6 +83,8 @@ export type PresetRecord = {
   deep?: boolean;
   /** Milestone 182: a layered body with round boards (a spool's flanges: an outline of 16 points or more). */
   disc?: boolean;
+  /** Milestone 174: a door of living hinge that slides in grooves round the box's rounded top corners (a roll-top box): how many corners are rounded. */
+  tambour?: number;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -281,6 +284,39 @@ function layersOf(d: Design, ids: string[]): PresetRecord | null {
   return rec;
 }
 
+/**
+ * A sliding door of living hinge (milestone 174): boards chained by a strip's bands (stripTrim.ts), joined to nothing
+ * else but a handle standing on them. Its box's rounded top corners: a side wall's top corners lowered by more than
+ * 5 mm, its top edge turned through points (0 when there is no such door).
+ */
+function tambourOf(d: Design, t: Tray): number {
+  const cs = Object.values(d.connections);
+  const bands = cs.filter((c) => c.grown && c.kind === 'fold' && isStripBand(d, c));
+  if (!bands.length) return 0;
+  // the chains: boards linked by bands
+  const up = new Map<string, string>();
+  const root = (x: string): string => (up.has(x) && up.get(x) !== x ? root(up.get(x)!) : x);
+  for (const c of bands) up.set(root(c.b.panelId), root(c.a.panelId));
+  const chains = new Map<string, string[]>();
+  for (const c of bands) for (const id of [c.a.panelId, c.b.panelId]) chains.set(root(id), [...new Set([...(chains.get(root(id)) ?? []), id])]);
+  const door = [...chains.values()].some((ids) => {
+    const set = new Set(ids);
+    const out = cs.filter((c) => !(set.has(c.a.panelId) && set.has(c.b.panelId)) && (set.has(c.a.panelId) || set.has(c.b.panelId)));
+    // its handle: the one board it is joined to, joined to nothing else
+    const others = new Set(out.map((c) => (set.has(c.a.panelId) ? c.b.panelId : c.a.panelId)));
+    return others.size === 1 && cs.filter((c) => others.has(c.a.panelId) || others.has(c.b.panelId)).every((c) => set.has(c.a.panelId) || set.has(c.b.panelId));
+  });
+  if (!door) return 0;
+  let n = 0;
+  for (const r of trayRing(d, t)) {
+    if (r.edge !== 'e1' && r.edge !== 'e3') continue;
+    const s = d.panels[r.wall]?.sketch;
+    if (s?.kind !== 'wall' || !s.inserts?.some((x) => x.edge === 'e2')) continue;
+    n = Math.max(n, ['tl', 'tr'].filter((k) => (s.corners?.[k as 'tl' | 'tr']?.dy ?? 0) < -5).length);
+  }
+  return n;
+}
+
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
@@ -305,11 +341,14 @@ export function recordOf(d: Design): PresetRecord {
     rec.relation = ts.length === 2 && ts.some((x) => x !== t && x.base === 'open' && !x.top && !x.bottom) ? 'drawer' : null;
     if (slits) rec.slits = true;
     if (hasWindow(d, t)) rec.window = true;
-    if (!tube && hasSlope(d, t)) rec.slope = true;
+    // milestone 174: a roll-top box's rounded side walls and the shell its door runs on are its own, not a slope or a plate
+    const door = tube ? 0 : tambourOf(d, t);
+    if (door) rec.tambour = door;
+    if (!tube && !door && hasSlope(d, t)) rec.slope = true;
     if (!tube && hasBaffles(d, t)) rec.baffles = true;
     if (!tube && hasBaffles(d, t, true)) rec.ramp = true;
-    if (!tube && hasPlate(d, t)) rec.plate = true;
-    if (!tube && hasPlate(d, t, true)) rec.rails = true;
+    if (!tube && !door && hasPlate(d, t)) rec.plate = true;
+    if (!tube && !door && hasPlate(d, t, true)) rec.rails = true;
     if (!tube && hasRoof(d, t)) rec.roof = true;
     const open = openWalls(d, t);
     if (!tube && open) rec.open = open;
@@ -349,7 +388,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'tambour'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

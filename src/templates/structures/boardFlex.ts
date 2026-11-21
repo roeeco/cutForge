@@ -6,13 +6,14 @@
 //                   it runs between the box's own boards and an inner shell (a board with a living-hinge band at its
 //                   corner, held in slots), with a filler glued in the corner outside its bend. A handle stands on the
 //                   door's end and stops it at the edge of the opening.
-import type { Design, P2, V3 } from '../../model/types';
+import type { Design, MaterialProfile, P2, V3 } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
+import { SIZE_MAX } from '../types';
 import { laminateBoards, placeBoardOn, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, setWallCorner, addWallInsert, solve } from '../../model/ops';
 import { straightRing, segInward, segLength } from '../../model/edges';
 import { minWeb } from '../../model/materials';
-import { addFlexStrip, addStripHandle, endRoom, insetPath, legAt, legSpans, pathBand, pathLength, slitStrip, stripReach, uAt, type FlexPath, type FlexPlane, type StripBoard } from '../../model/tambour';
+import { addFlexStrip, addStripHandle, endRoom, endRooms, insetPath, legAt, legSpans, pathBand, pathLength, slitStrip, stripReach, uAt, type FlexPath, type FlexPlane, type StripBoard } from '../../model/tambour';
 import { boardBoxRect, plywoodOnly } from './boards';
 import { slidePlay } from './boardBoxes';
 import { cleanAll, cleanWith, mainTray } from './box';
@@ -61,6 +62,8 @@ function handleOf(t: number, m: { clearance: number }) {
 
 /** How far into the storage a shut door reaches past the opening's edge (it stays in its groove). */
 const overlap = (t: number) => Math.max(8, 2 * t);
+/** The least straight run a strip's end keeps before a band (mm). */
+const ENDMIN = 3;
 
 /**
  * The roll-top box's layout, in the side wall's plane: s from the back (0) to the front (D), y up from the table. The
@@ -86,7 +89,10 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
     stop = H - R - hz;
     if (roll === 'two') {
       stopBack = stop;
-      pts = [{ x: t, y: tp }, BF, TF, TB, { x: tp, y: stopBack + GAP + hd.from + t + 2 }];
+      // stored, the door goes down the front, under the floor and up the back to the back wall's top; shut, its
+      // handle end hangs down the back to just under the back wall's top, its handle over it
+      const BB = { x: tp, y: tp };
+      pts = [{ x: tp, y: stopBack }, BB, BF, TF, TB, { x: tp, y: stopBack + GAP - hd.from }];
     } else pts = [{ x: t, y: tp }, BF, TF, { x: t, y: H - tp }];
   }
   if (Ro <= 2 * t + 2) return { why: 'sen.why.rollRadius' };
@@ -101,42 +107,57 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
     const x = level ? Math.abs(c - a.x) : Math.abs(c - a.y);
     return uAt(path, leg, x);
   };
-  let Ld: number, shut: number, open: number, rails: [number, number], shellAt: [number, number];
-  const ov = overlap(t);
+  let rails: [number, number], shellAt: [number, number];
+  // the door's length for an overlap `ov`, its shut start, and the range its open start may take (handle over the stop)
+  let lay: (ov: number) => { Ld: number; shut: number; open: [number, number] };
+  // each end on a straight run, the handle's end long enough for the handle
+  const room = (u0: number, u1: number) => {
+    const [a, b] = endRooms(path, u0, u1);
+    return roll === 'bread' ? a >= hd.keep && b >= ENDMIN : a >= ENDMIN && b >= hd.keep;
+  };
   if (roll === 'bread') {
-    // shut: the handle end on the base; open: the handle just in front of the fixed top
-    shut = at(0, t + cl);
-    Ld = at(1, stop - ov) - shut;
-    open = at(1, stop + GAP + hd.from + t);
+    // shut: the handle end on the base; open: the handle just in front of the fixed top, or further forward
+    const shut = at(0, t + cl);
+    lay = (ov) => ({ Ld: at(1, stop - ov) - shut, shut, open: [at(1, stop + GAP + hd.from + t), legSpans(path)[1].u0 + legSpans(path)[1].hi - legSpans(path)[1].lo] });
     rails = [at(0, t + GAP), at(1, stop + GAP)];
     // the shell from under the fixed top's front edge, round the back corner, down to the base
     const ssp = legSpans(shell);
     shellAt = [uAt(shell, 1, Math.abs(stop - shell.pts[1].x)), ssp[2].u0 + ssp[2].hi - ssp[2].lo];
   } else {
-    const end = roll === 'two' ? 3 : 2;
-    // shut: the handle end at the far end; open: the handle just over the front wall
-    const far = total - (roll === 'one' ? cl - 0 : 0);
-    shut = far;
-    Ld = far - at(1, stop - ov);
-    open = at(1, stop + GAP + hd.from + t) - Ld;
-    shut = shut - Ld;
-    rails = [at(1, stop + GAP), roll === 'one' ? total - (GAP - 0) : at(end, (stopBack ?? stop) + GAP)];
-    if (roll === 'one') rails[1] = uAt(path, 2, Math.abs(path.pts[2].x - (t + GAP)));
-    const ssp = legSpans(shell);
-    shellAt = [0, uAt(shell, 1, Math.abs(stop - shell.pts[1].y))];
-    void ssp;
+    // the front leg, the top and the back after it (two: the storage starts up the back)
+    const F = roll === 'two' ? 2 : 1;
+    // shut: the handle end at the far end; open: the handle just over the front wall, or higher
+    const far = total - (roll === 'one' ? cl : 0);
+    const fsp = legSpans(path)[F];
+    lay = (ov) => {
+      const Ld = far - at(F, stop - ov);
+      return { Ld, shut: far - Ld, open: [at(F, stop + GAP + hd.from + t) - Ld, fsp.u0 + fsp.hi - fsp.lo - Ld] };
+    };
+    rails = [at(F, stop + GAP), roll === 'one' ? uAt(path, 2, Math.abs(path.pts[2].x - (t + GAP))) : at(F + 2, (stopBack ?? stop) + GAP)];
+    shellAt = [0, uAt(shell, F, Math.abs(stop - shell.pts[F].y))];
   }
-  if (Ld <= 0 || !Number.isFinite(Ld)) return { why: 'sen.why.rollRoom' };
-  // open, the whole door in its storage; each end on a straight run, not in a band
-  const openStart = roll === 'bread' ? open : open;
-  if (openStart < -1e-6 || openStart + Ld > total + 1e-6) return { why: 'sen.why.rollRoom' };
-  if (endRoom(path, shut, shut + Ld) < 3 || endRoom(path, open, open + Ld) < 3) return { why: 'sen.why.rollRoom' };
+  // a door reaching into the storage as near the overlap wanted as has an open place with both its ends on straight runs
+  let found: { Ld: number; shut: number; open: number } | null = null;
+  const want = overlap(t);
+  const tries = Array.from({ length: 3 * want - 3 }, (_, i) => 4 + i).sort((a, b) => Math.abs(a - want) - Math.abs(b - want) || b - a);
+  for (const ov of tries) {
+    if (found) break;
+    const x = lay(ov);
+    if (!(x.Ld > 0) || !room(x.shut, x.shut + x.Ld)) continue;
+    for (let u = Math.max(0, x.open[0]); u <= x.open[1] + 1e-9 && u + x.Ld <= total + 1e-9; u += 0.5)
+      if (room(u, u + x.Ld)) {
+        found = { Ld: x.Ld, shut: x.shut, open: u };
+        break;
+      }
+  }
+  if (!found) return { why: 'sen.why.rollRoom' };
+  const { Ld, shut, open } = found;
   // the shell's band and its straight boards
-  if (shell.Ro - t < 2 || endRoom(shell, shellAt[0], shellAt[1]) < 3) return { why: 'sen.why.rollRadius' };
+  if (shell.Ro - t < 2 || endRoom(shell, shellAt[0], shellAt[1]) < ENDMIN) return { why: 'sen.why.rollRadius' };
   // half open: half way, moved on until both ends are on straight runs
   let half = (shut + open) / 2;
-  for (let k = 0; k < 40 && endRoom(path, half, half + Ld) < 3; k++) half += (k % 2 ? -1 : 1) * (k + 1) * 2;
-  if (endRoom(path, half, half + Ld) < 3) half = open;
+  for (let k = 0; k < 80 && !room(half, half + Ld); k++) half += (k % 2 ? -1 : 1) * (k + 1);
+  if (!room(half, half + Ld)) half = open;
   void sp;
   return {
     roll, W, D, H, R, t, play, path, shell, Ld,
@@ -144,7 +165,7 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
     at: { shut, half, open },
     stop, ...(stopBack !== undefined ? { stopBack } : {}),
     rails, shellAt,
-    fillers: roll === 'bread' ? [1] : [0],
+    fillers: roll === 'bread' ? [1] : roll === 'two' ? [0, 1] : [0],
   };
 }
 
@@ -243,7 +264,7 @@ function generateRollTop(d: Design, p: Params, role: Role) {
   const roll = (['one', 'two', 'bread'].includes(String(p.roll)) ? p.roll : 'one') as Roll;
   const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
   const t = d.material.thickness;
-  const R = Math.min(Number(p.radius), maxRadius(roll, D, H));
+  const R = Math.min(Number(p.radius), largestRadius(roll, d.material, W, D, H) || maxRadius(roll, D, H));
   const L = rollLayout(roll, W, D, H, R, t, d.material.clearance);
   if ('why' in L) return;
   if (!boardBoxRect(d, W, D, H)) return;
@@ -351,17 +372,38 @@ export const rollTop: TemplateDef = {
   generate: generateRollTop,
   sentence: { main: 'sen.s.rollTop' },
 };
+/** The largest corner radius whose door has room at these sizes (from the rough bound down, whole mm), or 0. */
+const largestCache = new Map<string, number>();
+export function largestRadius(roll: Roll, m: MaterialProfile, W: number, D: number, H: number): number {
+  const key = JSON.stringify([roll, m.thickness, m.clearance, W, D, H]);
+  const hit = largestCache.get(key);
+  if (hit !== undefined) return hit;
+  let R = maxRadius(roll, D, H);
+  while (R > 10 && 'why' in rollLayout(roll, W, D, H, R, m.thickness, m.clearance)) R--;
+  if (largestCache.size > 500) largestCache.clear();
+  largestCache.set(key, R > 10 ? R : 0);
+  return largestCache.get(key)!;
+}
+
 rollTop.limits = (m, p) => {
   const out = sheetLimits(rollTop, { width: 60, depth: 90, height: 90 })(m, p);
   const roll = (p.roll ?? 'one') as Roll;
-  Object.defineProperty(out, 'radius', { enumerable: true, value: { min: Math.min(maxRadius(roll, Number(p.depth), Number(p.height)), minRadius(m.thickness, m.clearance, Number(p.width))), max: maxRadius(roll, Number(p.depth), Number(p.height)), why: 'sen.why.rollRadius' as MsgKey } });
+  Object.defineProperty(out, 'radius', {
+    enumerable: true,
+    get: () => {
+      const hi = largestRadius(roll, m, Number(p.width), Number(p.depth), Number(p.height));
+      return { min: Math.min(Math.max(25, hi), minRadius(m, Number(p.width))), max: Math.max(25, hi), why: 'sen.why.rollRadius' as MsgKey };
+    },
+  });
   return out;
 };
 rollTop.accepts = (m, p) => {
   const roll = (p.roll ?? 'one') as Roll;
-  const L = rollLayout(roll, Number(p.width), Number(p.depth), Number(p.height), Math.min(Number(p.radius), maxRadius(roll, Number(p.depth), Number(p.height))), m.thickness, m.clearance);
+  const W = Number(p.width), R = Number(p.radius);
+  if (!bendsAtAll(m, W)) return 'sen.why.flexThick';
+  if (R < minRadius(m, W) - 1e-6 || R > largestRadius(roll, m, W, Number(p.depth), Number(p.height)) + 1e-6) return 'sen.why.rollRadius';
+  const L = rollLayout(roll, W, Number(p.depth), Number(p.height), R, m.thickness, m.clearance);
   if ('why' in L) return L.why;
-  if (Number(p.radius) < minRadius(m.thickness, m.clearance, Number(p.width)) - 1e-6) return 'sen.why.rollRadius';
   return cleanAll(rollTop, m, p) ? null : 'sen.why.engineSize';
 };
 
@@ -370,13 +412,15 @@ rollTop.accepts = (m, p) => {
  * door's band is t + play + t inside it, the shell's t + play further in, and each must be as loose as plywood's
  * slits reach across its width.
  */
-export function minRadius(t: number, clearance: number, W: number): number {
-  const play = slidePlay(t, clearance);
-  const m = { kind: 'plywood', thickness: t, clearance } as never;
+export function minRadius(m: MaterialProfile, W: number): number {
+  const t = m.thickness, play = slidePlay(t, m.clearance);
   const d = { material: m } as unknown as Design;
   const door = stripReach(d, W - 2 * t - 2 * play), shell = stripReach(d, W - 2 * t);
   return Math.ceil(Math.max(door + 2 * t + play, shell + 3 * t + 2 * play));
 }
+
+/** Can this plywood's living hinge make a roll-top box at all: the tightest corner it bends round fits the largest box. */
+export const bendsAtAll = (m: MaterialProfile, W: number) => minRadius(m, W) <= maxRadius('one', SIZE_MAX, SIZE_MAX);
 
 void legAt;
 export type { StripBoard };

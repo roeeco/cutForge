@@ -2380,6 +2380,7 @@ export const en = {
   'sen.roll.bread': "the door up the front and over the top, under the back's top when open (a bread box)",
   'sen.why.rollRadius': "The door and its shell bend round the corner: in this plywood the corner must be rounder, or it is too round for the box",
   'sen.why.rollRoom': "The door has no room to go away inside the box: make it taller or deeper, or the corner less round",
+  'sen.why.flexThick': "Plywood this thick does not bend round a corner a box can have: use plywood 3 to 6 mm thick",
   'style.rollTopTwo': "Roll-top, two corners",
   'style.rollTopTwo.word': "a roll-top box over two corners",
   'style.rollTopTwo.desc': "Both top corners rounded; the door runs over the whole top",

@@ -197,6 +197,15 @@ export const CATALOGUE: Card[] = [
   },
   // milestone 182 (beta, plywood; boxes.py's Spool and FilamentSpool): two flanges on a hub of rings glued face to face
   { id: 'spool', title: 'card.spool', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'spool', structure: 'spool', match: { body: 'layers', deep: true, disc: true } }] },
+  // milestone 174 (beta, plywood; boxes.py's ShutterBox and BreadBox): a door of living hinge sliding in grooves round rounded corners
+  {
+    id: 'rollTop', title: 'card.rollTop', word: 'card.rollTop.word', group: 'boxes', status: 'beta', challenges: [], view: { dir: 'side34' },
+    variants: [
+      { id: 'rollTop', structure: 'rollTop', match: { body: 'cross', lid: 'none', tambour: 1 } },
+      { id: 'rollTopTwo', structure: 'rollTop', style: 'rollTopTwo', match: { body: 'cross', lid: 'none', tambour: 2 } },
+      { id: 'breadBox', structure: 'rollTop', style: 'breadBox', match: { body: 'cross', lid: 'none', tambour: 1, open: 1 } },
+    ],
+  },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],

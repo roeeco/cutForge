@@ -62,6 +62,9 @@ export const STYLES: StyleDef[] = [
   // milestone 182 (boxes.py's EngravingFrame and Shadowbox; plywood): a frame over a back to engrave, and one with spacer layers
   { id: 'plaque', structure: 'frame', words: { kind: 'plaque' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'shadowBox', structure: 'frame', words: { kind: 'shadow' }, group: 'boxes', uses: ['gift'], status: 'beta' },
+  // milestone 174 (boxes.py's ShutterBox, double, and BreadBox; plywood): the roll-top box over two corners, and the bread box
+  { id: 'rollTopTwo', structure: 'rollTop', words: { roll: 'two' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'breadBox', structure: 'rollTop', words: { roll: 'bread' }, group: 'boxes', uses: ['food'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

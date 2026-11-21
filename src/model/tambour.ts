@@ -86,13 +86,16 @@ export const uAt = (p: FlexPath, leg: number, x: number) => {
   return sp.u0 + x - sp.lo;
 };
 
-/** How much straight a strip from u0 to u1 has at each end (negative: an end lies in a band). */
-export function endRoom(p: FlexPath, u0: number, u1: number): number {
+/** How much straight a strip from u0 to u1 has at its start and at its end (negative: an end lies in a band). */
+export function endRooms(p: FlexPath, u0: number, u1: number): [number, number] {
   const a = legAt(p, u0), b = legAt(p, u1);
-  if (!a || !b) return -1;
+  if (!a || !b) return [-1, -1];
   const sp = legSpans(p);
-  return Math.min(a.leg === b.leg ? b.x - a.x : sp[a.leg].hi - a.x, a.leg === b.leg ? b.x - a.x : b.x - sp[b.leg].lo);
+  return a.leg === b.leg ? [b.x - a.x, b.x - a.x] : [sp[a.leg].hi - a.x, b.x - sp[b.leg].lo];
 }
+
+/** The less of a strip's two ends' straight runs (negative: an end lies in a band). */
+export const endRoom = (p: FlexPath, u0: number, u1: number) => Math.min(...endRooms(p, u0, u1));
 
 /**
  * A line beside the path, `off` mm outward of its outer face (negative: inward), from u0 to u1 along the neutral line:
