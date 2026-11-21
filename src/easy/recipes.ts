@@ -168,7 +168,7 @@ export function boxRecipe(d: Design, f: Footprint, height: number, kind: BoxKind
   const baseId = addBoxBase(d, f);
   if (!baseId) return null;
   // a carton needs a board that folds (milestone 116: card up to 1 mm, corrugated up to 4 as before) and a rectangle
-  boxTray(d, baseId, height, kind === 'carton' && (!foldsAsCarton(d.material, 4) || f.kind !== 'rect') ? 'open' : kind, f.kind === 'outline' ? 'finger' : undefined);
+  boxTray(d, baseId, height, kind === 'carton' && (!foldsAsCarton(d.material, 4) || f.kind !== 'rect') ? 'open' : kind, f.kind === 'outline' && d.material.kind === 'plywood' ? 'finger' : undefined);
   return { baseId };
 }
 
