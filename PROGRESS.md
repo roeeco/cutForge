@@ -2474,6 +2474,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/e2e/custom-presets.spec.ts`: a card box's corners made gussets from the slot's pictures, saved, and started again from *Your presets* with gusset corners; a tube refused on plywood says why and changes nothing.
 - Found on the way, existing before this milestone: `tests/e2e/settings.spec.ts` (lines 25 and 55) fails with or without these changes (the settings card scrolls at 1366 × 768).
 
+## Milestone 159 (presets overhaul) — words and pictures ✅
+
+- `docs/preset-shots/after/`: `sheet-<board>-en.png` and `-he.png` for card, 1.6 mm and 4 mm corrugated and plywood; `sentence-list-card-en.png` and `-he.png`; `stage-after-start.png`. Made by `npm run preset-after` (`tests/e2e/preset-after.spec.ts`).
+- `README.md`: *Presets: ready starting points*, for students and for teachers.
+- Hebrew: every new key of 146–158 has its translation (i18n test).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

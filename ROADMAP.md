@@ -269,5 +269,5 @@ only once the pictures can tell them apart.
 | **156** | Engine: strip and wrap builders | §7, analysis §3.1 | ✅ (and the insert) |
 | **157** | New cards that need engine work (beta) | §7 | ✅ (magazine file, dice tower, mailer box) |
 | **158** | Engine: custom presets | §7, analysis §4 | ✅ (record editor, Your presets) |
-| **159** | Words and pictures | §7 | |
+| **159** | Words and pictures | §7 | ✅ (after pictures in en and he, README) |
 | **160** | Verification | §7 | |
