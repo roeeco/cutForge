@@ -39,6 +39,9 @@ export const STYLES: StyleDef[] = [
   // milestone 171 (boxes.py's TwoPiece and ClosedBox; plywood): a cap as deep as the box, and a top fixed on
   { id: 'twoPiece', structure: 'box', words: { lid: 'liftoff', rim: 'full' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'closedBox', structure: 'box', words: { lid: 'closed' }, group: 'boxes', uses: ['gift'], status: 'beta' },
+  // milestone 173 (UniversalBox's *flat* and *flatbrim* lids; plywood): a plug glued under the lid, or a brim of strips in slots
+  { id: 'plugLid', structure: 'box', words: { lid: 'plug' }, group: 'boxes', uses: ['gift'], status: 'beta' },
+  { id: 'brimLid', structure: 'box', words: { lid: 'brim' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'trayLid', structure: 'box', words: { lid: 'liftoff' }, group: 'boxes', uses: ['gift'], code: 'ECMA C20 / FEFCO 0301', status: 'stable' },
   { id: 'drawerBox', structure: 'drawer', words: {}, group: 'boxes', uses: ['gift', 'jewelry'], status: 'stable' },
   // milestone 155: new styles on the engine as it is

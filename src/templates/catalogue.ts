@@ -86,6 +86,9 @@ export const CATALOGUE: Card[] = [
       // milestone 171 (BOXES_PLYWOOD_PLAN.md §2.1): a cap as deep as the box (boxes.py's TwoPiece), and a top fixed on (ClosedBox)
       { id: 'twoPiece', structure: 'box', style: 'twoPiece', match: { body: 'cross', lid: 'liftoff', rim: 'full' } },
       { id: 'closedBox', structure: 'box', style: 'closedBox', match: { body: 'cross', lid: 'fixed' } },
+      // milestone 173 (BOXES_PLYWOOD_PLAN.md §2.1): a lid located in the walls by a plug glued under it, or by a brim
+      { id: 'plugLid', structure: 'box', style: 'plugLid', match: { body: 'cross', lid: 'liftoff', plug: true } },
+      { id: 'brimLid', structure: 'box', style: 'brimLid', match: { body: 'cross', lid: 'liftoff', brim: true } },
     ],
   },
   {

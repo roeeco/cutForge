@@ -72,6 +72,10 @@ export type PresetRecord = {
   hang?: boolean;
   /** Milestone 171: square holes for a clamp's jaws through a box's walls (a clamping square). */
   jig?: boolean;
+  /** Milestone 173: a lid that lifts off with a board glued under its top that fits inside the walls (a plug lid). */
+  plug?: boolean;
+  /** Milestone 173: a lid that lifts off with strips standing under its top inside the walls (a brim lid). */
+  brim?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -171,7 +175,8 @@ function hasPlate(d: Design, t: Tray, strips = false): boolean {
   const base = d.panels[t.baseId];
   const room = base ? base.w * base.h : 0;
   return Object.values(d.panels).some((p) => {
-    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id)) return false;
+    // milestone 173: a board laid on another (a base plate, a lid's plug) is a layer of it, not a plate
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id) || p.place?.host) return false;
     // milestone 169: a plate spans most of the inside; a strip (a rail) is narrow
     if ((sketchArea(p) < room * 0.25) !== strips) return false;
     const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
@@ -260,7 +265,9 @@ export function recordOf(d: Design): PresetRecord {
       rec.top = endOf(d, t, 'top');
       rec.bottom = endOf(d, t, 'bottom');
     } else {
-      rec.lid = boxLid(d, t.id).kind;
+      const lid = boxLid(d, t.id);
+      rec.lid = lid.kind;
+      if (lid.kind === 'liftoff' && (lid.style === 'plug' || lid.style === 'brim')) rec[lid.style] = true;
       const rim = rec.lid === 'liftoff' ? capRimOf(d, t.id) : null;
       if (rim === 'half' || rim === 'full') rec.rim = rim;
       rec.corner = t.cornerKind;
@@ -311,7 +318,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

@@ -481,14 +481,28 @@ function forPicture(d: Design): Design {
   return { ...d, connections };
 }
 
-/** Whether two boards are joined to each other (any connection between them). */
-function joinedIn(d: Design): (a: string, b: string) => boolean {
+/**
+ * Whether two boards are joined to each other (any connection between them). Milestone 173: for a board standing on a
+ * board that is not a box's base (a lid's handle, a brim's strips), how deep its tabs reach into it (mm), so their
+ * faces are ordered by their planes all the same; 0 otherwise.
+ */
+function joinedIn(d: Design): ((a: string, b: string) => boolean) & { reach?: (a: string, b: string) => number } {
   const pairs = new Set<string>();
   for (const c of Object.values(d.connections)) {
     pairs.add(`${c.a.panelId}|${c.b.panelId}`);
     pairs.add(`${c.b.panelId}|${c.a.panelId}`);
   }
-  return (a, b) => pairs.has(`${a}|${b}`);
+  const floors = new Set(boxBases(d));
+  const stand = new Map<string, number>();
+  for (const id of d.order) {
+    const pl = d.panels[id]?.place;
+    if (pl?.pose !== 'standing' || !pl.host || floors.has(pl.host) || !d.panels[pl.host]) continue;
+    const r = matOf(d, pl.host).thickness + 0.5;
+    stand.set(`${id}|${pl.host}`, r);
+    stand.set(`${pl.host}|${id}`, r);
+  }
+  const f = (a: string, b: string) => pairs.has(`${a}|${b}`);
+  return Object.assign(f, { reach: (a: string, b: string) => stand.get(`${a}|${b}`) ?? 0 });
 }
 
 /** The faces and their paint order, for tests. */
@@ -534,7 +548,7 @@ function overlaps(a: Pt[], b: Pt[]): boolean {
 }
 
 /** Faces in the order to paint them: a face entirely behind another's plane goes first; otherwise the farther. */
-function paintOrder(faces: Face[], joined: (a: string, b: string) => boolean = () => false): Face[] {
+function paintOrder(faces: Face[], joined: ((a: string, b: string) => boolean) & { reach?: (a: string, b: string) => number } = () => false): Face[] {
   stuck.count = 0;
   const n = faces.length;
   const P = faces.map((f) => f.pts);
@@ -552,12 +566,12 @@ function paintOrder(faces: Face[], joined: (a: string, b: string) => boolean = (
   const cen = P.map((pts) => pts.reduce((s, p) => s + depth(p), 0) / pts.length + 0);
   const flat2 = P.map((pts) => pts.map((p): Pt => [sx(p), sy(p)]));
   // where a's points lie against b's plane (b faces the viewer): -1 all on or behind it, 1 all on or in front, 0 both
-  const side = (a: number, b: number) => {
+  const side = (a: number, b: number, tol = 0.01) => {
     const nb = faces[b].normal, pb = P[b][0];
     let back = false, front = false;
     for (const p of P[a]) {
       const s = p.clone().sub(pb).dot(nb);
-      if (s < -0.01) back = true;
+      if (s < -tol) back = true;
       else if (s > 0.01) front = true;
     }
     return back && !front ? -1 : front && !back ? 1 : 0;
@@ -571,13 +585,15 @@ function paintOrder(faces: Face[], joined: (a: string, b: string) => boolean = (
       // two joined boards' faces cross at their joints (a wall's tabs through the base's slots): their plane tests
       // contradict each other and make cycles, so the nearer centre decides between them
       const bi = faces[i].board, bj = faces[j].board;
-      if (bi && bj && bi !== bj && joined(bi, bj)) continue;
+      // milestone 173: a board standing on a lid (a handle) is ordered by the planes, its tabs in the lid let pass
+      const reach = bi && bj && bi !== bj ? joined.reach?.(bi, bj) ?? 0 : 0;
+      if (bi && bj && bi !== bj && joined(bi, bj) && !reach) continue;
       // only faces that really overlap on screen are ordered against each other (boxes overlapping is not enough:
       // a die and the base's front edge strip are not in each other's way, and ordering them made cycles)
       if (!overlaps(flat2[i], flat2[j])) continue;
       let first: number, second: number;
       // i first when it is behind j's plane or j is in front of i's; the other way round likewise
-      const ij = side(i, j), ji = side(j, i);
+      const ij = side(i, j, reach || 0.01), ji = side(j, i, reach || 0.01);
       const iFirst = ij === -1 || ji === 1, jFirst = ij === 1 || ji === -1;
       if (iFirst && !jFirst) [first, second] = [i, j];
       else if (jFirst && !iFirst) [first, second] = [j, i];

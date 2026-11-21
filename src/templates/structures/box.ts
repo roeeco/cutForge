@@ -14,7 +14,9 @@ import { NOTE_KEYS } from '../../easy/notes';
 import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { MIN_COMPARTMENT } from '../../model/dividers';
 import { trayRing } from '../../model/cartons';
-import { addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
+import { addBasePlate, addLidHandle, addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
+import { layerDepth, lidLayers } from '../../model/lid';
+import { dividersOn } from '../../model/dividers';
 import { tOf } from '../../model/materials';
 import { largestOk } from '../../sentence/resolve';
 
@@ -74,8 +76,9 @@ export function cleanWith(def: TemplateDef, m: MaterialProfile, p: Params, key: 
     ok = !validate(d).some((x) => !NOTE_KEYS.has(x.key));
     if (ok && key === 'lid' && v !== 'none') {
       const tr = mainTray(d);
-      // the word *closed* makes the lid the engine calls *fixed* (milestone 171)
-      ok = !!tr && boxLid(d, tr).kind === (v === 'closed' ? 'fixed' : v);
+      // the word *closed* makes the lid the engine calls *fixed* (milestone 171); a plug or brim lid lifts off (173)
+      const l = tr ? boxLid(d, tr) : null;
+      ok = !!l && (v === 'plug' || v === 'brim' ? l.kind === 'liftoff' && l.style === v : l.kind === (v === 'closed' ? 'fixed' : v));
     }
   } catch {
     ok = false;
@@ -144,16 +147,19 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
     out.push({
       key: 'lid', label: 'sen.lid', type: 'choice', default: 'none', addon: { off: 'none' },
       // milestone 171 (UniversalBox's closed top): *closed*, a top fixed on with the walls' joint, on plywood
-      options: (['none', 'liftoff', 'hinged', 'arched', 'closed'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
+      // milestone 173 (UniversalBox's *flat* and *flatbrim*): a lid with a plug glued under it, or a brim of strips in slots
+      options: (['none', 'liftoff', 'hinged', 'arched', 'closed', 'plug', 'brim'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
       allowed: (v, p, m) => {
         if (v === 'none') return true;
         if (v === 'closed') return m.kind === 'plywood' && p.shape !== 'round' && p.shape !== 'rounded' && cleanWith(box, m, p, 'lid', v);
+        if (v === 'plug' || v === 'brim') return m.kind === 'plywood' && (p.shape === 'rect' || (v === 'plug' && p.shape === 'poly')) && cleanWith(box, m, p, 'lid', v);
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
         const tr = mainTray(d);
         return !!tr && !lidWhy(d, tr, v as LidChoice) && cleanWith(box, m, p, 'lid', v);
       },
       why: (v, p, m) => {
         if (v === 'closed') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.closedShape';
+        if (v === 'plug' || v === 'brim') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape === 'rect' || (v === 'plug' && p.shape === 'poly') ? 'sen.why.engine' : 'sen.why.lidShape';
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
         const tr = mainTray(d);
         return (tr ? lidWhy(d, tr, v as LidChoice) : 'lid.why.none') ?? 'sen.why.engine';
@@ -168,6 +174,16 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       when: (p) => p.lid === 'liftoff',
       allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && cleanWith(box, m, p, 'rim', v)),
       why: (_v, _p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.engine'),
+      affects: ['lid'],
+    });
+  if (o.lid)
+    // milestone 173 (UniversalBox's lid handle): a board standing on a one-board lid that lifts off, with a hand hole
+    out.push({
+      key: 'lidHandle', label: 'sen.lidHandle', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: (['none', 'handle'] as const).map((v) => ({ value: v, label: `sen.lidHandle.${v}` as MsgKey })),
+      when: (p) => p.lid === 'liftoff' || p.lid === 'plug' || p.lid === 'brim',
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && (p.lid !== 'liftoff' || (p.rim ?? 'none') === 'none') && cleanWith(box, m, p, 'lidHandle', v) && !!handleOf(builtFor(box, m, { ...p, lidHandle: v }))),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.lid === 'liftoff' && (p.rim ?? 'none') !== 'none' ? 'sen.why.handleCap' : 'sen.why.handleRoom'),
       affects: ['lid'],
     });
   out.push(
@@ -211,6 +227,15 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
         (p.shape === 'rect' && Number(p.height) >= 25 && Number(p.depth) >= 60 && (v !== 'grips' || (m.kind === 'plywood' && (p.lid ?? 'none') === 'none')) && engine('handles')(v, p, m)),
       why: (v, p, m) => (v === 'grips' && m.kind !== 'plywood' ? 'sen.why.plyOnly' : v === 'grips' && (p.lid ?? 'none') !== 'none' ? 'sen.why.gripsLid' : 'sen.why.window'),
       affects: ['walls'],
+    });
+  if (o.lid)
+    // milestone 173 (boxes.py's BasedBox): a base plate wider than the box all round, glued under its base
+    out.push({
+      key: 'overhang', label: 'sen.overhang', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: (['none', 'plate'] as const).map((v) => ({ value: v, label: `sen.overhang.${v}` as MsgKey })),
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && (p.shape === 'rect' || p.shape === 'poly') && cleanWith(box, m, p, 'overhang', v)),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape === 'rect' || p.shape === 'poly' ? 'sen.why.engine' : 'sen.why.lidShape'),
+      affects: ['base'],
     });
   return out;
 }
@@ -323,7 +348,11 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
     }
   }
   if (kindLid && p.lid === 'closed') addClosedTop(d, tray);
-  else if (kindLid && p.lid && p.lid !== 'none') {
+  else if (kindLid && (p.lid === 'plug' || p.lid === 'brim')) {
+    // milestone 173: a plug or a brim under the lid's top reaches into the box: the dividers stop under it
+    setBoxLid(d, tray, 'liftoff', p.lid);
+    lowerUnderLid(d, tray);
+  } else if (kindLid && p.lid && p.lid !== 'none') {
     // milestone 171: a rim asks for a cap (a shallow tray over the box) as deep as it says
     const rim = p.lid === 'liftoff' && (p.rim === 'half' || p.rim === 'full') ? (p.rim as CapRim) : null;
     setBoxLid(d, tray, p.lid as LidChoice, rim ? 'cap' : undefined);
@@ -332,7 +361,45 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
       solve(d);
     }
   }
+  // milestone 173: a handle on a one-board lid that lifts off; a base plate under the box
+  if (kindLid && p.lidHandle === 'handle') {
+    const l = boxLid(d, tray);
+    if (l.kind === 'liftoff' && l.style !== 'cap' && l.style !== 'dropin') addLidHandle(d, l.top);
+  }
+  if (kindLid && p.overhang === 'plate') addBasePlate(d, tray, overhangOf(tOf(d, d.trays[tray].baseId)));
   nameRoles(d, role);
+}
+
+/** How far a base plate stands out past the walls (milestone 173): two boards, never under 6 mm. */
+export const overhangOf = (t: number) => Math.max(6, 2 * t);
+
+/** A lid's handle (milestone 173): the board standing on a box's lid top, if it has one. */
+export function handleOf(d: Design): string | null {
+  const tr = mainTray(d);
+  const l = tr ? boxLid(d, tr) : null;
+  return l?.kind === 'liftoff' ? lidLayers(d, l.top, 1).find((p) => p.place?.pose === 'standing')?.id ?? null : null;
+}
+
+/** Dividers stop a play under a layered lid's plug or brim (milestone 173), so it seats. */
+function lowerUnderLid(d: Design, trayId: string) {
+  const l = boxLid(d, trayId);
+  if (l.kind !== 'liftoff') return;
+  const t = d.trays[trayId];
+  const B = d.panels[t.baseId];
+  const walls = trayRing(d, t).map((r) => d.panels[r.wall]).filter(Boolean);
+  if (!B || !walls.length) return;
+  const top = Math.max(...walls.map((w) => w.frame.o[1] + w.h));
+  const floor = B.frame.o[1] + tOf(d, B.id);
+  const most = top - layerDepth(d, l.top) - 1 - floor;
+  let changed = false;
+  for (const id of dividersOn(d, B.id)) {
+    const P = d.panels[id];
+    if (P && P.h > most) {
+      P.h = Math.max(5, most);
+      changed = true;
+    }
+  }
+  if (changed) solve(d);
 }
 
 /**

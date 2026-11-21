@@ -8,9 +8,9 @@ import { endSpec, fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from '
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, EndFlap, EndSpec, FlapShape, TrayBottom, TrayTop, V3 } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, SketchPt, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, EndFlap, EndSpec, FlapShape, TrayBottom, TrayTop, V3 } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
-import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
+import { FINGER_HOLE, fingerId, flatLip, followHost, freeLidSpot, grownPts as grownPtsOf, LAYER_LIP, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, PLUG_FIT, plugOutline, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -494,6 +494,147 @@ export function addDropinLid(d: Design, trayId: string): string | null {
     box.lidAt = free;
     solve(d);
   }
+  return id;
+}
+
+/**
+ * Glue two boards face to face (milestone 173, E1): a `laminate` joint between them, kept whatever the editor's
+ * automatic seams do (`auto: false`). Its geometry is found by `solve`; it is broken while they do not lie face to face.
+ */
+export function laminateBoards(d: Design, a: string, b: string): string | null {
+  if (!d.panels[a] || !d.panels[b] || a === b) return null;
+  const old = Object.values(d.connections).find((c) => c.kind === 'laminate' && pairKey(c.a.panelId, c.b.panelId) === pairKey(a, b));
+  if (old) return old.id;
+  const cid = newId('c');
+  d.connections[cid] = { id: cid, kind: 'laminate', pref: 'laminate', a: { panelId: a, edge: FACE }, b: { panelId: b, edge: FACE }, grown: false, angle: 0, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto: false };
+  return cid;
+}
+
+/** A board placed on a host's face (1: its material side, -1: its plane), flat or standing on a line there, with an outline of its own. */
+export function placeBoardOn(d: Design, host: string, place: Omit<PanelPlace, 'host'>, pts: SketchPt[], id = newId('p')): string {
+  const H = d.panels[host];
+  const w = Math.max(...pts.map((q) => q.x)), h = Math.max(...pts.map((q) => q.y));
+  d.panels[id] = {
+    id,
+    name: `${d.order.length + 1}`,
+    w,
+    h,
+    sketch: { kind: 'poly', pts, edgeIds: pts.map((_, i) => `e${i}`) },
+    frame: H.frame,
+    details: [],
+    place: { host, ...place },
+    ...(H.material ? { material: H.material } : {}),
+  };
+  d.order.push(id);
+  d.pieces[id] = { quantity: 1 };
+  const f = placeFrame(d, d.panels[id].place!);
+  if (f) d.panels[id].frame = f;
+  return id;
+}
+
+/** A standing board's side: the one that puts its material towards `inward` (host-local) from its line. */
+export function sideTowards(d: Design, host: string, place: Omit<PanelPlace, 'host' | 'side'>, inward: P2): 1 | -1 {
+  const H = d.panels[host];
+  const f = placeFrame(d, { host, ...place, side: 1 });
+  if (!f || !H) return 1;
+  const w: V3 = [0, 1, 2].map((k) => H.frame.u[k] * inward.x + H.frame.v[k] * inward.y) as V3;
+  const m = matDirOf(f);
+  return m[0] * w[0] + m[1] * w[1] + m[2] * w[2] >= 0 ? 1 : -1;
+}
+
+/** How deep a brim's strips stand under its lid (mm), for a box this tall inside. */
+export const brimDepth = (h: number, t: number) => Math.round(Math.max(8, 2 * t + 2, Math.min(20, h / 4)));
+
+/**
+ * A layered lid on a box (milestone 173, UniversalBox's *flat* and *flatbrim*; plywood): one board as large as the box
+ * and a hair (`LAYER_LIP`), lying beside it as the other lids of its own do, and under it either a *plug* (a board the
+ * box's inside less the play, glued face to face) or a *brim* (four strips standing under it just inside the walls,
+ * in slots, stopping short of each other at the corners). Returns the top's id, or null.
+ */
+export function addLayeredLid(d: Design, trayId: string, kind: 'plug' | 'brim'): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || !d.panels[box.baseId] || d.order.some((id) => d.panels[id]?.lidOf?.tray === trayId)) return null;
+  const B = d.panels[box.baseId];
+  if (B.sketch.kind !== 'poly') return null;
+  const id = addRootPanel(d, 0, 0, B.w, B.h);
+  const L = d.panels[id];
+  if (B.material) L.material = B.material;
+  L.lidOf = { tray: trayId, kind };
+  placeFlatLid(d, L, box);
+  const t = tOf(d, box.baseId);
+  if (kind === 'plug') {
+    const o = plugOutline(d, box);
+    if (!o) return id;
+    const plug = placeBoardOn(d, id, { face: -1, x: o.x0 + LAYER_LIP, y: o.y0 + LAYER_LIP, rot: 0, pose: 'flat' }, o.pts.map((q) => ({ ...q })));
+    laminateBoards(d, id, plug);
+  } else {
+    // the strips' outer faces the play inside the walls; each stops a gap short of the strips across its ends
+    const W = B.w, D = B.h, s = t + PLUG_FIT, gap = 2, c = s + t + gap;
+    const hb = brimDepth(box.height - t, t);
+    const strip = (x: number, y: number, rot: number, len: number, inward: P2) => {
+      if (len < 10) return;
+      const pl = { face: -1 as const, x: x + LAYER_LIP, y: y + LAYER_LIP, rot, pose: 'standing' as const };
+      placeBoardOn(d, id, { ...pl, side: sideTowards(d, id, pl, inward) }, [{ x: 0, y: 0 }, { x: len, y: 0 }, { x: len, y: hb }, { x: 0, y: hb }]);
+    };
+    strip(c, s, 0, W - 2 * c, { x: 0, y: 1 });
+    strip(c, D - s, 0, W - 2 * c, { x: 0, y: -1 });
+    strip(s, c, 90, D - 2 * c, { x: 1, y: 0 });
+    strip(W - s, c, 90, D - 2 * c, { x: -1, y: 0 });
+  }
+  placeFlatLid(d, L, box);
+  followHost(d, id);
+  const free = freeLidSpot(d, box, L, LAYER_LIP);
+  if (free) box.lidAt = free;
+  solve(d);
+  if (kind === 'brim') for (const p of d.order.filter((x) => d.panels[x]?.place?.host === id)) connectSeams(d, p);
+  solve(d);
+  return id;
+}
+
+/**
+ * A handle on a lid's top (milestone 173, UniversalBox's lid handle; plywood): a board standing across the lid's
+ * middle, held in slots, its top corners rounded and a hand hole through it. Returns its id, or null.
+ */
+export function addLidHandle(d: Design, lidId: string): string | null {
+  const L = d.panels[lidId];
+  if (!L) return null;
+  const t = tOf(d, lidId);
+  const hw = Math.round(Math.min(120, Math.max(40, L.w * 0.5)));
+  if (hw > L.w - 4 * t - 10) return null;
+  const hh = Math.round(Math.max(28, 4 * t + 16)), r = Math.min(10, hh / 3);
+  const pl = { face: 1 as const, x: (L.w - hw) / 2, y: L.h / 2 - t / 2, rot: 0, pose: 'standing' as const };
+  const pts: SketchPt[] = [{ x: 0, y: 0 }, { x: hw, y: 0 }, { x: hw, y: hh, curve: 'round', r }, { x: 0, y: hh, curve: 'round', r }];
+  const id = placeBoardOn(d, lidId, { ...pl, side: sideTowards(d, lidId, pl, { x: 0, y: 1 }) }, pts);
+  // the hand hole: a web over the tabs below it and under the rounded top
+  const web = Math.max(5, t + 2), hole = 14;
+  d.panels[id].details.push({ id: `${id}-hole`, shape: 'roundrect', op: 'cut', cx: hw / 2, cy: hh - web - hole / 2, w: Math.round(hw * 0.6), h: hole, rot: 0 } as Detail);
+  solve(d);
+  connectSeams(d, id);
+  solve(d);
+  return id;
+}
+
+/**
+ * A base that overhangs the walls (milestone 173, boxes.py's BasedBox; plywood): a plate as large as the base and
+ * `over` more all round, glued face to face under it (`laminate`), so the walls keep their own joints with the base.
+ * The box is lifted by the plate's thickness so it stands on it. Returns the plate's id, or null.
+ */
+export function addBasePlate(d: Design, trayId: string, over: number): string | null {
+  const box = d.trays?.[trayId];
+  const B = box && d.panels[box.baseId];
+  if (!box || !B || B.sketch.kind !== 'poly' || B.sketch.round || B.sketch.pts.some((q) => q.curve)) return null;
+  const t = tOf(d, B.id);
+  const grown = grownPtsOf(B.sketch.pts, over);
+  const x0 = Math.min(...grown.map((q) => q.x)), y0 = Math.min(...grown.map((q) => q.y));
+  const id = placeBoardOn(d, B.id, { face: -1, x: x0, y: y0, rot: 0, pose: 'flat' }, grown.map((q) => ({ x: q.x - x0, y: q.y - y0 })));
+  laminateBoards(d, B.id, id);
+  // the box stands on its plate: lifted by its thickness
+  const up = matDirOf(B.frame);
+  B.frame = { ...B.frame, o: [B.frame.o[0] + up[0] * t, B.frame.o[1] + up[1] * t, B.frame.o[2] + up[2] * t] };
+  solve(d);
+  // the walls' finger ends come through the base onto the plate: glued there too, nothing cut (edge to face)
+  for (const s of findOpenSeams(d, id)) if (s.type === 'face') connectSeam(d, s, 'butt');
+  solve(d);
   return id;
 }
 

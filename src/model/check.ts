@@ -191,7 +191,7 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   }
   // a board made from a shape's face (milestone 123)
   if (x.src !== undefined && !(isObj(x.src) && typeof x.src.face === 'string')) delete x.src;
-  if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin'))) delete x.lidOf;
+  if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin' || x.lidOf.kind === 'plug' || x.lidOf.kind === 'brim'))) delete x.lidOf;
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {
     if (!Array.isArray(x.edgeFlaps)) delete x.edgeFlaps;

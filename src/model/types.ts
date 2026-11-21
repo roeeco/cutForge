@@ -154,7 +154,7 @@ export type Panel = {
   /** Lines drawn on the board (milestone 83, LIDS_LINES_PROJECTS_PLAN.md Part B): open, in its local coordinates. */
   lines?: BoardLine[];
   /** A one-board lid of a box (milestone 79): its box's tray and its kind. A *Flat* lid rests on the walls' tops, held by their tabs through its slots; a *Drop-in* lid (milestone 80) lies inside the walls on the dividers. */
-  lidOf?: { tray: string; kind: 'flat' | 'dropin'; /** Padlock hasps through a Flat lid (milestone 82): how many along the front, and the hole (mm). */ hasps?: { n: 1 | 2 | 3; hole: number } };
+  lidOf?: { tray: string; kind: 'flat' | 'dropin' | 'plug' | 'brim'; /** Padlock hasps through a Flat lid (milestone 82): how many along the front, and the hole (mm). */ hasps?: { n: 1 | 2 | 3; hole: number } };
   /**
    * Derived (re-made by `solve`): how far a wall reaches past the start/end of
    * its parent edge, to close an inside corner of a tray.

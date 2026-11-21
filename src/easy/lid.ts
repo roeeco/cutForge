@@ -9,7 +9,7 @@
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
 import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
-import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
+import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLayeredLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
@@ -36,10 +36,26 @@ export type BoxLid =
 /** What can be chosen in the *Lid* section. */
 export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched';
 /** The kinds of lid that lifts off (milestone 79): a shallow tray over the box, or one board resting on its walls. */
-export type LidStyle = 'cap' | 'flat' | 'dropin';
+export type LidStyle = 'cap' | 'flat' | 'dropin' | 'plug' | 'brim';
 export const LID_STYLES: LidStyle[] = ['cap', 'flat', 'dropin'];
 
 const topEdge = (edge: string | number) => (typeof edge === 'number' ? `e${edge}` : String(edge)).split('#')[0] === 'e2';
+
+/** The boards placed on `id` (milestone 173: a lid's plug, brim and handle), and every board grown off or placed on them. */
+function placedOn(d: Design, id: string): string[] {
+  const out: string[] = [];
+  const todo = [id];
+  while (todo.length) {
+    const p = todo.pop()!;
+    for (const q of d.order)
+      if (d.panels[q]?.place?.host === p && !out.includes(q)) {
+        out.push(q);
+        todo.push(q, ...grownOff(d, q));
+      }
+  }
+  for (const q of [...out]) for (const g of grownOff(d, q)) if (!out.includes(g)) out.push(g);
+  return out;
+}
 
 /** The boards grown off `id`, and theirs (not `id` itself). */
 function grownOff(d: Design, id: string): string[] {
@@ -85,7 +101,7 @@ export function boxLid(d: Design, trayId: string): BoxLid {
 /** The boards that make a box's lid (to remove it, or to show its section on their cards). */
 export function lidParts(d: Design, lid: BoxLid): string[] {
   if (lid.kind === 'none' || lid.kind === 'flaps') return [];
-  if (lid.kind === 'liftoff') return [lid.top, ...grownOff(d, lid.top)];
+  if (lid.kind === 'liftoff') return [lid.top, ...grownOff(d, lid.top), ...placedOn(d, lid.top)];
   return [lid.lid, ...grownOff(d, lid.lid)];
 }
 
@@ -107,7 +123,7 @@ export function boxOfPanel(d: Design, panelId: string): string | null {
 
 /** Where a lid's top is when the box is closed: a lid of its own lies beside its box (milestone 76), so its pose on the box. */
 function topPose(d: Design, trayId: string, lid: BoxLid, P: Panel): Panel['frame'] {
-  if (lid.kind === 'liftoff' && lid.style === 'flat') return flatOnFrame(d, P, d.trays[trayId]) ?? P.frame;
+  if (lid.kind === 'liftoff' && (lid.style === 'flat' || lid.style === 'plug' || lid.style === 'brim')) return flatOnFrame(d, P, d.trays[trayId]) ?? P.frame;
   if (lid.kind === 'liftoff' && lid.style === 'dropin') return dropinOnFrame(d, P, d.trays[trayId]) ?? P.frame;
   return (lid.kind === 'liftoff' && lidOnFrame(d, P, d.trays[trayId])) || P.frame;
 }
@@ -159,6 +175,7 @@ function setBoxLidAs(d: Design, trayId: string, choice: LidChoice, style?: LidSt
   if (choice === 'liftoff') {
     const st = style ?? autoStyle(d, trayId);
     if (st === 'flat') addFlatLid(d, trayId);
+    else if (st === 'plug' || st === 'brim') addLayeredLid(d, trayId, st);
     else if (st === 'dropin') addDropinLid(d, trayId);
     else addLid(d, trayId);
   }
@@ -361,6 +378,10 @@ export function lidStyleWhy(d: Design, trayId: string, style: LidStyle): MsgKey 
     if (!divs.length || Math.max(...divs.map((p) => p.h)) > t.height - tL + 1e-6) return 'lid.why.dropinDividers';
     return null;
   }
+  // milestone 173: a plug or a brim under the top, plywood only, inside straight walls (a brim: four of them)
+  if ((style === 'plug' || style === 'brim') && matOf(d, t.baseId).kind !== 'plywood') return 'lid.why.layerPly';
+  if ((style === 'plug' || style === 'brim') && (B?.sketch.kind !== 'poly' || B.sketch.round || B.sketch.pts.some((q) => q.curve))) return 'lid.why.flatRound';
+  if (style === 'brim' && B?.sketch.kind === 'poly' && B.sketch.pts.length !== 4) return 'lid.why.brimRect';
   if (matOf(d, t.baseId).kind === 'card') return 'lid.why.flatCard';
   if (B?.sketch.kind === 'poly' && B.sketch.round) return 'lid.why.flatRound';
   const ring = trayRing(d, t);

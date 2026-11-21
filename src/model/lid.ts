@@ -5,6 +5,7 @@
 // box lid. It is a tray like any other (`Tray.lidOf` names the box's tray);
 // its base's outline and place follow the box on every solve.
 import type { ConnGeom, Design, P2, Panel, RoundShape, SketchPt, Tray, V3 } from './types';
+import { placeFrame } from './place';
 import { toLocal, toWorld } from './frame';
 import { findEdge as edgeOf } from './edges';
 import { matDir } from './frame';
@@ -216,11 +217,29 @@ export const flatLip = (d: Design, box: Tray) => Math.max(3, matOf(d, box.baseId
 /** The one-board lids of a box. */
 export const flatLidsOf = (d: Design, trayId: string): Panel[] => d.order.map((id) => d.panels[id]).filter((p) => p?.lidOf?.tray === trayId);
 
+/**
+ * Milestone 173 (UniversalBox's *flat* and *flatbrim* lids, plywood): a one-board lid with layers under it that locate
+ * it inside the walls: a *plug* (a smaller board glued face to face under the top, `laminate`) or a *brim* (strips
+ * standing under the top inside the walls, in slots). Its top stands a hair past the box all round (`LAYER_LIP`), as it
+ * has no slots for the walls' tabs; the layers are boards placed on its underside, so they follow it.
+ */
+export const LAYER_LIP = 1;
+/** Is a lid of its own one of the layered kinds (a plug or a brim under its top)? */
+export const layeredLid = (L: Panel | undefined) => L?.lidOf?.kind === 'plug' || L?.lidOf?.kind === 'brim';
+/** How far a one-board lid stands out past its box: a Flat lid's lip for its slots, a layered lid's hair. */
+export const lidLipOf = (d: Design, lid: Panel, box: Tray) => (layeredLid(lid) ? LAYER_LIP : flatLip(d, box));
+/** The boards placed on a lid's underside (its plug, its brim's strips) and on its top (a handle). */
+export const lidLayers = (d: Design, lidId: string, face: 1 | -1): Panel[] => d.order.map((id) => d.panels[id]).filter((p) => p?.place?.host === lidId && p.place.face === face);
+/** How far a lid's layers reach below its underside (mm): a plug's board, a brim's strips; nothing for a Flat lid. */
+export function layerDepth(d: Design, lidId: string): number {
+  return Math.max(0, ...lidLayers(d, lidId, -1).map((p) => (p.place!.pose === 'flat' ? tOf(d, p.id) : p.h)));
+}
+
 /** Where a Flat lid lies on its box: its underside on the walls' tops, the base's outline grown by the lip. */
 export function flatOnFrame(d: Design, lid: Panel, box: Tray): Panel['frame'] | null {
   const B = d.panels[box.baseId];
   if (!B) return null;
-  const b = outlineBox(B), g = flatLip(d, box);
+  const b = outlineBox(B), g = lidLipOf(d, lid, box);
   const up = matDir(B.frame), f = B.frame;
   const at = (k: number) => f.o[k] + f.u[k] * (b.x0 - g) + f.v[k] * (b.y0 - g) + up[k] * box.height;
   return { o: [at(0), at(1), at(2)], u: [...f.u], v: [...f.v], side: f.side };
@@ -230,7 +249,7 @@ export function flatOnFrame(d: Design, lid: Panel, box: Tray): Panel['frame'] | 
 export function placeFlatLid(d: Design, lid: Panel, box: Tray) {
   const B = d.panels[box.baseId];
   if (!B || B.sketch.kind !== 'poly') return;
-  const g = flatLip(d, box);
+  const g = lidLipOf(d, lid, box);
   const grown = grownPts(B.sketch.pts, g);
   const x0 = Math.min(...grown.map((q) => q.x)), y0 = Math.min(...grown.map((q) => q.y));
   const pts = grown.map((q) => ({ ...q, x: q.x - x0, y: q.y - y0 }));
@@ -239,7 +258,9 @@ export function placeFlatLid(d: Design, lid: Panel, box: Tray) {
   lid.h = Math.max(...pts.map((q) => q.y));
   const p = box.lidAt ?? lidBesideDefault(d, box, g);
   const f = B.frame;
-  const pt = (k: number) => f.o[k] + f.u[k] * p.x + f.v[k] * p.y;
+  // a layered lid lies beside its box on its plug or brim, as it is set down on a table (milestone 173)
+  const up = matDir(f), lift = layerDepth(d, lid.id);
+  const pt = (k: number) => f.o[k] + f.u[k] * p.x + f.v[k] * p.y + up[k] * lift;
   lid.frame = { o: [pt(0), pt(1), pt(2)], u: [...f.u], v: [...f.v], side: f.side };
 }
 
@@ -278,6 +299,13 @@ export function reconcileFlatLids(d: Design, ring: (t: Tray) => string[]) {
     if (L.lidOf.kind === 'dropin') {
       // a Drop-in lid: no joint, it rests on the dividers
       placeDropinLid(d, L, box);
+      continue;
+    }
+    if (layeredLid(L)) {
+      // a plug or brim lid (milestone 173): no tabs; its plug keeps to the box's inside, and its layers follow it
+      placeFlatLid(d, L, box);
+      fitPlug(d, L, box);
+      followHost(d, L.id);
       continue;
     }
     placeFlatLid(d, L, box);
@@ -440,3 +468,50 @@ function fingerSpot(d: Design, box: Tray, lid: Panel, x0: number, y0: number): P
 
 /** A padlock's hole sizes on offer (mm): a luggage padlock's shackle is 3–4 mm, a classroom one's 5–6. */
 export const HASP_HOLES = [6, 8, 10] as const;
+
+// ---------------------------------------------------------------------------
+// Layered lids (milestone 173): the plug under a plug lid's top, and every board placed on a lid, kept with it.
+
+/** The play round a plug inside the walls (mm, each side): as a Drop-in lid's. */
+export const PLUG_FIT = LID_FIT;
+
+/** A plug's outline: the box's inside less the play, in the base's coordinates (its points and its lowest corner). */
+export function plugOutline(d: Design, box: Tray): { pts: SketchPt[]; edgeIds: string[]; x0: number; y0: number } | null {
+  const B = d.panels[box.baseId];
+  if (!B || B.sketch.kind !== 'poly' || B.sketch.round || B.sketch.pts.some((q) => q.curve)) return null;
+  const g = matOf(d, box.baseId).thickness + PLUG_FIT;
+  const shrunk = grownPts(B.sketch.pts, -g);
+  const x0 = Math.min(...shrunk.map((q) => q.x)), y0 = Math.min(...shrunk.map((q) => q.y));
+  const pts = shrunk.map((q) => ({ x: q.x - x0, y: q.y - y0 }));
+  if (Math.max(...pts.map((q) => q.x)) < 10 || Math.max(...pts.map((q) => q.y)) < 10) return null;
+  return { pts, edgeIds: [...B.sketch.edgeIds], x0, y0 };
+}
+
+/** Keep a plug lid's plug (the board laid flat on its underside) to the box's inside, and where it is under the top. */
+function fitPlug(d: Design, L: Panel, box: Tray) {
+  if (L.lidOf?.kind !== 'plug') return;
+  const B = d.panels[box.baseId];
+  const o = plugOutline(d, box);
+  if (!B || B.sketch.kind !== 'poly' || !o) return;
+  // the top's own (0, 0) is the base's outline grown by the lip: its lowest corner
+  const top = grownPts(B.sketch.pts, LAYER_LIP);
+  const tx = Math.min(...top.map((q) => q.x)), ty = Math.min(...top.map((q) => q.y));
+  for (const P of lidLayers(d, L.id, -1)) {
+    if (P.place?.pose !== 'flat') continue;
+    P.sketch = { kind: 'poly', pts: o.pts.map((q) => ({ ...q })), edgeIds: [...o.edgeIds] };
+    P.w = Math.max(...o.pts.map((q) => q.x));
+    P.h = Math.max(...o.pts.map((q) => q.y));
+    P.place = { ...P.place, x: o.x0 - tx, y: o.y0 - ty, rot: 0 };
+  }
+}
+
+/** The boards placed on a board, and theirs, follow it now (their frames from its, as `solve` derives them). */
+export function followHost(d: Design, hostId: string) {
+  for (const id of d.order) {
+    const P = d.panels[id];
+    if (P?.place?.host !== hostId) continue;
+    const f = placeFrame(d, P.place);
+    if (f) P.frame = f;
+    followHost(d, id);
+  }
+}
