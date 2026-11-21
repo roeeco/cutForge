@@ -205,5 +205,4 @@ E3 (pin hinges) and E4 (a living hinge round any outline) stay in `ROADMAP.md` Â
 | 2 | Angled boards on 4 mm board | Allowed: `lean` (angled tabs through slots) on corrugated of 3 mm or more (R3, milestone 163). |
 | 3 | Finger joints on 4 mm board | No. Tabs in slots stay. |
 | 4 | Card and 1.6 mm board | Left off. These cards are plywood 3 and corrugated 4 only. |
-
 | 5 | Licence | boxes.py is a behaviour reference only, as `THIRD_PARTY.md` already rules for GPL code. Its constructions and sizes are read, and every preset is written fresh. Nothing in the repository then carries GPLâ€‘3.0, whether CutForge stays personal or goes to a class. |
