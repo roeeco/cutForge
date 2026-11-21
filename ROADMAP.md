@@ -246,7 +246,7 @@ comes before 115, 117 and 118.**
 - **Not in this round:** structural curved walls (a plan of their own), the teacher view (F) and offline (G3), which
   the browser passes could not test.
 
-### 5.5 Milestones 146–155: the presets overhaul (plan of 21 November)
+### 5.5 Milestones 146–160: the presets overhaul (plan of 21 November, with the preset engine of `DIELINE_GENERATOR_ANALYSIS.md`)
 
 `PRESETS_OVERHAUL.md`, from a contact sheet of every preset in every material (`docs/preset-shots/before/`): 38
 entries in four lists (structures, styles, missions, Guided things), about 15 of them different from each other;
@@ -257,12 +257,17 @@ only once the pictures can tell them apart.
 | # | Milestone | Plan | Status |
 | --- | --- | --- | --- |
 | **146** | One catalogue: the lists read it, each design once; the contact sheet; the look-alike tests and their allowlists | §7 | ✅ |
-| **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §4.2 | |
-| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §4.1 | |
-| **149** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §4.3, §4.5 | |
-| **150** | The stage: hero pose, framing, *Show how it closes* | §4.4 | |
-| **151** | Challenges and merges | §6 | |
-| **152** | New cards on the engine as it is | §6 | |
-| **153** | New cards that need engine work (beta) | §6 | |
-| **154** | Words and pictures | — | |
-| **155** | Verification | — | |
+| **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §7 | |
+| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §7 | |
+| **149** | Engine: ends per wall | §7, analysis §3.2 | |
+| **150** | Engine: preset records and the recogniser | §7, analysis §4 | |
+| **151** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §7 | |
+| **152** | The stage: hero pose, framing, *Show how it closes* | §7 | |
+| **153** | Challenges and merges | §7 | |
+| **154** | Engine: corner rules (gusset, inward ear) | §7, analysis §3.3 | |
+| **155** | New cards on the engine as it is | §7 | |
+| **156** | Engine: strip and wrap builders | §7, analysis §3.1 | |
+| **157** | New cards that need engine work (beta) | §7 | |
+| **158** | Engine: custom presets | §7, analysis §4 | |
+| **159** | Words and pictures | §7 | |
+| **160** | Verification | §7 | |

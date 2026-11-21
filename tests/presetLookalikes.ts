@@ -8,15 +8,15 @@ export type Lookalike = { list: 'sentence' | 'guided' | 'missions'; a: string; b
 /** The same design shape (connections, closures, bands, angles, lid, flaps, proportions): `structuralFingerprint`. */
 export const STRUCTURAL: Lookalike[] = [
   // C: an open box and an open tray differ in height only (and the tray's handles); settled as one card's variants
-  { list: 'sentence', a: 'box', b: 'tray', group: 'C', until: 151 },
+  { list: 'sentence', a: 'box', b: 'tray', group: 'C', until: 153 },
 ];
 
 /** The same picture at list size: the browser's perceptual hash (tests/e2e/preset-sheet.spec.ts). */
 export const VISUAL: Lookalike[] = [
   // A: the tuck cartons differ underneath (the bottom, which panel a tuck hinges from); the picture is from above
-  { list: 'sentence', a: 'ste', b: 'rte', group: 'A', until: 149 },
-  { list: 'sentence', a: 'ste', b: 'tuckSnap', group: 'A', until: 149 },
-  { list: 'sentence', a: 'rte', b: 'tuckSnap', group: 'A', until: 149 },
+  { list: 'sentence', a: 'ste', b: 'rte', group: 'A', until: 151 },
+  { list: 'sentence', a: 'ste', b: 'tuckSnap', group: 'A', until: 151 },
+  { list: 'sentence', a: 'rte', b: 'tuckSnap', group: 'A', until: 151 },
   // B: cartons closed by flaps are drawn without their flaps (an open-topped brick, like a box)
   { list: 'sentence', a: 'sealed', b: 'rsc', group: 'B', until: 147 },
   { list: 'sentence', a: 'box', b: 'sealed', group: 'B', until: 147 },

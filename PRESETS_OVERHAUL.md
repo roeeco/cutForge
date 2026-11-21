@@ -1,4 +1,4 @@
-# CutForge: presets overhaul — one collection of distinct things, each shown the way it works (milestones 146–155)
+# CutForge: presets overhaul — one collection of distinct things, each shown the way it works (milestones 146–160)
 
 Written 2026-11-21 on `main` at `126556f`, after milestone 145 (the QA round) and the SVG pictures (`src/views/illustrate.ts`). It replaces an earlier draft of this file, which was written against `1917440` (milestone 91) by mistake.
 
@@ -218,17 +218,22 @@ Each ends as before: typecheck, unit suite, goldens byte-identical unless a chan
 | **146** | **One catalogue.** `templates/catalogue.ts` lists the cards of §6 (family, variants, challenges, Guided entries) over the existing structures and styles; the sentence list, *Follow a mission* and Guided's gallery read it; aliases and duplicates leave the lists (their ids still open). `npm run preset-sheet`. The distinctness test lands with an allowlist of today's look-alikes. | Every saved design and mission file in `tests/goldenDesigns.ts` and the library fixtures opens unchanged; no list shows two cards with the same design. |
 | **147** | **Pictures draw everything.** Flaps, edge features, cut lines and windows in `illustrate.ts`; card contrast; list thumbnails at ×2. | §5.2 passes for every preset × material; groups B and E drop out of the allowlist. |
 | **148** | **Poses.** `pose.ts` with flap hinges on `Flap3d`, edge-flap angles, the drawer assembled, cutaways and the new props; `lidPose` folded into it. | §5.3; groups G and the drawer drop out; flat pieces show their tell. |
-| **149** | **Views and variants.** Per-card camera, `under34` and the inset; the variant switch on cards and the design card; the stage's card colour. | Group A drops out: each of the four bottoms is told apart by the hash test. |
-| **150** | **The stage.** Hero pose on open, projected-box framing, *Show how it closes* from `assemblySteps`; the pose shuts when a board is selected. | e2e: no preset cropped at 1366 × 768; the closing play runs for every card with a closure. |
-| **151** | **Challenges and merges.** Missions as challenges on cards 2, 4, 16, 18; Guided's gallery from the catalogue; groups C, D and F settled as variants or challenges. | The allowlist is empty. |
-| **152** | **New presets on the engine as it is:** Round box in the sentence, Pen cup (sided, round as beta), Window carton, Stand's phone variant, Hinged box on plywood with a living hinge. | Contract tests per card × material (the sentence's `cleanWith` for every word); goldens at defaults. |
-| **153** | **New presets that need engine work:** Magazine file (a sloped wall outline that keeps its joints), Dice tower (angled baffles between side walls), Mailer box (a spike: a three-deep flap chain; if the spike fails, a hinged lid with a front lip and no tuck). All beta. | Each spike's result in `DECISIONS.md`; the fallback is taken if a spike fails. |
-| **154** | **Words and pictures:** Hebrew names, `docs/preset-shots/after/`, README for students and teachers. | i18n coverage; the contact sheet reviewed in en and he. |
-| **155** | **Verification**, as milestone 145. | `PROGRESS.md`. |
+| **149** | **Engine: ends per wall** (`DIELINE_GENERATOR_ANALYSIS.md` §3.2). A tube's end is a list of flaps, one per wall, in one vocabulary of profiles; `TrayTop` / `TrayBottom` styles become named lists over it. | Goldens byte-identical for every existing style; a list that is no named style builds and checks clean; the carton's words can set one wall's flap. |
+| **150** | **Engine: preset records and the recogniser** (analysis §4). A catalogue variant is a record (body, ends, corner, joint, relations, features); styles and trade codes are recognised from records. | Every card's variants are records; `cardOfDesign` and the look-alike test read records; recognition round-trips for every style. |
+| **151** | **Views and variants.** Per-card camera, `under34` and the inset; the variant switch on cards and the design card, generated from the record's free slots; the stage's card colour. | Group A drops out: each of the four bottoms is told apart by the hash test. |
+| **152** | **The stage.** Hero pose on open, projected-box framing, *Show how it closes* from `assemblySteps`; the pose shuts when a board is selected. | e2e: no preset cropped at 1366 × 768; the closing play runs for every card with a closure. |
+| **153** | **Challenges and merges.** Missions as challenges on their cards; groups C, D and F settled as variants or challenges. | The allowlist is empty. |
+| **154** | **Engine: corner rules** (analysis §3.3). The gusset (one diagonal crease, corner uncut) and the inward diagonal ear beside today's corner joints. | A gusseted card tray folds closed in 3D with its net flat and no overlap; the corner rule is a slot of the record. |
+| **155** | **New presets on the engine as it is:** Round box in the sentence, Pen cup (sided, round as beta), Window carton, Stand's phone variant, Hinged box on plywood with a living hinge. | Contract tests per card × material; goldens at defaults. |
+| **156** | **Engine: strip and wrap builders** (analysis §3.1). A strip from a list of panel widths and fold angles; a wrap (base, walls, lid in one strip with end flanges). | Inserts and an accordion pad from the strip; a wrapper from the wrap; both fold in 3D and export clean. |
+| **157** | **New presets that need engine work:** Magazine file (a sloped wall outline that keeps its joints), Dice tower (angled baffles between side walls), Mailer box (on the wrap builder; if it cannot close, a hinged lid with a front lip and no tuck). All beta. | Each spike's result in `DECISIONS.md`; the fallback is taken if a spike fails. |
+| **158** | **Engine: custom presets** (analysis §4). In Workshop, a record editor: each slot a picture choice, refused choices with their reasons, *Save as preset* into the library; a saved preset is a card of its own. | A custom record round-trips through save and open; a refused combination says why; the recogniser names a custom record that matches a style. |
+| **159** | **Words and pictures:** Hebrew names, `docs/preset-shots/after/`, README for students and teachers. | i18n coverage; the contact sheet reviewed in en and he. |
+| **160** | **Verification**, as milestone 145. | `PROGRESS.md`. |
 
 **Status (2026-11-21):** 146 ✅. Where it differs from the row above: the catalogue holds the 16 cards that exist today (the new ones join in 152–153); a design is shown once per list (Guided's box with a lid and the sentence's *Tray + lid* are in different lists, so both stay); *a box* and *a tray* start at their own heights when one is picked from the other; and the visual look-alike test runs in the browser on the contact sheet (`?presets`). See `DECISIONS.md` and `PROGRESS.md`.
 
-If time is short: 146–149 fix what the owner sees (pictures and look-alikes) without a new preset. 150 makes the stage show how things close. 152 is the first that adds variety.
+The engine steps of `DIELINE_GENERATOR_ANALYSIS.md` §5 are folded in as 149, 150, 154, 156 and 158 (owner, 21 November: "fold them in and run all milestones, one after another"). The old 149–155 are now 151, 152, 153, 155, 157, 159 and 160.
 
 ## 8. Decisions for the owner
 
