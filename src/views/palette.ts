@@ -9,7 +9,8 @@ import { matOf } from '../model/materials';
 export const MATERIAL_COLORS: Record<MaterialKind, { face: string; edge: string; sheet: string }> = {
   plywood: { face: '#e2c9a0', edge: '#b98f58', sheet: '#f4e8d3' },
   corrugated: { face: '#cfa875', edge: '#a17646', sheet: '#ecdcc1' },
-  card: { face: '#ede6d8', edge: '#c7bca6', sheet: '#f5f1e9' },
+  // milestone 151: card whiter (it read as grey under the stage's light: the welcome review's W10), its cut edge a warm grey
+  card: { face: '#f8f4ec', edge: '#cdbfa6', sheet: '#f7f3ec' },
 };
 
 export const STAGE = { bg: '#eef1f5', gridMinor: '#dfe4eb', gridMajor: '#c9d1dc', outline: '#3a3530', selected: '#1fb8ac', hover: '#5fd3c9', ghost: '#13897f', ghostEdge: '#0b4f4a', ghostOpacity: 0.5, blocked: '#f0a020' };

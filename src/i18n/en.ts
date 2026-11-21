@@ -1442,6 +1442,7 @@ export const en = {
   'style.group.flat': "Flat pieces",
   'style.group.more': "More",
   // the catalogue's cards (milestone 146, PRESETS_OVERHAUL.md §6)
+  'tpl.variant': "Kind",
   'card.openBox': "Open box",
   'card.organiser': "Organiser",
   'card.liddedBox': "Box with a lid that lifts off",

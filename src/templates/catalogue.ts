@@ -49,6 +49,8 @@ export type Card = {
   /** The missions that start from it (the plan's challenges), by mission id. */
   challenges: string[];
   status: 'stable' | 'beta' | 'planned';
+  /** Milestone 151: how its pictures look at it (views/illustrate.ts): from where, and how far a tube's bottom flaps hang open. */
+  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number };
 };
 
 const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
@@ -63,7 +65,7 @@ export const CATALOGUE: Card[] = [
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
     ],
   },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
   {
     id: 'liddedBox', title: 'card.liddedBox', group: 'boxes', status: 'stable', challenges: [],
     variants: [
@@ -86,7 +88,7 @@ export const CATALOGUE: Card[] = [
   { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
   // cartons
   {
-    id: 'tuckCarton', title: 'card.tuckCarton', group: 'cartons', status: 'stable', challenges: [],
+    id: 'tuckCarton', title: 'card.tuckCarton', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
     variants: [
       { id: 'carton', structure: 'carton', match: { body: 'tube', top: 'tuck' }, guided: { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', words: {}, can: (m) => foldsAsCarton(m, 2), why: 'g.thing.cartonNo' } },
       { id: 'ste', structure: 'carton', style: 'ste', match: { body: 'tube', top: 'tuck', bottom: 'tuckBack' } },
@@ -97,7 +99,7 @@ export const CATALOGUE: Card[] = [
   },
   { id: 'gableBox', title: 'card.gableBox', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'gable', structure: 'carton', style: 'gable', match: { body: 'tube', top: 'roof' } }] },
   {
-    id: 'flappedBox', title: 'card.flappedBox', group: 'cartons', status: 'stable', challenges: [],
+    id: 'flappedBox', title: 'card.flappedBox', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
     variants: [
       { id: 'sealed', structure: 'carton', style: 'sealed', match: { body: 'tube', top: 'seal', bottom: 'seal' } },
       { id: 'rsc', structure: 'carton', style: 'rsc', match: { body: 'tube', top: 'rsc', bottom: 'rsc' } },
@@ -117,7 +119,7 @@ export const CATALOGUE: Card[] = [
   { id: 'folder', title: 'card.folder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'folder', structure: 'folder', match: { body: 'folded', boards: 4 } }] },
   { id: 'cardHolder', title: 'card.cardHolder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'cardHolder', structure: 'cardHolder', match: { body: 'folded', boards: 2, slits: true } }] },
   // stands
-  { id: 'stand', title: 'card.stand', group: 'more', status: 'stable', challenges: ['card-stand'], variants: [{ id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } }] },
+  { id: 'stand', title: 'card.stand', group: 'more', status: 'stable', view: { dir: 'side34' }, challenges: ['card-stand'], variants: [{ id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
@@ -137,7 +139,7 @@ export const cardOfVariant = (id: string) => variants().find((x) => x.v.id === i
 // The sentence's first word
 
 /** A first-word value: a structure's id or `style:<id>` (the sentence's values, unchanged since milestone C1). */
-const valueOf = (v: Variant): Value | null => (v.style ? (isAlias(styleById(v.style)!) ? v.structure! : `style:${v.style}`) : v.structure && !v.words ? v.structure : null);
+export const valueOf = (v: Variant): Value | null => (v.style ? (isAlias(styleById(v.style)!) ? v.structure! : `style:${v.style}`) : v.structure && !v.words ? v.structure : null);
 
 /** The variant a first-word value is. */
 export function variantOfValue(value: Value): { card: Card; v: Variant } | undefined {
@@ -327,4 +329,44 @@ export function variantOfWords(def: TemplateDef, p: Params): { card: Card; v: Va
   const byWords = all.find((x) => x.v.words && Object.entries(x.v.words).every(([k, w]) => String(p[k]) === String(w)));
   if (byWords) return byWords;
   return all.find((x) => !x.v.style && !x.v.words) ?? null;
+}
+
+/**
+ * The variants a design's card offers it as a switch (milestone 151): those of its own card on its own structure
+ * that the sentence would list for these words, its own among them; fewer than two, none.
+ */
+const siblingCache = new Map<string, { value: Value; v: Variant; params: Params }[]>();
+export function siblingsOf(d: Design): { value: Value; v: Variant; params: Params }[] {
+  const def = d.template && templateById(d.template.id);
+  if (!def || !d.template) return [];
+  const m = d.material, p = d.template.params;
+  const key = JSON.stringify([def.id, m.id, m.kind, m.thickness, p]);
+  const hit = siblingCache.get(key);
+  if (hit) return hit;
+  const at = variantOfWords(def, p);
+  const own = at ? valueOf(at.v) : null;
+  const out: { value: Value; v: Variant; params: Params }[] = [];
+  if (at && own !== null) {
+    const seen = new Set<string>();
+    for (const v of at.card.variants) {
+      if (v.structure !== def.id || !inSentence(v)) continue;
+      const value = valueOf(v);
+      if (value === null) continue;
+      // listed for these words (the sentence's own test), its own always
+      if (value !== own && v.style && !styleListed(styleById(v.style)!, m, p, templateById)) continue;
+      const c = cachedChoice(value, m, p, own);
+      if (!c || c.id !== def.id) continue;
+      // each design once: a structure entry that is a listed style is that style
+      const s = styleOf(c.id, c.params);
+      const k = s && !isAlias(s) ? `style:${s.id}` : choiceKey(c.id, c.params);
+      if (seen.has(k) && value !== own) continue;
+      seen.add(k);
+      out.push({ value, v, params: c.params });
+    }
+  }
+  // the structure's own entry when a named style of it is there too and is the same design: the style stands for it
+  const res = out.length >= 2 ? out.filter((x, i) => !(x.value === def.id && out.some((y, j) => j !== i && y.v.style && styleOf(def.id, x.params)?.id === y.v.style))) : [];
+  if (siblingCache.size > 200) siblingCache.clear();
+  siblingCache.set(key, res.length >= 2 ? res : []);
+  return siblingCache.get(key)!;
 }

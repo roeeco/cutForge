@@ -7,6 +7,10 @@ import { regenerate, templateById, type Lost } from '../templates/registry';
 import type { Design } from '../model/types';
 import { choose, optionsNow, shownNow, type Change } from '../sentence/resolve';
 import { fmtNum, type MsgKey } from '../i18n';
+import { siblingsOf, variantOfWords } from '../templates/catalogue';
+import { styleById, styleName } from '../templates/styles';
+import { builtFor } from '../templates/structures/box';
+import { designPicture } from '../views/picture';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -62,8 +66,31 @@ export function TemplateSection({ bare = false }: { bare?: boolean }) {
     return o ? t(o.label) : String(v);
   };
   const mm = t('unit.mm');
+  // milestone 151: the other ways of the same thing (the card's variants), as pictures, the one it is picked
+  const siblings = siblingsOf(d);
+  const current = variantOfWords(tpl, params);
+  const pick = (to: Record<string, number | string>) => {
+    const st = useStore.getState();
+    const r = regenerate(st.design, to);
+    st.apply((x) => {
+      Object.assign(x, JSON.parse(JSON.stringify(r.design)));
+    });
+    setLost(r.lost);
+    setNotes([]);
+    setRefused(null);
+  };
   return (
     <div data-testid="template-section">
+      {siblings.length > 0 && (
+        <div className="field pictures-field">
+          <span className="label">{t('tpl.variant')}</span>
+          <span className={`pictures n${Math.min(4, siblings.length)}`} role="radiogroup" aria-label={t('tpl.variant')} data-testid="variant-switch">
+            {siblings.map((s) => (
+              <VariantButton key={s.v.id} name={s.v.style ? t(styleName(styleById(s.v.style)!)) : t(tpl.word ?? tpl.name)} on={current?.v.id === s.v.id} src={variantPicture(tpl.id, d.material, s.params)} onPick={() => current?.v.id !== s.v.id && pick(s.params)} testId={`variant-${s.v.id}`} />
+            ))}
+          </span>
+        </div>
+      )}
       {!bare && (
         <>
           <p className="kicker">{t('tpl.title')}</p>
@@ -143,3 +170,30 @@ export function TemplateSection({ bare = false }: { bare?: boolean }) {
     </div>
   );
 }
+
+const variantPics = new Map<string, string | null>();
+/** A variant's picture at the design's sizes, small (cached). */
+function variantPicture(id: string, m: Design['material'], params: Record<string, number | string>): string | null {
+  const key = JSON.stringify([id, m.id, m.thickness, params]);
+  if (!variantPics.has(key)) {
+    let src: string | null = null;
+    try {
+      src = designPicture(builtFor(templateById(id)!, m, params), 96, 64);
+    } catch {
+      src = null;
+    }
+    if (variantPics.size > 120) variantPics.clear();
+    variantPics.set(key, src);
+  }
+  return variantPics.get(key) ?? null;
+}
+
+function VariantButton(props: { name: string; on: boolean; src: string | null; onPick: () => void; testId: string }) {
+  return (
+    <button type="button" role="radio" aria-checked={props.on} className={props.on ? 'on' : ''} title={props.name} onClick={props.onPick} data-testid={props.testId}>
+      {props.src ? <img src={props.src} alt="" width={96} height={64} /> : <span className="pic-blank" />}
+      <span className="pic-label">{props.name}</span>
+    </button>
+  );
+}
+

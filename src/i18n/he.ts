@@ -1444,6 +1444,7 @@ export const he: Record<MsgKey, string> = {
   'style.group.flat': "חלקים שטוחים",
   'style.group.more': "עוד",
   // the catalogue's cards (milestone 146, PRESETS_OVERHAUL.md §6)
+  'tpl.variant': "סוג",
   'card.openBox': "קופסה פתוחה",
   'card.organiser': "מארגן",
   'card.liddedBox': "קופסה עם מכסה שמורם ממנה",

@@ -50,11 +50,30 @@ const LOOK: Record<MaterialKind, { face: string; edge: string; line: string; det
 
 // the view: from the front right, above, orthographic; a little higher than the stage's thumbnails (about 41°)
 // so more of a box's inside shows
-const VIEW = new THREE.Vector3(0.75, 1.08, 1).normalize();
-const RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW).normalize();
-const UP = new THREE.Vector3().crossVectors(VIEW, RIGHT).normalize();
+/**
+ * The views a picture is drawn from (milestone 151): the usual three-quarter view from the front right and above; a
+ * higher one (an organiser's grid); and one from the side (a stand's lean). The light keeps to the upper left of
+ * whichever.
+ */
+export type ViewName = 'front34' | 'high' | 'side34';
+const VIEWS: Record<ViewName, THREE.Vector3> = {
+  front34: new THREE.Vector3(0.75, 1.08, 1).normalize(),
+  high: new THREE.Vector3(0.55, 1.9, 1).normalize(),
+  side34: new THREE.Vector3(1.3, 0.85, 0.45).normalize(),
+};
+let VIEW = VIEWS.front34.clone();
+let RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW).normalize();
+let UP = new THREE.Vector3().crossVectors(VIEW, RIGHT).normalize();
 // light from the upper left, a little towards the viewer
-const LIGHT = RIGHT.clone().multiplyScalar(-0.75).addScaledVector(UP, 1).addScaledVector(VIEW, 0.45).normalize();
+let LIGHT = RIGHT.clone().multiplyScalar(-0.75).addScaledVector(UP, 1).addScaledVector(VIEW, 0.45).normalize();
+
+/** Look from this view (every projection below reads it). */
+function setView(name: ViewName) {
+  VIEW = VIEWS[name].clone();
+  RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW).normalize();
+  UP = new THREE.Vector3().crossVectors(VIEW, RIGHT).normalize();
+  LIGHT = RIGHT.clone().multiplyScalar(-0.75).addScaledVector(UP, 1).addScaledVector(VIEW, 0.45).normalize();
+}
 
 const sx = (p: THREE.Vector3) => p.dot(RIGHT);
 const sy = (p: THREE.Vector3) => -p.dot(UP);
@@ -482,7 +501,7 @@ const pathOf = (rings: THREE.Vector3[][], close = true) => rings.map((r) => 'M' 
  * The design as an SVG illustration, as a data URL (`w` × `h` is its shape; it scales). `prop` puts things
  * inside its box. Null when there is nothing to draw.
  */
-export function illustrateDesign(d: Design, w: number, h: number, opts: { prop?: Prop; pose?: Pose } = {}): string | null {
+export function illustrateDesign(d: Design, w: number, h: number, opts: PictureOpts = {}): string | null {
   const svg = illustrationSvg(d, w, h, opts);
   return svg ? `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` : null;
 }
@@ -576,65 +595,82 @@ export function pictureCoverage(design: Design): { want: string[]; drawn: string
   return { want, drawn: [...drawn] };
 }
 
-export function illustrationSvg(design: Design, w: number, h: number, opts: { prop?: Prop; pose?: Pose } = {}): string | null {
+export type PictureOpts = { prop?: Prop; pose?: Pose; view?: ViewName; /** A tube's bottom flaps opened this far (milestone 151: a carton's bottom shows, hanging out below it). */ bottomOpen?: number };
+
+export function illustrationSvg(design: Design, w: number, h: number, opts: PictureOpts = {}): string | null {
   const d = forPicture(design);
   // milestone 148: posed as the design shows best (pose.ts), unless the caller asks for a pose of its own
-  const pose = opts.pose ?? autoPose(d);
+  const pose = { ...(opts.pose ?? autoPose(d)), ...(opts.bottomOpen !== undefined ? { bottomEnds: opts.bottomOpen } : {}) };
   const shown = posedDisplay(d, pose);
   const faces = designFaces(d, shown);
   if (!faces.length) return null;
   const prop = opts.prop ?? pose.prop;
   if (prop) propFaces(d, shown.xf, prop, faces);
-  const visible = faces.filter((f) => f.normal.dot(VIEW) > 1e-4);
-  // the frame: every point, with room around it, in the asked proportion
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, low = Infinity;
-  for (const f of faces)
-    for (const p of f.pts) {
-      x0 = Math.min(x0, sx(p));
-      x1 = Math.max(x1, sx(p));
-      y0 = Math.min(y0, sy(p));
-      y1 = Math.max(y1, sy(p));
-      low = Math.min(low, p.y);
+  const main = scene(d, shown, faces, w, h, opts.view ?? 'front34', true);
+  const [vx, vy, vw, vh] = main.box;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(vx)} ${f1(vy)} ${f1(vw)} ${f1(vh)}" width="${w}" height="${h}"><defs><radialGradient id="cf-shadow"><stop offset="0" stop-color="#232b38" stop-opacity="0.22"/><stop offset="1" stop-color="#232b38" stop-opacity="0"/></radialGradient></defs>${main.body}</svg>`;
+}
+
+/** Posed faces seen from one view: the painted paths and the view box that frames them in `w` × `h`. */
+function scene(d: Design, shown: Posed, faces: Face[], w: number, h: number, view: ViewName, withShadow: boolean): { body: string; box: [number, number, number, number] } {
+  setView(view);
+  try {
+    const visible = faces.filter((f) => f.normal.dot(VIEW) > 1e-4);
+    // the frame: every point, with room around it, in the asked proportion
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, low = Infinity;
+    for (const f of faces)
+      for (const p of f.pts) {
+        x0 = Math.min(x0, sx(p));
+        x1 = Math.max(x1, sx(p));
+        y0 = Math.min(y0, sy(p));
+        y1 = Math.max(y1, sy(p));
+        low = Math.min(low, p.y);
+      }
+    const pad = Math.max(x1 - x0, y1 - y0) * 0.08;
+    let vw = x1 - x0 + 2 * pad, vh = y1 - y0 + 2 * pad;
+    const want = w / h;
+    if (vw / vh < want) vw = vh * want;
+    else vh = vw / want;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const vx = cx - vw / 2, vy = cy - vh / 2;
+    // a stroke about one pixel at the size shown
+    const px = vw / w;
+    // the contact shadow: the footprint's centre on the floor, under everything
+    let shadow = '';
+    if (withShadow) {
+      let fx = 0, fz = 0, fn = 0;
+      for (const f of faces) for (const p of f.pts) if (p.y < low + 1) (fx += p.x), (fz += p.z), fn++;
+      const foot = new THREE.Vector3(fx / Math.max(1, fn), low, fz / Math.max(1, fn));
+      shadow = `<ellipse cx="${f1(sx(foot))}" cy="${f1(sy(foot) + (y1 - y0) * 0.02)}" rx="${f1((x1 - x0) * 0.5)}" ry="${f1((x1 - x0) * 0.12)}" fill="url(#cf-shadow)"/>`;
     }
-  const pad = Math.max(x1 - x0, y1 - y0) * 0.08;
-  let vw = x1 - x0 + 2 * pad, vh = y1 - y0 + 2 * pad;
-  const want = w / h;
-  if (vw / vh < want) vw = vh * want;
-  else vh = vw / want;
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const vx = cx - vw / 2, vy = cy - vh / 2;
-  // a stroke about one pixel at the size shown
-  const px = vw / w;
-  // the contact shadow: the footprint's centre on the floor, under everything
-  let fx = 0, fz = 0, fn = 0;
-  for (const f of faces) for (const p of f.pts) if (p.y < low + 1) (fx += p.x), (fz += p.z), fn++;
-  const foot = new THREE.Vector3(fx / Math.max(1, fn), low, fz / Math.max(1, fn));
-  const shadow = `<ellipse cx="${f1(sx(foot))}" cy="${f1(sy(foot) + (y1 - y0) * 0.02)}" rx="${f1((x1 - x0) * 0.5)}" ry="${f1((x1 - x0) * 0.12)}" fill="url(#cf-shadow)"/>`;
-  // the design's middle, to tell a wall's inner face (turned towards it) from its outer one
-  let mx = 0, mz = 0, mn = 0;
-  for (const f of faces) for (const p of f.pts) (mx += p.x), (mz += p.z), mn++;
-  mx /= mn;
-  mz /= mn;
-  const inner = (f: Face) => {
-    if (!f.board || Math.abs(f.normal.y) > 0.5) return false;
-    const c = f.pts.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(f.pts.length);
-    return f.normal.x * (mx - c.x) + f.normal.z * (mz - c.z) > 0;
-  };
-  const body = paintOrder(visible, joinedIn(d))
-    .map((f) => {
-      const look = (Object.values(LOOK) as (typeof LOOK)[MaterialKind][]).find((l) => l.face === f.fill || l.edge === f.fill);
-      const fill = f.fill.startsWith('#') ? shade(f.fill, f.normal, inner(f), look?.contrast ?? 1) : f.fill;
-      // big faces outlined in their material's line; cut edges (thin strips) lighter, so joints do not turn to noise
-      const edge = !!f.lines || (f.board && f.pts.length === 4 && Math.abs(f.normal.y) < 0.99 && f.fill === LOOK[kindOfEdge(f.fill)].edge);
-      const ghost = f.board && shown.ghost.has(f.board) ? ' opacity="0.28"' : '';
-      const shape = `<path d="${pathOf([f.pts, ...(f.holes ?? [])])}" fill="${fill}"${ghost} fill-rule="evenodd" stroke="${f.stroke}" stroke-opacity="${edge ? 0.45 : 0.85}" stroke-width="${f1(px * (edge ? 0.7 : 1.05) * 10) / 10}" stroke-linejoin="round"/>`;
-      const lines = f.lines?.length ? `<path d="${pathOf(f.lines, false)}" fill="none" stroke="${detailFor(f.fill)}" stroke-width="${f1(px * 0.8 * 10) / 10}" opacity="0.8"/>` : '';
-      // a board's slits and tear lines (milestone 147): its outline colour, perforations dashed
-      const marks = (f.marks ?? []).map((mk) => `<path d="${pathOf([mk.pts], false)}" fill="none" stroke="${f.stroke}" stroke-width="${f1(px * 1.1 * 10) / 10}"${mk.dashed ? ` stroke-dasharray="${f1(px * 3)} ${f1(px * 2)}"` : ''} stroke-linecap="round"/>`).join('');
-      return shape + lines + marks;
-    })
-    .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(vx)} ${f1(vy)} ${f1(vw)} ${f1(vh)}" width="${w}" height="${h}"><defs><radialGradient id="cf-shadow"><stop offset="0" stop-color="#232b38" stop-opacity="0.22"/><stop offset="1" stop-color="#232b38" stop-opacity="0"/></radialGradient></defs>${shadow}${body}</svg>`;
+    // the design's middle, to tell a wall's inner face (turned towards it) from its outer one
+    let mx = 0, mz = 0, mn = 0;
+    for (const f of faces) for (const p of f.pts) (mx += p.x), (mz += p.z), mn++;
+    mx /= mn;
+    mz /= mn;
+    const inner = (f: Face) => {
+      if (!f.board || Math.abs(f.normal.y) > 0.5) return false;
+      const c = f.pts.reduce((s, p) => s.add(p), new THREE.Vector3()).divideScalar(f.pts.length);
+      return f.normal.x * (mx - c.x) + f.normal.z * (mz - c.z) > 0;
+    };
+    const body = paintOrder(visible, joinedIn(d))
+      .map((f) => {
+        const look = (Object.values(LOOK) as (typeof LOOK)[MaterialKind][]).find((l) => l.face === f.fill || l.edge === f.fill);
+        const fill = f.fill.startsWith('#') ? shade(f.fill, f.normal, inner(f), look?.contrast ?? 1) : f.fill;
+        // big faces outlined in their material's line; cut edges (thin strips) lighter, so joints do not turn to noise
+        const edge = !!f.lines || (f.board && f.pts.length === 4 && Math.abs(f.normal.y) < 0.99 && f.fill === LOOK[kindOfEdge(f.fill)].edge);
+        const ghost = f.board && shown.ghost.has(f.board) ? ' opacity="0.28"' : '';
+        const shape = `<path d="${pathOf([f.pts, ...(f.holes ?? [])])}" fill="${fill}"${ghost} fill-rule="evenodd" stroke="${f.stroke}" stroke-opacity="${edge ? 0.45 : 0.85}" stroke-width="${f1(px * (edge ? 0.7 : 1.05) * 10) / 10}" stroke-linejoin="round"/>`;
+        const lines = f.lines?.length ? `<path d="${pathOf(f.lines, false)}" fill="none" stroke="${detailFor(f.fill)}" stroke-width="${f1(px * 0.8 * 10) / 10}" opacity="0.8"/>` : '';
+        // a board's slits and tear lines (milestone 147): its outline colour, perforations dashed
+        const marks = (f.marks ?? []).map((mk) => `<path d="${pathOf([mk.pts], false)}" fill="none" stroke="${f.stroke}" stroke-width="${f1(px * 1.1 * 10) / 10}"${mk.dashed ? ` stroke-dasharray="${f1(px * 3)} ${f1(px * 2)}"` : ''} stroke-linecap="round"/>`).join('');
+        return shape + lines + marks;
+      })
+      .join('');
+    return { body: shadow + body, box: [vx, vy, vw, vh] };
+  } finally {
+    setView('front34');
+  }
 }
 
 /** The material whose edge colour this is (plywood when none). */

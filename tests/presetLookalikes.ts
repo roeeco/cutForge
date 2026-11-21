@@ -15,8 +15,8 @@ export const STRUCTURAL: Lookalike[] = [
 
 /** The same picture at list size: the browser's perceptual hash (tests/e2e/preset-sheet.spec.ts). */
 export const VISUAL: Lookalike[] = [
-  // A: the tuck cartons differ underneath (the bottom, which panel a tuck hinges from); the picture is from above
-  { list: 'sentence', a: 'ste', b: 'rte', group: 'A', until: 151 },
-  { list: 'sentence', a: 'ste', b: 'tuckSnap', group: 'A', until: 151 },
-  { list: 'sentence', a: 'rte', b: 'tuckSnap', group: 'A', until: 151 },
+  // A: the tuck cartons differ underneath; since milestone 151 their bottom flaps hang open in the picture, which tells
+  // the reverse tuck from the others, but a straight tuck's flap hangs behind it and measures 5 bits from the snap-lock
+  // on 1.6 mm board: one card with a variant switch in 153
+  { list: 'sentence', a: 'ste', b: 'tuckSnap', group: 'A', until: 153 },
 ];

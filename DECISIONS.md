@@ -740,3 +740,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The structural look-alike test compares records** (it compared a hand-made fingerprint with proportions): box/tray and the two organiser missions are the known pairs, settled in 153.
 - **The old organiser template is no record** (its walls are grown boards, not a tray): it still finds its card by its template.
 
+## Milestone 151 (presets overhaul): views and variants
+- **A picture can be drawn from any of three views** (`front34`, the usual; `high`, an organiser's grid; `side34`, a stand's lean), the light kept to the upper left of each. A card says which (`Card.view`), and `designPicture` asks the recogniser for the design's card, so every list draws a preset its way.
+- **A carton's bottom shows by hanging its flaps open**, not in an inset from below. The plan's inset was built and tried: at list size it was a few pixels across and framed the whole carton, so it told nothing apart; it was removed. With the bottom flaps turned out past straight (`bottomOpen`, 1.35 of their fold) the reverse tuck's flap hangs at the front and the snap-lock's shaped flaps show. A straight tuck's flap hangs behind the carton, so it still measures 5 bits from the snap-lock on 1.6 mm board: that pair stays known until the tuck cartons become one card (153).
+- **The design card's *Kind* switch** (`siblingsOf`): the other variants of the design's card on its own structure that the sentence would list for its words, as small pictures at the design's sizes; picking one regenerates the template in one undo step (the student's work kept as with any word). It is not shown for a lone variant or a design with no template. The box and tray are different structures, so they are not switches of each other (153).
+- **Card is whiter on the stage** (`#f8f4ec`, its cut edge `#cdbfa6`): it read as grey (welcome review W10). Exports do not use these colours.
+

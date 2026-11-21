@@ -22,6 +22,8 @@ export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter';
 export type Pose = {
   /** A carton's top flaps: 0 shut, 1 upright (in line with its walls), more: past upright. */
   ends?: number;
+  /** Its bottom's flaps likewise (milestone 151: the view from below). */
+  bottomEnds?: number;
   /** How far the flap on a flat piece's back edge opens, in degrees from shut. */
   backFlap?: number;
   /** A drawer box: how far the tray is in its sleeve (0 out beside it as cut, 1 all the way in); absent: as cut. */
@@ -180,6 +182,8 @@ export function posedDisplay(d: Design, pose: Pose = autoPose(d)): Posed {
   // a carton's top flaps opened
   if (pose.ends !== undefined)
     for (const c of Object.values(d.connections)) c.geom?.flaps3d.forEach((f, i) => f.endOf === 'top' && f.hinge && shown.flapT.set(`${c.id}:${i}`, 1 - pose.ends!));
+  if (pose.bottomEnds !== undefined)
+    for (const c of Object.values(d.connections)) c.geom?.flaps3d.forEach((f, i) => f.endOf === 'bottom' && f.hinge && shown.flapT.set(`${c.id}:${i}`, 1 - pose.bottomEnds!));
   // a flat piece's flap on its back edge (the farthest from the viewer) opened
   if (pose.backFlap !== undefined) {
     let far: { key: string; f: Flap3d; depth: number } | null = null;
