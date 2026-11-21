@@ -2486,6 +2486,16 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/stageOpen.test.ts`: lips and dust flaps on card and corrugated hinged trays ride on their boards and lie in line with them when unfolded; on the stage they open with the lid and shut when it is closed, picked or closed at the end of going together; a mailer's lid opens unless shut or picked. `tests/stagePose.test.ts` follows (the open box holds the shut one within a board).
 - E2E: `closures`, `lids`, `stage-frame`, `quick-shots`, `preset-sheet` pass.
 
+## Milestone 160 (presets overhaul) — verification ✅
+
+- `npm run typecheck` and `npm run build`: clean.
+- `npm test`: 1697 passed (7 skipped), golden exports byte-identical.
+- E2E, every app spec (`pw-app.config.ts`, 280): 195 passed and 62 skipped on the first run; every failure was checked:
+  - **caused by this branch: none.** `settings.spec` (lines 25, 55) failed on `main` too and is fixed here; `classroom.spec` (5) needs the Worker and passes with it (`playwright.config.ts`); `maintenance.spec:185` passes on its own (its camera hook is not up yet under load).
+  - **failing on `main` as well** (left for their own fix, a task is queued): `quick.spec:13`, `sentence-card.spec:7`, `quick-revised.spec:92` (en, he), `gizmo.spec:50/252/376`, `refine.spec:25/341`, `through.spec:16`, `crash.spec:16`, `maintenance.spec:104`, `overhaul.spec:10`, `round.spec:27`, `topbar.spec:75` (Guided, en, 768 × 1024: the bar is 814 px wide).
+- The owner's review during 160 (the stage did not show the closing lip; templates should be edited with lid and lips open) is done (above).
+- Known, not fixed: with the fold slider at 0, a card hinged tray's lid stands upright instead of lying in the net.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

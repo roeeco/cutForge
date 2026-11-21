@@ -270,4 +270,4 @@ only once the pictures can tell them apart.
 | **157** | New cards that need engine work (beta) | §7 | ✅ (magazine file, dice tower, mailer box) |
 | **158** | Engine: custom presets | §7, analysis §4 | ✅ (record editor, Your presets) |
 | **159** | Words and pictures | §7 | ✅ (after pictures in en and he, README) |
-| **160** | Verification | §7 | |
+| **160** | Verification | §7 | ✅ (no regressions; lid lips shown and opened on the stage) |
