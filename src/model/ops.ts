@@ -32,6 +32,7 @@ const toWorldOf = (p: Panel, x: number, y: number) => toWorldOfFrame(p.frame, x,
 import { baseKey, connectionGeom, findOpenSeams, minContact, seamContact, seamKey, seamKinds, seamStillFits, seamTypeOf, type OpenSeam } from './seams';
 import { keepingStatedSizes } from './boxSize';
 import { fitShapeSketch } from '../sketch/cutforge';
+import { gaugeLayout, holeCentres, isPiece, partBox, partOutline, partParams, partPlate, puzzleLines, type PartSpec } from './parts';
 import { FACE, edgeNeighbours, edgePieces, ek, findEdge, isRectSketch, rectEdgeIndex, rectSketch, segDir, segLength, sketchOf, sketchRing, straightRing, isCurveKey, type EdgeArg, type EdgeSeg } from './edges';
 
 /** Deep copy that also works on immer drafts (structuredClone cannot clone a draft). */
@@ -1982,6 +1983,7 @@ export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<De
   const f = findDetail(d, detailId);
   if (!f) return;
   const dt = f.detail;
+  const w0 = dt.w, h0 = dt.h, cx0 = dt.cx, cy0 = dt.cy;
   Object.assign(dt, patch);
   dt.w = Math.max(0.5, dt.w);
   dt.h = Math.max(0.5, dt.h);
@@ -1994,12 +1996,146 @@ export function updateDetail(d: Design, detailId: string, patch: Partial<Pick<De
   if (dt.op !== 'cut' || !dt.through) delete dt.through;
   // a kept outline graph follows the new size (milestone 104)
   if (patch.w !== undefined || patch.h !== undefined) fitShapeSketch(dt);
+  // a part stretched by its box is a plain shape from now on (milestone 183): its sizes no longer draw it
+  if (dt.part && (patch.w !== undefined || patch.h !== undefined) && (Math.abs(dt.w - w0) > 1e-6 || Math.abs(dt.h - h0) > 1e-6)) delete dt.part;
+  // a drill gauge's engraved sizes go with it
+  if (dt.part?.kind === 'gauge') {
+    if (patch.rot !== undefined) drawPartLabels(d, f.panel, dt);
+    else if (dt.cx !== cx0 || dt.cy !== cy0) for (const x of f.panel.details) if (x.labelOf === dt.id) (x.cx += dt.cx - cx0), (x.cy += dt.cy - cy0);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Parts (milestone 183, BOXES_PLYWOOD_PLAN.md E10): shapes drawn from their sizes (`model/parts.ts`)
+
+/** Draw a part's outline into its shape: `path` in a unit box, `w` × `h` its box, centred where it is. */
+function drawPart(dt: Detail) {
+  if (!dt.part) return;
+  const o = partOutline(dt.part);
+  const b = partBox(o.polys);
+  dt.part = { kind: dt.part.kind, p: partParams(dt.part) };
+  dt.shape = 'path';
+  dt.w = b.w;
+  dt.h = b.h;
+  dt.path = { polys: o.polys.map((q) => q.map((v) => ({ x: (v.x - b.cx) / b.w, y: (v.y - b.cy) / b.h }))) };
+  delete dt.sketch;
+  delete dt.regular;
+  delete dt.r;
+}
+
+/** A drill gauge's sizes, engraved under its holes: text shapes that follow it (`labelOf`). */
+function drawPartLabels(d: Design, panel: Panel, dt: Detail) {
+  panel.details = panel.details.filter((x) => x.labelOf !== dt.id);
+  if (dt.part?.kind !== 'gauge') return;
+  const q = partParams(dt.part);
+  const L = gaugeLayout(Number(q.from), Number(q.to), Number(q.step));
+  const b = partBox(partOutline(dt.part).polys);
+  const a = ((dt.rot ?? 0) * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  for (const l of L.labels) {
+    const x = l.x - b.cx, y = l.y - b.cy;
+    const id = addText(d, panel.id, dt.cx + x * c - y * s, dt.cy + x * s + y * c, l.text, 'engrave', 'rubik', l.size);
+    const t = id ? panel.details.find((z) => z.id === id) : null;
+    if (t) {
+      t.labelOf = dt.id;
+      if (dt.rot) t.rot = dt.rot;
+    }
+  }
+}
+
+/** Put a part on a board, centred at (cx, cy) in its coordinates. Returns its id. */
+export function addPartShape(d: Design, panelId: string, spec: PartSpec, cx: number, cy: number, op: DetailOp, fixedId?: string, through = false): string | null {
+  const p = d.panels[panelId];
+  if (!p) return null;
+  const id = fixedId ?? newId('x');
+  const dt: Detail = { id, shape: 'path', op, cx, cy, w: 1, h: 1, part: { kind: spec.kind, p: { ...spec.p } } };
+  drawPart(dt);
+  if (through && op === 'cut') dt.through = true;
+  p.details.push(dt);
+  drawPartLabels(d, p, dt);
+  return id;
+}
+
+/** Change a part's sizes: its outline is drawn again (and a drill gauge's engraved sizes). */
+export function updatePart(d: Design, detailId: string, patch: Record<string, number | string>) {
+  const f = findDetail(d, detailId);
+  if (!f?.detail.part) return;
+  f.detail.part = { kind: f.detail.part.kind, p: { ...f.detail.part.p, ...patch } };
+  drawPart(f.detail);
+  drawPartLabels(d, f.panel, f.detail);
+}
+
+/**
+ * A square grid of holes filling a rectangle as a live array (milestone 183: the hole pattern "as one shape or a live
+ * array"): one round hole and its copies, which the array card then edits. Null when the part is not one.
+ */
+export function partToArray(d: Design, detailId: string): string | null {
+  const f = findDetail(d, detailId);
+  const dt = f?.detail;
+  if (!f || !dt?.part || dt.part.kind !== 'holes') return null;
+  const q = partParams(dt.part);
+  if (q.grid !== 'square' || q.area !== 'rect') return null;
+  const cs = holeCentres('square', 'rect', Number(q.width), Number(q.height), Number(q.hole), Number(q.pitch));
+  if (!cs.length) return null;
+  const xs = [...new Set(cs.map((c) => Math.round(c.x * 1000)))].sort((a, b) => a - b), ys = [...new Set(cs.map((c) => Math.round(c.y * 1000)))].sort((a, b) => a - b);
+  const pitch = Math.max(Number(q.pitch), Number(q.hole) + 0.5);
+  const b = partBox(partOutline(dt.part).polys);
+  const x0 = xs[0] / 1000 - b.cx, y0 = ys[0] / 1000 - b.cy;
+  const hole: Detail = { id: dt.id, shape: 'circle', op: dt.op, cx: dt.cx + x0, cy: dt.cy + y0, w: Number(q.hole), h: Number(q.hole), ...(dt.through ? { through: true as const } : {}) };
+  if (xs.length > 1 || ys.length > 1) hole.array = { nx: xs.length, ny: ys.length, dx: pitch, dy: pitch };
+  if (dt.rot) hole.rot = dt.rot;
+  f.panel.details = f.panel.details.map((x) => (x.id === dt.id ? hole : x));
+  return hole.id;
+}
+
+/**
+ * A part made a board of its own on the floor, centred at world (x, z): a piece's outline is the board and its bore a
+ * hole cut in it; a pattern is cut in a plate round it (`partPlate`), and stays a part there, its sizes editable.
+ * Returns the board's id, or null.
+ */
+export function addPartBoard(d: Design, spec: PartSpec, x: number, z: number): string | null {
+  const o = partOutline(spec);
+  const outer = isPiece(spec.kind) ? o.polys[0] : partPlate(spec);
+  const id = addPolygonPanel(d, x, z, outer);
+  if (!id) return null;
+  const minX = Math.min(...outer.map((q) => q.x)), minY = Math.min(...outer.map((q) => q.y));
+  const p = d.panels[id];
+  if (isPiece(spec.kind)) for (const h of o.polys.slice(1)) addPolygonShape(d, id, h.map((q) => ({ x: q.x - minX, y: q.y - minY })), 'cut');
+  else {
+    const b = partBox(o.polys);
+    addPartShape(d, id, spec, b.cx - minX, b.cy - minY, 'cut');
+  }
+  return id;
+}
+
+/**
+ * Jigsaw lines over a board (milestone 183: a puzzle cut, as milestone 83's lines): pieces about `piece` mm, two
+ * across and two down at least, over the board's box (clipped to its outline where it is not a rectangle). Each line
+ * cuts the board into pieces on purpose (`pieces`). Returns the lines' ids.
+ */
+export function addPuzzle(d: Design, panelId: string, piece = 40): string[] {
+  const p = d.panels[panelId];
+  if (!p) return [];
+  const ring = panelOutline(p, {});
+  const xs = ring.map((q) => q.x), ys = ring.map((q) => q.y);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
+  const cols = Math.max(2, Math.round(w / Math.max(10, piece))), rows = Math.max(2, Math.round(h / Math.max(10, piece)));
+  const group = newId('pz');
+  const ids: string[] = [];
+  for (const l of puzzleLines(w, h, cols, rows)) {
+    const id = addLine(d, panelId, l.map((q) => ({ ...q, x: q.x + x0, y: q.y + y0 })), 'cut', group);
+    const ln = id ? p.lines?.find((z) => z.id === id) : null;
+    if (ln) {
+      ln.pieces = true;
+      ids.push(ln.id);
+    }
+  }
+  return ids;
 }
 
 export function deleteDetail(d: Design, detailId: string) {
   for (const id of d.order) {
     const p = d.panels[id];
-    if (p) p.details = p.details.filter((x) => x.id !== detailId);
+    if (p) p.details = p.details.filter((x) => x.id !== detailId && x.labelOf !== detailId);
   }
 }
 

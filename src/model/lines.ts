@@ -159,7 +159,8 @@ export function lineContours(d: Design, p: Panel, tf: (q: P2) => P2): TaggedCont
 
 /** Does a cut or perforation run from the board's edge to its edge (both ends on its outline)? It would split the piece. */
 export function lineSplits(p: Panel, ln: BoardLine): boolean {
-  if (ln.type !== 'cut') return false;
+  // a puzzle's lines cut it into pieces on purpose (milestone 183)
+  if (ln.type !== 'cut' || ln.pieces) return false;
   const ring = ownOutline(p).rings[0]?.map((e) => e.a);
   if (!ring) return false;
   const onEdge = (q: P2) => ring.some((a, i) => {

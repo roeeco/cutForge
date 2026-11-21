@@ -196,6 +196,8 @@ export function graphShape(d: Design, detailId: string, g: SketchGraph): boolean
     for (const q of Object.values(k.pts)) (q.x -= mx), (q.y -= my);
     dt.sketch = k;
     delete dt.regular;
+    // a part edited by hand is a plain shape from now on (milestone 183)
+    delete dt.part;
     delete dt.r;
     return true;
   }

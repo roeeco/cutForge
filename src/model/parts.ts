@@ -72,6 +72,8 @@ export const PARTS: PartDef[] = [
 ];
 
 export const partDef = (k: PartKind) => PARTS.find((x) => x.kind === k)!;
+/** A piece (its outline a board, its bore a hole in it), not a pattern of holes. */
+export const isPiece = (k: PartKind) => !!PARTS.find((x) => x.kind === k)?.piece;
 export const PART_KINDS = PARTS.map((x) => x.kind);
 
 /** A part's words with its defaults filled in and every number held to its limits. */

@@ -6,6 +6,7 @@ import { sketchOk } from '../sketch/cutforge';
 // connection naming a board that is not there) is dropped; anything else
 // throws, and the loader turns that into a "damaged file" error.
 import type { Design } from './types';
+import { PART_KINDS } from './parts';
 import { TRAY_BOTTOMS, TRAY_TOPS } from './types';
 
 /** No coordinate or size in a design is anywhere near this (mm). */
@@ -106,6 +107,9 @@ function detail(dt: unknown, where: string) {
     if (!isObj(x.regular)) fail(`${where}.regular`, 'not an object');
     num(x.regular.n, `${where}.regular.n`, { min: 3, max: 1000 });
   }
+  // milestone 183: a part's sizes; a damaged one is dropped (its drawn outline stays, a plain shape)
+  if (x.part !== undefined && !(isObj(x.part) && (PART_KINDS as string[]).includes(x.part.kind) && isObj(x.part.p) && Object.values(x.part.p).every((v) => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length < 40)))) delete x.part;
+  if (x.labelOf !== undefined && typeof x.labelOf !== 'string') delete x.labelOf;
   if (x.array !== undefined && x.array !== null) {
     if (!isObj(x.array)) fail(`${where}.array`, 'not an array setting');
     const a = x.array;
@@ -188,6 +192,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
           isObj(l) && typeof l.id === 'string' && ['cut', 'crease', 'perf', 'cutcrease', 'guide'].includes(l.type) && Array.isArray(l.pts) && l.pts.length >= 2 && l.pts.length <= 500 &&
           l.pts.every((q: any) => ptOk(q) && (q.bulge === undefined || (Number.isFinite(q.bulge) && Math.abs(q.bulge) <= 10))),
       );
+    // milestone 183: a puzzle's lines cut the board into pieces on purpose
+    if (Array.isArray(x.lines)) for (const l of x.lines) if (l.pieces !== undefined && l.pieces !== true) delete l.pieces;
   }
   // a board made from a shape's face (milestone 123)
   if (x.src !== undefined && !(isObj(x.src) && typeof x.src.face === 'string')) delete x.src;

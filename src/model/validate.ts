@@ -18,7 +18,7 @@ import { leanSupported, pairKey } from './ops';
 import { panelContacts, TOUCH_EPS } from './contact';
 import { MIN_CORNER } from './seams';
 import { templateIssues } from '../templates/registry';
-import { detailInstances, shapeContours, textBox } from './geometry';
+import { detailInstances, detailPolys, shapeContours, textBox } from './geometry';
 import { flattenContour, pointInPolygon, segDistPoint } from '../geom/vec';
 import { pack, pieceCopies, placementXform } from './pack';
 import { netOverlaps, pieceRoot } from './pieces';
@@ -419,7 +419,8 @@ function shapeIssues(d: Design): Issue[] {
       }
       if (dt.op !== 'cut' || isOutlineShape(p, dt.id)) continue;
       // a cut-out path (a sticker, an imported drawing) with outlines inside its outlines: those islands fall out
-      if (dt.shape === 'path' && dt.path && dt.path.polys.some((a, i) => dt.path!.polys.some((b, j) => i !== j && a.length && b.length >= 3 && pointInPolygon(a[0], b))))
+      const polys = detailPolys(dt);
+      if (dt.shape === 'path' && dt.path && polys.some((a, i) => polys.some((b, j) => i !== j && a.length && b.length >= 3 && pointInPolygon(a[0], b))))
         out.push({ key: 'val.stencilShape', vars: { panel: p.name }, target: { kind: 'detail', id: dt.id } });
       detailInstances(dt).forEach((inst, k) => {
         for (const c of shapeContours(inst)) {

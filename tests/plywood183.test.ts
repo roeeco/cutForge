@@ -3,7 +3,16 @@
 // part survives save and load and exports clean, on a board or as a board of its own.
 import { describe, expect, it } from 'vitest';
 import { PARTS, defaultPart, gearCircles, gearOutline, partOutline, partParams, pulleyDiameter, puzzleLines, type PartSpec } from '../src/model/parts';
-import type { P2 } from '../src/model/types';
+import type { Design, P2 } from '../src/model/types';
+import { addPartBoard, addPartShape, addPuzzle, addRootPanel, createDesign, deleteDetail, partToArray, updateDetail, updatePart } from '../src/model/ops';
+import { profileById } from '../src/model/boards';
+import { validate } from '../src/model/validate';
+import { NOTE_KEYS } from '../src/easy/notes';
+import { parseProject, serializeProject } from '../src/model/serialize';
+import { prepareExport } from '../src/export/prepare';
+import { flattenContour } from '../src/geom/vec';
+import { crossesItself } from '../src/model/geometry';
+import { loadFonts } from './fuzz/gen';
 
 /** No two edges of a closed outline cross or touch (but neighbours at their shared corner). */
 function isSimplePolygon(q: P2[]): boolean {
@@ -28,6 +37,18 @@ function peaks(q: P2[]): number {
   for (let i = 0; i < r.length; i++) if (r[i] > mid && r[(i + r.length - 1) % r.length] <= mid) n++;
   return n;
 }
+
+const P3 = profileById('ply-3')!, P8 = profileById('ply-8')!;
+const problems = (d: Design) => validate(d).filter((x) => !NOTE_KEYS.has(x.key)).map((x) => x.key);
+/** Every contour the export cuts or engraves is closed and does not cross itself; nothing failed to place. */
+function exportsClean(d: Design): string[] {
+  const out: string[] = [];
+  const prep = prepareExport(d);
+  if (prep.errors.length) out.push(`errors ${prep.errors.length}`);
+  for (const sh of prep.sheets) for (const c of sh.contours) if ((c.role === 'outer' || c.role === 'hole') && crossesItself(flattenContour(c.contour, 0.05))) out.push(`crosses ${c.role}`);
+  return out;
+}
+const roundTrip = (d: Design) => parseProject(serializeProject(d));
 
 describe('parts (milestone 183): outlines', () => {
   it('a gear has its teeth, its tips on the addendum circle and its roots on the dedendum circle; its outline is simple', () => {
@@ -92,5 +113,106 @@ describe('parts (milestone 183): outlines', () => {
     const ls = puzzleLines(200, 150, 4, 3);
     expect(ls).toHaveLength(3 + 2);
     expect(ls.every((l) => l.filter((q) => q.bulge).length === (l[0].x === 0 ? 4 : 3))).toBe(true);
+  });
+});
+
+describe('parts (milestone 183): on a board, as a board, saved and exported', () => {
+  it('each part, cut or engraved on a board, is clean, survives save and load with its sizes, and exports clean', () => {
+    loadFonts();
+    for (const m of [P3, P8])
+      for (const def of PARTS)
+        for (const op of ['cut', 'engrave'] as const) {
+          const d = createDesign(m);
+          const b = addRootPanel(d, 0, 0, 300, 250);
+          const id = addPartShape(d, b, defaultPart(def.kind), 150, 125, op)!;
+          expect(problems(d), `${def.kind} ${op} ${m.id}`).toEqual([]);
+          const back = roundTrip(d);
+          expect(back.panels[b].details, `${def.kind} ${op}`).toEqual(d.panels[b].details);
+          expect(back.panels[b].details.find((x) => x.id === id)!.part!.kind).toBe(def.kind);
+          expect(exportsClean(d), `${def.kind} ${op} ${m.id}`).toEqual([]);
+        }
+  }, 120_000);
+
+  it('each part made a board of its own is clean and exports clean: a piece is its outline with its bore cut, a pattern is cut in a plate', () => {
+    loadFonts();
+    for (const m of [P3, P8])
+      for (const def of PARTS) {
+        const d = createDesign(m);
+        const id = addPartBoard(d, defaultPart(def.kind), 0, 0)!;
+        expect(id, def.kind).toBeTruthy();
+        expect(problems(d), `${def.kind} ${m.id}`).toEqual([]);
+        expect(exportsClean(d), `${def.kind} ${m.id}`).toEqual([]);
+        const p = d.panels[id];
+        if (def.piece) expect(p.details.filter((x) => x.op === 'cut'), def.kind).toHaveLength(1);
+        else expect(p.details.find((x) => x.part)?.part?.kind, def.kind).toBe(def.kind);
+        expect(roundTrip(d).panels[id]).toEqual(d.panels[id]);
+      }
+  }, 120_000);
+
+  it('a gear made a board has its teeth round its pitch circle', () => {
+    const d = createDesign(P3);
+    const id = addPartBoard(d, { kind: 'gear', p: { module: 2, teeth: 24 } }, 0, 0)!;
+    const s = d.panels[id].sketch;
+    expect(s.kind).toBe('poly');
+    const pts = s.kind === 'poly' ? s.pts : [];
+    const cx = (Math.min(...pts.map((q) => q.x)) + Math.max(...pts.map((q) => q.x))) / 2, cy = (Math.min(...pts.map((q) => q.y)) + Math.max(...pts.map((q) => q.y))) / 2;
+    expect(peaks(pts.map((q) => ({ x: q.x - cx, y: q.y - cy })))).toBe(24);
+    expect(Math.max(...pts.map((q) => q.x)) - Math.min(...pts.map((q) => q.x))).toBeCloseTo(2 * 24 + 2 * 2, 0);
+  });
+
+  it('a part keeps its sizes: a change draws it again; stretching its box makes it a plain shape', () => {
+    const d = createDesign(P3);
+    const b = addRootPanel(d, 0, 0, 300, 250);
+    const id = addPartShape(d, b, { kind: 'gear', p: { module: 2, teeth: 20 } }, 150, 125, 'cut')!;
+    const dt = () => d.panels[b].details.find((x) => x.id === id)!;
+    expect(dt().w).toBeCloseTo(44, 0);
+    updatePart(d, id, { teeth: 30 });
+    expect(dt().w).toBeCloseTo(64, 0);
+    expect(dt().part!.p.teeth).toBe(30);
+    updateDetail(d, id, { cx: 160 });
+    expect(dt().part).toBeTruthy();
+    updateDetail(d, id, { w: 80 });
+    expect(dt().part).toBeUndefined();
+  });
+
+  it('a drill gauge’s sizes are engraved under its holes, follow it and go with it', () => {
+    loadFonts();
+    const d = createDesign(P3);
+    const b = addRootPanel(d, 0, 0, 300, 250);
+    const id = addPartShape(d, b, { kind: 'gauge', p: { from: 2, to: 6, step: 1 } }, 150, 125, 'cut')!;
+    const labels = () => d.panels[b].details.filter((x) => x.labelOf === id);
+    expect(labels().map((x) => x.text!.value)).toEqual(['2', '3', '4', '5', '6']);
+    updatePart(d, id, { to: 8 });
+    expect(labels()).toHaveLength(7);
+    const x0 = labels()[0].cx;
+    updateDetail(d, id, { cx: 160 });
+    expect(labels()[0].cx).toBeCloseTo(x0 + 10, 9);
+    expect(problems(d)).toEqual([]);
+    deleteDetail(d, id);
+    expect(d.panels[b].details).toEqual([]);
+  });
+
+  it('a square hole pattern in a rectangle becomes a live array of one hole', () => {
+    const d = createDesign(P3);
+    const b = addRootPanel(d, 0, 0, 300, 250);
+    const id = addPartShape(d, b, { kind: 'holes', p: { grid: 'square', area: 'rect', width: 80, height: 60, hole: 5, pitch: 10 } }, 150, 125, 'cut')!;
+    const n = d.panels[b].details[0].path!.polys.length;
+    expect(partToArray(d, id)).toBe(id);
+    const dt = d.panels[b].details[0];
+    expect(dt.shape).toBe('circle');
+    expect(dt.array!.nx * dt.array!.ny).toBe(n);
+    expect(problems(d)).toEqual([]);
+  });
+
+  it('a puzzle cut cuts a board into pieces on purpose: no warning, kept on save and load, exported', () => {
+    for (const m of [P3, P8]) {
+      const d = createDesign(m);
+      const b = addRootPanel(d, 0, 0, 200, 150);
+      const ids = addPuzzle(d, b, 50);
+      expect(ids).toHaveLength(3 + 2);
+      expect(problems(d), m.id).toEqual([]);
+      expect(roundTrip(d).panels[b].lines).toEqual(d.panels[b].lines);
+      expect(exportsClean(d), m.id).toEqual([]);
+    }
   });
 });
