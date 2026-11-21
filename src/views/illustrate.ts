@@ -12,6 +12,12 @@ import { applyLidPoses } from './lidPose';
 import { boxLid, lidParts } from '../easy/lid';
 import { matOf } from '../model/materials';
 import { boxBases, compartments } from '../easy/objects';
+import { flapMatrix } from './foldView';
+import { edgeFeatures } from '../model/edgeFeatures';
+import { allFoldOvers } from '../model/foldover';
+import { segDir, segInward } from '../model/edges';
+import { clippedLine } from '../model/lines';
+import type { Flap3d, P2 } from '../model/types';
 
 export type Prop = 'pencils' | 'dice' | 'sweets';
 
@@ -28,13 +34,18 @@ type Face = {
   lift?: number;
   /** The board it belongs to (none for a prop). */
   board?: string;
+  /** What of the design it draws (milestone 147: a board, band, flap, liner or line, for the coverage test). */
+  part?: string;
+  /** Lines drawn on the face in its material's outline colour (a board's cut and perforated lines, milestone 147). */
+  marks?: { pts: THREE.Vector3[]; dashed: boolean }[];
 };
 
 /** Each material's look: its face, its cut edge, its outline, and what its edge shows. */
 /** `contrast`: how much the light changes it (white card greys too fast at full contrast). */
 const LOOK: Record<MaterialKind, { face: string; edge: string; line: string; detail: string; contrast: number }> = {
   plywood: { face: '#efd8b0', edge: '#82532e', line: '#6a4428', detail: '#c4925a', contrast: 1 },
-  card: { face: '#fdfbf6', edge: '#e2dbce', line: '#b2a898', detail: '#cfc6b8', contrast: 0.55 },
+  // milestone 147: card darker at its edges and outlines and lit with more contrast, so it reads at list size
+  card: { face: '#fdfbf6', edge: '#d8cfbe', line: '#968b79', detail: '#c4b9a6', contrast: 0.8 },
   corrugated: { face: '#d9aa71', edge: '#a97b48', line: '#7a5532', detail: '#8a6136', contrast: 1 },
 };
 
@@ -64,12 +75,33 @@ function shade(hex: string, n: THREE.Vector3, inner = false, contrast = 1): stri
 const area2 = (r: { x: number; y: number }[]) => r.reduce((s, a, i) => s + a.x * r[(i + 1) % r.length].y - r[(i + 1) % r.length].x * a.y, 0);
 
 /** A board's slab as faces: its two sides (with holes) and every cut edge, in world space. */
-function boardFaces(d: Design, id: string, M: THREE.Matrix4, kind: MaterialKind, out: Face[], plain = false) {
+function boardFaces(d: Design, id: string, M: THREE.Matrix4, kind: MaterialKind, out: Face[], plain = false, drawn?: Set<string>) {
   const p = d.panels[id];
   // a box's floor without its joint slots: the walls' tabs fill them, and drawn they are only noise
   const s = panelShape(d, p, plain ? { joints: false } : {});
+  const zs: [number, number] = s.side === 1 ? [0, s.t] : [-s.t, 0];
+  const sides = slabFaces(s.rings, s.holes, zs, M, kind, id, `board:${id}`, out);
+  // milestone 147: its cut and perforated lines (slits, tear lines), on both faces
+  for (const ln of p.lines ?? []) {
+    if (ln.type !== 'cut' && ln.type !== 'perf' && ln.type !== 'cutcrease') continue;
+    for (const pl of clippedLine(p, ln)) {
+      if (pl.length < 2) continue;
+      drawn?.add(`line:${id}:${ln.id}`);
+      zs.forEach((z, k) => {
+        for (const f of k ? sides.atZ1 : sides.atZ0) (f.marks ??= []).push({ pts: pl.map((q) => new THREE.Vector3(q.x, q.y, z).applyMatrix4(M)), dashed: ln.type !== 'cut' });
+      });
+    }
+  }
+}
+
+/**
+ * A slab: rings (with holes) between two depths of a frame-matrix, as its two sides and every cut edge, in world
+ * space (a board, a flap folded over, a fold-over's liner).
+ */
+function slabFaces(rings: { x: number; y: number }[][], holesIn: { x: number; y: number }[][], [z0, z1]: [number, number], M: THREE.Matrix4, kind: MaterialKind, id: string, part: string, out: Face[]): { atZ0: Face[]; atZ1: Face[] } {
+  const sides = { atZ0: [] as Face[], atZ1: [] as Face[] };
+  const s = { rings, holes: holesIn, t: z1 - z0 };
   const look = LOOK[kind];
-  const [z0, z1] = s.side === 1 ? [0, s.t] : [-s.t, 0];
   const at = (q: { x: number; y: number }, z: number) => new THREE.Vector3(q.x, q.y, z).applyMatrix4(M);
   const nTop = new THREE.Vector3(0, 0, 1).transformDirection(M);
   const ringsWithHoles = s.rings.map((r) => ({ r, holes: [] as { x: number; y: number }[][] }));
@@ -81,8 +113,11 @@ function boardFaces(d: Design, id: string, M: THREE.Matrix4, kind: MaterialKind,
     for (const [z, n] of [
       [z1, nTop],
       [z0, nTop.clone().negate()],
-    ] as const)
-      out.push({ pts: r.map((q) => at(q, z)), holes: holes.map((h) => h.map((q) => at(q, z))), normal: n, fill: look.face, stroke: look.line, board: id });
+    ] as const) {
+      const f: Face = { pts: r.map((q) => at(q, z)), holes: holes.map((h) => h.map((q) => at(q, z))), normal: n, fill: look.face, stroke: look.line, board: id, part };
+      out.push(f);
+      (z === z1 ? sides.atZ1 : sides.atZ0).push(f);
+    }
     edgeFaces(r, false);
     for (const h of holes) edgeFaces(h, true);
   }
@@ -111,9 +146,10 @@ function boardFaces(d: Design, id: string, M: THREE.Matrix4, kind: MaterialKind,
         }
         lines.push(wave);
       }
-      out.push({ pts: [at(a, z0), at(b, z0), at(b, z1), at(a, z1)], normal, fill: look.edge, stroke: look.line, lines, board: id });
+      out.push({ pts: [at(a, z0), at(b, z0), at(b, z1), at(a, z1)], normal, fill: look.edge, stroke: look.line, lines, board: id, part });
     }
   }
+  return sides;
 }
 
 function pointIn(q: { x: number; y: number }, r: { x: number; y: number }[]): boolean {
@@ -437,8 +473,12 @@ export function illustrateDesign(d: Design, w: number, h: number, opts: { prop?:
   return svg ? `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` : null;
 }
 
-/** Every board's faces, and every bent strip's (a living hinge, a round wall), posed for the picture. */
-function designFaces(d: Design, shown: ReturnType<typeof posed>): Face[] {
+/**
+ * Every board's faces, and every bent strip's (a living hinge, a round wall), posed for the picture; milestone 147:
+ * every flap folded as the 3D view folds it (a joint's glue flaps and a carton's end flaps, a board's shaped edge
+ * flaps), every fold-over's liner, and a board's cut lines. `drawn` collects what was drawn, for the coverage test.
+ */
+function designFaces(d: Design, shown: ReturnType<typeof posed>, drawn = new Set<string>()): Face[] {
   const faces: Face[] = [];
   const IDM = new THREE.Matrix4();
   const floors = new Set(boxBases(d));
@@ -446,7 +486,33 @@ function designFaces(d: Design, shown: ReturnType<typeof posed>): Face[] {
     const p = d.panels[id];
     if (!p) continue;
     const M = (shown.xf.get(id) ?? IDM).clone().multiply(frameMatrix(p.frame));
-    boardFaces(d, id, M, matOf(d, id).kind, faces, floors.has(id));
+    boardFaces(d, id, M, matOf(d, id).kind, faces, floors.has(id), drawn);
+    drawn.add(`board:${id}`);
+  }
+  const flap = (f: Flap3d, key: string) => {
+    const on = d.panels[f.panelId];
+    if (!on || f.poly.length < 3) return;
+    const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
+    const side = (f.frame ?? on.frame).side;
+    const zs: [number, number] = side === 1 ? [f.z0, f.z1] : [-f.z1, -f.z0];
+    slabFaces([f.poly], [], zs, flapMatrix(d, f, shown.xf, 1), matOf(d, owner).kind, owner, `flap:${key}`, faces);
+    drawn.add(`flap:${key}`);
+  };
+  for (const c of Object.values(d.connections)) c.geom?.flaps3d.forEach((f, i) => flap(f, `${c.id}:${i}`));
+  for (const h of edgeFeatures(d)) h.out.hinged.forEach((f, i) => flap(f, `${h.panelId}:${h.key}:${i}`));
+  // a fold-over's liner (and its lock tabs) on the wall's inner face, as the 3D view shows it folded
+  for (const fo of allFoldOvers(d)) {
+    const p = d.panels[fo.panelId];
+    if (!p) continue;
+    const t = matOf(d, p.id).thickness;
+    const { e, x0, x1, q0, q1 } = fo.g.liner;
+    const dir = segDir(e), inw = segInward(e);
+    const at = (u: number, q: number): P2 => ({ x: e.a.x + dir.x * u + inw.x * q, y: e.a.y + dir.y * u + inw.y * q });
+    const polys = [[at(x0, q0), at(x1, q0), at(x1, q1), at(x0, q1)], ...fo.g.tabs.map((tb) => [at(tb.x0, q1), at(tb.x1, q1), at(tb.x1 - 0.18 * (tb.x1 - tb.x0), q1 + t + tb.depth), at(tb.x0 + 0.18 * (tb.x1 - tb.x0), q1 + t + tb.depth)])];
+    const zs: [number, number] = p.frame.side === 1 ? [t, 2 * t] : [-2 * t, -t];
+    const M = (shown.xf.get(p.id) ?? IDM).clone().multiply(frameMatrix(p.frame));
+    polys.forEach((poly, i) => slabFaces([poly], [], zs, M, matOf(d, p.id).kind, p.id, `liner:${fo.f.id}:${i}`, faces));
+    drawn.add(`liner:${fo.f.id}`);
   }
   for (const b of shown.bands) {
     const parent = b.band.parent;
@@ -464,11 +530,36 @@ function designFaces(d: Design, shown: ReturnType<typeof posed>): Face[] {
       if (normal.lengthSq() < 1e-12) continue;
       normal.normalize();
       const end = q % 4 >= 2;
-      faces.push({ pts: [a, bb, c, dd], normal, fill: end ? look.edge : look.face, stroke: end ? look.line : 'none', board: parent });
+      faces.push({ pts: [a, bb, c, dd], normal, fill: end ? look.edge : look.face, stroke: end ? look.line : 'none', board: parent, part: `band:${b.band.id}` });
     }
+    drawn.add(`band:${b.band.id}`);
     g.dispose();
   }
   return faces;
+}
+
+/**
+ * What a design has that its picture must draw (milestone 147, PRESETS_OVERHAUL.md §5.2), and what the picture drew:
+ * every board, band, folded flap, fold-over and cut line (5 mm or longer).
+ */
+export function pictureCoverage(design: Design): { want: string[]; drawn: string[] } {
+  const d = forPicture(design);
+  const shown = posed(d);
+  const drawn = new Set<string>();
+  designFaces(d, shown, drawn);
+  const want: string[] = [];
+  for (const id of d.order) if (d.panels[id]) want.push(`board:${id}`);
+  for (const b of shown.bands) if (d.panels[b.band.parent]) want.push(`band:${b.band.id}`);
+  for (const c of Object.values(d.connections)) c.geom?.flaps3d.forEach((f, i) => f.poly.length >= 3 && d.panels[f.panelId] && want.push(`flap:${c.id}:${i}`));
+  for (const h of edgeFeatures(d)) h.out.hinged.forEach((_, i) => want.push(`flap:${h.panelId}:${h.key}:${i}`));
+  for (const fo of allFoldOvers(d)) if (d.panels[fo.panelId]) want.push(`liner:${fo.f.id}`);
+  for (const p of Object.values(d.panels))
+    for (const ln of p.lines ?? []) {
+      if (ln.type !== 'cut' && ln.type !== 'perf' && ln.type !== 'cutcrease') continue;
+      const long = clippedLine(p, ln).some((pl) => pl.slice(1).reduce((s, q, i) => s + Math.hypot(q.x - pl[i].x, q.y - pl[i].y), 0) >= 5);
+      if (long) want.push(`line:${p.id}:${ln.id}`);
+    }
+  return { want, drawn: [...drawn] };
 }
 
 export function illustrationSvg(design: Design, w: number, h: number, opts: { prop?: Prop } = {}): string | null {
@@ -520,7 +611,9 @@ export function illustrationSvg(design: Design, w: number, h: number, opts: { pr
       const edge = !!f.lines || (f.board && f.pts.length === 4 && Math.abs(f.normal.y) < 0.99 && f.fill === LOOK[kindOfEdge(f.fill)].edge);
       const shape = `<path d="${pathOf([f.pts, ...(f.holes ?? [])])}" fill="${fill}" fill-rule="evenodd" stroke="${f.stroke}" stroke-opacity="${edge ? 0.45 : 0.85}" stroke-width="${f1(px * (edge ? 0.7 : 1.05) * 10) / 10}" stroke-linejoin="round"/>`;
       const lines = f.lines?.length ? `<path d="${pathOf(f.lines, false)}" fill="none" stroke="${detailFor(f.fill)}" stroke-width="${f1(px * 0.8 * 10) / 10}" opacity="0.8"/>` : '';
-      return shape + lines;
+      // a board's slits and tear lines (milestone 147): its outline colour, perforations dashed
+      const marks = (f.marks ?? []).map((mk) => `<path d="${pathOf([mk.pts], false)}" fill="none" stroke="${f.stroke}" stroke-width="${f1(px * 1.1 * 10) / 10}"${mk.dashed ? ` stroke-dasharray="${f1(px * 3)} ${f1(px * 2)}"` : ''} stroke-linecap="round"/>`).join('');
+      return shape + lines + marks;
     })
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(vx)} ${f1(vy)} ${f1(vw)} ${f1(vh)}" width="${w}" height="${h}"><defs><radialGradient id="cf-shadow"><stop offset="0" stop-color="#232b38" stop-opacity="0.22"/><stop offset="1" stop-color="#232b38" stop-opacity="0"/></radialGradient></defs>${shadow}${body}</svg>`;

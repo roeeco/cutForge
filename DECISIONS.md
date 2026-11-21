@@ -711,3 +711,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Look-alikes are tested twice and allowlisted** (`tests/presetLookalikes.ts`): a structural fingerprint in the unit suite and a difference hash of each picture at 96 × 64 in the browser (`preset-sheet.spec.ts`, 6 of 64 bits: true look-alikes measured 0–5, different presets 7 and up). A pair not listed fails, and so does a listed pair that no longer looks alike, so the lists only shrink; each pair names the group and milestone that settles it.
 - **Mission order and Guided's order are unchanged**; a mission belongs to one card (Pencil box and Game organiser: Organiser; Dice tray: Open box until the pen cup; Card stand: Stand; Escape box: Hinged box).
 
+## Milestone 147 (presets overhaul): pictures draw everything
+- **The picture draws what the 3D view draws, from the same data**: a joint's and a carton end's flaps (`ConnGeom.flaps3d`, placed with the stage's `flapMatrix`), a board's shaped edge flaps (`edgeFeatures().hinged`), a fold-over's liner and lock tabs, and a board's *Cut*, *Perforation* and *Cut-crease* lines as marks on its faces (perforations dashed). Creases and guides are not drawn: at list size they are noise.
+- **`pictureCoverage(design)` lists what a design has and what its picture drew**; the illustration test checks every preset in every board against it, so a part the 3D view gains and the picture misses fails a test.
+- **Card is drawn with more contrast** (0.8 instead of 0.55, darker edges and outlines), so white card reads on the pale list background. Corrugated and plywood are unchanged.
+- **The WebGL fallback is rendered at twice its size**; the SVG needs no such step.
+- **Flaps are drawn as the design has them, shut.** That settles the closed bricks against the sleeve and the RSC against the box (the flaps now show), but a sealed carton and an RSC still look alike from above, and the two envelopes' flaps lie flat: both wait for the poses of 148, and their look-alike pairs say so.
+

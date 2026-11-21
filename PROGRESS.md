@@ -2407,6 +2407,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `?presets&mat=<board>` (development): the contact sheet of every list in a board; `npm run preset-sheet` saves `docs/preset-shots/sheet-<board>.png`.
 - Tests: `tests/presetCatalogue.test.ts` (membership, a design's card, own sizes, each design once on the cut geometry, structural look-alikes) and `tests/e2e/preset-sheet.spec.ts` (picture look-alikes). Known look-alikes: box/tray (structure); the tuck cartons, closed cartons, the envelopes and the sleeve (pictures), each with the milestone that settles it.
 
+## Milestone 147 (presets overhaul) — pictures draw everything ✅
+
+- `src/views/illustrate.ts`: folded flaps (joints, carton ends, shaped edge flaps), fold-over liners and a board's cut and perforated lines are drawn; card's contrast raised; `pictureCoverage` for the tests. `src/views/picture.ts`: the WebGL fallback at ×2.
+- `tests/illustrate.test.ts`: every preset (sentence, Guided, missions) in every board draws everything its design has.
+- Look-alikes after 147: the RSC and the closed sealed carton no longer look like the sleeve or the open box on 4 mm board; sealed/RSC, box/sealed on 1.6 mm and the two envelopes wait for 148's poses; the tuck cartons for 151.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

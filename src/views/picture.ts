@@ -14,5 +14,6 @@ export function designPicture(d: Design, w: number, h: number, opts: { prop?: Pr
   } catch {
     // fall back to the stage's look
   }
-  return renderThumbnail(d, w, h);
+  // drawn at twice the size it is shown (milestone 147), so it stays sharp on a laptop's screen
+  return renderThumbnail(d, w * 2, h * 2);
 }
