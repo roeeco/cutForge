@@ -167,9 +167,12 @@ describe('the catalogue (milestone 146)', () => {
 
   it('look-alikes are only the known ones (tests/presetLookalikes.ts), and each known one still is', () => {
     const found: string[] = [];
+    // milestone 153: two missions on one card are two challenges on it (their goals differ), not look-alike presets
+    const sameCard = (a: string, b: string) => CATALOGUE.some((c) => c.challenges.includes(a) && c.challenges.includes(b));
     const pairs = (list: 'sentence' | 'guided' | 'missions', items: { name: string; d: Design }[]) => {
       const fp = items.map((x) => ({ name: x.name, f: structuralFingerprint(x.d) }));
-      for (let i = 0; i < fp.length; i++) for (let j = i + 1; j < fp.length; j++) if (fp[i].f === fp[j].f) found.push([list, ...[fp[i].name, fp[j].name].sort()].join(' '));
+      for (let i = 0; i < fp.length; i++)
+        for (let j = i + 1; j < fp.length; j++) if (fp[i].f === fp[j].f && !(list === 'missions' && sameCard(fp[i].name, fp[j].name))) found.push([list, ...[fp[i].name, fp[j].name].sort()].join(' '));
     };
     for (const m of BASE) {
       const cands = sentenceCandidates(m, BOX, 'box');

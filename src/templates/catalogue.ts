@@ -44,6 +44,8 @@ export type Variant = {
 export type Card = {
   id: string;
   title: MsgKey;
+  /** Milestone 153: the card as the sentence's first word (*a tuck-end carton*), when it stands for more than one variant. */
+  word?: MsgKey;
   group: CardGroup;
   variants: Variant[];
   /** The missions that start from it (the plan's challenges), by mission id. */
@@ -59,7 +61,7 @@ const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
 export const CATALOGUE: Card[] = [
   // boxes and trays
   {
-    id: 'openBox', title: 'card.openBox', group: 'boxes', status: 'stable', challenges: ['dice-tray'],
+    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: ['dice-tray'],
     variants: [
       { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
@@ -67,14 +69,14 @@ export const CATALOGUE: Card[] = [
   },
   { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
   {
-    id: 'liddedBox', title: 'card.liddedBox', group: 'boxes', status: 'stable', challenges: [],
+    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: [],
     variants: [
       { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
       { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
     ],
   },
   {
-    id: 'hingedBox', title: 'card.hingedBox', group: 'boxes', status: 'stable', challenges: ['escape-box'],
+    id: 'hingedBox', title: 'card.hingedBox', word: 'card.hingedBox.word', group: 'boxes', status: 'stable', challenges: ['escape-box'],
     variants: [
       { id: 'hingedTray', structure: 'box', style: 'hingedTray', match: { body: 'cross', lid: 'hinged' } },
       { id: 'hexBox', structure: 'box', style: 'hexBox', match: { body: 'cross', lid: 'hinged', footprint: 'poly', sides: 6 } },
@@ -88,18 +90,18 @@ export const CATALOGUE: Card[] = [
   { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
   // cartons
   {
-    id: 'tuckCarton', title: 'card.tuckCarton', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
+    id: 'tuckCarton', title: 'card.tuckCarton', word: 'card.tuckCarton.word', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
     variants: [
       { id: 'carton', structure: 'carton', match: { body: 'tube', top: 'tuck' }, guided: { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', words: {}, can: (m) => foldsAsCarton(m, 2), why: 'g.thing.cartonNo' } },
-      { id: 'ste', structure: 'carton', style: 'ste', match: { body: 'tube', top: 'tuck', bottom: 'tuckBack' } },
-      { id: 'rte', structure: 'carton', style: 'rte', match: { body: 'tube', top: 'tuck', bottom: 'tuck' } },
       { id: 'tuckSnap', structure: 'carton', style: 'tuckSnap', match: { body: 'tube', top: 'tuck', bottom: 'snap' } },
+      { id: 'rte', structure: 'carton', style: 'rte', match: { body: 'tube', top: 'tuck', bottom: 'tuck' } },
+      { id: 'ste', structure: 'carton', style: 'ste', match: { body: 'tube', top: 'tuck', bottom: 'tuckBack' } },
       { id: 'autoBottom', structure: 'carton', style: 'autoBottom', match: { body: 'tube', top: 'tuck', bottom: 'crash' } },
     ],
   },
   { id: 'gableBox', title: 'card.gableBox', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'gable', structure: 'carton', style: 'gable', match: { body: 'tube', top: 'roof' } }] },
   {
-    id: 'flappedBox', title: 'card.flappedBox', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
+    id: 'flappedBox', title: 'card.flappedBox', word: 'card.flappedBox.word', group: 'cartons', status: 'stable', view: { bottomOpen: 1.35 }, challenges: [],
     variants: [
       { id: 'sealed', structure: 'carton', style: 'sealed', match: { body: 'tube', top: 'seal', bottom: 'seal' } },
       { id: 'rsc', structure: 'carton', style: 'rsc', match: { body: 'tube', top: 'rsc', bottom: 'rsc' } },
@@ -109,7 +111,7 @@ export const CATALOGUE: Card[] = [
   { id: 'sleeve', title: 'card.sleeve', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'sleeve', structure: 'sleeve', match: { body: 'tube', top: null, bottom: null } }] },
   // flat pieces
   {
-    id: 'envelope', title: 'card.envelope', group: 'flat', status: 'stable', challenges: [],
+    id: 'envelope', title: 'card.envelope', word: 'card.envelope.word', group: 'flat', status: 'stable', challenges: [],
     variants: [
       { id: 'envelope', structure: 'envelope', match: { body: 'flat' } },
       { id: 'diamondEnvelope', structure: 'envelope', style: 'diamondEnvelope', match: { body: 'flat', flaps: 'dust,dust,glue,tuck' } },
@@ -247,7 +249,30 @@ export function sentenceEntries(m: MaterialProfile, p: Params, current?: Value):
     else if (e.value === current || (had.value !== current && named(e) && !named(had))) keep.set(same(e), e);
   }
   const kept = new Set([...keep.values()].map((e) => e.value));
-  return listed.filter((e) => kept.has(e.value)).map((e) => e.value);
+  const once = listed.filter((e) => kept.has(e.value));
+  // milestone 153: one entry per card (PRESETS_OVERHAUL.md §3 rule 1): the one the word shows now, else the card's
+  // first; its other variants are a word away (the sentence's own words) and on the design card's Kind switch
+  const byCard = new Map<string, Candidate>();
+  for (const e of once) if (!byCard.has(e.card.id) || e.value === current) byCard.set(e.card.id, e);
+  const shown = new Set([...byCard.values()].map((e) => e.value));
+  lastKinds.clear();
+  for (const e of once) if (shown.has(e.value)) lastKinds.set(String(e.value), once.filter((x) => x.card.id === e.card.id).map((x) => x.v));
+  return once.filter((e) => shown.has(e.value)).map((e) => e.value);
+}
+
+/** The variants each entry of a list stood for (milestone 153), by the entry's value: the last list's. */
+const lastKinds = new Map<string, Variant[]>();
+
+/**
+ * How the sentence's list names an entry (milestone 153): a card that stands for more than one variant there by its
+ * own word (*a tuck-end carton*) with its kinds under it; the word the sentence shows now, and a lone variant, by
+ * their own.
+ */
+export function entryLabel(value: Value, current?: Value): { card?: MsgKey; kinds?: Variant[] } {
+  const kinds = lastKinds.get(String(value));
+  const at = variantOfValue(value);
+  if (!at || !kinds || kinds.length < 2 || value === current || !at.card.word) return {};
+  return { card: at.card.word, kinds };
 }
 
 /** The groups of the sentence's first word, in order. */

@@ -7,16 +7,10 @@ export type Lookalike = { list: 'sentence' | 'guided' | 'missions'; a: string; b
 
 /** The same design shape (connections, closures, bands, angles, lid, flaps, proportions): `structuralFingerprint`. */
 export const STRUCTURAL: Lookalike[] = [
-  // C: an open box and an open tray differ in height only (and the tray's handles); settled as one card's variants
-  { list: 'sentence', a: 'box', b: 'tray', group: 'C', until: 153 },
-  // D: two missions on the organiser, the same box with dividers at other sizes (records since milestone 150)
-  { list: 'missions', a: 'game-organiser', b: 'pencil-box', group: 'D', until: 153 },
+  // none since milestone 153: box and tray are one card (one entry), the organiser's missions two challenges on it
 ];
 
 /** The same picture at list size: the browser's perceptual hash (tests/e2e/preset-sheet.spec.ts). */
 export const VISUAL: Lookalike[] = [
-  // A: the tuck cartons differ underneath; since milestone 151 their bottom flaps hang open in the picture, which tells
-  // the reverse tuck from the others, but a straight tuck's flap hangs behind it and measures 5 bits from the snap-lock
-  // on 1.6 mm board: one card with a variant switch in 153
-  { list: 'sentence', a: 'ste', b: 'tuckSnap', group: 'A', until: 153 },
+  // none since milestone 153: the tuck cartons are one card, one entry in the list
 ];

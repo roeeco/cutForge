@@ -14,11 +14,13 @@ for (const lang of ['en', 'he'] as const) {
     await open(page, lang);
     // the structure: Enter opens, arrows move, Enter picks
     await page.getByTestId('sen-structure').focus();
+    const before = await page.getByTestId('sen-structure').textContent();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('sen-structure-list')).toBeFocused({ timeout: 10_000 });
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
-    await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'tray');
+    // the next entry after the box (milestone 153: one per card, so the next card's): the word changes
+    await expect(page.getByTestId('sen-structure')).not.toHaveText(before!);
     // a number: typed and committed with Enter
     await page.getByTestId('sen-width').focus();
     await page.keyboard.press('ControlOrMeta+a');

@@ -21,7 +21,7 @@ import { designPicture, MISSION_PROP } from '../views/picture';
 import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
 import { missionById, startMission, type Mission } from '../easy/missions';
-import { catalogueMissions } from '../templates/catalogue';
+import { CATALOGUE, catalogueMissions } from '../templates/catalogue';
 import { shown, useFeature, useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
@@ -293,6 +293,12 @@ function MissionView(props: { m: Mission; all: Mission[]; mat: MaterialProfile; 
           ))}
         </div>
         <h3>{t(m.title)}</h3>
+        {/* milestone 153: a mission is a challenge on one of the catalogue's cards */}
+        {challengeCard(m.id) && (
+          <p className="note" data-testid="mission-card">
+            {t('start.challengeOf', { card: t(challengeCard(m.id)!) })}
+          </p>
+        )}
         <p>{t(m.description)}</p>
         <ul className="goal-list" aria-label={t('start.missionGoals')}>
           {m.goals.map((g) => (
@@ -319,3 +325,6 @@ function MissionArt({ id, mat }: { id: string; mat: MaterialProfile }) {
   const src = useMemo(() => missionThumb(id, mat, 520, 380), [id, mat]);
   return src ? <img src={src} alt="" /> : null;
 }
+
+/** The card a mission is a challenge on (milestone 153). */
+const challengeCard = (id: string) => CATALOGUE.find((c) => c.challenges.includes(id))?.title;

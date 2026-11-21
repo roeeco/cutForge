@@ -263,7 +263,7 @@ only once the pictures can tell them apart.
 | **150** | Engine: preset records and the recogniser | §7, analysis §4 | ✅ |
 | **151** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §7 | ✅ (bottom flaps hang open instead of an inset) |
 | **152** | The stage: hero pose, framing, *Show how it closes* | §7 | ✅ |
-| **153** | Challenges and merges | §7 | |
+| **153** | Challenges and merges | §7 | ✅ (allowlists empty) |
 | **154** | Engine: corner rules (gusset, inward ear) | §7, analysis §3.3 | |
 | **155** | New cards on the engine as it is | §7 | |
 | **156** | Engine: strip and wrap builders | §7, analysis §3.1 | |

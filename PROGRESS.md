@@ -2442,6 +2442,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `src/views/pose.ts`: `stageFlapT`, `shownBox`; `src/views/lidPose.ts`: `closeK`; `src/easy/assemble.ts`: the closing phase; `src/views/View3D.tsx`: flaps open on the stage, framing on the shown box, the camera on the test hook; `src/ui/LidUI.tsx`: *Close* for a top of flaps.
 - `tests/stagePose.test.ts` and `tests/e2e/stage-frame.spec.ts`: flaps open and shut, lids closing in the animation, the shown box, five presets framed whole at 1366 × 768, the animation running through its closing.
 
+## Milestone 153 (presets overhaul) — challenges and merges ✅
+
+- `src/templates/catalogue.ts`: one entry per card, `Card.word`, `entryLabel`; `src/sentence/Sentence.tsx`: a card's word and kinds in the list; `src/templates/structures/box.ts`: handles on a box; `src/ui/StartScreen.tsx`: the challenge's card.
+- `tests/presetLookalikes.ts` is empty; `styles.spec.ts`, `sentence.spec.ts` and `sentence.model.test.ts` follow the one-entry list and the box's handles.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

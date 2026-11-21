@@ -1445,6 +1445,13 @@ export const he: Record<MsgKey, string> = {
   'style.group.more': "עוד",
   // the catalogue's cards (milestone 146, PRESETS_OVERHAUL.md §6)
   'tpl.variant': "סוג",
+  'card.openBox.word': "קופסה פתוחה",
+  'card.liddedBox.word': "קופסה עם מכסה שמורם ממנה",
+  'card.hingedBox.word': "קופסה עם מכסה על ציר",
+  'card.tuckCarton.word': "קרטון עם תחיבה",
+  'card.flappedBox.word': "קופסה שנסגרת בדשים",
+  'card.envelope.word': "מעטפה",
+  'start.challengeOf': "אתגר על: {card}",
   'card.openBox': "קופסה פתוחה",
   'card.organiser': "מארגן",
   'card.liddedBox': "קופסה עם מכסה שמורם ממנה",

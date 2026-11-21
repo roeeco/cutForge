@@ -18,16 +18,18 @@ for (const lang of ['en', 'he'] as const) {
     const list = page.getByTestId('sen-structure-list');
     await expect(list.getByTestId('sen-structure-group').first()).toBeVisible();
     expect(await list.getByTestId('sen-structure-group').count()).toBeGreaterThanOrEqual(2);
-    await list.getByTestId('sen-structure-opt-style:rte').click();
+    // milestone 153: one entry per card; the tuck cartons are one, its kinds a word away
+    await expect(list.getByTestId('sen-structure-opt-style:rte')).toHaveCount(0);
+    await list.getByTestId('sen-structure-opt-style:tuckSnap').click();
     await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'carton');
     await expect(page.getByTestId('sen-bottom')).toHaveAttribute('aria-label', /./);
     const word = await page.getByTestId('sen-structure').textContent();
     // a changed word names the style it now is
     await page.getByTestId('sen-bottom').click();
-    await page.getByTestId('sen-bottom-opt-snap').click();
+    await page.getByTestId('sen-bottom-opt-seal').click();
     await expect(page.getByTestId('sen-structure')).not.toHaveText(word!);
     await page.getByTestId('start-sentence').click();
     const d = await design(page);
-    expect(d.template).toMatchObject({ id: 'carton', params: { top: 'tuck', bottom: 'snap' } });
+    expect(d.template).toMatchObject({ id: 'carton', params: { top: 'tuck', bottom: 'seal' } });
   });
 }

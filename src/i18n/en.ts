@@ -1443,6 +1443,13 @@ export const en = {
   'style.group.more': "More",
   // the catalogue's cards (milestone 146, PRESETS_OVERHAUL.md §6)
   'tpl.variant': "Kind",
+  'card.openBox.word': "an open box",
+  'card.liddedBox.word': "a box with a lid that lifts off",
+  'card.hingedBox.word': "a box with a hinged lid",
+  'card.tuckCarton.word': "a tuck-end carton",
+  'card.flappedBox.word': "a box closed with flaps",
+  'card.envelope.word': "an envelope",
+  'start.challengeOf': "A challenge on: {card}",
   'card.openBox': "Open box",
   'card.organiser': "Organiser",
   'card.liddedBox': "Box with a lid that lifts off",

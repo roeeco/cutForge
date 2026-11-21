@@ -753,3 +753,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The hero pose on the stage is what the pictures' pose shares with it**: open lids and open top flaps. A drawer pulled out of its sleeve or a sleeve laid down would move boards away from where they are drawn on, so they stay in the pictures only.
 - **The stage's camera is on the test hook** (`__cutforge.stage()`, development and `?test` only) for the framing spec.
 
+## Milestone 153 (presets overhaul): challenges and merges
+- **The sentence's first word lists one entry per card** (plan §3 rule 1): the card's variant the word shows now, else its first. A card standing for more than one variant there is named by its own word (*a tuck-end carton*, *a box closed with flaps*) with its kinds on the line under it; its other variants are a word away (the sentence's *bottom*, *tuck from*, *shape*, *flaps* words) and on the design card's *Kind* switch (151). The tuck card's first is the snap-lock (the plain carton's own words).
+- **A box has a tray's handles** (`handles` add-on), so *a tray* folding into *Open box* loses nothing; the tray structure stays registered (saved designs, Guided), and is still listed when the sentence is a tray.
+- **Missions are challenges on a card**: *Follow a mission* says which (*A challenge on: Organiser*); two missions on one card are two challenges (their goals differ), so the look-alike test does not compare them.
+- **The look-alike allowlists are empty**: no list shows two presets of the same record or of the same picture at list size.
+

@@ -17,7 +17,7 @@ import { NumberWord, type NumRange } from './NumberWord';
 import { designPicture } from '../views/picture';
 import { builtFor } from '../templates/structures/box';
 import { STYLES, isAlias, styleById, styleDesc, styleName, styleOf, styleWord } from '../templates/styles';
-import { entryChoice, entryGroupKey, sentenceEntries } from '../templates/catalogue';
+import { entryChoice, entryGroupKey, entryLabel, sentenceEntries } from '../templates/catalogue';
 
 const pics = new Map<string, string | null>();
 function picture(def: TemplateDef, m: MaterialProfile, p: Record<string, Value>, w = 96, h = 64): string | null {
@@ -110,6 +110,9 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   const structureValue: Value = style && !isAlias(style) ? `style:${style.id}` : def.id;
   const entryText = (v: Value) => {
     const k = String(v);
+    // milestone 153: a card standing for its variants, by its own word
+    const lab = entryLabel(v, structureValue);
+    if (lab.card) return t(lab.card);
     if (k.startsWith('style:')) return t(styleWord(styleById(k.slice(6))!));
     return t(templateById(k)!.word!);
   };
@@ -119,6 +122,8 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   };
   const entryGroup = (v: Value) => t(entryGroupKey(v));
   const entryDetail = (v: Value) => {
+    const lab = entryLabel(v, structureValue);
+    if (lab.kinds) return lab.kinds.map((x) => (x.style ? t(styleName(styleById(x.style)!)) : t(templateById(x.structure!)!.word!))).join(' · ');
     const e = entryOf(v);
     if (e.style) return t(styleDesc(e.style));
     const alias = STYLES.find((x) => x.structure === e.def!.id && isAlias(x));
