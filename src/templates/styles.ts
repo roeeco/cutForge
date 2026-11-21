@@ -42,6 +42,11 @@ export const STYLES: StyleDef[] = [
   { id: 'roundBox', structure: 'box', words: { shape: 'round', lid: 'none' }, group: 'boxes', uses: ['gift'], status: 'stable' },
   { id: 'penCup', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'none' }, sizes: { width: 75, depth: 75, height: 100 }, group: 'boxes', uses: ['stationery'], status: 'stable' },
   { id: 'windowCarton', structure: 'carton', words: { top: 'tuck', bottom: 'snap', window: 'rect' }, sizes: { width: 70, depth: 40, height: 110 }, group: 'cartons', uses: ['retail', 'food'], status: 'stable' },
+  // milestone 156: the insert's profiles (FEFCO 09), on the strip builder
+  { id: 'uLiner', structure: 'insert', words: { profile: 'u' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0904', status: 'stable' },
+  { id: 'zProfile', structure: 'insert', words: { profile: 'z' }, group: 'flat', uses: ['shipping'], status: 'stable' },
+  { id: 'angleGuard', structure: 'insert', words: { profile: 'l' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0970', status: 'stable' },
+  { id: 'accordionPad', structure: 'insert', words: { profile: 'accordion' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0130', status: 'stable' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },
@@ -112,6 +117,6 @@ export const styleWord = (s: StyleDef) => `style.${s.id}.word` as MsgKey;
 export const styleDesc = (s: StyleDef) => `style.${s.id}.desc` as MsgKey;
 export const GROUPS: (StyleGroup | 'more')[] = ['boxes', 'cartons', 'shipping', 'flat', 'more'];
 /** Where each structure sits in the first word's list (a structure not named here goes last). */
-export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more' };
+export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more', insert: 'more' };
 /** A style whose words are all its structure's own (no word fixed): the structure's entry stands for it. */
 export const isAlias = (s: StyleDef) => Object.keys(s.words).length === 0;

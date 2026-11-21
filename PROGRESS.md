@@ -2457,6 +2457,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `src/templates/styles.ts`: `roundBox`, `penCup`, `windowCarton`, `phoneStand`, `StyleDef.sizes`; `src/templates/catalogue.ts`: the Round box in the sentence, the Pen cup and Window carton cards, the Phone stand variant, `Card.view.prop`; `src/templates/records.ts`: `window`, `supports`; `src/views/illustrate.ts`: the cup's pencils and the window carton's product; `src/views/three-geom.ts`: `robustClip`.
 - Every new style is in the catalogue and record tests (membership, recognition in every board, each design once per list).
 
+## Milestone 156 (presets overhaul) — engine: strip and wrap builders ✅
+
+- `src/model/builders.ts`: `addStrip`, `addWrap`; `src/templates/structures/insert.ts`: the insert; styles `uLiner`, `zProfile`, `angleGuard`, `accordionPad` and the *Insert* card; records' `strip`, `folds`, `accordion`.
+- `tests/builders.test.ts`: U, Z, L and accordion strips fold as asked and cut as one clean piece; a wrapper's root lies flat with glued flanges; every insert profile on card, 1.6 and 4 mm board builds clean and is recognised.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

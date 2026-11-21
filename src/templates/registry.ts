@@ -10,6 +10,7 @@ import { box, cleanAll, tray } from './structures/box';
 import { carton, sleeve } from './structures/carton';
 import { drawer } from './structures/drawer';
 import { cardHolder, envelope, folder } from './structures/flat';
+import { insert } from './structures/insert';
 import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
 import { normalizeJoints } from '../model/jointDefaults';
 import { chooseMaterial } from '../sentence/resolve';
@@ -17,7 +18,7 @@ import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model
 
 // the card stand in the sentence (milestone 98): a change the engine would not cut clean (a stand bigger than a sheet) is refused
 stand.accepts = (m, p) => (cleanAll(stand, m, p) ? null : 'sen.why.engineSize');
-export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder];
+export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder, insert];
 /** The sentence's structures (milestone 95): templates with a word of their own, never `planned` ones. */
 export const STRUCTURES = (): TemplateDef[] => TEMPLATES.filter((t) => t.word && t.status !== 'planned');
 /** The preset cards of the welcome screen's older grid: templates that are not sentence structures. */

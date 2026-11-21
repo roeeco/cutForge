@@ -35,6 +35,10 @@ export type PresetRecord = {
   window?: boolean;
   /** Milestone 155: how many boards lean on a stand's base (a phone stand has one). */
   supports?: number;
+  /** Milestone 156: a folded piece that is one strip (every board folded off one other, none off two): its folds, sorted (`+90,-90`), and whether they go back and forth (an accordion). */
+  strip?: boolean;
+  folds?: string;
+  accordion?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
   flaps?: string;
   /** How many boards a folded piece is (a folder's covers and pockets, a holder's two faces). */
@@ -113,8 +117,21 @@ export function recordOf(d: Design): PresetRecord {
   const grown = Object.values(d.connections).filter((c) => c.grown);
   const lean = grown.some((c) => c.kind !== 'fold' && c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1);
   if (lean) return { body: 'stand', lean: true, supports: grown.filter((c) => c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1).length };
-  if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue'))
-    return { body: 'folded', boards: ids.length, ...(slits ? { slits } : {}), ...(flaps ? { flaps } : {}) };
+  if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue')) {
+    const rec: PresetRecord = { body: 'folded', boards: ids.length, ...(slits ? { slits } : {}), ...(flaps ? { flaps } : {}) };
+    // one strip: a chain, each board's children on one edge at most, no glue and no shaped flaps
+    const kids = new Map<string, number>();
+    for (const c of grown) kids.set(c.a.panelId, (kids.get(c.a.panelId) ?? 0) + 1);
+    const roots = ids.filter((id) => !grown.some((c) => c.b.panelId === id));
+    const chain = grown.every((c) => c.kind === 'fold') && !flaps && roots.length === 1 && [...kids.entries()].every(([id, n]) => n <= (id === roots[0] ? 2 : 1));
+    if (chain) {
+      rec.strip = true;
+      const sign = (c: (typeof grown)[number]) => (c.dir === 'up' ? '+' : '-');
+      rec.folds = grown.map((c) => `${sign(c)}${Math.round(180 - c.angle)}`).sort().join(',');
+      rec.accordion = grown.length >= 2 && grown.some((c) => c.dir === 'up') && grown.some((c) => c.dir === 'down') && grown.every((c) => Math.abs(c.angle - 90) > 1);
+    }
+    return rec;
+  }
   return { body: 'free' };
 }
 

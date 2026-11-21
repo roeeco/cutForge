@@ -133,6 +133,17 @@ export const CATALOGUE: Card[] = [
       { id: 'phoneStand', structure: 'stand', style: 'phoneStand', match: { body: 'stand', lean: true, supports: 1 } },
     ],
   },
+  // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
+  {
+    id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],
+    variants: [
+      { id: 'insert', structure: 'insert', match: { body: 'folded', strip: true } },
+      { id: 'uLiner', structure: 'insert', style: 'uLiner', match: { body: 'folded', strip: true, folds: '+90,+90' } },
+      { id: 'zProfile', structure: 'insert', style: 'zProfile', match: { body: 'folded', strip: true, folds: '+90,-90' } },
+      { id: 'angleGuard', structure: 'insert', style: 'angleGuard', match: { body: 'folded', strip: true, folds: '+90' } },
+      { id: 'accordionPad', structure: 'insert', style: 'accordionPad', match: { body: 'folded', strip: true, accordion: true } },
+    ],
+  },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

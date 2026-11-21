@@ -774,3 +774,9 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The plywood box with a living-hinge lid already existed**: the hinged-lid tray on plywood (its lid a bent band, milestone 63); nothing new was needed.
 - **`panelShape` no longer throws on a clipping failure** (`robustClip`): an oval plywood base's corner slivers made polygon-clipping fail in the browser, losing the round box's picture; it retries with points rounded to 0.1 µm, else keeps the outline uncut there. The stage draws through the same function.
 
+## Milestone 156 (presets overhaul): strip and wrap builders
+- **Two builders over the grow ops** (`src/model/builders.ts`), so a body is data and not a template's own code: `addStrip` (panel widths, one crease length, a signed bend per crease: positive folds towards the first panel's top face) and `addWrap` (sections, one of them the `root` lying flat, those after it off its far edge and those before it off its near edge, with optional end `flanges` glued to their neighbours). Every fold is a grown board, so the 3D fold, the net and the export check are the engine's as for any box.
+- **The insert is the strip's first structure** (`src/templates/structures/insert.ts`): a U liner, a Z profile, an angle guard and an accordion pad (FEFCO 0904, 0970, 0130), as styles on one *Insert* card; card and corrugated up to 4 mm. An accordion folds at 60°, so its 3D shows the pad springing and its net lies flat.
+- **Records know a strip** (`strip`, its sorted `folds`, `accordion`): a U and a Z are both three boards, told apart by their folds; a gift-card holder is a strip too but keeps its card (its pattern names its slits).
+- **A wrap's lid that tucks into a front wall needs its depth fitted** so the tuck lands inside the wall (a lid as deep as the base puts the tuck in the wall's plane: the export check reports the overlap). That fitting is the mailer's (157).
+
