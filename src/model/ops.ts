@@ -412,7 +412,7 @@ function makeTrayWall(d: Design, tray: Tray, edge: string) {
  * Extrude a base into a tray: a wall at 90° on every straight edge, all at
  * outer height `height`, with the material's default wall and corner joints.
  */
-export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'flat' | 'pin' | 'openEdges' | 'tabLen' | 'base' | 'top' | 'bottom'>>): string | null {
+export function addTray(d: Design, baseId: string, height: number, kinds?: Partial<Pick<Tray, 'wallKind' | 'cornerKind' | 'flat' | 'pin' | 'openEdges' | 'tabLen' | 'base' | 'top' | 'bottom' | 'insideCorners'>>): string | null {
   const base = d.panels[baseId];
   if (!base || parentConnection(d, baseId) || Object.values(d.trays ?? {}).some((t) => t.baseId === baseId)) return null;
   // a circle or an oval walled gets its seam flat (milestone 65): a straight place for its one wall, where its strip starts and closes

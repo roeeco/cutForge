@@ -194,6 +194,11 @@ export const CATALOGUE: Card[] = [
       { id: 'accordionPad', structure: 'insert', style: 'accordionPad', match: { body: 'folded', strip: true, accordion: true } },
     ],
   },
+  // milestone 180 (beta, plywood; BOXES_PLYWOOD_PLAN.md E7): boxes of boards on any footprint, fingered at inside corners too
+  { id: 'chamferBox', title: 'card.chamferBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'chamferBox', structure: 'chamferBox', match: { body: 'cross', footprint: 'free', lid: 'none' } }] },
+  { id: 'coffinBox', title: 'card.coffinBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'coffinBox', structure: 'coffinBox', match: { body: 'cross', footprint: 'free', sides: 6, lid: 'liftoff' } }] },
+  { id: 'tetrominoBox', title: 'card.tetrominoBox', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'tetrominoBox', structure: 'tetrominoBox', match: { body: 'cross', footprint: 'concave', lid: 'none' } }] },
+  { id: 'starBox', title: 'card.starBox', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'starBox', structure: 'starBox', match: { body: 'cross', footprint: 'concave', star: true, lid: 'none' } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

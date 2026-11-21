@@ -54,18 +54,29 @@ export const cornerAngle = (f: { sin: number; cos: number }) => (Math.atan2(f.si
 /**
  * Two edges that coincide along a line, each panel's material overlapping the
  * other's slab (an outer corner, outer dimensions), at a corner angle between
- * 30° and 150°.
+ * 30° and 150°. Milestone 180: given the boards' thicknesses (`inner`), two tray
+ * walls that both reach on past an inside corner (`Tray.insideCorners`, each with
+ * an `ext`) also fit where their inner faces meet: a corner seen from inside.
  */
-export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1, range?: [number, number]): CornerFit | null {
+export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1, range?: [number, number], inner?: { tA: number; tB: number }): CornerFit | null {
+  const out = faceCornerFit(A, eA, B, eB, minLen, range, 0, 0);
+  if (out || !inner || !A.ext || !B.ext) return out;
+  return faceCornerFit(A, eA, B, eB, minLen, range, inner.tA, inner.tB);
+}
+
+/** `cornerFit` on one face of each board: their outer faces (z = 0), or both inner faces (z = t; material the other way). */
+function faceCornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen: number, range: [number, number] | undefined, zA: number, zB: number): CornerFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
-  const [a0, a1] = edgeWorld(A, eA), [b0, b1] = edgeWorld(B, eB);
+  const flip = zA > 0 ? -1 : 1;
+  const mA = v3mul(matDir(A.frame), flip), mB = v3mul(matDir(B.frame), flip);
+  const [a0, a1] = edgeWorld(A, eA).map((p) => v3add(p, v3mul(matDir(A.frame), zA))), [b0, b1] = edgeWorld(B, eB).map((p) => v3add(p, v3mul(matDir(B.frame), zB)));
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
   const off = (p: V3) => {
     const r = v3sub(p, a0);
     return v3len(v3sub(r, v3mul(dirA, v3dot(r, dirA))));
   };
   if (off(b0) > TOL || off(b1) > TOL) return null;
-  const ka = v3dot(inwardWorld(A, eA), matDir(B.frame)), kb = v3dot(inwardWorld(B, eB), matDir(A.frame));
+  const ka = v3dot(inwardWorld(A, eA), mB), kb = v3dot(inwardWorld(B, eB), mA);
   if (perp ? ka < 0.9 || kb < 0.9 : ka < SIN_MIN || kb < SIN_MIN) return null;
   const sb0 = v3dot(v3sub(b0, a0), dirA), sb1 = v3dot(v3sub(b1, a0), dirA);
   let s0 = Math.max(0, Math.min(sb0, sb1)), s1 = Math.min(La, Math.max(sb0, sb1));
@@ -76,7 +87,7 @@ export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen =
   if (s1 - s0 < minLen) return null;
   const dirB = v3norm(v3sub(b1, b0));
   // cos α = −(material direction A · material direction B)
-  const cos = perp ? 0 : -v3dot(matDir(A.frame), matDir(B.frame));
+  const cos = perp ? 0 : -v3dot(mA, mB);
   return { s0, s1, mapB: (s) => v3dot(v3sub(v3add(a0, v3mul(dirA, s)), b0), dirB), sin: perp ? 1 : (ka + kb) / 2, cos };
 }
 
@@ -356,7 +367,7 @@ export function seamContact(d: Design, c: Connection): number {
   if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return 0;
   if (c.kind === 'halflap') return 0;
   if (c.b.edge !== FACE && !c.grown) {
-    const f = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6);
+    const f = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6, undefined, { tA: tOf(d, A.id), tB: tOf(d, B.id) });
     if (f) return f.s1 - f.s0;
   }
   const o = ownerOf(c);
@@ -499,7 +510,7 @@ function connectionGeomRaw(d: Design, c: Connection): ConnGeom | null {
             if (one.cuts?.length) g.cuts = [...(g.cuts ?? []), ...one.cuts];
           } else if (c.kind === 'finger' && kb !== FACE) {
             // pieces that still meet but too briefly for fingers: the second panel gives way there
-            const f = cornerFit(A, ka, B, kb, 1e-6);
+            const f = cornerFit(A, ka, B, kb, 1e-6, undefined, { tA: tOf(d, A.id), tB: tOf(d, B.id) });
             if (f) {
               const b0 = f.mapB(f.s0), b1 = f.mapB(f.s1);
               g.edges.push({ panelId: B.id, edge: kb, notches: [{ s0: Math.min(b0, b1), s1: Math.max(b0, b1), depth: cornerDepths(tOf(d, A.id), f, tOf(d, B.id)).depth }] });
@@ -623,7 +634,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   if (c.kind === 'fold' || c.kind === 'lean' || (c.kind === 'butt' && c.grown)) return g;
 
   if (c.kind === 'finger') {
-    const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1, rng);
+    const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1, rng, { tA, tB });
     if (!fit) return null;
     if (!rng) {
       // a through-cut took part of the contact: lay fingers out on what is left
@@ -695,7 +706,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   const mO = matOf(d, owner), tO = mO.thickness, tR = tOf(d, receiver), clR = matOf(d, receiver).clearance;
   const fit = faceFit(O, edge, R, tR, !c.grown, 2, rng, !c.grown, tO);
   // a butt corner the owner's edge does not stand against (edge to edge only): plain edges while they meet
-  if (!fit) return buttCorner && !rng && cornerFit(A, c.a.edge, B, c.b.edge) ? g : null;
+  if (!fit) return buttCorner && !rng && cornerFit(A, c.a.edge, B, c.b.edge, 1, undefined, { tA, tB }) ? g : null;
   // a notched receiver: the joint is laid out on every stretch the owner edge still meets
   if (!rng && fit.runs.length > 1) return mergeGeoms(fit.runs.map((r) => connectionGeomOne(d, c, r)));
   if (!rng) {
@@ -1136,7 +1147,7 @@ function seamSegment(d: Design, s: { type: SeamType; a: EdgeRef2; b: EdgeRef2 })
   const A = d.panels[s.a.panelId], B = d.panels[s.b.panelId];
   if (!A || !B || s.type === 'cross') return null;
   if (s.a.edge === FACE || !findEdge(A, s.a.edge)) return null;
-  const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6) : faceFit(A, s.a.edge, B, tOf(d, B.id), true, 1e-6, undefined, true, tOf(d, A.id));
+  const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6, undefined, { tA: tOf(d, A.id), tB: tOf(d, B.id) }) : faceFit(A, s.a.edge, B, tOf(d, B.id), true, 1e-6, undefined, true, tOf(d, A.id));
   if (!f) return null;
   const [p0, p1] = edgeWorld(A, s.a.edge);
   const L = v3len(v3sub(p1, p0)) || 1;
@@ -1173,7 +1184,7 @@ export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   const cand: OpenSeam[] = [];
   for (const ea of ka)
     for (const eb of kb) {
-      const f = cornerFit(A, ea, B, eb);
+      const f = cornerFit(A, ea, B, eb, 1, undefined, { tA, tB });
       if (f) cand.push({ type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) });
     }
   // an edge on the other's face; at a tray's inside corner the wall reaching across the corner is the one received

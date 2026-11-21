@@ -681,6 +681,12 @@ export type Tray = {
   lidOf?: string;
   /** A lid of its own moved by the student (milestone 76): where it lies beside its box, the corner of its outline nearest the box's front left, in the box base's coordinates. Absent: at the box's front right, 20 mm clear. */
   lidAt?: { x: number; y: number };
+  /**
+   * Milestone 180 (BOXES_PLYWOOD_PLAN.md E7): at an inside corner of its base both walls reach on to where their inner
+   * faces meet, so they meet as a corner seen from inside (270° from outside) and are fingered there. Absent: the
+   * outgoing wall alone reaches across and the other's end stands on its face.
+   */
+  insideCorners?: 'finger';
 };
 
 /** How a carton's top closes (milestones 68, C2). */

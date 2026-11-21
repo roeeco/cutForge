@@ -9,14 +9,19 @@ import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
+import { hasBand } from '../model/bands';
 
 export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free';
 
 export type PresetRecord = {
   /** What the blank is (§2 of the analysis): a tube (walls in a ring, no base), a cross (a base with walls on its edges), one flat board, boards folded off each other with no box, a stand (boards leaning on a base), a ready shape, or anything else. */
   body: Body;
-  /** A box's base: a rectangle, an n-gon (`sides`), round (a circle or an oval) or rounded. */
-  footprint?: 'rect' | 'poly' | 'round' | 'rounded';
+  /**
+   * A box's base: a rectangle, an n-gon (`sides`), round (a circle or an oval) or rounded. Milestone 180: `free`, a
+   * convex polygon that is no regular polygon stretched (a chamfered box, a coffin, a trapezoid), and `concave`, a
+   * polygon with an inside corner (a tetromino, a star, a heart); both with their `sides`.
+   */
+  footprint?: 'rect' | 'poly' | 'round' | 'rounded' | 'free' | 'concave';
   sides?: number;
   /** How a tube's ends close: a named end style (`END_STYLES`), `custom` for a list of its own, `tuck` (a tuck lid), `roof` (a gable top), or null (open). */
   top?: string | null;
@@ -68,6 +73,12 @@ export type PresetRecord = {
   open?: number;
   /** Milestone 171: how deep a cap reaches down its box, when more than a shallow rim (a two-piece box: full). */
   rim?: 'half' | 'full';
+  /** Milestone 180: a concave footprint whose corners go in and out in turn (a star). */
+  star?: boolean;
+  /** Milestone 181: some of the footprint's corners are rounded, its walls bent round them (bands). */
+  rounded?: boolean;
+  /** Milestone 181: the base bends up into walls round living hinges (a U box). */
+  bends?: boolean;
   /** Milestone 171: holes to hang it by (keyholes) on one of its boards: it hangs on a wall. */
   hang?: boolean;
   /** Milestone 171: square holes for a clamp's jaws through a box's walls (a clamping square). */
@@ -90,7 +101,7 @@ function mainOf(d: Design): Tray | undefined {
   return ts.find((t) => t.base !== 'open') ?? ts[0];
 }
 
-function footprintOf(d: Design, t: Tray): Pick<PresetRecord, 'footprint' | 'sides'> {
+function footprintOf(d: Design, t: Tray): Pick<PresetRecord, 'footprint' | 'sides' | 'star' | 'rounded'> {
   const b = d.panels[t.baseId];
   if (!b) return {};
   const s = b.sketch as { kind: string; pts?: { bulge?: number; arc?: unknown }[]; round?: unknown };
@@ -99,7 +110,46 @@ function footprintOf(d: Design, t: Tray): Pick<PresetRecord, 'footprint' | 'side
   // rounded corners are bands between the walls (milestone 64): more walls than straight edges
   if (s.pts?.some((q) => q.bulge || q.arc)) return { footprint: 'rounded' };
   const n = s.pts?.length ?? ring.length;
-  return n === 4 ? { footprint: 'rect' } : { footprint: 'poly', sides: n };
+  // milestone 180: a polygon with an inside corner, or one that is not a regular polygon stretched (a box's *poly*
+  // shape is one, stretched to its width and depth; a rectangle and any parallelogram is one with four sides)
+  const pts = (s.pts ?? []) as { x: number; y: number; curve?: string }[];
+  const curved = pts.some((q) => q.curve === 'round') ? { rounded: true } : {};
+  if (pts.length >= 4) {
+    const turns = pts.map((q, i) => {
+      const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+      return (q.x - a.x) * (b.y - q.y) - (q.y - a.y) * (b.x - q.x);
+    });
+    const ccw = Math.sign(turns.reduce((x, y) => x + y, 0)) || 1;
+    const reflex = turns.map((x) => x * ccw < -1e-6);
+    if (reflex.some(Boolean)) {
+      const star = n >= 6 && n % 2 === 0 && reflex.every((r, i) => r !== reflex[(i + 1) % n]);
+      return { footprint: 'concave', sides: n, ...(star ? { star: true } : {}), ...curved };
+    }
+    if (!affineRegular(pts)) return { footprint: 'free', sides: n, ...curved };
+  }
+  return n === 4 ? { footprint: 'rect', ...curved } : { footprint: 'poly', sides: n, ...curved };
+}
+
+/**
+ * Is a polygon a regular one stretched (an affine image of a regular n-gon)? The map that takes its first three
+ * corners to a regular polygon's must take every other corner there too.
+ */
+function affineRegular(pts: { x: number; y: number }[]): boolean {
+  const n = pts.length;
+  const reg = Array.from({ length: n }, (_, i) => ({ x: Math.cos((2 * Math.PI * i) / n), y: Math.sin((2 * Math.PI * i) / n) }));
+  // the affine map from (reg0, reg1, reg2) to (p0, p1, p2), then each regular corner through it
+  const [r0, r1, r2] = reg, [p0, p1, p2] = pts;
+  const ax = r1.x - r0.x, ay = r1.y - r0.y, bx = r2.x - r0.x, by = r2.y - r0.y, det = ax * by - ay * bx;
+  if (Math.abs(det) < 1e-12) return false;
+  const ux = p1.x - p0.x, uy = p1.y - p0.y, vx = p2.x - p0.x, vy = p2.y - p0.y;
+  const size = Math.max(...pts.map((q) => Math.hypot(q.x - p0.x, q.y - p0.y)), 1);
+  for (let i = 3; i < n; i++) {
+    const dx = reg[i].x - r0.x, dy = reg[i].y - r0.y;
+    const k1 = (dx * by - dy * bx) / det, k2 = (ax * dy - ay * dx) / det;
+    const qx = p0.x + k1 * ux + k2 * vx, qy = p0.y + k1 * uy + k2 * vy;
+    if (Math.hypot(qx - pts[i].x, qy - pts[i].y) > 1e-4 * size) return false;
+  }
+  return true;
 }
 
 /** How one end of a tube closes. */
@@ -275,6 +325,8 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && hasPlate(d, t)) rec.plate = true;
     if (!tube && hasPlate(d, t, true)) rec.rails = true;
     if (!tube && hasRoof(d, t)) rec.roof = true;
+    // milestone 181: walls grown off the base round a living hinge (a U box), not a lid's hinge
+    if (!tube && Object.values(d.connections).some((c) => c.a.panelId === t.baseId && hasBand(d, c))) rec.bends = true;
     const open = openWalls(d, t);
     if (!tube && open) rec.open = open;
     if (hangs(d)) rec.hang = true;

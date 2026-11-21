@@ -2526,6 +2526,14 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Wall rack** (WallRack, plywood, new card): a back hung by keyholes with lipped shelves.
 - Every board of these is held by tabs in slots (lips and frames given the board round their slots); `tests/plywood172.test.ts`.
 
+## Milestone 180 (every doable boxes.py design in plywood) ✅ any footprint (E7)
+
+- **Inside corners fingered** (`Tray.insideCorners`): both walls reach to where their inner faces meet and are fingered as a corner seen from inside; `cornerFit` finds such corners on the inner faces. Trays that do not ask are unchanged.
+- **`Footprint` `'outline'`** (any polygon from points; `addOutlineBase`), `growOutline` for sizes said inside.
+- **Records:** footprints `free` and `concave` (with `sides`), `star`.
+- **Chamfered box** (AngledBox), **Coffin box** (Coffin; a lid that lifts off, a cross engraved), **Tetromino box** (Tetris: L, T, S, Z), **Star box** (4 to 8 points): plywood only, beta; `tests/plywood180.test.ts`.
+- The taper spike failed (compound-angle corners are not found); the Feeder waits on it.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

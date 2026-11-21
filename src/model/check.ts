@@ -359,6 +359,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.bottom !== undefined && !(TRAY_BOTTOMS as string[]).includes(x.bottom)) delete x.bottom;
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
+  if (x.insideCorners !== undefined && x.insideCorners !== 'finger') delete x.insideCorners;
   if (x.lidAt !== undefined && !(isObj(x.lidAt) && Number.isFinite(x.lidAt.x) && Number.isFinite(x.lidAt.y) && Math.abs(x.lidAt.x) <= COORD_LIMIT && Math.abs(x.lidAt.y) <= COORD_LIMIT)) delete x.lidAt;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;

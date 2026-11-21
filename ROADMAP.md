@@ -300,4 +300,6 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **173** | Face-glued joint; lids plug, brim, handle; base overhang | |
 | **174** | Tambour door; roll-top box | |
 | **175** | A wrap that opens, latch; flex-door box | |
-| **176–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **176–179** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **180** | Any footprint: inside corners fingered; chamfered, coffin, tetromino and star boxes | ✅ (taper and Feeder: spike failed) |
+| **181–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
