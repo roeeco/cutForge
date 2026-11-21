@@ -8,6 +8,7 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 
 - **171 ✅** (21 November): plywood 5 and 8 mm; picture fixes; the half box (bookend, wall shelf, clamping square); keyholes; box words *closed*, *rim*, *grips*; lidded box variants *Two-piece* and *Closed*. The lid handle and the base overhang moved to 173. Details in `DECISIONS.md`.
 - **172 ✅** (21 November): the shelf's *Rack*; the slanted shelf's lip, spaces, back and sloped sides; the *Bin rack* and the *Wall rack* (plywood, hung by keyholes).
+- **177 ✅** (21 November): stacking feet (E6) as material added to a board after its joints; the word *stack* (Crate, NotesHolder, StorageRack); the *Stacking bin* and the *Sieve stack*. PaintStorage waits for the jars variant (178), WallStackableBin for 179, DrillBox and Dispenser for their cards.
 
 ## 0. In short
 

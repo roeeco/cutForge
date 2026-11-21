@@ -200,7 +200,7 @@ export const CATALOGUE: Card[] = [
   },
   // milestone 177 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.7): boxes on stacking feet
   { id: 'stackBin', title: 'card.stackBin', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'stackBin', structure: 'stackBin', match: { body: 'cross', lid: 'none', open: 1, baffles: true, stack: true } }] },
-  { id: 'sieveStack', title: 'card.sieveStack', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'sieveStack', structure: 'sieveStack', match: { body: 'cross', lid: 'none', stack: true, sieve: true } }] },
+  { id: 'sieveStack', title: 'card.sieveStack', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'sieveStack', structure: 'sieveStack', match: { body: 'cross', lid: 'none', stack: true, sieve: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
