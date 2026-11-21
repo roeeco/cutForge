@@ -1,219 +1,196 @@
-# Presets from boxes.py — plan
+# Presets from boxes.py, built from boards — plan (revised to fit `PRESETS_OVERHAUL.md`)
 
-Source: [florianfesti/boxes](https://github.com/florianfesti/boxes) (191 generators in `boxes/generators/`, GPL‑3.0). For personal use.
+Source: [florianfesti/boxes](https://github.com/florianfesti/boxes) (191 generators in `boxes/generators/`, GPL‑3.0), for personal use.
+
+Written 2026-11-21 against `claude/eloquent-brahmagupta-eip2fd` at `27bb61c` (presets overhaul, milestones 146–150 done). It replaces the first draft of this file, which proposed its own catalogue field and its own *More designs* screen.
 
 ## 0. In short
 
-- **Port the recipes, not the code.** A boxes.py generator draws flat 2D parts. Each part's four edges are given as a string of edge letters (`"fFeF"`), and the generator lays the parts out on the sheet itself. CutForge works the other way round. It builds boards in 3D (`addRootPanel`, `growPanel`, `addTray`, `addDivider`, `addSideWalls`, lids), its engine picks the joints for the material, and it does its own packing. So each generator we take becomes an ordinary `TemplateDef`, written in TypeScript against `src/model/ops.ts`. It then works in 3D and on card and corrugated as well as plywood. Students' edits survive `regenerate`, and the export check and the library treat it like any other design.
-- **No Python in the browser and no SVG import of boxes.py output.** You could run boxes.py with Pyodide and import its SVGs as flat pieces. That gives all 191 at once, but with no 3D, no material awareness and no joints from our engine. It also adds about 10 MB to an app that must work offline. Not worth it.
-- **Four lanes**, cheapest first:
-  - **A**: generators the sentence already makes. These become styles: only words, no engine work.
-  - **B**: new templates built from the existing ops.
-  - **C**: new edge types in the engine, which unlock a further set of generators.
-  - **D**: flat parts (gears, knobs, hole patterns, game boards). This is also the *game-parts generator* that `ROADMAP.md` §4 leaves for later.
-- **Roughly 45 generators are worth taking.** The rest are listed in §6 as skipped, with reasons.
+- **This is a lane of the presets overhaul, not a second preset system.** Every preset ported from boxes.py:
+  - is a card or a variant in `templates/catalogue.ts`;
+  - is reached through the sentence's first word;
+  - is named by its record (`templates/records.ts`);
+  - is drawn and posed by `illustrate.ts` and `pose.ts`;
+  - is held to the overhaul's rules: one card per thing that looks and works differently, a visible tell, no look-alikes (§3 of the overhaul).
+- **What this lane adds: presets built from boards, for plywood 3 mm and corrugated 4 mm.** The dieline analysis (`DIELINE_GENERATOR_ANALYSIS.md`) brought in folded constructions: tubes, crosses folded from one net, strips and wraps. boxes.py brings rigid boards joined at their edges: finger joints and tabs in slots, half-slots crossing, boards leaning in angled slots. These are the **cross** (walls standing on a base as boards), **stand** and **slot** bodies of the analysis, in the two materials the overhaul calls thin on cards (§2.3 and rule 5: plywood has about 6 distinct cards, 4 mm board about 12 counting beta).
+- **Port the recipes, not the code.** Unchanged from the first draft: each generator becomes a `TemplateDef` written against `model/ops.ts`. The engine picks the joints for the material, and `pack` / `nest` lay out the sheet.
+- **Start after 160, the overhaul's verification.** The exception is the three cards the overhaul already plans: magazine file, dice tower and phone stand. For those, the boxes.py recipes go into milestones 155 and 157 as their reference (§2).
 
-## 1. How the two models line up
+## 1. What changes from the first draft
 
-| boxes.py | CutForge |
-|---|---|
-| `x, y, h` inside sizes, `--outside` flag | `sizeAs: inside / outside` (box, drawer) |
-| `thickness`, `burn` | `MaterialProfile.thickness`, kerf in the Material drawer |
-| `FingerJointSettings` (finger, space, play) | the engine's finger joints for the material (`jointDefaults.ts`); not ported |
-| `rectangularWall(w, h, "efef")` part on the sheet | a board: a root panel, or one grown from an edge |
-| `move="up"` layout | `pack.ts` / `nest.ts`; ignored |
-| `callback=[…]` holes on a wall | `addDetail` / `addPathShape` with `cut` or `engrave` |
-| `edges.CompoundEdge` (`"fE"` along one side) | a grow on part of an edge (`GrowOpts.offset`, milestone 19) or wall inserts |
-| `polygonWall`, `regularPolygon` | `addPolygonPanel`, `regularPolygon` |
-| flex (`X`) | bands and living hinges (`bands.ts`, `bendPatterns.ts`) |
-
-### Edge letters
-
-| Letter | boxes.py | CutForge |
+| First draft | Now | Why |
 |---|---|---|
-| `e` | plain edge | free edge |
-| `E` | outset plain edge | free edge, board offset by t |
-| `f` / `F` | finger joint / its counterpart | `finger` (plywood); `fold` / `glue` / `tabslot` on card and corrugated |
-| `h` | finger holes (a T joint) | `tabslot`, or a divider's slots |
-| `\|` | crossing finger holes | half-laps (crossing dividers) |
-| `d` / `D` | dovetail | `key` (puzzle key, milestone 64) for boards laid end to end |
-| `s` / `S` / `š` | stackable feet and top | **new** (C2) |
-| `i` / `I`, `o`/`p`/`q`, `u` | integrated, chest and cabinet hinges | **new** (C3); depends on the deferred pin-hinge spike |
-| `l` / `L` / `n` / `N` | sliding-lid edges | **new** (C1) |
-| `c` / `C` | click connector | **new** (C4), optional |
-| `z` / `Z` | grooved edge | **new** (C1, the same groove as the sliding lid) |
-| `g` | gripping edge (wavy) | an outline profile on a free edge (C5) |
-| `G` | mounting edge (screw holes) | holes on a free edge (D) |
-| `R` | rack (gear teeth) | D (gear maths) |
-| `X` | flex | bands; already in the engine |
+| A `catalog` field on `TemplateDef`, and a *More designs* screen | Cards and variants in `CATALOGUE`, each template with a `word` and a sentence line; `status: 'beta'` until its test cut | The overhaul made one catalogue that every list reads (146). A second list is the problem it solved. |
+| Lane A: about 10 boxes.py names as new styles | **No new entries.** The boxes.py names that the engine already builds are recorded as aliases for the recogniser only (§3, "Already there") | The overhaul drops aliases (146: "a design is shown once per list"); a style that builds an existing card fails the look-alike test. |
+| Lane B: about 25 new templates | About 14 new cards and 6 new variants on existing cards (§3) | Most of the 25 have the same record and the same picture as one another or as an existing card. Under rule 1 they are variants. |
+| Lane D: flat parts as presets | Parts go to the **Shapes tool** as footprints (gear, knob) and as hole-pattern shapes (§5). Only the game board stays a preset. | A gear, a knob and a plain board are all `body: 'flat'` with nothing else in their record, so they would be look-alikes. They are shapes you put on a board, not things you start from. |
+| Every material where it folds | **Plywood 3 and corrugated 4** (`canMake`). Card and 1.6 mm board are not offered, or fall back to the folded card with the same tell. | boxes.py's constructions are rigid boards. The folded versions are the dieline lane's. |
+| Lane C, new edges, as its own lanes | The same edges, each a slot in a record and, after 158, a choice in the custom-preset editor | The overhaul's engine is records with slots (150, 158). |
+| Our own tests | The overhaul's tests: records distinct, look-alike allowlist not grown, picture coverage, the pose's tell, the contact sheet | One set of gates. |
 
-## 2. Lane A: styles only (no engine work)
+## 2. Overlap with milestones already planned
 
-Each row is a `StyleDef` in `src/templates/styles.ts`: a named set of words on an existing structure. It takes an entry, en/he names and a check that `styleOf` finds it.
-
-| boxes.py | Structure + words |
-|---|---|
-| `abox` | box, `lid: liftoff` |
-| `two_piece` | box, `lid: liftoff` (deep rim; needs `lidRim` as a word if not yet one) |
-| `typetray` | box (or tray), `spacesBy: count` |
-| `regularbox` | box, `shape: poly`, `sides` |
-| `roundedbox` | box, `shape: rounded` |
-| `roundedregularbox` | box, `shape: poly` plus a corner radius (check the poly base takes the radius) |
-| `crate` | box, `handles: slots` |
-| `closedbox` | box, `lid: flat` |
-| `slidingdrawer` | drawer |
-| `jointpanel` | none; the split with puzzle keys already does it (Split UI) |
-| `flextest` / `burntest` | none; the bend test and kerf test in the download already do it |
-
-**Group:** a new `StyleGroup` named `'boxespy'`, or the existing `boxes` group with `source: 'boxes.py/<name>'` on the style. Its name is shown only in the catalogue (§5).
-
-## 3. Lane B: new templates from today's ops
-
-Each one is a `TemplateDef` in `src/templates/boxespy/<name>.ts`. The table says what it is built from and what is missing, if anything.
-
-| boxes.py | What it is | Built from | Gap |
+| Overhaul milestone | Card | boxes.py | What this plan gives it |
 |---|---|---|---|
-| `openbox` | box with top and front open | `addTray` with `openEdges: ['e0']` | none |
-| `basedbox` | closed box on a larger base | tray on a root panel bigger than it; flat lid | the base's overhang as a parameter |
-| `angledbox`, `coffin` | box with chamfered ends | poly base (octagon / hexagon) worked out from `x`, `y`, `n`; extrude | none |
-| `unevenheightbox` | four corner heights | tray, then `setWallCorner` per wall | `Own height` on each wall and sloped tops; already in the engine |
-| `magazinefile` | sloped side walls | tray with front open, wall outlines (`setWallCorner`) | none |
-| `notesholder` | open-front holder for a stack | tray, `openEdges`, front notch (`addDetail` cut) | none |
-| `halfbox` | bookend / corner shelf / hanging box | base + two walls grown at 90° (`growPanel`) | `G` mounting holes: holes as details |
-| `bookholder` | angled display stand | the `stand`'s pattern: `addSideWalls` + a lean back + a lip | none; close to the card stand, one back |
-| `desksign` | sloped plate with two feet | plate grown at an angle on a small base, side walls with angled slots | none |
-| `laptopstand` | X frame | two plates crossing with half-laps | half-laps for non-upright boards (PROGRESS: "half-laps are detected for upright panels only") |
-| `displayshelf` | shelf with slanted floors | two sides (root, standing), shelves grown at an angle with `lean` slots | several leaning boards between two sides (the stand has one row) |
-| `cardholder` (Shelf) | angled shelves for card piles | as `displayshelf` | as above |
-| `slantedtray` | one row, high back, low front | tray, wall corners | none |
-| `smallpartstray`, `smallpartstray2` | slopes for scooping tokens | tray + spaces + a ramp grown at an angle in each space | ramps as dividers at an angle (`Divider` is upright now) |
-| `drillstand`, `drillbox` | compartments of different heights, holes | tray + dividers with `Own height` + hole grid on a top plate (`addDetail` circle × n) | dividers of different heights in one row (check) |
-| `penholderbox` | two grid plates with holes | tray + a drop-in plate (`addDropinLid`) with a hole grid | none |
-| `dividertray`, `trayinsert` | dividers only, with notches | dividers with half-laps, no base or walls | a "dividers only" design (no host base) |
-| `birdhouse` | gable house with a roof | tray, gable walls (wall outline points), roof grown from the sloped edges | none; README §12 already shows this pattern |
-| `shadowbox`, `photoframe`, `engravingframe` | stacked layers | root panels stacked flat, window cut-outs | stacked layers (boards laid on boards: `addPlacedPanel` flat) |
-| `nightlightbox` | box with patterned plates | box + engraved / cut patterns | needs D's pattern library |
-| `wallrack` (spice rack) | open-front shelves on a back | back root + shelves grown at 90° + front bars | none |
-| `storageshelf`, `paintbox` | shelf for trays | sides + shelves grown | `paintbox` stacking needs C2 |
-| `bintray` | open bins with sloped fronts | tray + spaces + sloped front walls | as `smallpartstray` |
-| `can_storage`, `bottlestack` | cut-outs for round things | plates with circular cut-outs, crossing slots | none |
-| `dicetower` | tower with ramps inside | tray (open top and front) + ramps at angles | ramps as angled boards between two walls (as `displayshelf`) |
-| `kamishibai` | frame with a slot for cards | frame of layers + a box | as `shadowbox` |
+| 155 | Stand: the *phone* variant | `phoneholder`, `laptopstand` (the angle) | The lean angles and the lip height as starting values |
+| 155 | Hinged box on plywood with a living hinge | `flexbox`, `flexbox3` | The hinge's slit pattern lengths, to check against `bendPatterns.ts` (not ported; ours is already tested) |
+| 157 | Magazine file ◐ (ply, c4) | `magazinefile` | The proportions (a front at about ⅓ of the height, a straight slope) and its edges (`Ffef`): a sloped wall outline that keeps its fingers |
+| 157 | Dice tower ◐ (ply, c4) | `dicetower` | The baffle count, angles and spacing, and the funnel at the bottom; the boards between two side walls in slots |
+| 156 | Strip builder | `lbeam`, `zbeam` | Two test cases for strips of boards (not folded): an L and a Z of plywood boards joined by fingers |
+| 154 | Corner rules | — | None. Corners of boards are already fingers, tabs and slots, or butt joints. |
+| 158 | Custom presets | the edge letters (§6) | The slots a board-built record needs: each wall present or open, its top level or sloped, the joint per edge |
 
-**Shared work behind several rows**, done once, early in lane B:
+The shared helper both 157 cards need, **several boards at angles between two side walls**, is also what the shelf cards of §3 need. It is built once, in 157, and reused here.
 
-1. **Angled boards between two side walls** (`displayshelf`, `cardholder`, `dicetower`, `smallpartstray`, `bintray`). The stand already does one row of these with `addSideWalls`. Generalise it to any number of boards at any offsets and angles, or check that it already allows that.
-2. **Stacked flat layers** (`shadowbox`, `photoframe`, `engravingframe`, `kamishibai`). Boards laid on boards with window cut-outs.
-3. **Hole grids** (`drillstand`, `penholderbox`, `can_storage`). An array of circles. Live arrays exist (README §7), so this may be only a helper.
+## 3. The cards
 
-## 4. Lane C: new edges in the engine
+★ new card, ◇ new variant on an existing card. P = plywood 3, c4 = corrugated 4. Each new record field is listed in §4.
 
-Each is a milestone of its own, with physical sizes to check by cutting a sample. Every new edge gets a `ConnectionKind` or `EdgeFeature`, a material rule (which boards can make it), export-check coverage and a sample in the bend/kerf test sheet.
+### Already there: no new entry, an alias for the recogniser only
 
-| # | Edge | Unlocks | Notes |
-|---|---|---|---|
-| C1 | **Sliding-lid rails and grooves** (`l L n N`, `z Z`) | `slidinglidbox`, `compartmentbox`, `breadbox` (with flex) | `ROADMAP.md` §4 lists *sliding lids* as deferred. Plywood only. A groove is a rail board or two thin strips (boxes.py uses rails); its clearance is the material's fit clearance. |
-| C2 | **Stackable feet and top** (`s S š Š`) | `stackablebin`, `paintbox`, `brick_sorter`, `wallstackablebin` | Feet are tabs below the base's edge; the top edge gets matching notches. Pure outline work on free edges. |
-| C3 | **Hinges** (`i I` integrated, `o p q Q` chest, `u v` cabinet) | `integratedhingebox`, `dicebox`, `piratechest`, `hingebox`, `sidehingebox` | This is the pin hinge that `DECISIONS.md` (milestone 81) defers until three test boxes are cut. Do C3 last, and only after that spike. Port boxes.py's sizes as the starting values. |
-| C4 | **Click connector** (`c C`) | flat-pack builds without glue | Optional. |
-| C5 | **Edge profiles** (gripping `g`, wave, rounded triangle) | decorative edges, `wavyknob` | An outline profile on a free edge, as edge flaps are drawn. |
-| C6 | **Flex round any outline** | `heart`, `flexbox2–5`, `flexbook`, `shutterbox`, `doubleflexdoorbox` | Bands already bend round rounded corners and round boxes. What is missing is a band round any outline with arcs (the README says walls round curves "come next"). Check where that stands before starting. |
-
-## 5. Lane D: flat parts
-
-These generators make one flat part, or a few. Each becomes a template whose `generate` builds root panels with an outline from `addPolygonPanel` (arcs stay true arcs) and details from `addDetail` or `addPathShape`. There is no 3D assembly, so the 3D view shows them lying flat. A new catalogue group, **Parts**.
-
-| boxes.py | Port |
+| boxes.py | Is |
 |---|---|
-| `gear`, `pulley`, `rack` edge | involute gear and timing pulley outlines (port `gears.py` and `pulley.py` maths; about 600 lines of geometry) |
-| `concaveknob`, `wavyknob` | outlines + centre hole / D-flat |
-| `holepattern`, `fanhole`, `nemapattern`, `frontpanel` | hole patterns as cut details on a board; also as a *shape* to put on any board |
-| `jigsaw` | puzzle-cut lines on a board (a cut-line set) |
-| `royalgame` | board with engraved squares; the **game-parts generator** (tokens, tiles, numbered sheets) from `ROADMAP.md` §4 belongs here |
-| `coindisplay`, `clock` | plates with engraved rings and ticks |
-| `lbeam`, `zbeam` | two or three boards at 90° (these are really lane B) |
+| `abox`, `two_piece` | Lidded box (`trayLid`) |
+| `typetray` | Organiser |
+| `regularbox`, `roundedbox`, `roundedregularbox` | Open box, footprint poly, rounded or poly with radius |
+| `crate` | Open box + handles |
+| `hingebox` (as built here) | Hinged box |
+| `jointpanel` | The split with puzzle keys (Split UI) |
+| `flextest`, `burntest` | The bend test and kerf test in the download |
 
-## 6. Skipped
+### New variants on existing cards
 
-| Generators | Why |
-|---|---|
-| `rackbox`, `rack10box`, `rack19box`, `rack19halfwidth`, `eurorackskiff`, `electronicsbox`, `dinrailbox`, `sidedoorhousing`, `console`, `console2`, `airpurifier`, `makitapowersupply`, `matrix`, `keypad`, `keyboard`, `atreus21`, `arcade` | electronics enclosures with fixed hardware sizes; can come later if wanted |
-| `ottobody`, `ottolegs`, `ottosoles`, `robotarm`, `servos`, `nemamount`, `gearbox`, `planetary`, `planetary2`, `linkage`, `rotary`, `laserclamp`, `laserholdfast`, `angledcutjig` | mechanical assemblies or tools for the laser itself |
-| `beequeencage`, `beequeentransportbox`, `fatballdispenser`, `organpipe`, `stachel`, `pizzashovel`, `ramp`, `filamentspool`, `spool`, `carbonfilter`, `stevensonscreenbox`, `trafficlight`, `lamp`, `trianglelamp`, `sevensegment*`, `frameloom`, `coffeecapsulesholder`, `agricolainsert`, `gridfinity*`, `skadis*`, `castle`, `silverwarebox` | niche; any can be picked up later through lane B |
-| `platonic`, `sphere`, `tetris` | the shape modeller (milestones 120–133) already unfolds polyhedra |
-| `wall*` generators (`walledges.py`) | the French-cleat wall system: a lane of its own (one new edge, about 15 holders) if wanted |
-| `traylayout`, `gridfinitytraylayout` | text-file layout input; CutForge's dividers do this directly |
-| `edges`, `alledges`, `_template`, `_walltemplate` | demo sheets |
+| ◇ | Card | boxes.py | Record difference | Tell (pose) | P | c4 |
+|---|---|---|---|---|---|---|
+| ◇ | Lidded box: **closed** (flat lid on finger-jointed walls) | `closedbox`, `basedbox` | `lid: 'flat'` (the lid kind exists, milestone 79; it is not a word yet) | lid lifted off its tabs | ✅ | ✅ |
+| ◇ | Drawer box **on plywood** | `slidingdrawer` | none; the card gains a material | drawer half out | ★ | ✅ |
+| ◇ | Open box: **open front** | `openbox`, `notesholder` | `open: ['front']` | seen from the front, a stack of notes inside | ✅ | ✅ |
+| ◇ | Stand: **book** | `bookholder` | one tall back, `tiers: 1`, `back: true` | side view, a book leaning in it | ✅ | ◐ |
+| ◇ | Organiser: **heights** | `drillstand` | dividers with different heights (`steps: true`) | stepped compartments, pencils of different lengths | ✅ | ✅ |
+| ◇ | Organiser: **insert only** | `dividertray`, `trayinsert` | `body: 'slot'` grid, no base or walls | the grid standing on its own | ✅ | ✅ |
 
-## 7. The contract and the catalogue
+### New cards
 
-### `TemplateDef` additions (`src/templates/types.ts`)
+Group *Boxes and trays* unless marked. Status ◐ beta for every card until its test cut.
 
-```ts
-/** Where a preset sits in the catalogue, and where its recipe came from. */
-catalog?: {
-  group: 'boxes' | 'trays' | 'shelves' | 'stands' | 'frames' | 'parts';
-  /** e.g. 'boxes.py/displayshelf': shown under the card, and in THIRD_PARTY.md. */
-  source?: string;
-  tags?: MsgKey[];
-};
-```
+| ★ | Card | boxes.py | Built from | Record | Tell (pose) | P | c4 |
+|---|---|---|---|---|---|---|---|
+| ★ | **Sloped tray** | `slantedtray`, `smallpartstray`, `bintray` | tray, front wall lower, ramps in each space | `cross`, `sloped: true`, `ramps: true` | three-quarters from the front, tokens on the ramps | ◐ | ◐ |
+| ★ | **Uneven box** | `unevenheightbox` | tray + `setWallCorner` per wall | `cross`, `sloped: true`, no ramps | the four corner heights | ◐ | ◐ |
+| ★ | **Bookend** (*More*) | `halfbox` | base + one wall at 90° (+ optional side) | `body: 'free'` → new `body: 'angle'` | a few books against it | ◐ | ◐ |
+| ★ | **Desk sign** (*More*) | `desksign` | sloped plate in two side feet with angled slots | `stand`, `tiers: 1`, `sign: true` | the plate engraved with a name | ◐ | ◐ |
+| ★ | **Slanted shelf** (*More*) | `displayshelf`, `cardholder` (Shelf) | two sides + n shelves at an angle, the 157 helper | `stand`, `tiers: n` | side view, cards on each tier | ◐ | ◐ |
+| ★ | **Shelf** (*More*) | `storageshelf`, `wallrack` | two sides + n level shelves, a back | `slot` / `cross` with `shelves: n` | three-quarters, small boxes on the shelves | ◐ | ◐ |
+| ★ | **Laptop stand** (*More*) | `laptopstand` | two boards crossing in half-slots | `slot`, `boards: 2`, `cross: 'x'` | a slab (the laptop) on it | ◐ | ◐ |
+| ★ | **Bottle rack** (*More*) | `winerack`, `bottlestack`, `can_storage` | boards with round cut-outs held in slots | `slot`, `holes: 'round'` | bottles lying in it | ◐ | ◐ |
+| ★ | **Pen holder** | `penholderbox` | tray + a drop-in plate with a hole grid | `cross`, `lid: 'dropin'`, `holes: 'grid'` | pencils standing in the holes | ◐ | ◐ |
+| ★ | **Bird house** (*More*) | `birdhouse` | tray, gable walls, roof grown from the sloped edges, a round door | `cross`, `top: 'roof'` | three-quarters, the door hole | ◐ | ◐ |
+| ★ | **Frame** (*Flat pieces*) | `shadowbox`, `photoframe`, `engravingframe` | layers laid flat with windows, a stand foot | new `body: 'stack'`, `layers: n` | at an angle, the layers' edges visible | ◐ | ◐ |
+| ★ | **Sliding-lid box** | `slidinglidbox`, `compartmentbox` | tray + rails + a lid board that slides | `cross`, `lid: 'slide'` | lid half pulled out | E1 | E1 |
+| ★ | **Stacking bin** | `stackablebin`, `paintbox` | tray, sloped front, feet and matching notches | `cross`, `stack: true` | two bins stacked | E2 | E2 |
+| ★ | **Game board** (*More*) | `royalgame` | one board with engraved squares + a sheet of tokens | `flat`, `grid: true` | the board with tokens on it | ✅ | ◐ |
 
-- A catalogue template has no `word`, so it is not a sentence structure. It sits beside `organiser` and `stand` in `PRESET_CARDS()`.
-- Lane A styles get `source` on the `StyleDef` in the same way.
-- Every template sets `materials`, `canMake`, `limits` and `accepts`, using the same `cleanAll` / `cleanWith` / `largestOk` helpers as `flat.ts`. A size that does not cut clean is then refused with a reason, as in the sentence.
-- Every board gets a `role(...)`, so `regenerate` keeps the student's shapes and the picture can light boards up.
+**Count after this lane**, with the overhaul's 21:
+- plywood, from 9 to about 25;
+- 4 mm board, from 12 to about 27 (the beta cards included).
 
-### Where the presets appear
+Plywood would no longer be "boxes only".
 
-The welcome screen says *"No gallery: the sentence's lists hold the styles, and only one picture is drawn at a time."* (`StartScreen.tsx`). That rule has to give a little. The proposal is a fourth way in, **More designs**: a searchable list grouped by `catalog.group`. Picking one draws one picture with `designPicture`, shows its parameters through the same `TemplateSection` as the card after Start, and starts it. Only one picture is drawn at a time. The rule stays for the sentence itself.
+**Deferred to later engine work**:
+- `heart`, `flexbox2`–`5`, `flexbook`, `shutterbox`: a plywood living hinge round any outline (E4).
+- The hinged boxes with pins: `integratedhingebox`, `dicebox`, `piratechest`, `sidehingebox` (E3).
 
-Alternative: add only the lane A styles and a few lane B templates as sentence structures (*a bookend*, *a shelf*, *a book stand*). This keeps the no-gallery rule, but every new structure needs its own grammar and en/he sentence keys.
+## 4. Engine work
 
-## 8. Recipe for porting one generator
-
-1. Read its `__init__` (arguments and defaults) and `render()` (parts and edge strings).
-2. Choose its parameters. Keep the sizes (`x`, `y`, `h` as `width`, `depth`, `height`, with `sizeAs`) and the choices that change the structure. Drop boxes.py's finger, burn and layout settings. Clamp ranges to `SIZE_MIN` / `SIZE_MAX`.
-3. Draw it in 3D. Pick the root board. Grow each `f`/`F`/`h` neighbour from the edge it meets, at its angle. Leave `e` edges free. Turn holes and cut-outs from its callbacks into details.
-4. Give every board a `role`.
-5. Set its materials. Plywood always. Card and corrugated where the folds make sense (most lane B templates do; lane D parts are plywood or acrylic).
-6. Add `limits` / `accepts` (sheet size, the smallest pieces) and `check`.
-7. Add en and he keys (`tpl.<id>`, `tpl.<id>.desc`, the parameter labels).
-8. Test it (§9).
-9. Add a line to `THIRD_PARTY.md`: the generator's name, `boxes.py`, GPL‑3.0, *recipe ported*.
-
-## 9. Tests
-
-For every template, in `tests/boxespy.test.ts`, parametrised over the catalogue:
-
-- `generate` with the defaults on each material it lists. Expect no export-check errors (`check.ts`), every touching pair joined (as `autoseam.test.ts` checks), and every piece on one sheet.
-- `regenerate` with every number at its min and max. Expect it either builds clean or `accepts` refuses it with a reason.
-- A shape added to one board survives a size change (stable roles).
-- One golden SVG per template at the defaults (`tests/golden`, run with `UPDATE_GOLDEN=1` once).
-- en/he key coverage (the i18n test already walks `TEMPLATES`).
-- For lane C, a physical test cut per edge type before it is marked `stable`; until then it is `beta`.
-
-## 10. Milestones
-
-| # | Milestone | Lanes | Size |
+| # | Step | For | Notes |
 |---|---|---|---|
-| **B1** | Contract (`catalog`, `source`) + *More designs* list + the test harness of §9, with `organiser` and `stand` moved in | infra | M |
-| **B2** | Lane A styles (about 10) | A | S |
-| **B3** | Shared helpers: angled boards between two sides, stacked layers, hole grids | B | M |
-| **B4** | First lane B batch: `openbox`, `basedbox`, `angledbox`, `unevenheightbox`, `magazinefile`, `notesholder`, `halfbox`, `bookholder`, `desksign`, `slantedtray`, `birdhouse`, `wallrack` | B | L |
-| **B5** | Second lane B batch: `displayshelf`, `cardholder`, `smallpartstray`, `bintray`, `dicetower`, `drillstand`, `penholderbox`, `shadowbox`, `photoframe`, `can_storage`, `laptopstand` (half-laps on non-upright boards) | B | L |
-| **B6** | Lane D: parts group (gears, knobs, hole patterns, jigsaw, game board + tokens) | D | M |
-| **B7** | C1 sliding lids, C2 stackable edges → `slidinglidbox`, `compartmentbox`, `stackablebin`, `paintbox` | C | L |
-| **B8** | C5 edge profiles, C6 flex round any outline → `heart`, `flexbox*` | C | L |
-| **B9** | C3 hinges, after the pin-hinge spike | C | L |
-| **B10** | Verification round: every template on every material in the dev server, screenshots en/he, `PROGRESS.md` | all | M |
+| R1 | **Record fields for board-built things**: `open` (walls left out), `sloped`, `ramps`, `steps`, `tiers`, `shelves`, `holes`, `stack`, `layers`, `sign`; bodies `slot`, `angle`, `stack` | all of §3 | In `records.ts`, read off the design as the others are. `recordOf` must find a tray where a template builds one, so templates use `addTray` and not separately grown walls (the old organiser has no record for that reason; milestone 150). |
+| R2 | **Boards with no box** (the slot body: a grid with no host base, boards crossing in half-slots at any angle) | insert only, laptop stand, bottle rack, shelf | The analysis lists the grid with no box as planned. Today half-laps are found only between upright boards on one base (`PROGRESS.md`). |
+| R3 | **Angled boards in slots on 4 mm board.** `connectionsFor` offers corrugated only `fold · glue · lock` at an angle; plywood has `lean`, angled tabs through slots in side walls. | stand variants, desk sign, slanted shelf, and the dice tower on c4 (157) | A rigid 4 mm board holds an angled tab in a slot as plywood does. Allow `lean` on corrugated of 3 mm or more, with the slot widened for the angle (as dividers' slots are, README §15). The stand on c4 then stops needing glue flaps. **Owner question 2.** |
+| R4 | **Board-built on 4 mm board**: wall to base as `tabslot` (separate boards), not folded | every c4 card of §3 | A template asks for it with `growPanel(..., { kind: 'tabslot' })`. It is in `connectionsFor` at 90° already. Check that the design-wide *Wall to base* choice does not fold it back. |
+| E1 | **Sliding lid**: two rails per side wall and a lid board with clearance, or a groove of two thin strips | sliding-lid box | `ROADMAP.md` §4 lists *sliding lids* as deferred. Plywood and c4. Rails as boards placed on the wall's inside face (`addPlacedPanel`). |
+| E2 | **Stacking feet**: tabs below the base's edge and notches in the walls' tops | stacking bin | Outline work on free edges, as edge flaps are drawn |
+| E3 | **Pin hinges** (`i I`, `o p q`) | the hinged boxes deferred above | Waits for the pin-hinge spike (`DECISIONS.md`, milestone 81). boxes.py's sizes are its starting values. |
+| E4 | **A living hinge round any outline** | `heart`, the `flexbox` family | Bands bend round rounded corners and round boxes today. Check what is still missing before planning it. |
 
-Recommended start: **B1 → B2 → B3 → B4**. That puts about 25 new presets in front of you before any engine change.
+## 5. Parts: shapes, not presets
 
-## 11. Open questions for the owner
+These go in the Shapes tool and on boards, not in the catalogue:
 
-1. **The catalogue.** Is *More designs* as a fourth way in acceptable, or should the presets stay inside the sentence (more grammar per preset; §7)?
-2. **Materials.** Plywood only for the ported presets at first (faster), or card and corrugated from the start where they fold?
-3. **Licence.** boxes.py is GPL‑3.0. Porting recipes for your own use is fine. If CutForge is later deployed to a class (the Worker and classroom submission), that counts as distribution, and the ported files carry that licence. Keeping them in `src/templates/boxespy/`, listed in `THIRD_PARTY.md`, keeps that clear either way.
-4. **Hinges (C3).** Wait for the pin-hinge spike as `DECISIONS.md` says, or port boxes.py's hinge sizes as `beta` straight away?
-5. **Priority inside lane B.** Which ten would you use first?
+| boxes.py | Becomes |
+|---|---|
+| `gear`, `pulley` | **Gear** footprint (`G` menu of Shapes): involute teeth, module and count; as *Board* it makes a board, on a board it cuts or adds. The maths is a port of `gears.py`. |
+| `concaveknob`, `wavyknob` | **Knob** footprint, with a centre hole or a D-flat |
+| `holepattern`, `fanhole`, `nemapattern` | **Hole pattern** shape: a grid or ring of holes as one live array (arrays exist, README §7) |
+| `jigsaw` | a set of cut lines on a board (*Puzzle cut*), as milestone 83's lines |
+| `gripping` edge `g`, wave edges | an edge profile on a free edge (later) |
+
+## 6. Edge letters → CutForge, per material
+
+| Letter | boxes.py | Plywood 3 | Corrugated 4 |
+|---|---|---|---|
+| `e` | plain | free edge | free edge |
+| `E` | outset | free edge, offset by t | free edge, offset by t |
+| `f` / `F` | finger joint | `finger` | `tabslot`: corrugated has no finger kind. Owner question 3. |
+| `h` | finger holes (T joint) | `tabslot` / a divider's slots | `tabslot` |
+| `\|` | crossing finger holes | half-laps | half-laps |
+| angled slots (bookholder, displayshelf) | — | `lean` | `lean` after R3; `glue` until then |
+| `d` / `D` | dovetail | `key` (puzzle key) | `key` if the neck holds in 4 mm board, else not offered |
+| `s` / `S` / `š` | stackable | E2 | E2 |
+| `l L n N`, `z Z` | sliding lid, groove | E1 | E1 |
+| `i I`, `o p q`, `u v` | hinges | E3 | not offered |
+| `G` | mounting | holes on the board | holes on the board |
+| `X` | flex | bands, living hinge | not used (4 mm board bends round flutes by its own pattern) |
+
+boxes.py's own settings are not ported:
+- finger width, space and play: `fingersFor` and `tabsFor` choose them from the material;
+- burn: CutForge uses its kerf;
+- the sheet layout: CutForge uses `pack` / `nest`.
+
+## 7. Porting one generator
+
+1. Read its `__init__` (arguments, defaults) and `render()` (parts, edge strings, callbacks).
+2. Decide what it is in the catalogue: an alias, a variant or a new card. Check its record against `CATALOGUE` first. If it would be the same record as a card and draws the same picture, it is a variant or nothing.
+3. Choose its words:
+   - sizes as `width`, `depth`, `height` with `sizeAs`, within `SIZE_MIN` / `SIZE_MAX`;
+   - choices that change what it is, as `addon` words;
+   - its sentence line (`sentence.main`) and `word`, in en and he.
+4. Build it in 3D with `addTray`, `growPanel` (with `kind: 'tabslot'` on c4), `addDivider`, the 157 angled-board helper, details for holes. Give every board a `role`.
+5. Add `materials: ['plywood', 'corrugated']` and `canMake: (m) => m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3)`, then `fallback` and `fallbackWords` for card. Add `limits` / `accepts` by building (`cleanAll`, `cleanWith`, `largestOk`, as `flat.ts` does) and `check`.
+6. Add its card or variant, its `match` pattern, any new record field (R1), its pose (§4.1 of the overhaul: view, open, props, cutaway) and its tell.
+7. Add a line to `THIRD_PARTY.md`: the generator's name, boxes.py, GPL‑3.0, recipe ported.
+
+## 8. Tests: the overhaul's gates plus two
+
+- **`tests/presetCatalogue.test.ts`.** The new cards' records are distinct from every card, and `recognise` round-trips. The look-alike allowlist does not grow (`tests/presetLookalikes.ts`), and the browser's picture hash agrees (`preset-sheet.spec.ts`).
+- **`tests/illustrate.test.ts`.** Picture coverage for every new card × P and c4.
+- **`tests/pose.test.ts`.** The tell is visible: the drawer in its sleeve, a lid half slid out, books against the bookend.
+- **Contract per card × material.** It builds clean at its defaults and at every number's min and max, or `accepts` refuses with a reason. Every touching pair is joined. It fits on the 600 × 400 sheet. A shape on a board survives a size change.
+- **Goldens.** One SVG per new card at its defaults, on plywood and on 4 mm board.
+- **New: a joint census.** On c4, no board-built card has a fold between boards (R4). On plywood, every 90° joint between two boards is a finger joint or tabs in slots.
+- **New: the test cut.** A card leaves beta only after a physical cut on each material, as the overhaul's beta rule says. Its result goes in `DECISIONS.md`.
+
+## 9. Milestones (after 160)
+
+| # | Milestone | Done when |
+|---|---|---|
+| **161** | **Records and joints for board-built things**: R1, R4, the joint census; the aliases of §3 in the recogniser | every existing card's record unchanged (goldens byte-identical); a box built by hand from boards on c4 has a record |
+| **162** | **Variants on existing cards**: closed lid, plywood drawer, open front, book stand, organiser heights | each variant's picture differs from its siblings by the hash test |
+| **163** | **Angled boards on 4 mm board** (R3), if the owner agrees | the stand, the dice tower and the desk sign on c4 with angled slots, no glue flaps |
+| **164** | **Cross cards**: sloped tray, uneven box, pen holder, bird house | contract tests and goldens; plywood and c4 contact sheets |
+| **165** | **Boards with no box** (R2) and the **slot cards**: insert only, laptop stand, bottle rack, shelf | half-slots at any angle between boards with no host; contract tests |
+| **166** | **Stand cards**: desk sign, slanted shelf, bookend | the 157 helper reused; contract tests |
+| **167** | **Frames** (the `stack` body) and the **game board** | layers posed apart in the picture |
+| **168** | **Shapes**: gear, knob, hole pattern, puzzle cut | each as a footprint or shape on any board; export check clean |
+| **169** | **E1 sliding lid, E2 stacking feet**, and their cards | each lid slides and each bin stacks in 3D within clearance |
+| **170** | **Verification**: test cuts on plywood 3 and 4 mm board, words in en and he, the contact sheets before and after | `PROGRESS.md`; cards that passed their cut leave beta |
+
+E3 (pin hinges) and E4 (a living hinge round any outline) stay in `ROADMAP.md` §4 with the pin-hinge spike.
+
+## 10. Owner questions
+
+1. **When.** After 160, with only the recipes handed to 155 and 157 now (my call), or interleaved into the overhaul's run?
+2. **Angled boards on 4 mm board (R3).** Allow `lean` (angled tabs through slots) on corrugated of 3 mm or more? Without it, every leaning card on c4 is glued.
+3. **Finger joints on 4 mm board.** boxes.py users cut fingers in 4 mm board. CutForge gives corrugated tabs in slots only. Keep that (my call: tabs hold better across flutes), or add `finger` for corrugated of 3 mm or more?
+4. **Card and 1.6 mm board.** Leave the board-built cards off them (my call), or offer each card's folded look-alike where one exists?
+5. **Licence.** For personal use it doesn't matter. If CutForge is deployed to a class, that is distribution, and the ported files carry GPL‑3.0. Listing them in `THIRD_PARTY.md` keeps it clear.
