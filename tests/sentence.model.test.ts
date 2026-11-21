@@ -23,8 +23,9 @@ describe('the sentence as text', () => {
     const p = { ...defaults(box), shape: 'poly', lid: 'liftoff' };
     expect(clausesOf(box, PLY, p).map((c) => c.key)).toEqual(['sides', 'lid']);
     // milestone 153: a box has handles too; milestone 171: a lid that lifts off has its depth (`rim`) on plywood
-    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'spacesBy', 'window', 'finger', 'handles']);
-    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles']);
+    // milestone 173: a handle on a lid that lifts off, and a base plate, on plywood
+    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'lidHandle', 'spacesBy', 'window', 'finger', 'handles', 'overhang']);
+    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles', 'overhang']);
     expect(clausesOf(box, PLY, { ...p, spacesBy: 'size' }).find((c) => c.key === 'spacesBy')!.text).toBe('sen.add.spaces.size');
   });
 });

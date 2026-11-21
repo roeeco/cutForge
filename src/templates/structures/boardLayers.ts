@@ -121,8 +121,10 @@ const ngon = (n: number, r: number, cx: number, cy: number, a0 = 0): P2[] => Arr
 /** A disc's outline: a polygon fine enough that the laser cuts it round. */
 const DISC_SIDES = 72;
 
+/** The most rings a spool's hub has: its width is limited to what they make in the board (`limits`). */
+export const HUB_RINGS_MAX = 20;
 /** How many hub rings a spool `width` wide between its flanges has, in board `t` thick. */
-export const hubRings = (width: number, t: number) => Math.max(2, Math.round(width / t));
+export const hubRings = (width: number, t: number) => Math.min(HUB_RINGS_MAX, Math.max(2, Math.round(width / t)));
 
 function generateSpool(d: Design, p: Params, role: Role) {
   const t = d.material.thickness;
@@ -170,12 +172,13 @@ export const spool: TemplateDef = {
   sentence: { main: 'sen.s.spool' },
 };
 /** Why a spool's hub or axle does not fit (the hub inside the flanges by 10 mm all round, the axle in the hub with 8 mm of board round it). */
-const spoolWhy = (p: Params): MsgKey | null =>
-  Number(p.hub) > Number(p.diameter) - 20 ? 'sen.why.hubFlange' : Number(p.axle) > Number(p.hub) * Math.cos(Math.PI / Math.max(6, Number(p.sides))) - 16 ? 'sen.why.axleHub' : null;
+const spoolWhy = (p: Params, t: number): MsgKey | null =>
+  Number(p.width) > HUB_RINGS_MAX * t + 1e-6 ? 'sen.why.hubRings' : Number(p.hub) > Number(p.diameter) - 20 ? 'sen.why.hubFlange' : Number(p.axle) > Number(p.hub) * Math.cos(Math.PI / Math.max(6, Number(p.sides))) - 16 ? 'sen.why.axleHub' : null;
 spool.limits = (m, p) => {
   const out = sheetLimits(spool, { diameter: 60 })(m, p);
+  Object.defineProperty(out, 'width', { enumerable: true, value: { max: Math.min(150, HUB_RINGS_MAX * m.thickness), why: 'sen.why.hubRings' as MsgKey } });
   Object.defineProperty(out, 'hub', { enumerable: true, value: { max: Math.max(30, Number(p.diameter) - 20), why: 'sen.why.hubFlange' as MsgKey } });
   Object.defineProperty(out, 'axle', { enumerable: true, value: { max: Math.max(5, Math.floor(Number(p.hub) * Math.cos(Math.PI / Math.max(6, Number(p.sides))) - 16)), why: 'sen.why.axleHub' as MsgKey } });
   return out;
 };
-spool.accepts = (m, p) => spoolWhy(p) ?? (cleanAll(spool, m, p) ? null : 'sen.why.engineSize');
+spool.accepts = (m, p) => spoolWhy(p, m.thickness) ?? (cleanAll(spool, m, p) ? null : 'sen.why.engineSize');

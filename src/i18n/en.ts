@@ -2367,6 +2367,7 @@ export const en = {
   'sen.hubSides': "Hub sides",
   'sen.why.hubFlange': "The hub must stay 10 mm inside the flanges",
   'sen.why.axleHub': "The axle hole needs 8 mm of board round it in the hub",
+  'sen.why.hubRings': "The hub is at most twenty rings of this board",
 } as const;
 
 export type MsgKey = keyof typeof en;

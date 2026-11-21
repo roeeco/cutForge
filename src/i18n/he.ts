@@ -2369,4 +2369,5 @@ export const he: Record<MsgKey, string> = {
   'sen.hubSides': "צלעות הציר",
   'sen.why.hubFlange': "הציר צריך להישאר 10 מ״מ בתוך הדסקיות",
   'sen.why.axleHub': "חור הציר צריך 8 מ״מ של לוח סביבו בתוך הציר",
+  'sen.why.hubRings': "הציר הוא לכל היותר עשרים טבעות מהלוח הזה",
 };
