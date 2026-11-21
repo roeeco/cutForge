@@ -67,6 +67,8 @@ export const STYLES: StyleDef[] = [
   { id: 'crate', structure: 'box', words: { lid: 'none', handles: 'slots', stack: 'feet' }, sizes: { width: 200, depth: 150, height: 100 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'stackNotes', structure: 'frontOpen', words: { stack: 'feet' }, sizes: { width: 100, depth: 100, height: 40 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'stackRack', structure: 'shelf', words: { rails: 'rails', stack: 'feet' }, sizes: { shelves: 4 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 176 (E5, plywood; boxes.py's IntegratedHingeBox, UniversalBox's hinge edges): a lid on pin hinges
+  { id: 'pinHinge', structure: 'box', words: { lid: 'pins' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

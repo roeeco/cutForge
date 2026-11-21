@@ -110,6 +110,8 @@ export const CATALOGUE: Card[] = [
     variants: [
       { id: 'hingedTray', structure: 'box', style: 'hingedTray', match: { body: 'cross', lid: 'hinged' } },
       { id: 'hexBox', structure: 'box', style: 'hexBox', match: { body: 'cross', lid: 'hinged', footprint: 'poly', sides: 6 } },
+      // milestone 176 (beta, plywood; boxes.py's IntegratedHingeBox): the lid on pin hinges, knuckles and a pin behind the back wall
+      { id: 'pinHinge', structure: 'box', style: 'pinHinge', match: { body: 'cross', lid: 'hinged', pins: true } },
     ],
   },
   {

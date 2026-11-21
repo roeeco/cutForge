@@ -2579,6 +2579,9 @@ export const en = {
   'sen.pin.5': "pins 5 mm across (a dowel)",
   'sen.pin.6': "pins 6 mm across (a dowel)",
   'sen.add.pin': "turning on {pin}",
+  'style.pinHinge': "Pin-hinge box",
+  'style.pinHinge.word': "a pin-hinge box",
+  'style.pinHinge.desc': "A lid on two wooden hinges behind the back wall: knuckles on the box and the lid in turn, a dowel or a wire through them; it opens past upright and rests there",
 } as const;
 
 export type MsgKey = keyof typeof en;

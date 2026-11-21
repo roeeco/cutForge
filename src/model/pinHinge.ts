@@ -164,8 +164,10 @@ export function setBoard(p: Panel, frame: Frame, pts: P2[]): P2 {
   return { x: mx, y: my };
 }
 
-/** The id of a knuckle's pin hole. */
+/** The id of a knuckle's pin hole (made from its first id: a structure's renaming keeps the ending). */
 export const pinHoleId = (knuckle: string) => `${knuckle}:pin`;
+/** A knuckle's pin hole. */
+export const pinHole = (K: Panel) => K.details.find((x) => x.id.endsWith(':pin'));
 
 /** A design's pin-hinged lids. */
 export const pinLids = (d: Design): Panel[] => d.order.map((id) => d.panels[id]).filter((p): p is Panel => !!p?.pinLid);
@@ -190,7 +192,7 @@ export function reconcilePinLids(d: Design) {
       const at = lay.knuckles.find((x) => x.k === K.knuckle!.k && x.on === K.knuckle!.on);
       if (!at) continue;
       const sh = setBoard(K, at.frame, at.pts);
-      const hole = K.details.find((x) => x.id === pinHoleId(K.id));
+      const hole = pinHole(K);
       if (hole) Object.assign(hole, { cx: at.hole.x - sh.x, cy: at.hole.y - sh.y, w: lay.hole, h: lay.hole });
     }
   }
@@ -239,7 +241,7 @@ export function lidFront(L: Panel): V3 {
 
 /** A knuckle's pin hole centre in the world. */
 export function holeAt(K: Panel): V3 | null {
-  const h = K.details.find((x) => x.id === pinHoleId(K.id));
+  const h = pinHole(K);
   return h ? toWorld(K.frame, h.cx, h.cy) : null;
 }
 
