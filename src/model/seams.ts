@@ -1197,7 +1197,8 @@ export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   const fb = faceB.map((x) => ({ type: 'face' as const, a: { panelId: B.id, edge: x.e }, b: { panelId: A.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
   const fa = faceA.map((x) => ({ type: 'face' as const, a: { panelId: A.id, edge: x.e }, b: { panelId: B.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
   cand.push(...(preferA ? [...fa, ...fb] : [...fb, ...fa]));
-  if (crossFit(A, B, tA, tB)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
+  // milestone 176: a pin hinge's knuckles never cross a board in half-slots (their outlines are not their bounds)
+  if (!A.knuckle && !B.knuckle && crossFit(A, B, tA, tB)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
   // milestone 173 (E1): two boards lying face to face, glued
   if (!cand.length && laminateFit(d, A, B)) cand.push({ type: 'laminate', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: false });
   return dedupeSeams(d, cand, []);

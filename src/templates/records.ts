@@ -130,6 +130,8 @@ export type PresetRecord = {
   stack?: boolean;
   /** Milestone 177: a grid of holes through a box's base (four or more): a sieve. */
   sieve?: boolean;
+  /** Milestone 176: a box's lid hinged on pins (knuckles and a pin), not on a living hinge. */
+  pins?: boolean;
 };
 
 const boxTrays = (d: Design): Tray[] => Object.values(d.trays ?? {}).filter((t) => !t.lidOf);
@@ -303,7 +305,8 @@ function hasSieve(d: Design, t: Tray): boolean {
 function freeIn(d: Design, t: Tray, test: (p: Design['panels'][string]) => boolean): Design['panels'][string][] {
   const walls = new Set(trayRing(d, t).map((r) => r.wall));
   const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
-  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !p.divider && !p.place && !grown.has(p.id) && test(p));
+  // milestone 176: a pin hinge's lid and knuckles are the lid's, not boards in the box
+  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !p.pinLid && !p.knuckle && !p.divider && !p.place && !grown.has(p.id) && test(p));
 }
 
 /** Milestone 178: a board of its own crossing one of a box's walls in a half-slot. */
@@ -470,6 +473,7 @@ export function recordOf(d: Design): PresetRecord {
       const lid = boxLid(d, t.id);
       rec.lid = lid.kind;
       if (lid.kind === 'liftoff' && (lid.style === 'plug' || lid.style === 'brim')) rec[lid.style] = true;
+      if (lid.kind === 'hinged' && lid.pins) rec.pins = true;
       const rim = rec.lid === 'liftoff' ? capRimOf(d, t.id) : null;
       if (rim === 'half' || rim === 'full') rec.rim = rim;
       rec.corner = t.cornerKind;
@@ -538,7 +542,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

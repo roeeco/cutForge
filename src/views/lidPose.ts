@@ -13,6 +13,7 @@ import { parentConnection } from '../model/ops';
 import { bandChildMove, bandOf } from '../model/bands';
 import { matDir, toWorld } from '../model/frame';
 import { tOf } from '../model/materials';
+import { knucklesOf, lidFront, openTurn, pinAxis } from '../model/pinHinge';
 import type { Bend, BandShown } from './foldView';
 
 /** How far past its hinge's straight a plain folded lid opens (degrees): about 110° for a lid square to its wall. */
@@ -72,6 +73,18 @@ export function applyLidPoses(d: Design, r: { xf: Map<string, THREE.Matrix4>; be
     // a folded lid: open unless closed, picked, folding or going together (milestone 152: going together, it closes at the end)
     if (v.shut[t.id] || picked || v.foldT < 0.999 || (v.assembling && v.closeK === undefined) || (v.closeK ?? 0) >= 1) continue;
     const k = v.closeK ?? 0;
+    if (lid.kind === 'hinged' && lid.pins) {
+      // milestone 176: a lid on pin hinges turns about its hinge line, its knuckles with it, up to the stop it rests on
+      const ax = pinAxis(d, lid.lid);
+      const L = d.panels[lid.lid];
+      if (!ax || !L) continue;
+      const deg = Math.min(ax.open, 90 + (v.openPast ?? LID_OPEN_PAST)) * (1 - k);
+      const a = openTurn(ax, lidFront(L), deg);
+      const o = new THREE.Vector3(...ax.o);
+      const X = new THREE.Matrix4().makeTranslation(o.x, o.y, o.z).multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(...ax.dir).normalize(), a)).multiply(new THREE.Matrix4().makeTranslation(-o.x, -o.y, -o.z));
+      move(riders(d, [lid.lid, ...knucklesOf(d, lid.lid, 'lid').map((p) => p.id)]), X);
+      continue;
+    }
     const c = parentConnection(d, lid.lid);
     if (!c || c.kind !== 'fold') continue;
     const P = r.xf.get(c.a.panelId) ?? new THREE.Matrix4();

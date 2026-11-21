@@ -2568,6 +2568,17 @@ export const en = {
   'sen.honeycombRack': "a honeycomb rack",
   'sen.honeycombRack.desc': "Slats crossing at 60° in half-slots inside a frame: bottles lie in the diamond-shaped cells",
   'sen.s.honeycombRack': "I'd like to make {structure} for bottles {bottle} mm across, {columns} cells across and {rows} rows high, {depth} mm deep",
+  'sen.lid.pins': "a lid on pin hinges",
+  'sen.why.pinShape': "Pin hinges need a square box: a straight back wall between two side walls",
+  'sen.why.pinRoom': "Too small for two pin hinges: make it wider or taller",
+  'sen.pin': "Pin",
+  'sen.pin.auto': "pins as thick as the board takes",
+  'sen.pin.2': "pins 2 mm across (a wire or a nail)",
+  'sen.pin.3': "pins 3 mm across (a skewer or a wire)",
+  'sen.pin.4': "pins 4 mm across (a dowel)",
+  'sen.pin.5': "pins 5 mm across (a dowel)",
+  'sen.pin.6': "pins 6 mm across (a dowel)",
+  'sen.add.pin': "turning on {pin}",
 } as const;
 
 export type MsgKey = keyof typeof en;

@@ -14,7 +14,8 @@ import { NOTE_KEYS } from '../../easy/notes';
 import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { MIN_COMPARTMENT } from '../../model/dividers';
 import { trayRing } from '../../model/cartons';
-import { addBasePlate, addLidHandle, addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
+import { addBasePlate, addLidHandle, addPinLid, addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
+import { PIN_SIZES, pinFor, pinRoom } from '../../model/pinHinge';
 import { layerDepth, lidLayers } from '../../model/lid';
 import { dividersOn } from '../../model/dividers';
 import { tOf } from '../../model/materials';
@@ -79,7 +80,8 @@ export function cleanWith(def: TemplateDef, m: MaterialProfile, p: Params, key: 
       const tr = mainTray(d);
       // the word *closed* makes the lid the engine calls *fixed* (milestone 171); a plug or brim lid lifts off (173)
       const l = tr ? boxLid(d, tr) : null;
-      ok = !!l && (v === 'plug' || v === 'brim' ? l.kind === 'liftoff' && l.style === v : l.kind === (v === 'closed' ? 'fixed' : v));
+      // milestone 176: *pins*, a lid hinged on pins
+      ok = !!l && (v === 'plug' || v === 'brim' ? l.kind === 'liftoff' && l.style === v : v === 'pins' ? l.kind === 'hinged' && !!l.pins : l.kind === (v === 'closed' ? 'fixed' : v));
     }
   } catch {
     ok = false;
@@ -152,9 +154,11 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       key: 'lid', label: 'sen.lid', type: 'choice', default: 'none', addon: { off: 'none' },
       // milestone 171 (UniversalBox's closed top): *closed*, a top fixed on with the walls' joint, on plywood
       // milestone 173 (UniversalBox's *flat* and *flatbrim*): a lid with a plug glued under it, or a brim of strips in slots
-      options: (['none', 'liftoff', 'hinged', 'arched', 'closed', 'plug', 'brim'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
+      // milestone 176 (UniversalBox's hinge edges, IntegratedHingeBox): *pins*, a lid hinged on knuckles and a pin, on plywood
+      options: (['none', 'liftoff', 'hinged', 'arched', 'closed', 'plug', 'brim', 'pins'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
       allowed: (v, p, m) => {
         if (v === 'none') return true;
+        if (v === 'pins') return m.kind === 'plywood' && p.shape === 'rect' && pinFits(m, p) && cleanWith(box, m, p, 'lid', v);
         if (v === 'closed') return m.kind === 'plywood' && p.shape !== 'round' && p.shape !== 'rounded' && cleanWith(box, m, p, 'lid', v);
         if (v === 'plug' || v === 'brim') return m.kind === 'plywood' && (p.shape === 'rect' || (v === 'plug' && p.shape === 'poly')) && cleanWith(box, m, p, 'lid', v);
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
@@ -163,6 +167,7 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       },
       why: (v, p, m) => {
         if (v === 'closed') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.closedShape';
+        if (v === 'pins') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape !== 'rect' ? 'sen.why.pinShape' : !pinFits(m, p) ? 'sen.why.pinRoom' : 'sen.why.engine';
         if (v === 'plug' || v === 'brim') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape === 'rect' || (v === 'plug' && p.shape === 'poly') ? 'sen.why.engine' : 'sen.why.lidShape';
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
         const tr = mainTray(d);
@@ -188,6 +193,16 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       when: (p) => p.lid === 'liftoff' || p.lid === 'plug' || p.lid === 'brim',
       allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && (p.lid !== 'liftoff' || (p.rim ?? 'none') === 'none') && cleanWith(box, m, p, 'lidHandle', v) && !!handleOf(builtFor(box, m, { ...p, lidHandle: v }))),
       why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.lid === 'liftoff' && (p.rim ?? 'none') !== 'none' ? 'sen.why.handleCap' : 'sen.why.handleRoom'),
+      affects: ['lid'],
+    });
+  if (o.lid)
+    // milestone 176: the pin's diameter, for a lid on pin hinges (a dowel or a wire the student has)
+    out.push({
+      key: 'pin', label: 'sen.pin', type: 'choice', default: 'auto', addon: { off: 'auto' },
+      options: (['auto', ...PIN_SIZES] as const).map((v) => ({ value: v, label: `sen.pin.${v}` as MsgKey })),
+      when: (p) => p.lid === 'pins',
+      allowed: (v, p, m) => v === 'auto' || (m.kind === 'plywood' && pinFits(m, { ...p, pin: v }) && cleanWith(box, m, p, 'pin', v)),
+      why: (_v, _p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.pinRoom'),
       affects: ['lid'],
     });
   out.push(
@@ -364,6 +379,8 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
   // milestone 177: stacking feet and tongues on every wall
   if (p.stack === 'feet') addStack(d, trayRing(d, d.trays[tray]).map((r) => r.wall));
   if (kindLid && p.lid === 'closed') addClosedTop(d, tray);
+  // milestone 176: a lid hinged on pins
+  else if (kindLid && p.lid === 'pins') addPinLid(d, tray, { pin: pinOf(p, d.material) });
   else if (kindLid && (p.lid === 'plug' || p.lid === 'brim')) {
     // milestone 173: a plug or a brim under the lid's top reaches into the box: the dividers stop under it
     setBoxLid(d, tray, 'liftoff', p.lid);
@@ -384,6 +401,16 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
   }
   if (kindLid && p.overhang === 'plate') addBasePlate(d, tray, overhangOf(tOf(d, d.trays[tray].baseId)));
   nameRoles(d, role);
+}
+
+/** The pin's diameter these words ask for (milestone 176): the board's own, or the one said. */
+export const pinOf = (p: Params, m: Pick<MaterialProfile, 'thickness'>) => (p.pin === undefined || p.pin === 'auto' ? pinFor(m.thickness) : Number(p.pin));
+
+/** Is the box wide and tall enough for two pin hinges (milestone 176)? Its outside: the inside and two walls. */
+export function pinFits(m: MaterialProfile, p: Params): boolean {
+  const room = pinRoom(m.thickness, pinOf(p, m));
+  const out = (v: number) => Number(v) + (p.sizeAs === 'outside' ? 0 : 2 * m.thickness);
+  return out(Number(p.width)) >= room.width && Number(p.height) + (p.sizeAs === 'outside' ? 0 : m.thickness) >= room.height;
 }
 
 /** How far a base plate stands out past the walls (milestone 173): two boards, never under 6 mm. */
@@ -496,6 +523,12 @@ export function nameRoles(d: Design, role: (name: string, id: string) => void) {
     return ra - rb || A.at.x - B.at.x || A.at.y - B.at.y;
   });
   divs.forEach((id, i) => name(`div-${i + 1}`, id));
+  // milestone 176: a lid on pin hinges and its knuckles, left to right
+  for (const id of d.order) {
+    const p = d.panels[id];
+    if (p?.pinLid) name('lid', id);
+    else if (p?.knuckle) name(`knuckle-${p.knuckle.k + 1}`, id);
+  }
   let k = 0;
   for (const id of d.order) if (!named.has(id)) name(`part-${++k}`, id);
 }

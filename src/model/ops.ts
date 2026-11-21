@@ -11,6 +11,7 @@ import './outline';
 import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, SketchPt, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, EndFlap, EndSpec, FlapShape, TrayBottom, TrayTop, V3 } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, followHost, freeLidSpot, grownPts as grownPtsOf, LAYER_LIP, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, PLUG_FIT, plugOutline, reconcileFlatLids, reconcileLids } from './lid';
+import { KNUCKLE_PLAY, KNUCKLES, PIN_OPEN, pinFor, pinHoleId, pinLayout, reconcilePinLids, setBoard } from './pinHinge';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
 import { edgeFreeSpans, spanFrame, spanOf } from './adapt';
 import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
@@ -285,6 +286,8 @@ function solveOnce(d: Design) {
   // lids that seal their box get their closure (milestone 67)
   // Flat lids (milestone 79): beside their box, their tabs and slots with its walls
   reconcileFlatLids(d, (t) => trayRing(d, t).map((r) => r.wall));
+  // milestone 176: pin-hinged lids on their boxes, their knuckles on the hinge line
+  reconcilePinLids(d);
   reconcileClosures(d);
   for (const c of Object.values(d.connections)) {
     // construction panels are never joined: their connections carry no joint
@@ -589,6 +592,46 @@ export function addLayeredLid(d: Design, trayId: string, kind: 'plug' | 'brim'):
   if (kind === 'brim') for (const p of d.order.filter((x) => d.panels[x]?.place?.host === id)) connectSeams(d, p);
   solve(d);
   return id;
+}
+
+/**
+ * A lid hinged on pins (milestone 176, BOXES_PLYWOOD_PLAN.md E5; plywood): a board on the walls' tops, flush outside,
+ * and two hinges behind the back wall, each of knuckles standing on the back wall's outer face and on the lid's top
+ * face in turn, a hole for a pin `pin` mm across through them all (src/model/pinHinge.ts). Each knuckle is held in
+ * slots; the lid rests on the walls and is joined to none of them. Returns the lid's id, or null when the box is not
+ * a walled rectangle with room for the hinges, or already has a lid.
+ */
+export function addPinLid(d: Design, trayId: string, o: { pin?: number; knuckles?: number; play?: number; open?: number } = {}): string | null {
+  const box = d.trays?.[trayId];
+  if (!box || box.lidOf || lidOn(d, trayId) || d.order.some((id) => d.panels[id]?.lidOf?.tray === trayId || d.panels[id]?.pinLid?.tray === trayId)) return null;
+  const B = d.panels[box.baseId];
+  if (!B) return null;
+  const h = { tray: trayId, pin: o.pin ?? pinFor(tOf(d, B.id)), knuckles: o.knuckles ?? KNUCKLES, play: o.play ?? KNUCKLE_PLAY, open: o.open ?? PIN_OPEN };
+  const lay = pinLayout(d, trayId, h);
+  if (!lay) return null;
+  const board = (pts: P2[], fr: Panel['frame']) => {
+    const id = addFreePanel(d, { frame: { o: fr.o, u: fr.u, v: fr.v }, side: 1, outer: pts });
+    if (!id) return null;
+    if (B.material) d.panels[id].material = B.material;
+    setBoard(d.panels[id], fr, pts);
+    return id;
+  };
+  const lid = board(lay.lid.pts, lay.lid.frame);
+  if (!lid) return null;
+  d.panels[lid].pinLid = h;
+  const ks: string[] = [];
+  for (const k of lay.knuckles) {
+    const id = board(k.pts, k.frame);
+    if (!id) continue;
+    const K = d.panels[id];
+    K.knuckle = { lid, on: k.on, k: k.k };
+    K.details.push({ id: pinHoleId(id), shape: 'circle', op: 'cut', cx: 0, cy: 0, w: lay.hole, h: lay.hole });
+    ks.push(id);
+  }
+  solve(d);
+  for (const id of ks) connectSeams(d, id);
+  solve(d);
+  return lid;
 }
 
 /**
