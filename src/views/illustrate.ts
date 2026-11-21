@@ -489,6 +489,8 @@ function forPicture(d: Design): Design {
 function joinedIn(d: Design): ((a: string, b: string) => boolean) & { reach?: (a: string, b: string) => number } {
   const pairs = new Set<string>();
   for (const c of Object.values(d.connections)) {
+    // boards glued face to face do not cross (milestone 173): their planes order them
+    if (c.kind === 'laminate') continue;
     pairs.add(`${c.a.panelId}|${c.b.panelId}`);
     pairs.add(`${c.b.panelId}|${c.a.panelId}`);
   }

@@ -80,6 +80,8 @@ export type PresetRecord = {
   layers?: number;
   /** Milestone 182: a stack of four layers or more (a shadow box's spacers). */
   deep?: boolean;
+  /** Milestone 182: a layered body with round boards (a spool's flanges: an outline of 16 points or more). */
+  disc?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -274,6 +276,7 @@ function layersOf(d: Design, ids: string[]): PresetRecord | null {
   const n = Math.max(...size.values());
   const rec: PresetRecord = { body: 'layers', layers: n };
   if (n >= 4) rec.deep = true;
+  if (ids.some((id) => { const s = d.panels[id].sketch; return s.kind === 'poly' && s.pts.length >= 16; })) rec.disc = true;
   if (hangs(d)) rec.hang = true;
   return rec;
 }
@@ -346,7 +349,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

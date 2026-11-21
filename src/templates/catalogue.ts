@@ -195,6 +195,8 @@ export const CATALOGUE: Card[] = [
       { id: 'shadowBox', structure: 'frame', style: 'shadowBox', match: { body: 'layers', deep: true } },
     ],
   },
+  // milestone 182 (beta, plywood; boxes.py's Spool and FilamentSpool): two flanges on a hub of rings glued face to face
+  { id: 'spool', title: 'card.spool', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'spool', structure: 'spool', match: { body: 'layers', deep: true, disc: true } }] },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],

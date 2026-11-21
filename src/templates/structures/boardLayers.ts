@@ -113,3 +113,69 @@ export const frame: TemplateDef = {
 };
 frame.limits = sheetLimits(frame, { width: 40, height: 60 });
 frame.accepts = (m, p) => (cleanAll(frame, m, p) ? null : 'sen.why.engineSize');
+
+// --- the spool ---
+
+/** A regular polygon's points, `n` of them on a circle of radius `r` about (cx, cy), the first at angle `a0`. */
+const ngon = (n: number, r: number, cx: number, cy: number, a0 = 0): P2[] => Array.from({ length: n }, (_, i) => ({ x: cx + r * Math.cos(a0 + (2 * Math.PI * i) / n), y: cy + r * Math.sin(a0 + (2 * Math.PI * i) / n) }));
+/** A disc's outline: a polygon fine enough that the laser cuts it round. */
+const DISC_SIDES = 72;
+
+/** How many hub rings a spool `width` wide between its flanges has, in board `t` thick. */
+export const hubRings = (width: number, t: number) => Math.max(2, Math.round(width / t));
+
+function generateSpool(d: Design, p: Params, role: Role) {
+  const t = d.material.thickness;
+  const R = Number(p.diameter) / 2, r = Number(p.hub) / 2, axle = Number(p.axle);
+  const n = hubRings(Number(p.width), t), sides = Math.round(Number(p.sides));
+  const L = (n + 2) * t;
+  // standing on its flanges' rims, its axle across (along x): each board in the y–z plane, its material towards +x
+  const ids: string[] = [], names: string[] = [];
+  const layer = (k: number, outer: P2[], name: string) => {
+    const id = addFreePanel(d, { frame: { o: [-L / 2 + k * t, 0, R], u: [0, 0, -1], v: [0, 1, 0] }, side: 1, outer });
+    if (!id) return;
+    // the axle's hole through every board, round (the outline's own corner is at (0, 0) once it is a board)
+    addDetail(d, id, 'circle', 'cut', R - Math.min(...outer.map((q) => q.x)), R - Math.min(...outer.map((q) => q.y)), axle, axle);
+    ids.push(id);
+    names.push(name);
+  };
+  layer(0, ngon(DISC_SIDES, R, R, R), 'flange-1');
+  // the hub: rings of the polygon glued face to face, a flat side down
+  for (let k = 1; k <= n; k++) layer(k, ngon(sides, r, R, R, -Math.PI / 2 + Math.PI / sides), `hub-${k}`);
+  layer(n + 1, ngon(DISC_SIDES, R, R, R), 'flange-2');
+  solve(d);
+  for (const id of ids) connectSeams(d, id);
+  solve(d);
+  ids.forEach((id, i) => role(names[i], id));
+}
+
+export const spool: TemplateDef = {
+  id: 'spool',
+  version: 1,
+  status: 'beta',
+  name: 'sen.spool',
+  description: 'sen.spool.desc',
+  word: 'sen.spool',
+  materials: ['plywood'],
+  canMake: plywoodOnly,
+  fallback: () => 'box',
+  params: [
+    num('diameter', 'sen.spoolDiameter', 60, 380, 150),
+    num('hub', 'sen.hubDiameter', 30, 300, 60),
+    num('width', 'sen.spoolWidth', 10, 150, 30),
+    num('axle', 'sen.axleHole', 5, 200, 20),
+    { key: 'sides', label: 'sen.hubSides', type: 'int', min: 6, max: 12, default: 8 },
+  ],
+  generate: generateSpool,
+  sentence: { main: 'sen.s.spool' },
+};
+/** Why a spool's hub or axle does not fit (the hub inside the flanges by 10 mm all round, the axle in the hub with 8 mm of board round it). */
+const spoolWhy = (p: Params): MsgKey | null =>
+  Number(p.hub) > Number(p.diameter) - 20 ? 'sen.why.hubFlange' : Number(p.axle) > Number(p.hub) * Math.cos(Math.PI / Math.max(6, Number(p.sides))) - 16 ? 'sen.why.axleHub' : null;
+spool.limits = (m, p) => {
+  const out = sheetLimits(spool, { diameter: 60 })(m, p);
+  Object.defineProperty(out, 'hub', { enumerable: true, value: { max: Math.max(30, Number(p.diameter) - 20), why: 'sen.why.hubFlange' as MsgKey } });
+  Object.defineProperty(out, 'axle', { enumerable: true, value: { max: Math.max(5, Math.floor(Number(p.hub) * Math.cos(Math.PI / Math.max(6, Number(p.sides))) - 16)), why: 'sen.why.axleHub' as MsgKey } });
+  return out;
+};
+spool.accepts = (m, p) => spoolWhy(p) ?? (cleanAll(spool, m, p) ? null : 'sen.why.engineSize');

@@ -2356,6 +2356,17 @@ export const en = {
   'style.shadowBox': "Shadow box",
   'style.shadowBox.word': "a shadow box",
   'style.shadowBox.desc': "Spacer layers between the front and the back, for paper cut-outs standing apart",
+  'card.spool': "Spool",
+  'sen.spool': "a spool",
+  'sen.spool.desc': "Two round flanges on a hub of rings glued face to face, a hole through for an axle",
+  'sen.s.spool': "I'd like to make {structure} {diameter} across, {width} wide between its sides, on a hub {hub} across with {sides} sides, and a hole {axle} across for the axle",
+  'sen.spoolDiameter': "Diameter",
+  'sen.hubDiameter': "Hub",
+  'sen.spoolWidth': "Width",
+  'sen.axleHole': "Axle hole",
+  'sen.hubSides': "Hub sides",
+  'sen.why.hubFlange': "The hub must stay 10 mm inside the flanges",
+  'sen.why.axleHub': "The axle hole needs 8 mm of board round it in the hub",
 } as const;
 
 export type MsgKey = keyof typeof en;

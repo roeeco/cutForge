@@ -86,23 +86,36 @@ export function laminateFit(d: Design, A: Panel, B: Panel): LaminateFit | null {
   // one board's top face on the other's bottom face, their slabs not overlapping
   const stacked = Math.abs(za[1] - zb[0]) < TOUCH || Math.abs(zb[1] - za[0]) < TOUCH;
   if (!stacked) return null;
-  // B's material in A's coordinates
-  const mA = material(A);
-  const mB = material(B).map((poly) => poly.map((r) => r.map(([x, y]) => {
-    const q = toLocal(A.frame, toWorld(B.frame, x, y, 0));
-    return [q.x, q.y] as [number, number];
-  })));
-  let shared: MultiPolygon;
-  try {
-    shared = polygonClipping.intersection(mA, mB as MultiPolygon);
-  } catch {
-    return null;
+  // the area they share, in one board's coordinates; the clipping is tried in the other's (and on a fine grid) when
+  // rounding makes it fail one way (a spool's last ring and its flange did)
+  const shared = sharedIn(A, B) ?? swap(sharedIn(B, A));
+  if (!shared || shared.area < LAMINATE_MIN_AREA) return null;
+  return { area: shared.area, atA: shared.at, atB: toLocal(B.frame, toWorld(A.frame, shared.at.x, shared.at.y, 0)) };
+
+  function swap(r: { area: number; at: P2 } | null): { area: number; at: P2 } | null {
+    return r && { area: r.area, at: toLocal(A.frame, toWorld(B.frame, r.at.x, r.at.y, 0)) };
   }
-  const { area } = areaOf(shared);
-  if (area < LAMINATE_MIN_AREA) return null;
-  const { at } = areaOf(largest(shared));
-  const atB = toLocal(B.frame, toWorld(A.frame, at.x, at.y, 0));
-  return { area, atA: at, atB };
+}
+
+/** The material two boards share, in P's coordinates (its area and a point inside it), or null when the clipping fails or it is empty. */
+function sharedIn(P: Panel, Q: Panel): { area: number; at: P2 } | null {
+  for (const g of [0, 1e-6, 1e-4]) {
+    const snap = (v: number) => (g ? Math.round(v / g) * g : v);
+    const mP = material(P).map((poly) => poly.map((r) => r.map(([x, y]) => [snap(x), snap(y)] as [number, number])));
+    const mQ = material(Q).map((poly) => poly.map((r) => r.map(([x, y]) => {
+      const q = toLocal(P.frame, toWorld(Q.frame, x, y, 0));
+      return [snap(q.x), snap(q.y)] as [number, number];
+    })));
+    try {
+      const shared = polygonClipping.intersection(mP as MultiPolygon, mQ as MultiPolygon);
+      const { area } = areaOf(shared);
+      if (area < 1e-6) continue;
+      return { area, at: areaOf(largest(shared)).at };
+    } catch {
+      /* the next grid */
+    }
+  }
+  return null;
 }
 
 /** A face-glued joint's geometry: nothing cut, the glue's place on each board; null when they no longer lie face to face. */

@@ -11,7 +11,7 @@ import { recognise } from '../src/templates/catalogue';
 import { recordOf } from '../src/templates/records';
 import { styleById } from '../src/templates/styles';
 import { censusBreaks } from '../src/templates/structures/boards';
-import { SPACERS } from '../src/templates/structures/boardLayers';
+import { hubRings, SPACERS } from '../src/templates/structures/boardLayers';
 import { makes, type Params } from '../src/templates/types';
 import type { Design } from '../src/model/types';
 
@@ -29,6 +29,8 @@ const CASES: [string, string, Params, string][] = [
   ['photo frame, small, wide border', 'frame', { width: 40, height: 60, border: 40 }, 'frame'],
   ['plaque', 'frame', words('plaque'), 'plaque'],
   ['shadow box', 'frame', words('shadowBox'), 'shadowBox'],
+  ['spool', 'spool', {}, 'spool'],
+  ['spool, hexagonal hub, wide', 'spool', { sides: 6, width: 60, diameter: 200, hub: 100, axle: 50 }, 'spool'],
 ];
 
 describe('layered things (milestone 182)', () => {
@@ -65,7 +67,18 @@ describe('layered things (milestone 182)', () => {
     expect(q.panels['t:back'].details.some((x) => x.op === 'engrave')).toBe(true);
   });
 
-  it('the frame is plywood only', () => {
-    for (const m of MATERIALS.filter((x) => x.kind !== 'plywood')) expect(makes(templateById('frame')!, m), m.id).toBe(false);
+  it('a spool’s hub is rings glued face to face between its flanges, as many as its width takes', () => {
+    const t = templateById('spool')!;
+    for (const m of [P3, P8]) {
+      const d = generate(t, m, defaults(t));
+      const n = hubRings(30, m.thickness);
+      expect(d.order.filter((id) => /^t:hub-/.test(id)), m.id).toHaveLength(n);
+      expect(Object.values(d.connections).filter((c) => c.kind === 'laminate' && !c.broken), m.id).toHaveLength(n + 1);
+    }
+    expect(t.accepts!(P3, { ...defaults(t), axle: 50 })).toBe('sen.why.axleHub');
+  });
+
+  it('the frame and the spool are plywood only', () => {
+    for (const m of MATERIALS.filter((x) => x.kind !== 'plywood')) for (const id of ['frame', 'spool']) expect(makes(templateById(id)!, m), m.id).toBe(false);
   });
 });
