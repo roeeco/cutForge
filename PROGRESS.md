@@ -2526,6 +2526,19 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Wall rack** (WallRack, plywood, new card): a back hung by keyholes with lipped shelves.
 - Every board of these is held by tabs in slots (lips and frames given the board round their slots); `tests/plywood172.test.ts`.
 
+## Milestone 173 (every doable boxes.py design in plywood) ✅ the face-glued joint; lid and base words
+
+- **E1, the face-glued joint** (`laminate`): two boards face to face are found, joined and checked like any seam; nothing is cut; the cut plan's annotations say *glue* on each. `laminateBoards`, `placeBoardOn` in ops.
+- **Box words** (plywood only): lid *plug* and lid *brim* (UniversalBox's flat and flatbrim lids: a board glued under the top, or strips in slots under it, inside the walls), a *handle on the lid*, a *base plate* wider than the box (BasedBox, glued under the base). Lidded box variants *Plug-lid box* and *Brim-lid box*.
+- `tests/plywood173.test.ts`.
+
+## Milestone 182 (every doable boxes.py design in plywood) ✅ in part: layered things
+
+- **Frame** (PhotoFrame, plywood, new card): front, pocket layer and back glued face to face, on two feet; variants *Plaque* (EngravingFrame) and *Shadow box* (Shadowbox).
+- **Spool** (Spool, FilamentSpool, plywood, new card): two flanges on a hub of rings glued face to face.
+- Record body `layers` (`layers`, `deep`, `disc`). `tests/plywood182.test.ts`.
+- Not built: the light box, the twist-lid box and the drill box (`DECISIONS.md` says why).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

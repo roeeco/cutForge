@@ -8,6 +8,8 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 
 - **171 ✅** (21 November): plywood 5 and 8 mm; picture fixes; the half box (bookend, wall shelf, clamping square); keyholes; box words *closed*, *rim*, *grips*; lidded box variants *Two-piece* and *Closed*. The lid handle and the base overhang moved to 173. Details in `DECISIONS.md`.
 - **172 ✅** (21 November): the shelf's *Rack*; the slanted shelf's lip, spaces, back and sloped sides; the *Bin rack* and the *Wall rack* (plywood, hung by keyholes).
+- **173 ✅** (21 November): E1, the face-glued joint (`laminate`); box words lid *plug*, lid *brim*, a handle on the lid, a base plate wider than the box (glued under the base, not walls standing in); lidded box variants *Plug-lid* and *Brim-lid*.
+- **182, in part** (21 November): the *Frame* (photo, *Plaque*, *Shadow box*) and the *Spool*, on the face-glued joint. The light box, the twist-lid box and the drill box wait (`DECISIONS.md`).
 
 ## 0. In short
 
