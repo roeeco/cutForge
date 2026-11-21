@@ -10,7 +10,7 @@ import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
 
-export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free';
+export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers';
 
 export type PresetRecord = {
   /** What the blank is (§2 of the analysis): a tube (walls in a ring, no base), a cross (a base with walls on its edges), one flat board, boards folded off each other with no box, a stand (boards leaning on a base), a ready shape, or anything else. */
@@ -76,6 +76,10 @@ export type PresetRecord = {
   plug?: boolean;
   /** Milestone 173: a lid that lifts off with strips standing under its top inside the walls (a brim lid). */
   brim?: boolean;
+  /** Milestone 182: boards of their own glued face to face (body `layers`): how many in the deepest stack. */
+  layers?: number;
+  /** Milestone 182: a stack of four layers or more (a shadow box's spacers). */
+  deep?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -252,6 +256,28 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   return rec;
 }
 
+/**
+ * A layered body (milestone 182): boards of their own, none grown off another, glued face to face (`laminate`) in
+ * stacks, the rest held by the joints a slot body has; every board joined. Its `layers`: the most boards in one stack.
+ */
+function layersOf(d: Design, ids: string[]): PresetRecord | null {
+  const cs = Object.values(d.connections);
+  const lam = cs.filter((c) => c.kind === 'laminate');
+  if (ids.length < 2 || !lam.length || cs.some((c) => c.grown || (c.kind !== 'laminate' && !SLOT_KINDS.has(c.kind)))) return null;
+  if (ids.some((id) => !cs.some((c) => c.a.panelId === id || c.b.panelId === id))) return null;
+  // stacks: boards linked by glued faces
+  const up = new Map(ids.map((id) => [id, id]));
+  const root = (x: string): string => (up.get(x) === x ? x : root(up.get(x)!));
+  for (const c of lam) if (up.has(c.a.panelId) && up.has(c.b.panelId)) up.set(root(c.a.panelId), root(c.b.panelId));
+  const size = new Map<string, number>();
+  for (const id of ids) size.set(root(id), (size.get(root(id)) ?? 0) + 1);
+  const n = Math.max(...size.values());
+  const rec: PresetRecord = { body: 'layers', layers: n };
+  if (n >= 4) rec.deep = true;
+  if (hangs(d)) rec.hang = true;
+  return rec;
+}
+
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
@@ -295,6 +321,8 @@ export function recordOf(d: Design): PresetRecord {
   // milestone 165: boards of their own held together by slots and tabs, nothing grown off another (BOXES_PRESETS_PLAN.md)
   const slot = slotOf(d, ids);
   if (slot) return slot;
+  const stack = layersOf(d, ids);
+  if (stack) return stack;
   const lean = grown.some((c) => c.kind !== 'fold' && c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1);
   if (lean) return { body: 'stand', lean: true, supports: grown.filter((c) => c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1).length };
   if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue')) {
@@ -318,7 +346,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

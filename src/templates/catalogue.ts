@@ -186,6 +186,15 @@ export const CATALOGUE: Card[] = [
       { id: 'sturdyBookend', structure: 'bookend', style: 'sturdyBookend', match: { body: 'cross', lid: 'none', open: 2 } },
     ],
   },
+  // milestone 182 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.4): layers glued face to face, leaning on two feet
+  {
+    id: 'frame', title: 'card.frame', word: 'card.frame.word', group: 'more', status: 'beta', challenges: [],
+    variants: [
+      { id: 'frame', structure: 'frame', match: { body: 'layers', layers: 3 } },
+      { id: 'plaque', structure: 'frame', style: 'plaque', match: { body: 'layers', layers: 2 } },
+      { id: 'shadowBox', structure: 'frame', style: 'shadowBox', match: { body: 'layers', deep: true } },
+    ],
+  },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],
