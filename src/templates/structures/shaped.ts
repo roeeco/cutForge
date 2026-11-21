@@ -22,7 +22,7 @@ type Role = (name: string, id: string) => void;
 const num = (key: string, label: MsgKey, min: number, max: number, dflt: number): ParamDef => ({ key, label, type: 'number', unit: 'mm', min, max, default: dflt });
 
 /** Every board its role: a box's base and walls as a box's, the rest `part-n`. */
-function nameAll(d: Design, role: Role, first: Record<string, string> = {}) {
+export function nameAll(d: Design, role: Role, first: Record<string, string> = {}) {
   const named = new Set<string>();
   const name = (n: string, id: string | undefined) => {
     if (!id || named.has(id) || !d.panels[id]) return;
@@ -39,7 +39,7 @@ function nameAll(d: Design, role: Role, first: Record<string, string> = {}) {
 }
 
 /** A box's walls by base edge (e0 the front, e2 the back). */
-function wallsOf(d: Design): Record<string, string> {
+export function wallsOf(d: Design): Record<string, string> {
   const tr = mainTray(d);
   const t = tr ? d.trays[tr] : undefined;
   return t ? Object.fromEntries(trayRing(d, t).map((r) => [r.edge, r.wall])) : {};
@@ -49,7 +49,7 @@ function wallsOf(d: Design): Record<string, string> {
  * Corner joints a change of walls made stale, found again: in corrugated a wall made smaller can fold off the base
  * again (the flat net's plan) and so moves out to the base's edge, away from the corner seam it had.
  */
-function reseam(d: Design, kind: ConnectionKind) {
+export function reseam(d: Design, kind: ConnectionKind) {
   for (let pass = 0; pass < 3; pass++) {
     solve(d);
     const stale = Object.values(d.connections).filter((c) => !c.grown && c.broken && c.trayId);
@@ -66,7 +66,7 @@ function reseam(d: Design, kind: ConnectionKind) {
  * Each size's largest that still cuts clean (a net that lies on one sheet), found by bisection from a size known to
  * be clean (as the drawer's, drawer.ts).
  */
-function sheetLimits(def: TemplateDef, lows: Record<string, number>): NonNullable<TemplateDef['limits']> {
+export function sheetLimits(def: TemplateDef, lows: Record<string, number>): NonNullable<TemplateDef['limits']> {
   return (m, p) => {
     const out: Record<string, Limit> = {};
     for (const key of Object.keys(lows))
@@ -158,7 +158,7 @@ function mostBaffles(m: MaterialProfile, p: Params): number {
 }
 
 /** Where a wall's inner face is along one axis (0 x, 2 z): of its two faces, the one nearer the box's middle. */
-function innerFace(d: Design, wallId: string | undefined, axis: 0 | 2): number | null {
+export function innerFace(d: Design, wallId: string | undefined, axis: 0 | 2): number | null {
   const P = wallId ? d.panels[wallId] : undefined;
   if (!P) return null;
   const { o, u, v, side } = P.frame;

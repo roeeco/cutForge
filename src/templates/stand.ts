@@ -1,10 +1,12 @@
 // Card / tile stand: a base with side walls and leaning supports.
-// Plywood: supports lean at the chosen angle, held by angled slots in the
-// side walls. Card/corrugated: folded side walls, supports glued with flaps
-// to the base and the side walls, and a folded front lip.
+// Plywood and corrugated of 3 mm or more (milestone 163): supports lean at the
+// chosen angle, held by angled slots in the side walls. Card and thinner
+// corrugated: folded side walls, supports glued with flaps to the base and the
+// side walls. Card and corrugated have a folded front lip.
 import type { TemplateDef } from './types';
 import { addRootPanel, addSideWalls, connectSeam, connectSeams, edgeConnection, growPanel } from '../model/ops';
 import { findOpenSeams } from '../model/seams';
+import { holdsLean } from '../model/materials';
 
 export const SUPPORT_HEIGHT = 50;
 
@@ -37,12 +39,14 @@ export const stand: TemplateDef = {
   generate(d, p, role) {
     const t = d.material.thickness;
     const ply = d.material.kind === 'plywood';
+    // a board that holds a leaning board in angled slots (milestone 163)
+    const rigid = holdsLean(d.material);
     const angle = Number(p.angle);
     const W = Number(p.cardWidth) + 4 + 2 * t, D = Number(p.baseDepth);
     const base = addRootPanel(d, -W / 2, D / 2, W, D);
     role('base', base);
     const { offsets } = standLayout(t, Number(p.cardThickness), angle, Math.round(Number(p.slots)));
-    if (ply) addSideWalls(d, base, 0, angle, SUPPORT_HEIGHT);
+    if (rigid) addSideWalls(d, base, 0, angle, SUPPORT_HEIGHT);
     else {
       const h = Math.ceil(t + SUPPORT_HEIGHT * Math.sin((angle * Math.PI) / 180) + 5);
       for (const e of [1, 3]) growPanel(d, base, e, { height: h, angle: 90, dir: 'up', kind: 'fold' });
@@ -52,10 +56,10 @@ export const stand: TemplateDef = {
       if (c) role(`side${e}`, c.b.panelId);
     }
     offsets.forEach((off, k) => {
-      const r = growPanel(d, base, 0, { height: SUPPORT_HEIGHT, angle, dir: 'up', kind: ply ? 'lean' : 'glue', offset: off });
+      const r = growPanel(d, base, 0, { height: SUPPORT_HEIGHT, angle, dir: 'up', kind: rigid ? 'lean' : 'glue', offset: off });
       if (!r) return;
       role(`support${k + 1}`, r.panelId);
-      if (!ply) for (const s of findOpenSeams(d, r.panelId)) connectSeam(d, s, 'glue');
+      if (!rigid) for (const s of findOpenSeams(d, r.panelId)) connectSeam(d, s, 'glue');
     });
     // a low front lip stops the first card sliding off
     const lip = growPanel(d, base, 0, { height: ply ? 10 + t : 10, angle: 90, dir: 'up', kind: ply ? 'finger' : 'fold' });

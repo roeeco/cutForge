@@ -198,6 +198,7 @@ function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: F
   if (prop === 'soap') return soapFaces(d, xf, out);
   if (prop === 'product') return productFaces(d, xf, out);
   if (prop === 'cup') return cupFaces(d, xf, out);
+  if (prop === 'paper') return paperFaces(d, xf, out);
   if (prop === 'letter') return letterFaces(d, xf, out);
   const baseId = boxBases(d)[0];
   if (!baseId) return;
@@ -343,6 +344,26 @@ function productFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
   const lo = new THREE.Vector3(b.min.x + th, b.min.y + 1, b.min.z + th), hi = new THREE.Vector3(b.max.x - th, b.min.y + (b.max.y - b.min.y) * 0.86, b.max.z - th);
   if (hi.x <= lo.x || hi.y <= lo.y || hi.z <= lo.z) return;
   block(lo, new THREE.Vector3(hi.x - lo.x, 0, 0), new THREE.Vector3(0, 0, hi.z - lo.z), new THREE.Vector3(0, hi.y - lo.y, 0), '#e2725b', '#6b2f22', out, '#ee8f78');
+}
+
+/**
+ * A stack of paper in an open-front box (milestone 162): three pads, each a little off the one under it, filling most
+ * of the inside to about half the walls' height, white with a grey edge, so the open front shows what it is for.
+ */
+function paperFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const t = Object.values(d.trays ?? {}).find((x) => !x.lidOf);
+  if (!t) return;
+  const walls = trayRing(d, t).map((r) => r.wall);
+  if (!walls.length) return;
+  const b = boxOf(d, [t.baseId, ...walls], xf);
+  const th = matOf(d, walls[0]).thickness * 2 + 2;
+  const W = b.max.x - b.min.x - 2 * th, D = b.max.z - b.min.z - 2 * th, H = (b.max.y - b.min.y) * 0.16;
+  if (W <= 4 || D <= 4 || H <= 0) return;
+  for (let k = 0; k < 3; k++) {
+    const off = (k % 2 ? 1 : -1) * Math.min(4, W * 0.03);
+    const lo = new THREE.Vector3(b.min.x + th + off + W * 0.04, b.min.y + 1 + k * H, b.min.z + th + D * 0.04);
+    block(lo, new THREE.Vector3(W * 0.92, 0, 0), new THREE.Vector3(0, 0, D * 0.92), new THREE.Vector3(0, H * 0.94, 0), '#f4f1e8', '#7d776b', out, '#fffdf7');
+  }
 }
 
 /** Pencils standing in a pen cup (milestone 155): a handful upright in its middle, each leaning a little, a third taller than it. */

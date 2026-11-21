@@ -232,7 +232,7 @@ export type ConnectionKind =
   | 'lock' // a glue flap whose tongues push through slits in the other panel: no glue (milestone 68)
   | 'gusset' // a tray corner left uncut: the square between two folded walls, creased across its diagonal, folded flat against one of them (milestone 154)
   | 'halflap' // crossing panels with half-depth slots
-  | 'lean' // angled plywood panel resting on its parent, held by side walls
+  | 'lean' // angled panel resting on its parent, held by side walls (plywood; corrugated of 3 mm or more since milestone 163)
   | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
   | 'closure' // how a lid closes the box it seals: its lip, dust flaps, locks (milestone 67; derived from `Design.closures`)
   | 'butt'; // edge to edge, no joint

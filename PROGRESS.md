@@ -2496,6 +2496,18 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - The owner's review during 160 (the stage did not show the closing lip; templates should be edited with lid and lips open) is done (above).
 - Known, not fixed: with the fold slider at 0, a card hinged tray's lid stands upright instead of lying in the net.
 
+## Milestones 161–166 (presets from boards, `BOXES_PRESETS_PLAN.md`) ✅ first part
+
+- **161** the kit (`structures/boards.ts`): `boardStock`, `boardBox` (tabs on 4 mm board, fingers on plywood), the joint census and `tests/boardBuilt.test.ts` (every board-built card on plywood 3 and 4 mm board: clean at its defaults and at each size's ends or refused with a reason, the census kept, recognised as its card, a shape kept through a size change, not offered on card or 1.6 mm board).
+- **162** the plywood drawer (its sleeve four fingered boards); the *Open-front box*.
+- **163** angled tabs on 4 mm board; the card stand on 4 mm board leans in slots (`stand-corr-4` golden changed on purpose).
+- **164** *Pen holder*, *Scoop tray*, *Bird house* (plywood only).
+- **165** the `slot` body; *Laptop stand*, *Grid insert*, *Shelf*, *Bottle rack*.
+- **166** *Desk sign*, *Slanted shelf*, *Bookend*.
+- Contact sheets updated (`npm run preset-sheet`, `docs/preset-shots/sheet-*.png`): no look-alikes in any board.
+- **169** *Sliding-lid box* (rails making a groove on each side wall, the lid drawn a third out).
+- Not done from the plan, each with its reason in DECISIONS.md: the closed lidded box and organiser heights (open), the book stand and the uneven box (look-alikes), the bird house on 4 mm board, frames (no face-to-face joint), the game board, the Shapes footprints (gear, knob, hole pattern, puzzle cut) and stacking feet.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

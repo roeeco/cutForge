@@ -1,0 +1,400 @@
+// Boxes built from boards (milestones 162, 164; BOXES_PRESETS_PLAN.md §3), for plywood and 4 mm corrugated only
+// (`boardStock`). Each is a construction read in boxes.py and written fresh over the box kit (boards.ts).
+//   an open-front box  a box with no top and no front wall: notes, cards or a stack of paper taken from the front
+//                      (boxes.py's openbox and notesholder);
+//   a pen holder       a box with a level plate partway down, holes in it holding pens upright (penholderbox);
+//   a scoop tray       a low box whose front is a ramp from the base up to the front wall's top, so tokens and screws
+//                      slide out under a finger (smallpartstray);
+//   a bird house       a box whose front and back rise to a gable, a roof of two boards fingered at the ridge and a
+//                      round door (birdhouse); plywood only for now (boards.ts `plywoodOnly`);
+//   a bookend          half of a box: its base, its back and one side (halfbox);
+//   a sliding-lid box  side and back walls past the lid, two rails on each side wall making its groove, a front as
+//                      low as the lid's underside, and a lid that slides out over it (slidinglidbox).
+import type { MsgKey } from '../../i18n';
+import type { ParamDef, Params, TemplateDef } from '../types';
+import { SIZE_MAX } from '../types';
+import { setBoxSize } from '../../model/boxSize';
+import { addDetail, addFreePanel, addWallInsert, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, solve } from '../../model/ops';
+import { panelEdges } from '../../model/edges';
+import { pairKinds } from '../../model/jointDefaults';
+import { minWeb } from '../../model/materials';
+import { boardBoxRect, boardStock, plywoodOnly } from './boards';
+import { cleanAll, cleanWith, mainTray } from './box';
+import { innerFace, nameAll, sheetLimits, wallsOf } from './shaped';
+
+type Role = (name: string, id: string) => void;
+const num = (key: string, label: MsgKey, min: number, max: number, dflt: number): ParamDef => ({ key, label, type: 'number', unit: 'mm', min, max, default: dflt });
+
+/** Inside or outside, for a box of boards (no crease to crease: nothing folds). */
+const sizeAsWord = (def: () => TemplateDef): ParamDef => ({
+  key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
+  options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }],
+  allowed: (v, p, m) => cleanWith(def(), m, p, 'sizeAs', v),
+  why: () => 'sen.why.engine',
+});
+
+/**
+ * A box of boards at these sizes, inside or outside as the words say: its tray, or null. `shape` changes it before it
+ * is sized (a wall taken away), so the sizes are measured on the box as it ends up.
+ */
+function sizedBox(d: Parameters<TemplateDef['generate']>[0], p: Params, shape?: () => void): string | null {
+  const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
+  const as = p.sizeAs === 'outside' ? 'outside' : 'inside';
+  if (!boardBoxRect(d, W, D, H)) return null;
+  shape?.();
+  const tr = mainTray(d)!;
+  if (as === 'inside') d.sizeAs = 'inside';
+  setBoxSize(d, tr, { w: W, d: D, h: H }, as);
+  solve(d);
+  return tr;
+}
+
+// --- the open-front box ---
+
+function generateFrontOpen(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  // the front left open (the base's first edge): its wall taken away, as deleting a tray's wall opens that side
+  const tr = sizedBox(d, p, () => {
+    const front = wallsOf(d).e0;
+    if (front) deletePanel(d, front);
+  });
+  if (!tr) return;
+  nameAll(d, role);
+}
+
+export const frontOpen: TemplateDef = {
+  id: 'frontOpen',
+  version: 1,
+  name: 'sen.frontOpen',
+  description: 'sen.frontOpen.desc',
+  word: 'sen.frontOpen',
+  status: 'beta',
+  materials: ['plywood', 'corrugated'],
+  canMake: boardStock,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.width', 40, SIZE_MAX, 160),
+    num('depth', 'sen.depth', 40, SIZE_MAX, 110),
+    num('height', 'sen.height', 15, SIZE_MAX, 60),
+    sizeAsWord(() => frontOpen),
+  ],
+  generate: generateFrontOpen,
+  sentence: { main: 'sen.s.frontOpen' },
+};
+frontOpen.limits = sheetLimits(frontOpen, { width: 40, depth: 40, height: 15 });
+frontOpen.accepts = (m, p) => (cleanAll(frontOpen, m, p) ? null : 'sen.why.engineSize');
+
+// --- inside a box of boards: a level plate or a ramp between its walls ---
+
+/** Where a box's inner faces are, as built (a tab-and-slot wall stands in from the base's edge, a fingered one not). */
+export function insideOf(d: Parameters<TemplateDef['generate']>[0]): { xL: number; xR: number; zB: number; zF: number; floor: number } | null {
+  const w = wallsOf(d);
+  const tr = mainTray(d);
+  if (!tr) return null;
+  const t = d.material.thickness;
+  const base = d.panels[d.trays[tr].baseId];
+  const W = base?.w ?? 0, D = base?.h ?? 0;
+  const xL = innerFace(d, w.e3, 0) ?? -W / 2 + t, xR = innerFace(d, w.e1, 0) ?? W / 2 - t;
+  const zB = innerFace(d, w.e2, 2) ?? -D / 2 + t, zF = innerFace(d, w.e0, 2) ?? D / 2 - t;
+  // the base's top face
+  const floor = base ? base.frame.o[1] + t : t;
+  return { xL, xR, zB, zF, floor };
+}
+
+/** A board lying level across a box's inside at height `y` (its underside), joined to the walls round it. */
+function levelPlate(d: Parameters<TemplateDef['generate']>[0], y: number): string | null {
+  const ins = insideOf(d);
+  if (!ins) return null;
+  const { xL, xR, zB, zF } = ins;
+  return addFreePanel(d, { frame: { o: [xL, y, zF], u: [1, 0, 0], v: [0, 0, -1] }, side: 1, outer: [{ x: 0, y: 0 }, { x: xR - xL, y: 0 }, { x: xR - xL, y: zF - zB }, { x: 0, y: zF - zB }] });
+}
+
+// --- the pen holder ---
+
+/** The holes a plate W × D (inside) has room for, each `hole` across with `web` between them and round its edge. */
+function holeGrid(W: number, D: number, hole: number, web: number): { nx: number; ny: number } {
+  const n = (L: number) => Math.max(0, Math.floor((L - web) / (hole + web)));
+  return { nx: n(W), ny: n(D) };
+}
+
+function generatePenHolder(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  const tr = sizedBox(d, p);
+  if (!tr) return;
+  const ins = insideOf(d);
+  if (!ins) return;
+  const t = d.material.thickness;
+  // the plate a third of the way down from the top: pens stand through it on the base
+  const H = d.trays[tr].height;
+  const y = Math.max(ins.floor + 20, H - Math.max(15, H / 3) - t);
+  const plate = levelPlate(d, y);
+  solve(d);
+  if (plate) {
+    connectSeams(d, plate);
+    const P = d.panels[plate];
+    const W = ins.xR - ins.xL, D = ins.zF - ins.zB;
+    const hole = Number(p.hole), web = Math.max(3 * t, 4);
+    const { nx, ny } = holeGrid(W, D, hole, web);
+    // the grid centred on the plate
+    const gx = (W - (nx * hole + (nx - 1) * web)) / 2, gy = (D - (ny * hole + (ny - 1) * web)) / 2;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) addDetail(d, P.id, 'circle', 'cut', gx + hole / 2 + i * (hole + web), gy + hole / 2 + j * (hole + web), hole, hole);
+  }
+  solve(d);
+  nameAll(d, role, plate ? { plate } : {});
+}
+
+export const penHolder: TemplateDef = {
+  id: 'penHolder',
+  version: 1,
+  name: 'sen.penHolder',
+  description: 'sen.penHolder.desc',
+  word: 'sen.penHolder',
+  status: 'beta',
+  materials: ['plywood', 'corrugated'],
+  canMake: boardStock,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.width', 50, SIZE_MAX, 120),
+    num('depth', 'sen.depth', 40, SIZE_MAX, 70),
+    num('height', 'sen.height', 50, SIZE_MAX, 90),
+    sizeAsWord(() => penHolder),
+    num('hole', 'sen.penHole', 8, 30, 13),
+  ],
+  generate: generatePenHolder,
+  sentence: { main: 'sen.s.penHolder' },
+};
+penHolder.limits = sheetLimits(penHolder, { width: 50, depth: 40, height: 50 });
+// at least one hole each way
+penHolder.accepts = (m, p) => {
+  const t = m.thickness, web = Math.max(3 * t, 4), g = holeGrid(Number(p.width) - 2 * t, Number(p.depth) - 2 * t, Number(p.hole), web);
+  if (g.nx < 1 || g.ny < 1) return 'sen.why.penHoles' as MsgKey;
+  return cleanAll(penHolder, m, p) ? null : 'sen.why.engineSize';
+};
+
+/**
+ * A board resting on another (a ramp's foot on the base): no flap and no slots, its edge stopped at the other's face
+ * (`slide`), where that joint can be made; a flap of rigid board would have to fold.
+ */
+function restOn(d: Parameters<TemplateDef['generate']>[0], id: string, on: string) {
+  for (const c of Object.values(d.connections)) {
+    if (c.grown || !((c.a.panelId === id && c.b.panelId === on) || (c.b.panelId === id && c.a.panelId === on))) continue;
+    if (pairKinds(d, c).includes('slide')) c.kind = c.pref = 'slide';
+  }
+}
+
+// --- the scoop tray ---
+
+/** The ramp's slant (degrees from level): this, or steeper when the tray is too shallow front to back for it. */
+const RAMP_SLANT = 35;
+/** The most of the inside, front to back, the ramp may take. */
+const RAMP_REACH = 0.6;
+
+function generateScoopTray(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  const tr = sizedBox(d, p);
+  if (!tr) return;
+  const ins = insideOf(d);
+  if (!ins) return;
+  const front = wallsOf(d).e0;
+  const top = front ? d.panels[front].frame.o[1] + d.panels[front].h : d.trays[tr].height;
+  const rise = top - ins.floor, run = ins.zF - ins.zB;
+  // from the front wall's top down to the base, between the side walls
+  const a = Math.max((RAMP_SLANT * Math.PI) / 180, Math.atan(rise / (run * RAMP_REACH)));
+  const len = rise / Math.sin(a);
+  const ramp = addFreePanel(d, {
+    frame: { o: [ins.xL, top, ins.zF], u: [1, 0, 0], v: [0, -Math.sin(a), -Math.cos(a)] },
+    side: 1,
+    outer: [{ x: 0, y: 0 }, { x: ins.xR - ins.xL, y: 0 }, { x: ins.xR - ins.xL, y: len }, { x: 0, y: len }],
+  });
+  solve(d);
+  if (ramp) {
+    connectSeams(d, ramp);
+    // held by the side walls' tabs; it rests on the base and against the front wall's top
+    restOn(d, ramp, d.trays[tr].baseId);
+    if (front) restOn(d, ramp, front);
+  }
+  solve(d);
+  nameAll(d, role, ramp ? { ramp } : {});
+}
+
+export const scoopTray: TemplateDef = {
+  id: 'scoopTray',
+  version: 1,
+  name: 'sen.scoopTray',
+  description: 'sen.scoopTray.desc',
+  word: 'sen.scoopTray',
+  status: 'beta',
+  materials: ['plywood', 'corrugated'],
+  canMake: boardStock,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.width', 50, SIZE_MAX, 120),
+    num('depth', 'sen.depth', 60, SIZE_MAX, 120),
+    num('height', 'sen.height', 20, 120, 40),
+    sizeAsWord(() => scoopTray),
+  ],
+  generate: generateScoopTray,
+  sentence: { main: 'sen.s.scoopTray' },
+};
+scoopTray.limits = sheetLimits(scoopTray, { width: 50, depth: 60, height: 20 });
+scoopTray.accepts = (m, p) => (cleanAll(scoopTray, m, p) ? null : 'sen.why.engineSize');
+
+// --- the bird house ---
+
+/** The roof's pitch (degrees from level): 45°, so the two halves meet square at the ridge and finger there. */
+const ROOF_PITCH = 45;
+
+function generateBirdHouse(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
+  if (!boardBoxRect(d, W, D, H)) return;
+  const w = wallsOf(d);
+  if (!w.e0 || !w.e2) return;
+  // the front and the back rise to a gable over the middle (the boards that run the box's full width)
+  const fw = d.panels[w.e0].w;
+  const rise = (fw / 2) * Math.tan((ROOF_PITCH * Math.PI) / 180);
+  addWallInsert(d, w.e0, 'e2', 0.5, rise);
+  addWallInsert(d, w.e2, 'e2', 0.5, rise);
+  solve(d);
+  // plywood only (`plywoodOnly`): on any other board, which never offers it (a change of board makes it a box), the
+  // gabled box without its roof, rather than a roof the engine joins with flaps it was not made for
+  if (!plywoodOnly(d.material)) return nameAll(d, role);
+  // the roof: a board grown back off each of the front gable's sloped edges, as deep as the box, fingered to the
+  // back gable, the side walls' tops and each other at the ridge
+  const front = d.panels[w.e0];
+  const sloped = panelEdges(front).filter((e) => Math.abs(e.a.y - e.b.y) > 1 && Math.abs(e.a.x - e.b.x) > 1);
+  const roofs: string[] = [];
+  for (const e of sloped) {
+    const r = growPanel(d, w.e0, e.key, { height: D, angle: 90, dir: 'up', kind: 'finger' });
+    if (r) roofs.push(r.panelId);
+  }
+  solve(d);
+  for (const r of roofs) connectSeams(d, r);
+  // the door, round, in the front below the eaves
+  const door = Math.min(Number(p.door), fw - 6 * d.material.thickness, H - 30);
+  if (door >= 15) addDetail(d, front.id, 'circle', 'cut', fw / 2, Math.max(door / 2 + 15, H * 0.6), door, door);
+  solve(d);
+  nameAll(d, role, Object.fromEntries(roofs.map((r, i) => [`roof-${i + 1}`, r])));
+}
+
+export const birdHouse: TemplateDef = {
+  id: 'birdHouse',
+  version: 1,
+  name: 'sen.birdHouse',
+  description: 'sen.birdHouse.desc',
+  word: 'sen.birdHouse',
+  status: 'beta',
+  materials: ['plywood'],
+  canMake: plywoodOnly,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.width', 80, 250, 120),
+    num('depth', 'sen.depth', 80, 250, 120),
+    num('height', 'sen.eaveHeight', 80, 250, 120),
+    num('door', 'sen.doorSize', 20, 60, 32),
+  ],
+  generate: generateBirdHouse,
+  sentence: { main: 'sen.s.birdHouse' },
+};
+birdHouse.limits = sheetLimits(birdHouse, { width: 80, depth: 80, height: 80 });
+birdHouse.accepts = (m, p) => (cleanAll(birdHouse, m, p) ? null : 'sen.why.engineSize');
+
+// --- the bookend ---
+
+function generateBookend(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  // half of a box: its base, its back and one side, the front and the other side open (books lean on the back, the
+  // side keeps it square)
+  const tr = sizedBox(d, p, () => {
+    const w = wallsOf(d);
+    for (const e of ['e0', 'e3']) if (w[e]) deletePanel(d, w[e]);
+  });
+  if (!tr) return;
+  nameAll(d, role);
+}
+
+export const bookend: TemplateDef = {
+  id: 'bookend',
+  version: 1,
+  name: 'sen.bookend',
+  description: 'sen.bookend.desc',
+  word: 'sen.bookend',
+  status: 'beta',
+  materials: ['plywood', 'corrugated'],
+  canMake: boardStock,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.width', 60, 250, 120),
+    num('depth', 'sen.depth', 60, 250, 120),
+    num('height', 'sen.height', 60, 300, 150),
+    sizeAsWord(() => bookend),
+  ],
+  generate: generateBookend,
+  sentence: { main: 'sen.s.bookend' },
+};
+bookend.limits = sheetLimits(bookend, { width: 60, depth: 60, height: 60 });
+bookend.accepts = (m, p) => (cleanAll(bookend, m, p) ? null : 'sen.why.engineSize');
+
+// --- the sliding-lid box ---
+
+/** The play a sliding lid has in its grooves (each side): a tenth of the board, never less than the fit or 0.3 mm. */
+export const slidePlay = (t: number, c: number) => Math.max(c, 0.1 * t, 0.3);
+
+function generateSlideBox(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
+  const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
+  const t = d.material.thickness, play = slidePlay(t, d.material.clearance);
+  // the walls rise past the lid: its groove (t and the play over and under it), an upper rail over it and a web above
+  // that, so the rail's slots are not at the wall's edge; the front stops at the lid's underside, so the lid slides
+  // out over it
+  const groove = t + 2 * play, top = H + groove + t + Math.max(minWeb(d.material), t);
+  if (!boardBoxRect(d, W, D, top)) return;
+  const w = wallsOf(d);
+  if (!w.e0) return;
+  const front = d.panels[w.e0];
+  setCustomHeight(d, w.e0, true);
+  setPanelSize(d, w.e0, undefined, H - front.frame.o[1]);
+  solve(d);
+  const ins = insideOf(d);
+  if (!ins) return;
+  // the rails: on each side wall's inner face, one under the lid (its top at H) and one over it; a strip three
+  // boards wide, tabbed into the side wall and resting against the front and back walls at its ends
+  const r = 3 * t, run = ins.zF - ins.zB;
+  const rails: string[] = [];
+  for (const [x0, sgn] of [[ins.xL, 1], [ins.xR, -1]] as const)
+    for (const y of [H - t, H + groove]) {
+      const x = sgn > 0 ? x0 : x0 - r;
+      const id = addFreePanel(d, { frame: { o: [x, y, ins.zF], u: [1, 0, 0], v: [0, 0, -1] }, side: 1, outer: [{ x: 0, y: 0 }, { x: r, y: 0 }, { x: r, y: run }, { x: 0, y: run }] });
+      if (id) rails.push(id);
+    }
+  // the lid: across between the side walls less the play, from over the front wall to the back wall less the play;
+  // drawn slid a third of the way out, so its picture and the stage show how it opens
+  const lidW = ins.xR - ins.xL - 2 * play, lidD = run + t - play;
+  const out = Math.round(lidD / 3);
+  const lid = addFreePanel(d, { frame: { o: [ins.xL + play, H + play, ins.zF + t + out], u: [1, 0, 0], v: [0, 0, -1] }, side: 1, outer: [{ x: 0, y: 0 }, { x: lidW, y: 0 }, { x: lidW, y: lidD }, { x: 0, y: lidD }] });
+  solve(d);
+  for (const id of rails) {
+    connectSeams(d, id);
+    for (const e of ['e0', 'e2']) if (w[e]) restOn(d, id, w[e]);
+  }
+  // a thumb hole near the lid's front edge, to pull it
+  if (lid && lidW > 40) addDetail(d, lid, 'circle', 'cut', lidW / 2, Math.min(18, lidD / 5), 18, 18);
+  solve(d);
+  nameAll(d, role, { ...(lid ? { lid } : {}), ...Object.fromEntries(rails.map((x, i) => [`rail-${i + 1}`, x])) });
+}
+
+export const slideBox: TemplateDef = {
+  id: 'slideBox',
+  version: 1,
+  name: 'sen.slideBox',
+  description: 'sen.slideBox.desc',
+  word: 'sen.slideBox',
+  status: 'beta',
+  materials: ['plywood', 'corrugated'],
+  canMake: boardStock,
+  fallback: () => 'box',
+  fallbackWords: { lid: 'liftoff' },
+  params: [
+    num('width', 'sen.width', 60, 280, 140),
+    num('depth', 'sen.depth', 50, 280, 100),
+    num('height', 'sen.height', 20, 200, 50),
+  ],
+  generate: generateSlideBox,
+  sentence: { main: 'sen.s.slideBox' },
+};
+slideBox.limits = sheetLimits(slideBox, { width: 60, depth: 50, height: 20 });
+slideBox.accepts = (m, p) => (cleanAll(slideBox, m, p) ? null : 'sen.why.engineSize');

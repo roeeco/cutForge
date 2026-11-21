@@ -7,8 +7,10 @@ import type { Design, Tray } from '../model/types';
 import { endSpec, endStyleOf, trayRing } from '../model/cartons';
 import { boxLid } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
+import { findEdge, segLength } from '../model/edges';
+import { MIN_EDGE } from '../model/trays';
 
-export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'solid' | 'free';
+export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free';
 
 export type PresetRecord = {
   /** What the blank is (§2 of the analysis): a tube (walls in a ring, no base), a cross (a base with walls on its edges), one flat board, boards folded off each other with no box, a stand (boards leaning on a base), a ready shape, or anything else. */
@@ -43,6 +45,27 @@ export type PresetRecord = {
   slope?: boolean;
   /** Milestone 157: boards set at a slant inside a box, joined to its walls (a dice tower's baffles). */
   baffles?: boolean;
+  /** Milestone 164: a board at a slant inside a box that rests on its base, joined to its walls (a scoop tray's ramp). */
+  ramp?: boolean;
+  /** Milestone 165: a slot body's boards cross each other in half-slots. */
+  crossing?: boolean;
+  /** Milestone 165: a slot body of three boards or more crossing (a grid of spaces with no box: an insert). */
+  grid?: boolean;
+  /** Milestone 165: a slot body with boards lying level, held in upright ones (shelves, rails). */
+  shelves?: boolean;
+  /** Milestone 166: a slot body with a board at a slant (a desk sign's plate); `tiers`, two or more (a slanted shelf). */
+  slant?: boolean;
+  tiers?: boolean;
+  /** Milestone 165: round holes cut through a slot body's upright boards (a bottle rack's cradles). */
+  holes?: boolean;
+  /** Milestone 169: narrow level strips of their own on a box's walls (a sliding lid's rails). */
+  rails?: boolean;
+  /** Milestone 164: a box with a roof (boards at a slant grown off its walls, over them: a bird house). */
+  roof?: boolean;
+  /** Milestone 164: a level board inside a box, joined to its walls (a pen holder's plate with holes). */
+  plate?: boolean;
+  /** Milestone 162: how many of a box's walls are left open (an open-front box has one). */
+  open?: number;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -103,16 +126,106 @@ function hasSlope(d: Design, t: Tray): boolean {
   });
 }
 
-/** Boards at a slant inside a box (neither level nor upright), joined to its walls (milestone 157). */
-function hasBaffles(d: Design, t: Tray): boolean {
+/**
+ * Boards at a slant inside a box (neither level nor upright), joined to its walls (milestone 157); `onBase` (milestone
+ * 164): only those also joined to the base (a ramp), else only those that are not (a dice tower's baffles).
+ */
+function hasBaffles(d: Design, t: Tray, onBase = false): boolean {
   const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const onIt = (id: string) => Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
+  // a board grown off another (a roof off a wall) is not one: baffles and ramps are boards of their own
+  const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
   return Object.values(d.panels).some((p) => {
-    if (walls.has(p.id) || p.id === t.baseId || p.lidOf) return false;
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id)) return false;
+    if (onIt(p.id) !== onBase) return false;
     // how level it lies: its normal's upward part
     const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
     if (n < 0.2 || n > 0.98) return false;
     return Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === p.id && walls.has(c.b.panelId)) || (c.b.panelId === p.id && walls.has(c.a.panelId))));
   });
+}
+
+/** A board's area (its outline's), from its sketch's points. */
+function sketchArea(p: Design['panels'][string]): number {
+  const s = p.sketch as { kind: string; pts?: { x: number; y: number }[] };
+  if (s.kind !== 'poly' || !s.pts) return p.w * p.h;
+  let a = 0;
+  for (let i = 0; i < s.pts.length; i++) {
+    const q = s.pts[i], r = s.pts[(i + 1) % s.pts.length];
+    a += q.x * r.y - r.x * q.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+/** A board lying level inside a box (not its base, not a lid), joined to its walls (milestone 164). */
+function hasPlate(d: Design, t: Tray, strips = false): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  // a board grown off another (a hinged lid off the back wall) is not one: a plate is a board of its own
+  const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
+  const base = d.panels[t.baseId];
+  const room = base ? base.w * base.h : 0;
+  return Object.values(d.panels).some((p) => {
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id)) return false;
+    // milestone 169: a plate spans most of the inside; a strip (a rail) is narrow
+    if ((sketchArea(p) < room * 0.25) !== strips) return false;
+    const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
+    if (n < 0.98) return false;
+    return Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === p.id && walls.has(c.b.panelId)) || (c.b.panelId === p.id && walls.has(c.a.panelId))));
+  });
+}
+
+/**
+ * A roof (milestone 164): boards grown off a sloped edge of a box's walls (a gable's), not off their level tops (a
+ * hinged lid, open or shut).
+ */
+function hasRoof(d: Design, t: Tray): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  return Object.values(d.connections).some((c) => {
+    if (!c.grown || !walls.has(c.a.panelId) || walls.has(c.b.panelId) || !d.panels[c.b.panelId]) return false;
+    const e = findEdge(d.panels[c.a.panelId], c.a.edge);
+    return !!e && Math.abs(e.a.y - e.b.y) > 1 && Math.abs(e.a.x - e.b.x) > 1;
+  });
+}
+
+/** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
+function openWalls(d: Design, t: Tray): number {
+  const base = d.panels[t.baseId];
+  if (!base) return 0;
+  return t.openEdges.filter((e) => {
+    const x = findEdge(base, e);
+    return !!x && segLength(x) >= MIN_EDGE;
+  }).length;
+}
+
+/** The joints a slot body is held by: half-slots, tabs in slots, and edges stopped at a face. */
+const SLOT_KINDS = new Set(['halflap', 'tabslot', 'slide', 'butt', 'finger', 'key']);
+
+/**
+ * A slot body (milestone 165; the analysis's *slot*): two boards or more, none grown off another, every joint between
+ * them one of `SLOT_KINDS` and every board joined. Null when the design is not one.
+ */
+function slotOf(d: Design, ids: string[]): PresetRecord | null {
+  const cs = Object.values(d.connections);
+  if (ids.length < 2 || !cs.length || cs.some((c) => c.grown || !SLOT_KINDS.has(c.kind))) return null;
+  if (ids.some((id) => !cs.some((c) => c.a.panelId === id || c.b.panelId === id))) return null;
+  const level = (id: string) => {
+    const f = d.panels[id].frame;
+    return Math.abs(f.u[2] * f.v[0] - f.u[0] * f.v[2]) > 0.98;
+  };
+  const crossing = cs.some((c) => c.kind === 'halflap');
+  const rec: PresetRecord = { body: 'slot' };
+  if (crossing) rec.crossing = true;
+  if (crossing && ids.length >= 3) rec.grid = true;
+  if (ids.some(level)) rec.shelves = true;
+  const upright = (id: string) => {
+    const f = d.panels[id].frame;
+    return Math.abs(f.u[2] * f.v[0] - f.u[0] * f.v[2]) < 0.2;
+  };
+  const slanted = ids.filter((id) => !level(id) && !upright(id)).length;
+  if (slanted) rec.slant = true;
+  if (slanted >= 2) rec.tiers = true;
+  if (ids.some((id) => !level(id) && d.panels[id].details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 20))) rec.holes = true;
+  return rec;
 }
 
 /** A design's record. */
@@ -137,12 +250,21 @@ export function recordOf(d: Design): PresetRecord {
     if (hasWindow(d, t)) rec.window = true;
     if (!tube && hasSlope(d, t)) rec.slope = true;
     if (!tube && hasBaffles(d, t)) rec.baffles = true;
+    if (!tube && hasBaffles(d, t, true)) rec.ramp = true;
+    if (!tube && hasPlate(d, t)) rec.plate = true;
+    if (!tube && hasPlate(d, t, true)) rec.rails = true;
+    if (!tube && hasRoof(d, t)) rec.roof = true;
+    const open = openWalls(d, t);
+    if (!tube && open) rec.open = open;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
   const flaps = ids.flatMap((id) => (d.panels[id].edgeFlaps ?? []).map((f) => f.shape ?? 'plain')).sort().join(',');
   if (ids.length === 1) return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}) };
   const grown = Object.values(d.connections).filter((c) => c.grown);
+  // milestone 165: boards of their own held together by slots and tabs, nothing grown off another (BOXES_PRESETS_PLAN.md)
+  const slot = slotOf(d, ids);
+  if (slot) return slot;
   const lean = grown.some((c) => c.kind !== 'fold' && c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1);
   if (lean) return { body: 'stand', lean: true, supports: grown.filter((c) => c.angle > 10 && c.angle < 170 && Math.abs(c.angle - 90) > 1).length };
   if (grown.length && grown.every((c) => c.kind === 'fold' || c.kind === 'glue')) {
@@ -166,7 +288,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

@@ -54,7 +54,7 @@ export type Card = {
   challenges: string[];
   status: 'stable' | 'beta' | 'planned';
   /** Milestone 151: how its pictures look at it (views/illustrate.ts): from where, and how far a tube's bottom flaps hang open. */
-  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number; /** What its pictures show inside it (milestone 155). */ prop?: 'cup' | 'product' };
+  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number; /** What its pictures show inside it (milestone 155; paper, milestone 162). */ prop?: 'cup' | 'product' | 'paper' };
 };
 
 const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
@@ -69,6 +69,14 @@ export const CATALOGUE: Card[] = [
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
     ],
   },
+  // milestone 162 (beta; BOXES_PRESETS_PLAN.md): boards with no top and no front, on plywood and 4 mm board only
+  { id: 'frontOpen', title: 'card.frontOpen', group: 'boxes', status: 'beta', view: { prop: 'paper' }, challenges: [], variants: [{ id: 'frontOpen', structure: 'frontOpen', match: { body: 'cross', lid: 'none', open: 1 } }] },
+  // milestone 164 (beta): a box of boards with a plate partway down, pens standing in its holes
+  { id: 'penHolder', title: 'card.penHolder', group: 'boxes', status: 'beta', view: { prop: 'cup', dir: 'high' }, challenges: [], variants: [{ id: 'penHolder', structure: 'penHolder', match: { body: 'cross', lid: 'none', plate: true } }] },
+  // milestone 164 (beta): a low box of boards whose front is a ramp, for scooping tokens and screws out
+  { id: 'scoopTray', title: 'card.scoopTray', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'scoopTray', structure: 'scoopTray', match: { body: 'cross', lid: 'none', ramp: true } }] },
+  // milestone 169 (beta): a box of boards whose lid slides out in grooves made by rails on its side walls
+  { id: 'slideBox', title: 'card.slideBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'slideBox', structure: 'slideBox', match: { body: 'cross', lid: 'none', rails: true } }] },
   { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
   {
     id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: [],
@@ -130,6 +138,8 @@ export const CATALOGUE: Card[] = [
   },
   { id: 'folder', title: 'card.folder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'folder', structure: 'folder', match: { body: 'folded', boards: 4 } }] },
   { id: 'cardHolder', title: 'card.cardHolder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'cardHolder', structure: 'cardHolder', match: { body: 'folded', boards: 2, slits: true } }] },
+  // milestone 164 (beta, plywood only): a gabled box with a roof of two boards and a round door
+  { id: 'birdHouse', title: 'card.birdHouse', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'birdHouse', structure: 'birdHouse', match: { body: 'cross', lid: 'fixed', roof: true } }] },
   // stands
   {
     id: 'stand', title: 'card.stand', word: 'card.stand.word', group: 'more', status: 'stable', view: { dir: 'side34' }, challenges: ['card-stand'],
@@ -141,6 +151,16 @@ export const CATALOGUE: Card[] = [
   },
   // milestone 157 (beta): a tall box with slanted baffles between its side walls and a way out at the bottom
   { id: 'diceTower', title: 'card.diceTower', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'diceTower', structure: 'diceTower', match: { body: 'cross', lid: 'none', baffles: true } }] },
+  // milestone 165 (beta): slotted boards, no box and no base, on plywood and 4 mm board only
+  { id: 'laptopStand', title: 'card.laptopStand', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'laptopStand', structure: 'laptopStand', match: { body: 'slot', crossing: true } }] },
+  { id: 'gridInsert', title: 'card.gridInsert', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridInsert', structure: 'gridInsert', match: { body: 'slot', crossing: true, grid: true } }] },
+  { id: 'shelf', title: 'card.shelf', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } }] },
+  { id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } }] },
+  // milestone 166 (beta): boards at a slant held in angled slots, on plywood and 4 mm board only
+  { id: 'deskSign', title: 'card.deskSign', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'deskSign', structure: 'deskSign', match: { body: 'slot', slant: true } }] },
+  { id: 'slantedShelf', title: 'card.slantedShelf', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'slantedShelf', structure: 'slantedShelf', match: { body: 'slot', slant: true, tiers: true } }] },
+  // milestone 166 (beta): half of a box of boards, its front and one side open
+  { id: 'bookend', title: 'card.bookend', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bookend', structure: 'bookend', match: { body: 'cross', lid: 'none', open: 2 } }] },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],
