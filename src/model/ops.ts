@@ -2,13 +2,13 @@
 import { planWings, reconcileWings } from './wings';
 import { autoFlap } from './seams';
 import { closureCovers, closureOf, reachFor, reconcileClosures } from './closures';
-import { fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons';
+import { endSpec, fitTopLids, planOpenTrays, reconcileTopLids, trayRing } from './cartons';
 // from the store) and mutates it. `solve` re-derives everything that is
 // owned by connections, so every operation ends with a consistent design.
 import { pieceRoot, placementPiece } from './keys';
 // shapes feed the edge layer: make sure the own-outline hook is installed
 import './outline';
-import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, FlapShape, TrayBottom, TrayTop, V3 } from './types';
+import type { BoardLine, Connection, ConnectionKind, Design, Detail, DividerRec, LineType, RoundShape, DetailShape, DetailOp, FoldOver, MaterialProfile, P2, Panel, PanelPlace, Tray, WallCorner, WallInsert, WallSketch, Closure, EdgeFlap, EndFlap, EndSpec, FlapShape, TrayBottom, TrayTop, V3 } from './types';
 import { insideCornerExtensions, reconcileTrays, trayKinds, trayOf, trayWalls, wallHeight } from './trays';
 import { FINGER_HOLE, fingerId, flatLip, freeLidSpot, lidBesideDefault, LID_RIM, lidOn, placeFlatLid, placeLid, reconcileFlatLids, reconcileLids } from './lid';
 import { canMatch, copyProfile, leaderOf, linkMatch, pushToLeader, reconcileMatches, unlinkMatch } from './match';
@@ -2418,6 +2418,25 @@ export function setTrayEnds(d: Design, trayId: string, patch: { base?: 'cut' | '
   }
   // the walls' joints with the base take the new kind
   for (const c of Object.values(d.connections)) if (c.grown && c.trayId === trayId) (c.kind = t.wallKind), (c.pref = t.wallKind);
+  solve(d);
+  autoConnect(d);
+}
+
+/**
+ * One wall's flap at a tube's end (milestone 149): the end becomes a list of its own (starting from its named style's),
+ * with this wall's flap changed; `null` goes back to the named style. A list that is a named style again keeps the list
+ * (it is drawn the same); `endStyleOf` names it.
+ */
+export function setEndFlap(d: Design, trayId: string, end: 'top' | 'bottom', role: keyof EndSpec, flap: EndFlap | null) {
+  const t = d.trays[trayId];
+  if (!t) return;
+  if (flap === null) {
+    if (t.ends) delete t.ends[end];
+    if (t.ends && !t.ends.top && !t.ends.bottom) delete t.ends;
+  } else {
+    const from = endSpec(t, end) ?? { front: { kind: 'none' }, back: { kind: 'none' }, left: { kind: 'none' }, right: { kind: 'none' } };
+    t.ends = { ...(t.ends ?? {}), [end]: { ...from, [role]: { ...flap } } };
+  }
   solve(d);
   autoConnect(d);
 }

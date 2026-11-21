@@ -5,7 +5,7 @@
 // back wall (a real panel the tray keeps, closed by milestone 67's closure),
 // four seal flaps, or a snap-lock (1-2-3) bottom; the flaps are derived from
 // the tray's choice on every solve, like a closure, as joints of their own.
-import type { ConnGeom, Connection, Design, Flap3d, P2, Panel, Tray, V3 } from './types';
+import type { ConnGeom, Connection, Design, EndFlap, EndSpec, Flap3d, P2, Panel, Tray, V3 } from './types';
 import { findEdge, segLength } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
 import { matOf, tOf } from './materials';
@@ -131,13 +131,47 @@ export const CRASH_LOCK_OFFERED = false;
 
 export const endId = (t: Tray, end: 'top' | 'bottom') => `end:${t.id}:${end}`;
 
-/** The ends of each tray that close with flaps (seal ends, snap-lock and reverse-tuck bottoms). */
+const F = (kind: EndFlap['kind'], gap?: number): EndFlap => (gap === undefined ? { kind } : { kind, gap });
+const all = (f: EndFlap): EndSpec => ({ front: f, back: f, left: f, right: f });
+
+/**
+ * The named end styles as lists of flaps by wall (milestone 149): each draws exactly what its style drew before.
+ * `tuck` folds off the front (a reverse tuck), `tuckBack` off the back (a straight tuck). `full` (FEFCO 0203) is the
+ * first style that is only a list.
+ */
+export const END_STYLES: Record<'seal' | 'rsc' | 'full' | 'snap' | 'crash' | 'tuck' | 'tuckBack', EndSpec> = {
+  seal: all(F('half')),
+  rsc: all(F('rsc')),
+  full: all(F('full')),
+  snap: { back: F('lock'), left: F('hook'), right: F('hook'), front: F('tongue') },
+  crash: { back: F('crash'), front: F('crash'), left: F('half', 1), right: F('half', 1) },
+  tuck: { front: F('tuck'), back: F('none'), left: F('dust'), right: F('dust') },
+  tuckBack: { back: F('tuck'), front: F('none'), left: F('dust'), right: F('dust') },
+};
+
+/** An end's flaps: the tray's own list, else its named style's; null when the end is not closed by flaps. */
+export function endSpec(t: Tray, end: 'top' | 'bottom'): EndSpec | null {
+  const own = t.ends?.[end];
+  if (own) return own;
+  if (end === 'top') return t.top === 'seal' || t.top === 'rsc' || t.top === 'full' ? END_STYLES[t.top] : null;
+  return t.base === 'open' && t.bottom ? END_STYLES[t.bottom] : null;
+}
+
+/** The named style an end's flaps are, when they are one. */
+export function endStyleOf(spec: EndSpec): keyof typeof END_STYLES | null {
+  const same = (a: EndFlap, b: EndFlap) => a.kind === b.kind && (a.gap ?? null) === (b.gap ?? null);
+  for (const [k, v] of Object.entries(END_STYLES)) if ((['front', 'back', 'left', 'right'] as const).every((r) => same(v[r], spec[r]))) return k as keyof typeof END_STYLES;
+  return null;
+}
+
+/** The ends of each tray that close with flaps (seal ends, snap-lock and reverse-tuck bottoms, and any end given flaps wall by wall). */
 export function wantedEnds(d: Design): { id: string; tray: Tray; end: 'top' | 'bottom' }[] {
   const out: { id: string; tray: Tray; end: 'top' | 'bottom' }[] = [];
   for (const t of Object.values(d.trays ?? {})) {
     if (trayRing(d, t).length !== 4) continue;
-    if (t.top === 'seal' || t.top === 'rsc') out.push({ id: endId(t, 'top'), tray: t, end: 'top' });
-    if (t.base === 'open' && t.bottom) out.push({ id: endId(t, 'bottom'), tray: t, end: 'bottom' });
+    // a tuck top is a lid of its own (reconcileTopLids); its flaps are the closure's
+    if (t.top !== 'tuck' && endSpec(t, 'top')) out.push({ id: endId(t, 'top'), tray: t, end: 'top' });
+    if (t.base === 'open' && endSpec(t, 'bottom')) out.push({ id: endId(t, 'bottom'), tray: t, end: 'bottom' });
   }
   return out;
 }
@@ -202,7 +236,8 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
   const B = d.panels[back.wall], F = d.panels[front.wall];
   if (!B || !F || sides.length !== 2) return null;
   const top = w.end === 'top';
-  const style = top ? (t.top === 'rsc' ? 'rsc' : 'seal') : (t.bottom ?? 'seal');
+  const spec = endSpec(t, w.end);
+  if (!spec) return null;
   const g = empty();
   const m = matOf(d, B.id), tW = m.thickness;
   // the box's inside: width (along the front) and depth (front to back)
@@ -244,36 +279,53 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
     { x: L - to - taper, y: h },
     { x: from + taper, y: h },
   ];
-  if (style === 'seal') {
-    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 0.5, tW + 0.5, Math.max(8, width / 2 - tW - 2), 3));
-    for (const P of [B, F]) flap(P, rect(along(P), 0.5, 0.5, Math.max(8, depth / 2 - 0.5)));
-  } else if (style === 'snap') {
-    const LB = along(B), LF = along(F);
-    const notch = Math.min(0.3 * width, 30), nd = Math.min(8, depth / 6);
-    // 1: the back flap, more than half the depth, notched in its middle
-    const hb = depth * 0.55;
-    flap(B, [{ x: tW, y: -0.01 }, { x: LB - tW, y: -0.01 }, { x: LB - tW, y: hb }, { x: LB / 2 + notch / 2, y: hb }, { x: LB / 2 + notch / 2, y: hb - nd }, { x: LB / 2 - notch / 2, y: hb - nd }, { x: LB / 2 - notch / 2, y: hb }, { x: tW, y: hb }]);
-    // 2 and 3: the side flaps, cut at 45° towards the front, hooked at their front end
-    for (const r of sides) {
-      const S = d.panels[r.wall], LS = along(S);
-      // which end of the side's edge is at the front wall
-      const frontAtEnd = Math.abs(v3dot(v3sub(toWorld(S.frame, LS, 0, 0), F.frame.o), matDir(F.frame))) < Math.abs(v3dot(v3sub(toWorld(S.frame, 0, 0, 0), F.frame.o), matDir(F.frame)));
+  // the sides by where they are seen from the front (left: towards the front wall's start), in the ring's order
+  const fMid = toWorld(F.frame, F.w / 2, 0, 0);
+  const roleOf = (wall: string): 'left' | 'right' => (v3dot(v3sub(toWorld(d.panels[wall].frame, d.panels[wall].w / 2, 0, 0), fMid), F.frame.u) < 0 ? 'left' : 'right');
+  const walls: Record<'front' | 'back' | 'left' | 'right', Panel> = { front: F, back: B, left: d.panels[sides[0].wall], right: d.panels[sides[1].wall] };
+  const sideRoles = sides.map((r) => roleOf(r.wall));
+  if (sideRoles[0] === sideRoles[1]) (sideRoles[0] = 'left'), (sideRoles[1] = 'right');
+  sides.forEach((r, i) => (walls[sideRoles[i]] = d.panels[r.wall]));
+  // the order they fold (and are cut): a snap-lock's back first, under its sides; otherwise the sides first, under the back and front
+  const order: ('front' | 'back' | 'left' | 'right')[] = spec.back.kind === 'lock' ? ['back', ...sideRoles, 'front'] : [...sideRoles, 'back', 'front'];
+  const isSide = (r: string) => r === 'left' || r === 'right';
+  const notch = Math.min(0.3 * width, 30), nd = Math.min(8, depth / 6);
+  for (const role of order) {
+    const f = spec[role], P = walls[role];
+    if (!P || f.kind === 'none') continue;
+    const L = along(P), side = isSide(role);
+    // how far across the end a flap from this wall can reach: the width for a side, the depth for the front or back
+    const span = side ? width : depth;
+    if (f.kind === 'half') flap(P, side ? rect(L, tW + 0.5, tW + 0.5, Math.max(8, width / 2 - tW - (f.gap ?? 2)), 3) : rect(L, 0.5, 0.5, Math.max(8, depth / 2 - 0.5)));
+    else if (f.kind === 'rsc') {
+      // a regular slotted container (FEFCO 0201, C2): every flap half the box's smaller side deep, straight slots between them;
+      // the long sides' flaps meet in the middle, the short sides' leave a gap
+      const h = Math.max(8, Math.min(width, depth) / 2 - 0.5);
+      flap(P, side ? rect(L, tW + 0.5, tW + 0.5, h) : rect(L, 0.5, 0.5, h));
+    } else if (f.kind === 'full') {
+      // full overlap (FEFCO 0203, milestone 149): right across the end, the flaps lying one over another
+      flap(P, side ? rect(L, tW + 0.5, tW + 0.5, Math.max(8, span - 2 * tW - 1), 3) : rect(L, 0.5, 0.5, Math.max(8, span - 0.5)));
+    } else if (f.kind === 'dust') flap(P, side ? rect(L, tW + 1, tW + 1, Math.max(8, 0.45 * width), 4) : rect(L, 0.5, 0.5, Math.max(8, 0.45 * depth), 4));
+    else if (f.kind === 'lock') {
+      // 1: the back flap, more than half the depth, notched in its middle
+      const hb = span * 0.55;
+      flap(P, [{ x: tW, y: -0.01 }, { x: L - tW, y: -0.01 }, { x: L - tW, y: hb }, { x: L / 2 + notch / 2, y: hb }, { x: L / 2 + notch / 2, y: hb - nd }, { x: L / 2 - notch / 2, y: hb - nd }, { x: L / 2 - notch / 2, y: hb }, { x: tW, y: hb }]);
+    } else if (f.kind === 'hook') {
+      // 2 and 3: the side flaps, cut at 45° towards the front, hooked at their front end
+      const frontAtEnd = Math.abs(v3dot(v3sub(toWorld(P.frame, L, 0, 0), F.frame.o), matDir(F.frame))) < Math.abs(v3dot(v3sub(toWorld(P.frame, 0, 0, 0), F.frame.o), matDir(F.frame)));
       const h = Math.min(width / 2 - 2, depth * 0.6), hook = Math.min(6, h / 3);
-      const shape: P2[] = [{ x: tW, y: -0.01 }, { x: LS - tW, y: -0.01 }, { x: LS - tW - h * 0.6, y: h - hook }, { x: LS - tW - h * 0.6 - hook, y: h - hook }, { x: LS - tW - h * 0.6 - hook, y: h }, { x: tW + h * 0.25, y: h }];
-      flap(S, frontAtEnd ? shape : shape.map((q) => ({ x: LS - q.x, y: q.y })).reverse());
-    }
-    // 4: the front flap, with a tongue that locks under the back flap's notch
-    const hf = depth * 0.5, tw = notch - 2;
-    flap(F, [{ x: tW, y: -0.01 }, { x: LF - tW, y: -0.01 }, { x: LF - tW, y: hf }, { x: LF / 2 + tw / 2, y: hf }, { x: LF / 2 + tw / 2 - 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2 + 2, y: hf + nd + 4 }, { x: LF / 2 - tw / 2, y: hf }, { x: tW, y: hf }]);
-  } else if (style === 'crash') {
-    // a crash-lock (auto) bottom (ECMA B40, milestone C3): the front and back flaps half the depth deep, each with a 45°
-    // crease from its hinge corner to the middle that cuts off a glue triangle (at diagonally opposite corners); the side
-    // flaps meet in the middle. Glued in the flat at the triangles, it locks itself when the carton is squared up.
-    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 0.5, tW + 0.5, Math.max(8, width / 2 - tW - 1), 3));
-    const h = Math.max(8, depth / 2 - 0.5);
-    g.glueAt = [];
-    for (const P of [B, F]) {
-      const L = along(P);
+      const shape: P2[] = [{ x: tW, y: -0.01 }, { x: L - tW, y: -0.01 }, { x: L - tW - h * 0.6, y: h - hook }, { x: L - tW - h * 0.6 - hook, y: h - hook }, { x: L - tW - h * 0.6 - hook, y: h }, { x: tW + h * 0.25, y: h }];
+      flap(P, frontAtEnd ? shape : shape.map((q) => ({ x: L - q.x, y: q.y })).reverse());
+    } else if (f.kind === 'tongue') {
+      // 4: the front flap, with a tongue that locks under the back flap's notch
+      const hf = span * 0.5, tw = notch - 2;
+      flap(P, [{ x: tW, y: -0.01 }, { x: L - tW, y: -0.01 }, { x: L - tW, y: hf }, { x: L / 2 + tw / 2, y: hf }, { x: L / 2 + tw / 2 - 2, y: hf + nd + 4 }, { x: L / 2 - tw / 2 + 2, y: hf + nd + 4 }, { x: L / 2 - tw / 2, y: hf }, { x: tW, y: hf }]);
+    } else if (f.kind === 'crash') {
+      // a crash-lock (auto) bottom (ECMA B40, milestone C3): half the depth deep, a 45° crease from its hinge corner to the
+      // middle that cuts off a glue triangle (at diagonally opposite corners); glued in the flat at the triangles, it locks
+      // itself when the carton is squared up
+      const h = Math.max(8, depth / 2 - 0.5);
+      g.glueAt ??= [];
       const corner = L - 0.5, leg = Math.min(h, corner - 0.5);
       flap(P, rect(L, 0.5, 0.5, h));
       const e = findEdge(P, 'e0');
@@ -282,42 +334,36 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
       const at = (q: P2): P2 => ({ x: e.a.x + sx * q.x, y: e.a.y + sy * q.x - q.y });
       g.scores.push({ panelId: P.id, a: at({ x: corner, y: 0 }), b: at({ x: corner - leg, y: leg }) });
       g.glueAt.push({ panelId: P.id, at: at({ x: corner - leg / 3, y: (2 * leg) / 3 }) });
+    } else if (f.kind === 'tuck') {
+      // a tuck reaches across the end with a lip that turns up inside the wall opposite: a reverse tuck off the front, a
+      // straight tuck (C2) off the back
+      const Q = role === 'front' ? B : role === 'back' ? F : walls[role === 'left' ? 'right' : 'left'];
+      const reach = side ? width : depth;
+      const lip = Math.min(22, Math.max(12, 0.3 * reach));
+      const r = 4;
+      const lipShape: P2[] = [{ x: L - tW - 0.5, y: reach }, { x: L - tW - 0.5, y: reach + lip - r }, { x: L - tW - 0.5 - r, y: reach + lip }, { x: tW + 0.5 + r, y: reach + lip }, { x: tW + 0.5, y: reach + lip - r }, { x: tW + 0.5, y: reach }];
+      // in 3D the flap folds flat across the end and its lip turns up inside the opposite wall
+      // (folded flat with the flap it ran on out past the opposite wall)
+      flap(P, [{ x: 0.5, y: -0.01 }, { x: L - 0.5, y: -0.01 }, { x: L - 0.5, y: reach }, ...lipShape, { x: 0.5, y: reach }], [{ x: 0.5, y: -0.01 }, { x: L - 0.5, y: -0.01 }, { x: L - 0.5, y: reach }, { x: 0.5, y: reach }]);
+      const eE = findEdge(P, top ? 'e2' : 'e0');
+      if (eE && !top) {
+        const LE = segLength(eE), sx = (eE.b.x - eE.a.x) / LE, sy = (eE.b.y - eE.a.y) / LE;
+        const mE = matDir(P.frame), upQ = Q.frame.v;
+        const lipOnQ = lipShape.map((q) => {
+          // across the end to the opposite wall's inside, then up it
+          const wv = toWorld(P.frame, eE.a.x + sx * q.x, eE.a.y + sy * q.x, 0);
+          const up = q.y - reach;
+          return toLocal(Q.frame, [wv[0] + mE[0] * reach + upQ[0] * up, wv[1] + mE[1] * reach + upQ[1] * up, wv[2] + mE[2] * reach + upQ[2] * up]);
+        });
+        g.flaps3d.push({ panelId: Q.id, poly: lipOnQ, z0: tW, z1: 2 * tW, owner: P.id });
+      }
+      if (eE) {
+        const LE = segLength(eE), sx = (eE.b.x - eE.a.x) / LE, sy = (eE.b.y - eE.a.y) / LE;
+        const out = top ? 1 : -1;
+        const p2 = (x: number, y: number) => ({ x: eE.a.x + sx * x, y: eE.a.y + sy * x + out * y });
+        g.scores.push({ panelId: P.id, a: p2(tW + 0.5, reach), b: p2(L - tW - 0.5, reach) });
+      }
     }
-  } else if (style === 'rsc') {
-    // a regular slotted container (FEFCO 0201, C2): every flap half the box's smaller side deep, straight slots between them;
-    // the long sides' flaps meet in the middle, the short sides' leave a gap
-    const f = Math.max(8, Math.min(width, depth) / 2 - 0.5);
-    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 0.5, tW + 0.5, f));
-    for (const P of [B, F]) flap(P, rect(along(P), 0.5, 0.5, f));
-  } else if (style === 'tuck' || style === 'tuckBack') {
-    // a reverse tuck folds off the front wall and its lip turns up inside the back; a straight tuck (C2) off the back, up inside the front
-    const [P, Q] = style === 'tuckBack' ? [B, F] : [F, B];
-    // a reverse tuck bottom: dust flaps on the sides, the front wall's flap the whole depth with a lip
-    for (const S of sides.map((r) => d.panels[r.wall])) flap(S, rect(along(S), tW + 1, tW + 1, Math.max(8, 0.45 * width), 4));
-    const LF = along(P), lip = Math.min(22, Math.max(12, 0.3 * depth));
-    const r = 4;
-    const lipShape: P2[] = [{ x: LF - tW - 0.5, y: depth }, { x: LF - tW - 0.5, y: depth + lip - r }, { x: LF - tW - 0.5 - r, y: depth + lip }, { x: tW + 0.5 + r, y: depth + lip }, { x: tW + 0.5, y: depth + lip - r }, { x: tW + 0.5, y: depth }];
-    // in 3D the flap folds flat across the bottom and its lip turns up inside the back wall
-    // (folded flat with the flap it ran on out past the back wall)
-    flap(P, [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, ...lipShape, { x: 0.5, y: depth }], [{ x: 0.5, y: -0.01 }, { x: LF - 0.5, y: -0.01 }, { x: LF - 0.5, y: depth }, { x: 0.5, y: depth }]);
-    const eF = findEdge(P, 'e0');
-    if (eF) {
-      const L = segLength(eF), sx = (eF.b.x - eF.a.x) / L, sy = (eF.b.y - eF.a.y) / L;
-      const mF = matDir(P.frame), upB = Q.frame.v;
-      const lipOnBack = lipShape.map((q) => {
-        // across the bottom to the back wall's inside, then up it
-        const w = toWorld(P.frame, eF.a.x + sx * q.x, eF.a.y + sy * q.x, 0);
-        const up = q.y - depth;
-        return toLocal(Q.frame, [w[0] + mF[0] * depth + upB[0] * up, w[1] + mF[1] * depth + upB[1] * up, w[2] + mF[2] * depth + upB[2] * up]);
-      });
-      g.flaps3d.push({ panelId: Q.id, poly: lipOnBack, z0: tW, z1: 2 * tW, owner: P.id });
-    }
-    g.scores.push({ panelId: P.id, ...(() => {
-      const e = findEdge(P, 'e0')!;
-      const L = segLength(e), sx = (e.b.x - e.a.x) / L, sy = (e.b.y - e.a.y) / L;
-      const p = (x: number, y: number) => ({ x: e.a.x + sx * x, y: e.a.y + sy * x - y });
-      return { a: p(tW + 0.5, depth), b: p(LF - tW - 0.5, depth) };
-    })() });
   }
   return g;
 }

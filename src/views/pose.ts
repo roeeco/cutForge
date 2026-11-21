@@ -60,7 +60,7 @@ function isFlatPiece(d: Design): boolean {
 /** The pose a design's picture takes when nothing asks otherwise. */
 export function autoPose(d: Design): Pose {
   const pose: Pose = {};
-  if (trays(d).some((t) => t.top === 'seal' || t.top === 'rsc')) pose.ends = 1.12;
+  if (trays(d).some((t) => t.top === 'seal' || t.top === 'rsc' || t.top === 'full' || !!t.ends?.top)) pose.ends = 1.12;
   if (isFlatPiece(d)) {
     pose.backFlap = 160;
     // an envelope: one board with its flaps folded over it

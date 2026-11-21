@@ -2420,6 +2420,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/pose.test.ts`: the drawer's tray inside its sleeve, end flaps unfolding in line with their walls, poses never change the design, each kind's pose.
 - Look-alikes after 148: only the tuck cartons (pictures, until 151) and box/tray (structure, until 153) are left.
 
+## Milestone 149 (presets overhaul) — engine: ends per wall ✅
+
+- `src/model/types.ts`: `EndFlapKind`, `EndFlap`, `EndSpec`, `Tray.ends`; `TrayTop` / `TrayBottom` gain `full`. `src/model/cartons.ts`: `END_STYLES`, `endSpec`, `endStyleOf`, and `endGeom` drawing wall by wall. `src/model/ops.ts`: `setEndFlap`.
+- The full-overlap box (FEFCO 0203) on corrugated: the carton's words, the tray card, the style list and the *Box with flaps* card.
+- `tests/ends.test.ts`: styles are their lists, full overlap builds clean, three lists that are no style build with nothing blocking, one wall set on its own and back. Carton goldens unchanged.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

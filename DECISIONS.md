@@ -726,3 +726,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The folder and the gift-card holder are not posed**: their covers lie as made, and their slits (drawn since 147) already tell them apart. Per-card views come in 151.
 - **The look-alike threshold is 5 bits** (was 6): with flaps open, a lid lifted over its box and a box with its flaps open measured 6, different things; true look-alikes still measure 0–5.
 
+## Milestone 149 (presets overhaul): ends per wall
+- **An end closed by flaps is one flap per wall** (`EndSpec`: front, back, left, right; `EndFlap.kind`: `none · half · rsc · full · dust · tuck · lock · hook · tongue · crash`). The walls are named by role, not by the base's edge keys, so a list means the same thing on any box; left and right are as seen from the front.
+- **The named styles are lists** (`END_STYLES`), each drawing exactly what it drew before: every carton golden (snap, reverse and straight tuck, seal, RSC, crash) is byte-identical. Where two styles differed by a millimetre (a crash bottom's side flaps stop 1 mm short of the middle, a seal's 2), the flap carries its `gap`. The flaps are cut in the old order: a snap-lock's back first, otherwise the sides first.
+- **A tray's own list overrides its style** (`Tray.ends`); `setEndFlap` sets one wall's flap (the rest copied from the style) and `null` goes back to the style. `endStyleOf` names a list that is a style. The tuck top stays a lid of its own (milestone 68), so it is not a list.
+- **The first style that is only a list: full overlap** (`full`, FEFCO 0203), corrugated only like the RSC: the carton's *top* and *bottom* words, the tray card's selects, the style *Full-overlap box* and the catalogue's *Box with flaps* card.
+- **The sentence does not offer one wall's flap yet**: that is a slot of the custom-preset editor (158), not a word, so the sentence stays short.
+

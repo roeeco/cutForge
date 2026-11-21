@@ -45,6 +45,8 @@ export const STYLES: StyleDef[] = [
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
   // shipping
   { id: 'rsc', structure: 'carton', words: { top: 'rsc', bottom: 'rsc' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0201', status: 'stable' },
+  // milestone 149: the first style that is only a list of flaps (END_STYLES.full)
+  { id: 'fol', structure: 'carton', words: { top: 'full', bottom: 'full' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0203', status: 'stable' },
   // flat pieces
   { id: 'diamondEnvelope', structure: 'envelope', words: { flaps: 'pointed' }, group: 'flat', uses: ['gift', 'stationery'], status: 'stable' },
   { id: 'pocketEnvelope', structure: 'envelope', words: { flaps: 'pocket' }, group: 'flat', uses: ['cards', 'stationery'], status: 'stable' },

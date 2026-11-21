@@ -670,6 +670,8 @@ export type Tray = {
   top?: TrayTop;
   /** Milestone 68: how an open base closes: four flaps (`seal`), a snap-lock (1-2-3) bottom (`snap`), or a reverse tuck flap (`tuck`, off the front wall); C2: a straight tuck (`tuckBack`, off the back wall, as the top's) or RSC flaps (`rsc`); C3: a crash-lock (auto) bottom (`crash`); absent: open (a sleeve). */
   bottom?: TrayBottom;
+  /** Milestone 149: an end's flaps wall by wall, in place of its named style (`top`, `bottom`); a named style is such a list (`END_STYLES`). */
+  ends?: { top?: EndSpec; bottom?: EndSpec };
   /** Milestone 65: what holds its curved walls to the base (glue teeth, tabs in curved slots, nothing); absent: by the base and material (`curveKindOf`). */
   curveKind?: 'teeth' | 'tabslot' | 'none';
   /** Milestone 71: this tray is the telescoping lid of the tray named (its base follows that box's outline, turned over on top of it). */
@@ -679,9 +681,22 @@ export type Tray = {
 };
 
 /** How a carton's top closes (milestones 68, C2). */
-export type TrayTop = 'tuck' | 'seal' | 'rsc';
+export type TrayTop = 'tuck' | 'seal' | 'rsc' | 'full';
+
+/**
+ * Milestone 149 (DIELINE_GENERATOR_ANALYSIS.md §3.2): an end of a tube closed by flaps is one flap per wall, each of
+ * a kind. `half` meets the flap opposite in the middle; `rsc` is half the box's smaller side deep; `full` reaches
+ * right across (FEFCO 0203); `dust` is a side flap under a tuck; `tuck` reaches across with a lip that turns up inside
+ * the wall opposite; `lock`, `hook` and `tongue` are the snap-lock's back, sides and front; `crash` is an automatic
+ * bottom's front or back flap with its glue triangle; `none` leaves the wall's end bare. `gap` is how far short of the
+ * middle a `half` side flap stops (mm).
+ */
+export type EndFlapKind = 'none' | 'half' | 'rsc' | 'full' | 'dust' | 'tuck' | 'lock' | 'hook' | 'tongue' | 'crash';
+export type EndFlap = { kind: EndFlapKind; gap?: number };
+/** An end's flaps by wall: the front (the base's first edge), the back, and the sides on the left and right seen from the front. */
+export type EndSpec = { front: EndFlap; back: EndFlap; left: EndFlap; right: EndFlap };
 /** How a carton's open base closes (milestones 68, C2). */
-export type TrayBottom = 'seal' | 'snap' | 'tuck' | 'tuckBack' | 'rsc' | 'crash';
+export type TrayBottom = 'seal' | 'snap' | 'tuck' | 'tuckBack' | 'rsc' | 'crash' | 'full';
 export const TRAY_TOPS: TrayTop[] = ['tuck', 'seal', 'rsc'];
 export const TRAY_BOTTOMS: TrayBottom[] = ['seal', 'snap', 'tuck', 'tuckBack', 'rsc', 'crash'];
 

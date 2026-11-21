@@ -26,7 +26,7 @@ export function cartonDesign(m: MaterialProfile, top: TrayTop, bottom: TrayBotto
 }
 
 /** A carton end this board makes (C2): shipping flaps on corrugated only; every other end on board thin enough to tuck. */
-const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' ? m.kind === 'corrugated' : v === 'crash' ? CRASH_LOCK_OFFERED && m.kind === 'card' && foldsAsCarton(m, 0) : v === 'gable' ? m.kind === 'card' && foldsAsCarton(m, 0) : folds(m, 2));
+const endOk = (v: string | number, m: MaterialProfile) => (v === 'rsc' || v === 'full' ? m.kind === 'corrugated' : v === 'crash' ? CRASH_LOCK_OFFERED && m.kind === 'card' && foldsAsCarton(m, 0) : v === 'gable' ? m.kind === 'card' && foldsAsCarton(m, 0) : folds(m, 2));
 
 /** Folds: card, and corrugated thin enough to tuck. */
 // (milestone 116: card up to 1 mm; greyboard is card, and does not fold into a carton)
@@ -138,14 +138,14 @@ export const carton: TemplateDef = {
     ...sizeParams(100),
     {
       key: 'top', label: 'sen.top', type: 'choice', default: 'tuck',
-      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }, { value: 'rsc', label: 'sen.top.rsc' }, { value: 'gable', label: 'sen.top.gable' }],
+      options: [{ value: 'tuck', label: 'sen.top.tuck' }, { value: 'seal', label: 'sen.top.seal' }, { value: 'rsc', label: 'sen.top.rsc' }, { value: 'full', label: 'sen.top.full' }, { value: 'gable', label: 'sen.top.gable' }],
       allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'top', v),
       why: () => 'sen.why.engine',
       affects: ['lid'],
     },
     {
       key: 'bottom', label: 'sen.bottom', type: 'choice', default: 'snap',
-      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }, { value: 'rsc', label: 'sen.bottom.rsc' }, { value: 'crash', label: 'sen.bottom.crash' }],
+      options: [{ value: 'snap', label: 'sen.bottom.snap' }, { value: 'tuck', label: 'sen.bottom.tuck' }, { value: 'seal', label: 'sen.bottom.seal' }, { value: 'rsc', label: 'sen.bottom.rsc' }, { value: 'full', label: 'sen.bottom.full' }, { value: 'crash', label: 'sen.bottom.crash' }],
       allowed: (v, p, m) => endOk(v, m) && cleanWith(carton, m, p, 'bottom', v),
       why: () => 'sen.why.engine',
       affects: ['base'],

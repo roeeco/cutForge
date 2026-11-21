@@ -98,6 +98,7 @@ export const CATALOGUE: Card[] = [
     variants: [
       { id: 'sealed', structure: 'carton', style: 'sealed' },
       { id: 'rsc', structure: 'carton', style: 'rsc' },
+      { id: 'fol', structure: 'carton', style: 'fol' },
     ],
   },
   { id: 'sleeve', title: 'card.sleeve', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'sleeve', structure: 'sleeve' }] },
