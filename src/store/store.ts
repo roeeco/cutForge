@@ -231,7 +231,7 @@ export type ViewPrefs = {
 };
 /** What Quick build's Box makes (LIDS_LINES_PROJECTS_PLAN.md §10.3): an open box, a box with a lid of its own, or a carton. */
 export type BoxKind = 'open' | 'lid' | 'carton';
-export type SettingsSection = 'template' | 'joints' | 'material' | 'snapping' | 'sizes';
+export type SettingsSection = 'template' | 'preset' | 'joints' | 'material' | 'snapping' | 'sizes';
 const PREFS_KEY = 'cutforge.viewPrefs';
 /**
  * A browser's view preferences from what it saved (`raw`, or null for a new

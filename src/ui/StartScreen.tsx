@@ -14,6 +14,7 @@ import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
 import { createWaffleDesign } from '../sculpt/ops';
 import { Library, openFromLibrary } from './Library';
+import { MyPresets } from './PresetEditor';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { Icon, Logo } from './icons';
@@ -250,6 +251,9 @@ export function StartScreen() {
           {missions.length > 0 && way('start-missions', <img src={pic('way-mission.jpg')} alt="" />, t('start.missionsWay'), t('start.missionsLine'), () => setMissionId(missions[0].id))}
         </div>
         </div>
+
+        {/* milestone 158: the presets saved in this browser, each a card of its own, started in the board chosen above */}
+        {!quick && <MyPresets material={mat} />}
 
         {/* milestone 86: the designs kept in this browser; *Your designs* in the header scrolls here */}
         <div id="start-library" className="cs-library">

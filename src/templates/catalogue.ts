@@ -44,6 +44,8 @@ export type Variant = {
 export type Card = {
   id: string;
   title: MsgKey;
+  /** Milestone 158: a custom preset's own name (its title is then *Your preset*). */
+  name?: string;
   /** Milestone 153: the card as the sentence's first word (*a tuck-end carton*), when it stands for more than one variant. */
   word?: MsgKey;
   group: CardGroup;

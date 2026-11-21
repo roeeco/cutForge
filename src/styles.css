@@ -1431,3 +1431,13 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .part-title-input { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; padding: 2px 6px; }
 .part-more { margin-top: 4px; }
 .part-more[data-folds='false'] { border: 0; padding: 0; margin: 0; }
+/* milestone 158: custom presets */
+.preset-slot-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; text-decoration: none; padding: 2px 0; }
+.preset-slot-head .head-sum { color: var(--ink-muted); font-size: 12px; }
+.preset-editor .pictures button[aria-disabled="true"] { cursor: help; }
+.preset-save { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.cs-presets { margin: 18px 0 6px; }
+.cs-presets .lib-card .art img { display: block; margin: 0 auto; }
+.preset-editor .preset-slot-head, .preset-editor .preset-slot-head * { text-decoration: none; }
+.preset-editor .preset-slot-head .label { color: var(--ink); font-weight: 600; }
+.preset-editor .pictures img { width: 100%; height: auto; max-width: 96px; }
