@@ -12,6 +12,7 @@ import { makes, type Params, type TemplateDef } from './types';
 import { chooseStyle, isAlias, styleById, styleListed, styleOf, type StyleDef } from './styles';
 import { chooseStructure, type Change, type Value } from '../sentence/resolve';
 import { MISSIONS, type Mission } from '../easy/missions';
+import { fits, recordOf, specificity, type PresetRecord } from './records';
 
 /** Where a card sits in a list (the sentence's group headings: `style.group.<group>`). */
 export type CardGroup = 'boxes' | 'cartons' | 'flat' | 'more' | 'shapes';
@@ -36,6 +37,8 @@ export type Variant = {
   solid?: 'pyramid' | 'diamond';
   /** Its Guided gallery thing, when it has one. */
   guided?: GuidedEntry;
+  /** Milestone 150: the records it is (records.ts): `recognise` names a design by the most specific pattern it fits. */
+  match: Partial<PresetRecord>;
 };
 
 export type Card = {
@@ -56,68 +59,68 @@ export const CATALOGUE: Card[] = [
   {
     id: 'openBox', title: 'card.openBox', group: 'boxes', status: 'stable', challenges: ['dice-tray'],
     variants: [
-      { id: 'box', structure: 'box', own: { height: 45 }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
-      { id: 'tray', structure: 'tray', own: { height: 30 } },
+      { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
+      { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
     ],
   },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false }] },
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
   {
     id: 'liddedBox', title: 'card.liddedBox', group: 'boxes', status: 'stable', challenges: [],
     variants: [
-      { id: 'trayLid', structure: 'box', style: 'trayLid', guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
-      { id: 'hexLid', structure: 'box', style: 'hexLid' },
+      { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
+      { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
     ],
   },
   {
     id: 'hingedBox', title: 'card.hingedBox', group: 'boxes', status: 'stable', challenges: ['escape-box'],
     variants: [
-      { id: 'hingedTray', structure: 'box', style: 'hingedTray' },
-      { id: 'hexBox', structure: 'box', style: 'hexBox' },
+      { id: 'hingedTray', structure: 'box', style: 'hingedTray', match: { body: 'cross', lid: 'hinged' } },
+      { id: 'hexBox', structure: 'box', style: 'hexBox', match: { body: 'cross', lid: 'hinged', footprint: 'poly', sides: 6 } },
     ],
   },
   {
     // owner question 12 (milestone 106): the round box is 100 × 100 outside, its inside measured
     id: 'roundBox', title: 'card.roundBox', group: 'boxes', status: 'stable', challenges: [],
-    variants: [{ id: 'roundBox', structure: 'box', words: { shape: 'round' }, sentence: false, guided: { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', words: { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' } } }],
+    variants: [{ id: 'roundBox', structure: 'box', words: { shape: 'round' }, sentence: false, match: { body: 'cross', footprint: 'round', lid: 'none' }, guided: { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', words: { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' } } }],
   },
-  { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer' }] },
+  { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
   // cartons
   {
     id: 'tuckCarton', title: 'card.tuckCarton', group: 'cartons', status: 'stable', challenges: [],
     variants: [
-      { id: 'carton', structure: 'carton', guided: { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', words: {}, can: (m) => foldsAsCarton(m, 2), why: 'g.thing.cartonNo' } },
-      { id: 'ste', structure: 'carton', style: 'ste' },
-      { id: 'rte', structure: 'carton', style: 'rte' },
-      { id: 'tuckSnap', structure: 'carton', style: 'tuckSnap' },
-      { id: 'autoBottom', structure: 'carton', style: 'autoBottom' },
+      { id: 'carton', structure: 'carton', match: { body: 'tube', top: 'tuck' }, guided: { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', words: {}, can: (m) => foldsAsCarton(m, 2), why: 'g.thing.cartonNo' } },
+      { id: 'ste', structure: 'carton', style: 'ste', match: { body: 'tube', top: 'tuck', bottom: 'tuckBack' } },
+      { id: 'rte', structure: 'carton', style: 'rte', match: { body: 'tube', top: 'tuck', bottom: 'tuck' } },
+      { id: 'tuckSnap', structure: 'carton', style: 'tuckSnap', match: { body: 'tube', top: 'tuck', bottom: 'snap' } },
+      { id: 'autoBottom', structure: 'carton', style: 'autoBottom', match: { body: 'tube', top: 'tuck', bottom: 'crash' } },
     ],
   },
-  { id: 'gableBox', title: 'card.gableBox', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'gable', structure: 'carton', style: 'gable' }] },
+  { id: 'gableBox', title: 'card.gableBox', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'gable', structure: 'carton', style: 'gable', match: { body: 'tube', top: 'roof' } }] },
   {
     id: 'flappedBox', title: 'card.flappedBox', group: 'cartons', status: 'stable', challenges: [],
     variants: [
-      { id: 'sealed', structure: 'carton', style: 'sealed' },
-      { id: 'rsc', structure: 'carton', style: 'rsc' },
-      { id: 'fol', structure: 'carton', style: 'fol' },
+      { id: 'sealed', structure: 'carton', style: 'sealed', match: { body: 'tube', top: 'seal', bottom: 'seal' } },
+      { id: 'rsc', structure: 'carton', style: 'rsc', match: { body: 'tube', top: 'rsc', bottom: 'rsc' } },
+      { id: 'fol', structure: 'carton', style: 'fol', match: { body: 'tube', top: 'full', bottom: 'full' } },
     ],
   },
-  { id: 'sleeve', title: 'card.sleeve', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'sleeve', structure: 'sleeve' }] },
+  { id: 'sleeve', title: 'card.sleeve', group: 'cartons', status: 'stable', challenges: [], variants: [{ id: 'sleeve', structure: 'sleeve', match: { body: 'tube', top: null, bottom: null } }] },
   // flat pieces
   {
     id: 'envelope', title: 'card.envelope', group: 'flat', status: 'stable', challenges: [],
     variants: [
-      { id: 'envelope', structure: 'envelope' },
-      { id: 'diamondEnvelope', structure: 'envelope', style: 'diamondEnvelope' },
-      { id: 'pocketEnvelope', structure: 'envelope', style: 'pocketEnvelope' },
+      { id: 'envelope', structure: 'envelope', match: { body: 'flat' } },
+      { id: 'diamondEnvelope', structure: 'envelope', style: 'diamondEnvelope', match: { body: 'flat', flaps: 'dust,dust,glue,tuck' } },
+      { id: 'pocketEnvelope', structure: 'envelope', style: 'pocketEnvelope', match: { body: 'flat', flaps: 'glue,glue,glue,tuck' } },
     ],
   },
-  { id: 'folder', title: 'card.folder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'folder', structure: 'folder' }] },
-  { id: 'cardHolder', title: 'card.cardHolder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'cardHolder', structure: 'cardHolder' }] },
+  { id: 'folder', title: 'card.folder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'folder', structure: 'folder', match: { body: 'folded', boards: 4 } }] },
+  { id: 'cardHolder', title: 'card.cardHolder', group: 'flat', status: 'stable', challenges: [], variants: [{ id: 'cardHolder', structure: 'cardHolder', match: { body: 'folded', boards: 2, slits: true } }] },
   // stands
-  { id: 'stand', title: 'card.stand', group: 'more', status: 'stable', challenges: ['card-stand'], variants: [{ id: 'stand', structure: 'stand' }] },
+  { id: 'stand', title: 'card.stand', group: 'more', status: 'stable', challenges: ['card-stand'], variants: [{ id: 'stand', structure: 'stand', match: { body: 'stand', lean: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
-  { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
-  { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
+  { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
+  { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
 ];
 
 export const cardById = (id: string) => CATALOGUE.find((c) => c.id === id);
@@ -275,11 +278,39 @@ export function catalogueMissions(): Mission[] {
 // ---------------------------------------------------------------------------
 // A design's card
 
-/** The card (and variant) a design was started from: its mission's card, else its template and words; null for a free design. */
-export function cardOfDesign(d: Pick<Design, 'template' | 'mission'>): { card: Card; v?: Variant } | null {
+/**
+ * The variant a design is (milestone 150): the most specific pattern its record fits; of equally specific ones, the
+ * one its template's words name (a box and a tray are the same record), else the first. Null when none fits.
+ */
+export function recognise(d: Design): { card: Card; v: Variant } | null {
+  const r = recordOf(d);
+  const fitting = variants().filter((x) => x.card.status !== 'planned' && fits(r, x.v.match));
+  if (!fitting.length) return null;
+  const top = Math.max(...fitting.map((x) => specificity(x.v.match)));
+  const best = fitting.filter((x) => specificity(x.v.match) === top);
+  const def = d.template && templateById(d.template.id);
+  const named = def ? variantOfWords(def, d.template!.params) : null;
+  return best.find((x) => named && x.v.id === named.v.id) ?? best[0];
+}
+
+/** A variant's trade code, when its style has one the owner has checked (`StyleDef.codeChecked`). */
+export function tradeCode(v: Variant): string | null {
+  const s = v.style ? styleById(v.style) : undefined;
+  return s?.code && s.codeChecked ? s.code : null;
+}
+
+/**
+ * The card (and variant) a design was started from: its mission's card; else what its record is (milestone 150: a
+ * design made by hand is recognised too); else its template's words. Null for a design that is none of them.
+ */
+export function cardOfDesign(d: Design | Pick<Design, 'template' | 'mission'>): { card: Card; v?: Variant } | null {
   if (d.mission) {
     const card = CATALOGUE.find((c) => c.challenges.includes(d.mission!.id));
     if (card) return { card };
+  }
+  if ('order' in d && d.order.length) {
+    const r = recognise(d as Design);
+    if (r) return r;
   }
   if (!d.template) return null;
   const def = templateById(d.template.id);

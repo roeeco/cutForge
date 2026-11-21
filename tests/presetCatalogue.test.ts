@@ -12,7 +12,7 @@ import { CATALOGUE, cardOfDesign, catalogueMissions, entryChoice, guidedEntries,
 import { styleOf } from '../src/templates/styles';
 import { prepareExport } from '../src/export/prepare';
 import { flattenContour } from '../src/geom/vec';
-import { boardsBox } from '../src/guided/camera';
+import { recordKey, recordOf } from '../src/templates/records';
 import type { Design, MaterialProfile } from '../src/model/types';
 import type { Params } from '../src/templates/types';
 import type { Value } from '../src/sentence/resolve';
@@ -49,23 +49,12 @@ export function cutKey(d: Design): string {
   return out.sort().join('|');
 }
 
-/** Each board's shaped flaps by shape (milestone 112's edge features), counted. */
-const edgeFeatures = (d: Design) => Object.values(d.panels).flatMap((p) => (p.edgeFlaps ?? []).map((f) => String(f.shape))).sort();
-
-/** The plan's structural fingerprint: what a design is made of and its proportions, not its exact sizes. */
+/**
+ * The structural fingerprint (milestone 150): the design's record (records.ts) — what it is made of, not its sizes.
+ * Two presets in one list with the same record are look-alikes in structure.
+ */
 export function structuralFingerprint(d: Design): string {
-  const conns = Object.values(d.connections);
-  const box = boardsBox(d);
-  const size = box ? [box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]] : [0, 0, 0];
-  const big = Math.max(1, ...size);
-  return JSON.stringify([
-    conns.map((c) => c.kind).sort(),
-    Object.values(d.trays ?? {}).map((t) => [t.top ?? '', t.bottom ?? '', t.base ?? '', t.lidOf ? 'lid' : '']).sort(),
-    Object.values(d.panels).map((p) => p.sketch.kind).sort(),
-    [...new Set(conns.filter((c) => c.grown).map((c) => Math.round(c.angle)))].sort(),
-    edgeFeatures(d),
-    size.map((x) => Math.round((3 * x) / big) / 3),
-  ]);
+  return recordKey(recordOf(d));
 }
 
 /** A sentence entry's design, as Start makes it. */

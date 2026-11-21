@@ -260,7 +260,7 @@ only once the pictures can tell them apart.
 | **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §7 | ✅ |
 | **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §7 | ✅ |
 | **149** | Engine: ends per wall | §7, analysis §3.2 | ✅ |
-| **150** | Engine: preset records and the recogniser | §7, analysis §4 | |
+| **150** | Engine: preset records and the recogniser | §7, analysis §4 | ✅ |
 | **151** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §7 | |
 | **152** | The stage: hero pose, framing, *Show how it closes* | §7 | |
 | **153** | Challenges and merges | §7 | |

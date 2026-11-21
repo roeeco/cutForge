@@ -2426,6 +2426,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - The full-overlap box (FEFCO 0203) on corrugated: the carton's words, the tray card, the style list and the *Box with flaps* card.
 - `tests/ends.test.ts`: styles are their lists, full overlap builds clean, three lists that are no style build with nothing blocking, one wall set on its own and back. Carton goldens unchanged.
 
+## Milestone 150 (presets overhaul) — engine: preset records and the recogniser ✅
+
+- `src/templates/records.ts`: `PresetRecord`, `recordOf`, `fits`, `recordKey`. `src/templates/catalogue.ts`: every variant's `match`, `recognise`, `tradeCode`; `cardOfDesign` recognises designs made by hand.
+- `tests/records.test.ts`: every style recognised back in every board that lists it, structures' own words, Guided's things, hand-made designs (Quick build's carton, a walled box, a hexagon with a lid), records independent of size. `tests/presetCatalogue.test.ts`: the structural look-alikes by record.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

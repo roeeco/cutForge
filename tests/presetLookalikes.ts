@@ -9,6 +9,8 @@ export type Lookalike = { list: 'sentence' | 'guided' | 'missions'; a: string; b
 export const STRUCTURAL: Lookalike[] = [
   // C: an open box and an open tray differ in height only (and the tray's handles); settled as one card's variants
   { list: 'sentence', a: 'box', b: 'tray', group: 'C', until: 153 },
+  // D: two missions on the organiser, the same box with dividers at other sizes (records since milestone 150)
+  { list: 'missions', a: 'game-organiser', b: 'pencil-box', group: 'D', until: 153 },
 ];
 
 /** The same picture at list size: the browser's perceptual hash (tests/e2e/preset-sheet.spec.ts). */

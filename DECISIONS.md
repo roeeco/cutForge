@@ -733,3 +733,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The first style that is only a list: full overlap** (`full`, FEFCO 0203), corrugated only like the RSC: the carton's *top* and *bottom* words, the tray card's selects, the style *Full-overlap box* and the catalogue's *Box with flaps* card.
 - **The sentence does not offer one wall's flap yet**: that is a slot of the custom-preset editor (158), not a word, so the sentence stays short.
 
+## Milestone 150 (presets overhaul): preset records and the recogniser
+- **A record is read off the design, never stored** (`recordOf` in `src/templates/records.ts`): its body (tube, cross, flat, folded, stand, solid, free), a box's footprint and sides, how each end of a tube closes (an end style's name, `custom`, `tuck`, `roof` for a gable, or open), its lid, a drawer's relation, dividers, leaning boards, slits, a flat piece's flap shapes and a folded piece's board count. Sizes are not in it: two boxes of the same kind at other sizes have the same record.
+- **A catalogue variant is a pattern over records** (`Variant.match`), and `recognise(d)` names a design by the most specific pattern it fits; of equally specific ones (a box and a tray are the same record), the one its template's words name. A pattern that leaves out `relation` or `lean` means the design must not have them (a drawer is not a box; a stand is not a tray).
+- **`cardOfDesign` asks the record first** (after a mission), then the template's words: a carton made with Quick build's recipe, a box walled by hand or a detached Guided thing now finds its card. A trade code comes with the style that is recognised (`tradeCode`, shown only when the owner has checked it).
+- **The structural look-alike test compares records** (it compared a hand-made fingerprint with proportions): box/tray and the two organiser missions are the known pairs, settled in 153.
+- **The old organiser template is no record** (its walls are grown boards, not a tray): it still finds its card by its template.
+
