@@ -14,7 +14,11 @@ Written 2026-11-21 against `claude/eloquent-brahmagupta-eip2fd` at `27bb61c` (pr
   - is held to the overhaul's rules: one card per thing that looks and works differently, a visible tell, no look-alikes (§3 of the overhaul).
 - **What this lane adds: presets built from boards, for plywood 3 mm and corrugated 4 mm.** The dieline analysis (`DIELINE_GENERATOR_ANALYSIS.md`) brought in folded constructions: tubes, crosses folded from one net, strips and wraps. boxes.py brings rigid boards joined at their edges: finger joints and tabs in slots, half-slots crossing, boards leaning in angled slots. These are the **cross** (walls standing on a base as boards), **stand** and **slot** bodies of the analysis, in the two materials the overhaul calls thin on cards (§2.3 and rule 5: plywood has about 6 distinct cards, 4 mm board about 12 counting beta).
 - **Port the recipes, not the code.** Unchanged from the first draft: each generator becomes a `TemplateDef` written against `model/ops.ts`. The engine picks the joints for the material, and `pack` / `nest` lay out the sheet.
-- **Start after 160, the overhaul's verification.** The exception is the three cards the overhaul already plans: magazine file, dice tower and phone stand. For those, the boxes.py recipes go into milestones 155 and 157 as their reference (§2).
+- **Start after 160, the overhaul's verification (decided, owner, 21 November).** Until then nothing here is built. The exception is the three cards the overhaul already plans: magazine file, dice tower and phone stand. For those, the boxes.py recipes go into milestones 155 and 157 as their reference (§2).
+- **Decided with it (owner, 21 November):**
+  - angled tabs through slots are allowed on 4 mm board (R3);
+  - 4 mm board keeps tabs in slots and gets no finger joints;
+  - card and 1.6 mm board get none of these cards.
 
 ## 1. What changes from the first draft
 
@@ -24,7 +28,7 @@ Written 2026-11-21 against `claude/eloquent-brahmagupta-eip2fd` at `27bb61c` (pr
 | Lane A: about 10 boxes.py names as new styles | **No new entries.** The boxes.py names that the engine already builds are recorded as aliases for the recogniser only (§3, "Already there") | The overhaul drops aliases (146: "a design is shown once per list"); a style that builds an existing card fails the look-alike test. |
 | Lane B: about 25 new templates | About 14 new cards and 6 new variants on existing cards (§3) | Most of the 25 have the same record and the same picture as one another or as an existing card. Under rule 1 they are variants. |
 | Lane D: flat parts as presets | Parts go to the **Shapes tool** as footprints (gear, knob) and as hole-pattern shapes (§5). Only the game board stays a preset. | A gear, a knob and a plain board are all `body: 'flat'` with nothing else in their record, so they would be look-alikes. They are shapes you put on a board, not things you start from. |
-| Every material where it folds | **Plywood 3 and corrugated 4** (`canMake`). Card and 1.6 mm board are not offered, or fall back to the folded card with the same tell. | boxes.py's constructions are rigid boards. The folded versions are the dieline lane's. |
+| Every material where it folds | **Plywood 3 and corrugated 4** (`canMake`). Card and 1.6 mm board are not offered (owner, 21 November). | boxes.py's constructions are rigid boards. The folded versions are the dieline lane's. |
 | Lane C, new edges, as its own lanes | The same edges, each a slot in a record and, after 158, a choice in the custom-preset editor | The overhaul's engine is records with slots (150, 158). |
 | Our own tests | The overhaul's tests: records distinct, look-alike allowlist not grown, picture coverage, the pose's tell, the contact sheet | One set of gates. |
 
@@ -106,7 +110,7 @@ Plywood would no longer be "boxes only".
 |---|---|---|---|
 | R1 | **Record fields for board-built things**: `open` (walls left out), `sloped`, `ramps`, `steps`, `tiers`, `shelves`, `holes`, `stack`, `layers`, `sign`; bodies `slot`, `angle`, `stack` | all of §3 | In `records.ts`, read off the design as the others are. `recordOf` must find a tray where a template builds one, so templates use `addTray` and not separately grown walls (the old organiser has no record for that reason; milestone 150). |
 | R2 | **Boards with no box** (the slot body: a grid with no host base, boards crossing in half-slots at any angle) | insert only, laptop stand, bottle rack, shelf | The analysis lists the grid with no box as planned. Today half-laps are found only between upright boards on one base (`PROGRESS.md`). |
-| R3 | **Angled boards in slots on 4 mm board.** `connectionsFor` offers corrugated only `fold · glue · lock` at an angle; plywood has `lean`, angled tabs through slots in side walls. | stand variants, desk sign, slanted shelf, and the dice tower on c4 (157) | A rigid 4 mm board holds an angled tab in a slot as plywood does. Allow `lean` on corrugated of 3 mm or more, with the slot widened for the angle (as dividers' slots are, README §15). The stand on c4 then stops needing glue flaps. **Owner question 2.** |
+| R3 | **Angled boards in slots on 4 mm board.** `connectionsFor` offers corrugated only `fold · glue · lock` at an angle; plywood has `lean`, angled tabs through slots in side walls. | stand variants, desk sign, slanted shelf, and the dice tower on c4 (157) | A rigid 4 mm board holds an angled tab in a slot as plywood does. **Decided:** allow `lean` on corrugated of 3 mm or more, with the slot widened for the angle (as dividers' slots are, README §15). The stand on c4 then stops needing glue flaps. |
 | R4 | **Board-built on 4 mm board**: wall to base as `tabslot` (separate boards), not folded | every c4 card of §3 | A template asks for it with `growPanel(..., { kind: 'tabslot' })`. It is in `connectionsFor` at 90° already. Check that the design-wide *Wall to base* choice does not fold it back. |
 | E1 | **Sliding lid**: two rails per side wall and a lid board with clearance, or a groove of two thin strips | sliding-lid box | `ROADMAP.md` §4 lists *sliding lids* as deferred. Plywood and c4. Rails as boards placed on the wall's inside face (`addPlacedPanel`). |
 | E2 | **Stacking feet**: tabs below the base's edge and notches in the walls' tops | stacking bin | Outline work on free edges, as edge flaps are drawn |
@@ -131,10 +135,10 @@ These go in the Shapes tool and on boards, not in the catalogue:
 |---|---|---|---|
 | `e` | plain | free edge | free edge |
 | `E` | outset | free edge, offset by t | free edge, offset by t |
-| `f` / `F` | finger joint | `finger` | `tabslot`: corrugated has no finger kind. Owner question 3. |
+| `f` / `F` | finger joint | `finger` | `tabslot` (decided: no finger joints on corrugated) |
 | `h` | finger holes (T joint) | `tabslot` / a divider's slots | `tabslot` |
 | `\|` | crossing finger holes | half-laps | half-laps |
-| angled slots (bookholder, displayshelf) | — | `lean` | `lean` after R3; `glue` until then |
+| angled slots (bookholder, displayshelf) | — | `lean` | `lean` (R3, milestone 163) |
 | `d` / `D` | dovetail | `key` (puzzle key) | `key` if the neck holds in 4 mm board, else not offered |
 | `s` / `S` / `š` | stackable | E2 | E2 |
 | `l L n N`, `z Z` | sliding lid, groove | E1 | E1 |
@@ -156,7 +160,7 @@ boxes.py's own settings are not ported:
    - choices that change what it is, as `addon` words;
    - its sentence line (`sentence.main`) and `word`, in en and he.
 4. Build it in 3D with `addTray`, `growPanel` (with `kind: 'tabslot'` on c4), `addDivider`, the 157 angled-board helper, details for holes. Give every board a `role`.
-5. Add `materials: ['plywood', 'corrugated']` and `canMake: (m) => m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3)`, then `fallback` and `fallbackWords` for card. Add `limits` / `accepts` by building (`cleanAll`, `cleanWith`, `largestOk`, as `flat.ts` does) and `check`.
+5. Add `materials: ['plywood', 'corrugated']` and `canMake: (m) => m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3)`. A card is not offered on card or 1.6 mm board: no folded fallback. A design switched to a thinner stock falls back to the nearest existing card (`fallback`), as a carton on plywood does. Add `limits` / `accepts` by building (`cleanAll`, `cleanWith`, `largestOk`, as `flat.ts` does) and `check`.
 6. Add its card or variant, its `match` pattern, any new record field (R1), its pose (§4.1 of the overhaul: view, open, props, cutaway) and its tell.
 7. Add a line to `THIRD_PARTY.md`: the generator's name, boxes.py, GPL‑3.0, recipe ported.
 
@@ -167,7 +171,8 @@ boxes.py's own settings are not ported:
 - **`tests/pose.test.ts`.** The tell is visible: the drawer in its sleeve, a lid half slid out, books against the bookend.
 - **Contract per card × material.** It builds clean at its defaults and at every number's min and max, or `accepts` refuses with a reason. Every touching pair is joined. It fits on the 600 × 400 sheet. A shape on a board survives a size change.
 - **Goldens.** One SVG per new card at its defaults, on plywood and on 4 mm board.
-- **New: a joint census.** On c4, no board-built card has a fold between boards (R4). On plywood, every 90° joint between two boards is a finger joint or tabs in slots.
+- **New: a joint census.** On c4, no board-built card has a fold between boards (R4) and no finger joint. On plywood, every 90° joint between two boards is a finger joint or tabs in slots.
+- **New: thinner stocks.** On card 0.5 and corrugated 1.6, no card of this lane is in any list.
 - **New: the test cut.** A card leaves beta only after a physical cut on each material, as the overhaul's beta rule says. Its result goes in `DECISIONS.md`.
 
 ## 9. Milestones (after 160)
@@ -176,7 +181,7 @@ boxes.py's own settings are not ported:
 |---|---|---|
 | **161** | **Records and joints for board-built things**: R1, R4, the joint census; the aliases of §3 in the recogniser | every existing card's record unchanged (goldens byte-identical); a box built by hand from boards on c4 has a record |
 | **162** | **Variants on existing cards**: closed lid, plywood drawer, open front, book stand, organiser heights | each variant's picture differs from its siblings by the hash test |
-| **163** | **Angled boards on 4 mm board** (R3), if the owner agrees | the stand, the dice tower and the desk sign on c4 with angled slots, no glue flaps |
+| **163** | **Angled boards on 4 mm board** (R3) | the stand, the dice tower and the desk sign on c4 with angled slots, no glue flaps |
 | **164** | **Cross cards**: sloped tray, uneven box, pen holder, bird house | contract tests and goldens; plywood and c4 contact sheets |
 | **165** | **Boards with no box** (R2) and the **slot cards**: insert only, laptop stand, bottle rack, shelf | half-slots at any angle between boards with no host; contract tests |
 | **166** | **Stand cards**: desk sign, slanted shelf, bookend | the 157 helper reused; contract tests |
@@ -187,10 +192,13 @@ boxes.py's own settings are not ported:
 
 E3 (pin hinges) and E4 (a living hinge round any outline) stay in `ROADMAP.md` §4 with the pin-hinge spike.
 
-## 10. Owner questions
+## 10. Owner decisions (21 November)
 
-1. **When.** After 160, with only the recipes handed to 155 and 157 now (my call), or interleaved into the overhaul's run?
-2. **Angled boards on 4 mm board (R3).** Allow `lean` (angled tabs through slots) on corrugated of 3 mm or more? Without it, every leaning card on c4 is glued.
-3. **Finger joints on 4 mm board.** boxes.py users cut fingers in 4 mm board. CutForge gives corrugated tabs in slots only. Keep that (my call: tabs hold better across flutes), or add `finger` for corrugated of 3 mm or more?
-4. **Card and 1.6 mm board.** Leave the board-built cards off them (my call), or offer each card's folded look-alike where one exists?
-5. **Licence.** For personal use it doesn't matter. If CutForge is deployed to a class, that is distribution, and the ported files carry GPL‑3.0. Listing them in `THIRD_PARTY.md` keeps it clear.
+| # | Question | Decision |
+|---|---|---|
+| 1 | When | After 160 is done. Until then only the recipes are handed to 155 and 157. |
+| 2 | Angled boards on 4 mm board | Allowed: `lean` (angled tabs through slots) on corrugated of 3 mm or more (R3, milestone 163). |
+| 3 | Finger joints on 4 mm board | No. Tabs in slots stay. |
+| 4 | Card and 1.6 mm board | Left off. These cards are plywood 3 and corrugated 4 only. |
+
+Still open: the licence note. For personal use it doesn't matter. If CutForge is deployed to a class, that is distribution, and the ported files carry GPL‑3.0. Listing them in `THIRD_PARTY.md` keeps it clear.
