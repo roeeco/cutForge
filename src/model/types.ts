@@ -69,6 +69,8 @@ export type Detail = {
   path?: { polys: P2[][] };
   /** Cut only: removes material from every panel in its path, along this panel's normal (both ways). */
   through?: boolean;
+  /** Milestone 171: a hole to hang the board by (a keyhole: a screw head goes in its round end, the board drops onto the screw's shank in its slot). */
+  mount?: 'keyhole';
   /** Polygon shapes drawn as a regular n-gon (kept until a vertex is edited). */
   regular?: { n: number };
   /** Live array: nx × ny copies, dx/dy centre-to-centre spacing (panel coords). Linear = one of nx/ny is 1. */

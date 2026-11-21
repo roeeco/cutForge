@@ -2508,6 +2508,16 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **169** *Sliding-lid box* (rails making a groove on each side wall, the lid drawn a third out).
 - Not done from the plan, each with its reason in DECISIONS.md: the closed lidded box and organiser heights (open), the book stand and the uneven box (look-alikes), the bird house on 4 mm board, frames (no face-to-face joint), the game board, the Shapes footprints (gear, knob, hole pattern, puzzle cut) and stacking feet.
 
+## Milestone 171 (every doable boxes.py design in plywood, `BOXES_PLYWOOD_PLAN.md`) ✅ the owner's picks I
+
+- **Plywood 5 and 8 mm** grades beside 4 and 6 (owner: plywood 3 to 8 mm). Every existing plywood structure builds clean at 3, 5 and 8 mm at its defaults; at 8 mm the card stand and the pen holder refuse their default sizes with a reason.
+- **Pictures:** the desk sign from behind (`rear34`, its feet in view); small boxes on the shelf's boards and cards on the slanted shelf's tiers (prop `goods`); the shelf and slanted shelf no lower than 120 mm (picked from a 45 mm box, the shelf was a stack of boards and looked like a lidded box).
+- **Half box** (boxes.py HalfBox; the *Bookend* card renamed): triangular sides; variants *Wall shelf* (two keyholes in the back), *Clamping square* (square clamp holes in both sides), *Bookend with one side* (the 166 bookend; a design saved before keeps it).
+- **Keyholes** (E0): `keyholeShape`, `hangByKeyholes` in the board kit; a detail marked `mount: 'keyhole'`; the record's `hang`.
+- **Box words** (UniversalBox, TwoPiece; plywood only): lid *closed* (a top fixed on, the engine's *fixed* lid), *rim* (a lid half or fully as deep as the box), handles *grips*. Lidded box variants *Two-piece box* and *Closed box*.
+- `tests/plywood171.test.ts`.
+- Moved to later milestones: a handle on the lid and the base's overhang (173, with the other lid work).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

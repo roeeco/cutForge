@@ -5,7 +5,7 @@
 // board by board is still a reverse tuck end, and a trade code comes with the style it names.
 import type { Design, Tray } from '../model/types';
 import { endSpec, endStyleOf, trayRing } from '../model/cartons';
-import { boxLid } from '../easy/lid';
+import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
@@ -66,6 +66,12 @@ export type PresetRecord = {
   plate?: boolean;
   /** Milestone 162: how many of a box's walls are left open (an open-front box has one). */
   open?: number;
+  /** Milestone 171: how deep a cap reaches down its box, when more than a shallow rim (a two-piece box: full). */
+  rim?: 'half' | 'full';
+  /** Milestone 171: holes to hang it by (keyholes) on one of its boards: it hangs on a wall. */
+  hang?: boolean;
+  /** Milestone 171: square holes for a clamp's jaws through a box's walls (a clamping square). */
+  jig?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -187,6 +193,14 @@ function hasRoof(d: Design, t: Tray): boolean {
   });
 }
 
+/** Milestone 171: a board with holes to hang it by. */
+const hangs = (d: Design) => Object.values(d.panels).some((p) => p.details.some((x) => x.mount === 'keyhole'));
+
+/** Milestone 171: square holes a clamp's jaws go through (20 mm or more, nearly square, rounded) in two of a box's walls or more. */
+function hasJig(d: Design, t: Tray): boolean {
+  return trayRing(d, t).filter((r) => d.panels[r.wall]?.details.some((x) => x.op === 'cut' && x.shape === 'roundrect' && Math.min(x.w, x.h) >= 20 && Math.abs(x.w - x.h) < 2)).length >= 2;
+}
+
 /** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
 function openWalls(d: Design, t: Tray): number {
   const base = d.panels[t.baseId];
@@ -242,6 +256,8 @@ export function recordOf(d: Design): PresetRecord {
       rec.bottom = endOf(d, t, 'bottom');
     } else {
       rec.lid = boxLid(d, t.id).kind;
+      const rim = rec.lid === 'liftoff' ? capRimOf(d, t.id) : null;
+      if (rim === 'half' || rim === 'full') rec.rim = rim;
       rec.corner = t.cornerKind;
       rec.spaces = dividersOn(d, t.baseId).length > 0;
     }
@@ -256,6 +272,8 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && hasRoof(d, t)) rec.roof = true;
     const open = openWalls(d, t);
     if (!tube && open) rec.open = open;
+    if (hangs(d)) rec.hang = true;
+    if (!tube && hasJig(d, t)) rec.jig = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -288,7 +306,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

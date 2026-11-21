@@ -8,13 +8,13 @@ import type { Design, MaterialProfile } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import { SIZE_MAX, SIZE_MIN, SPACES_MAX, type Limit, type ParamDef, type Params, type TemplateDef } from '../types';
 import { boxRecipe, dividerLine, holeRecipe, roundedMin, type Footprint } from '../../easy/recipes';
-import { boxLid, lidWhy, setBoxLid, type LidChoice } from '../../easy/lid';
+import { boxLid, lidWhy, setBoxLid, setCapRim, type CapRim, type LidChoice } from '../../easy/lid';
 import { validate } from '../../model/validate';
 import { NOTE_KEYS } from '../../easy/notes';
 import { boxSize, setBoxSize, type SizeAs } from '../../model/boxSize';
 import { MIN_COMPARTMENT } from '../../model/dividers';
 import { trayRing } from '../../model/cartons';
-import { createDesign, solve } from '../../model/ops';
+import { addWallInsert, connectSeams, createDesign, growPanel, setPanelSize, solve } from '../../model/ops';
 import { tOf } from '../../model/materials';
 import { largestOk } from '../../sentence/resolve';
 
@@ -74,7 +74,8 @@ export function cleanWith(def: TemplateDef, m: MaterialProfile, p: Params, key: 
     ok = !validate(d).some((x) => !NOTE_KEYS.has(x.key));
     if (ok && key === 'lid' && v !== 'none') {
       const tr = mainTray(d);
-      ok = !!tr && boxLid(d, tr).kind === v;
+      // the word *closed* makes the lid the engine calls *fixed* (milestone 171)
+      ok = !!tr && boxLid(d, tr).kind === (v === 'closed' ? 'fixed' : v);
     }
   } catch {
     ok = false;
@@ -142,18 +143,31 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
   if (o.lid)
     out.push({
       key: 'lid', label: 'sen.lid', type: 'choice', default: 'none', addon: { off: 'none' },
-      options: (['none', 'liftoff', 'hinged', 'arched'] as LidChoice[]).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
+      // milestone 171 (UniversalBox's closed top): *closed*, a top fixed on with the walls' joint, on plywood
+      options: (['none', 'liftoff', 'hinged', 'arched', 'closed'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
       allowed: (v, p, m) => {
         if (v === 'none') return true;
+        if (v === 'closed') return m.kind === 'plywood' && p.shape !== 'round' && p.shape !== 'rounded' && cleanWith(box, m, p, 'lid', v);
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
         const tr = mainTray(d);
         return !!tr && !lidWhy(d, tr, v as LidChoice) && cleanWith(box, m, p, 'lid', v);
       },
       why: (v, p, m) => {
+        if (v === 'closed') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.closedShape';
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
         const tr = mainTray(d);
         return (tr ? lidWhy(d, tr, v as LidChoice) : 'lid.why.none') ?? 'sen.why.engine';
       },
+      affects: ['lid'],
+    });
+  if (o.lid)
+    // milestone 171 (TwoPiece): how deep a lid that lifts off reaches down the box; as deep as the box, a two-piece box
+    out.push({
+      key: 'rim', label: 'sen.rim', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: (['none', 'half', 'full'] as const).map((v) => ({ value: v, label: `sen.rim.${v}` as MsgKey })),
+      when: (p) => p.lid === 'liftoff',
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && cleanWith(box, m, p, 'rim', v)),
+      why: (_v, _p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.engine'),
       affects: ['lid'],
     });
   out.push(
@@ -190,9 +204,12 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
   if (o.addons.includes('handles'))
     out.push({
       key: 'handles', label: 'sen.handles', type: 'choice', default: 'none', addon: { off: 'none' },
-      options: [{ value: 'none', label: 'sen.handles.none' }, { value: 'slots', label: 'sen.handles.slots' }],
-      allowed: (v, p, m) => v === 'none' || (p.shape === 'rect' && Number(p.height) >= 25 && Number(p.depth) >= 60 && engine('handles')(v, p, m)),
-      why: () => 'sen.why.window',
+      // milestone 171 (UniversalBox's handle edges): grips raised above the side walls, with a hand hole, on plywood with no lid
+      options: [{ value: 'none', label: 'sen.handles.none' }, { value: 'slots', label: 'sen.handles.slots' }, { value: 'grips', label: 'sen.handles.grips' }],
+      allowed: (v, p, m) =>
+        v === 'none' ||
+        (p.shape === 'rect' && Number(p.height) >= 25 && Number(p.depth) >= 60 && (v !== 'grips' || (m.kind === 'plywood' && (p.lid ?? 'none') === 'none')) && engine('handles')(v, p, m)),
+      why: (v, p, m) => (v === 'grips' && m.kind !== 'plywood' ? 'sen.why.plyOnly' : v === 'grips' && (p.lid ?? 'none') !== 'none' ? 'sen.why.gripsLid' : 'sen.why.window'),
       affects: ['walls'],
     });
   return out;
@@ -296,6 +313,7 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
     holeRecipe(d, fw.id, p.window === 'circle' ? 'circle' : 'rect', fw.w / 2, fw.h * 0.42, s, s);
   }
   if (fw && p.finger === 'notch') holeRecipe(d, fw.id, 'circle', fw.w / 2, fw.h, 20, 20);
+  if (p.handles === 'grips') addGrips(d, tray);
   if (p.handles === 'slots') {
     const t = d.trays[tray];
     for (const e of ['e1', 'e3']) {
@@ -304,8 +322,69 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
       if (P) holeRecipe(d, P.id, 'roundrect', P.w / 2, P.h - 12, Math.min(40, P.w * 0.4), 10);
     }
   }
-  if (kindLid && p.lid && p.lid !== 'none') setBoxLid(d, tray, p.lid as LidChoice);
+  if (kindLid && p.lid === 'closed') addClosedTop(d, tray);
+  else if (kindLid && p.lid && p.lid !== 'none') {
+    // milestone 171: a rim asks for a cap (a shallow tray over the box) as deep as it says
+    const rim = p.lid === 'liftoff' && (p.rim === 'half' || p.rim === 'full') ? (p.rim as CapRim) : null;
+    setBoxLid(d, tray, p.lid as LidChoice, rim ? 'cap' : undefined);
+    if (rim) {
+      setCapRim(d, tray, rim);
+      solve(d);
+    }
+  }
   nameRoles(d, role);
+}
+
+/**
+ * A top fixed on (milestone 171, UniversalBox's closed top): a board grown off the back wall's top, as far as the
+ * base's front edge, joined to every wall it meets with the walls' own joint. It does not open (`boxLid`: *fixed*).
+ */
+export function addClosedTop(d: Design, trayId: string): string | null {
+  const t = d.trays[trayId];
+  const back = trayRing(d, t).find((r) => r.edge === 'e2')?.wall;
+  const B = d.panels[t.baseId];
+  if (!back || !B) return null;
+  const g = growPanel(d, back, 'e2', { height: 10, angle: 90, dir: 'up', kind: t.cornerKind === 'tabslot' ? 'tabslot' : 'finger' });
+  if (!g) return null;
+  solve(d);
+  // as far as the base's front edge (its frame's origin), measured along the top's own v
+  const L = d.panels[g.panelId];
+  const reach = (B.frame.o[0] - L.frame.o[0]) * L.frame.v[0] + (B.frame.o[1] - L.frame.o[1]) * L.frame.v[1] + (B.frame.o[2] - L.frame.o[2]) * L.frame.v[2];
+  setPanelSize(d, g.panelId, undefined, reach);
+  solve(d);
+  connectSeams(d, g.panelId);
+  solve(d);
+  return g.panelId;
+}
+
+/** How far a grip rises above a side wall, and its hand hole (milestone 171). */
+const GRIP = { rise: 24, hole: 13, web: 7 };
+
+/**
+ * Grips on the two side walls (milestone 171, UniversalBox's handle edges): each wall's top rises in the middle in a
+ * rounded tongue with a hand hole through it.
+ */
+function addGrips(d: Design, trayId: string) {
+  const t = d.trays[trayId];
+  for (const e of ['e1', 'e3']) {
+    const w = trayRing(d, t).find((x) => x.edge === e)?.wall;
+    const P = w && d.panels[w];
+    if (!P || P.sketch.kind !== 'wall') continue;
+    const half = Math.min(40, P.w * 0.22) / P.w, shoulder = Math.min(18, P.w * 0.1) / P.w;
+    // its top edge (e2) runs back from the far corner: the points in order along it
+    const at: [number, number][] = [[0.5 - half - shoulder, 0], [0.5 - half, GRIP.rise], [0.5 + half, GRIP.rise], [0.5 + half + shoulder, 0]];
+    for (const [tt, off] of at) {
+      const id = addWallInsert(d, P.id, 'e2', tt, off);
+      const s = d.panels[P.id].sketch;
+      const ins = s.kind === 'wall' ? s.inserts?.find((x) => x.id === id) : undefined;
+      // the raised points curve over the top; the shoulders are corners, so the wall's top stays straight up to them (curved, they bowed it under the top)
+      if (ins && off > 0) ins.curve = 'auto';
+    }
+    solve(d);
+    const hw = 2 * half * P.w * 0.78;
+    holeRecipe(d, P.id, 'roundrect', P.w / 2, P.h + GRIP.rise - GRIP.web - GRIP.hole / 2, hw, GRIP.hole);
+  }
+  solve(d);
 }
 
 /**

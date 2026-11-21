@@ -4,6 +4,10 @@ Written 2026-11-21 on `claude/clever-rubin-58475m` after merging `claude/gallant
 
 Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generator classes, 183 offered in its web UI. Every one was read (survey of 21 November); the ten the owner marked were read line by line.
 
+## Status
+
+- **171 ✅** (21 November): plywood 5 and 8 mm; picture fixes; the half box (bookend, wall shelf, clamping square); keyholes; box words *closed*, *rim*, *grips*; lidded box variants *Two-piece* and *Closed*. The lid handle and the base overhang moved to 173. Details in `DECISIONS.md`.
+
 ## 0. In short
 
 - **Plywood only** (owner, 21 November). Every new card or variant here has `canMake: plywoodOnly`. The cards 161–169 made for 4 mm board keep it; nothing new is added for card or corrugated.
@@ -243,7 +247,7 @@ Crate (stackable) w · StackableBin ★ **Stacking bin** · WallStackableBin ◇
 |---|---|---|
 | **171** | **Owner's picks I, on today's engine**: plywood 5 and 8 mm grades (§6); the two picture fixes (§1); lid *closed*, *rim* (two-piece), *grips*, a lid handle, base *overhang* (§2.1); Half box with three variants (§2.2); E0 keyhole holes | each new variant differs from its siblings by the hash test; goldens for TwoPiece, Half box × 3 on ply-3 |
 | **172** | **Owner's picks II, shelves**: Shelf *Rack* (StorageRack), Slanted shelf words (DisplayShelf), ★ Bin rack, ★ Wall rack | contract tests (defaults, every min and max, on one sheet), census clean, contact sheet |
-| **173** | **E1 face-glued joint**; lid *plug*, lid *brim* | a plug lid seats in 3D within clearance; export check clean |
+| **173** | **E1 face-glued joint**; lid *plug*, lid *brim*; a handle on the lid and base *overhang* (moved from 171) | a plug lid seats in 3D within clearance; export check clean |
 | **174** | **E2 tambour door**; ★ Roll-top box (one corner, two corners, bread box) | the door follows the groove shut and open in 3D; its slit pitch from `bendPatterns.ts` at the groove's radius; beta until cut |
 | **175** | **E3 a wrap that opens, E4 latch**; ★ Flex-door box; the FlexBox variants; ★ Book box | doors swing on their bands in the pose; latch closes within clearance; beta until cut |
 | **176** | **E5 pin hinges** (the spike's three test boxes first); §3.6 | the spike's result in `DECISIONS.md`; the fallback (living hinge) if it fails |

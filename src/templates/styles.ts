@@ -36,6 +36,9 @@ export const STYLES: StyleDef[] = [
   { id: 'hingedTray', structure: 'box', words: { lid: 'hinged' }, group: 'boxes', uses: ['gift'], code: 'ECMA C30', status: 'stable' },
   { id: 'hexBox', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'hinged' }, group: 'boxes', uses: ['gift'], code: 'ECMA E50', status: 'stable' },
   { id: 'hexLid', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'liftoff' }, group: 'boxes', uses: ['gift'], status: 'stable' },
+  // milestone 171 (boxes.py's TwoPiece and ClosedBox; plywood): a cap as deep as the box, and a top fixed on
+  { id: 'twoPiece', structure: 'box', words: { lid: 'liftoff', rim: 'full' }, group: 'boxes', uses: ['gift'], status: 'beta' },
+  { id: 'closedBox', structure: 'box', words: { lid: 'closed' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'trayLid', structure: 'box', words: { lid: 'liftoff' }, group: 'boxes', uses: ['gift'], code: 'ECMA C20 / FEFCO 0301', status: 'stable' },
   { id: 'drawerBox', structure: 'drawer', words: {}, group: 'boxes', uses: ['gift', 'jewelry'], status: 'stable' },
   // milestone 155: new styles on the engine as it is
@@ -47,6 +50,10 @@ export const STYLES: StyleDef[] = [
   { id: 'zProfile', structure: 'insert', words: { profile: 'z' }, group: 'flat', uses: ['shipping'], status: 'stable' },
   { id: 'angleGuard', structure: 'insert', words: { profile: 'l' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0970', status: 'stable' },
   { id: 'accordionPad', structure: 'insert', words: { profile: 'accordion' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0130', status: 'stable' },
+  // milestone 171 (HalfBox): the half box's other uses: hung on a wall by keyholes, and a square to clamp two boards in
+  { id: 'wallShelf', structure: 'bookend', words: { ends: 'triangles', hang: 'keyholes', clamp: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'clampSquare', structure: 'bookend', words: { ends: 'triangles', hang: 'none', clamp: 'holes' }, sizes: { width: 80, depth: 120, height: 120 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'sturdyBookend', structure: 'bookend', words: { ends: 'one', hang: 'none', clamp: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

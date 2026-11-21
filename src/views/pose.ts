@@ -17,7 +17,7 @@ import { edgeFeatures } from '../model/edgeFeatures';
 import { edgeWorld, matDir, toWorld } from '../model/frame';
 import { frameMatrix } from './three-geom';
 
-export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter' | 'cup' | 'product' | 'paper';
+export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter' | 'cup' | 'product' | 'paper' | 'goods';
 
 export type Pose = {
   /** A carton's top flaps: 0 shut, 1 upright (in line with its walls), more: past upright. */

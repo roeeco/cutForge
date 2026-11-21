@@ -14,13 +14,13 @@ import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
 import { SIZE_MAX } from '../types';
 import { setBoxSize } from '../../model/boxSize';
-import { addDetail, addFreePanel, addWallInsert, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, solve } from '../../model/ops';
+import { addDetail, addFreePanel, addWallInsert, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, setWallCorner, solve } from '../../model/ops';
 import { panelEdges } from '../../model/edges';
 import { pairKinds } from '../../model/jointDefaults';
 import { minWeb } from '../../model/materials';
-import { boardBoxRect, boardStock, plywoodOnly } from './boards';
+import { boardBoxRect, boardStock, hangByKeyholes, plywoodOnly } from './boards';
 import { cleanAll, cleanWith, mainTray } from './box';
-import { innerFace, nameAll, sheetLimits, wallsOf } from './shaped';
+import { innerFace, nameAll, reseam, sheetLimits, wallsOf } from './shaped';
 
 type Role = (name: string, id: string) => void;
 const num = (key: string, label: MsgKey, min: number, max: number, dflt: number): ParamDef => ({ key, label, type: 'number', unit: 'mm', min, max, default: dflt });
@@ -297,20 +297,58 @@ birdHouse.accepts = (m, p) => (cleanAll(birdHouse, m, p) ? null : 'sen.why.engin
 
 // --- the bookend ---
 
+/** How far up the front a half box's triangular side keeps a short upright edge (a triangle's tip is not cut clean). */
+const halfLip = (t: number) => 2 * t + 2;
+/** A clamp hole's size: the square a clamp's jaw goes through (boxes.py's clamping size). */
+const CLAMP = 25;
+
+/** Where a half box's clamp holes go in a triangular side, `D` long and `H` tall, its back at x = D: none when they do not fit. */
+function clampHoles(D: number, H: number, t: number): { x: number; y: number }[] | null {
+  const web = Math.max(2, t) + 2;
+  const lip = halfLip(t);
+  const top = (x: number) => lip + ((H - lip) * x) / D;
+  // one low in the middle of the base, one high near the back
+  const a = { x: D / 2, y: t + web + CLAMP / 2 };
+  const b = { x: D - t - web - CLAMP / 2, y: H / 2 };
+  const fits = (q: { x: number; y: number }) => q.y + CLAMP / 2 + web <= top(q.x - CLAMP / 2) && q.x - CLAMP / 2 >= web && q.y - CLAMP / 2 >= t + web;
+  return fits(a) && fits(b) && b.x - a.x >= CLAMP + web ? [a, b] : null;
+}
+
 function generateBookend(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
-  // half of a box: its base, its back and one side, the front and the other side open (books lean on the back, the
-  // side keeps it square)
+  // milestone 171 (HalfBox): its sides are triangles, from the back's top down to the base's front; a design saved
+  // before has no `ends` and keeps its one square side (166)
+  const one = (p.ends ?? 'one') === 'one';
+  const t = d.material.thickness;
   const tr = sizedBox(d, p, () => {
     const w = wallsOf(d);
-    for (const e of ['e0', 'e3']) if (w[e]) deletePanel(d, w[e]);
+    for (const e of one ? ['e0', 'e3'] : ['e0']) if (w[e]) deletePanel(d, w[e]);
   });
   if (!tr) return;
+  const w = wallsOf(d);
+  if (!one) {
+    // the sides slope from the back's top to a short edge at the base's front (e1 runs from the front, e3 to it)
+    const H = d.panels[w.e2]?.h ?? Number(p.height);
+    const drop = H - halfLip(t);
+    if (w.e1) setWallCorner(d, w.e1, 'tl', { dx: 0, dy: -drop });
+    if (w.e3) setWallCorner(d, w.e3, 'tr', { dx: 0, dy: -drop });
+    reseam(d, d.trays[tr].cornerKind);
+    if (p.clamp === 'holes')
+      for (const e of ['e1', 'e3'] as const) {
+        const P = w[e] && d.panels[w[e]];
+        const at = P ? clampHoles(P.w, P.h, t) : null;
+        if (!P || !at) continue;
+        // e1's back is at its far end, e3's at its start
+        for (const q of at) addDetail(d, P.id, 'roundrect', 'cut', e === 'e1' ? q.x : P.w - q.x, q.y, CLAMP, CLAMP);
+      }
+  }
+  if (p.hang === 'keyholes' && w.e2) hangByKeyholes(d, w.e2);
+  solve(d);
   nameAll(d, role);
 }
 
 export const bookend: TemplateDef = {
   id: 'bookend',
-  version: 1,
+  version: 2,
   name: 'sen.bookend',
   description: 'sen.bookend.desc',
   word: 'sen.bookend',
@@ -323,6 +361,28 @@ export const bookend: TemplateDef = {
     num('depth', 'sen.depth', 60, 250, 120),
     num('height', 'sen.height', 60, 300, 150),
     sizeAsWord(() => bookend),
+    {
+      key: 'ends', label: 'sen.ends', type: 'choice', default: 'triangles',
+      options: [{ value: 'triangles', label: 'sen.ends.triangles' }, { value: 'one', label: 'sen.ends.one' }],
+      allowed: (v, p, m) => cleanWith(bookend, m, p, 'ends', v),
+      why: () => 'sen.why.engine',
+      affects: ['walls'],
+    },
+    {
+      key: 'hang', label: 'sen.hang', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: [{ value: 'none', label: 'sen.hang.none' }, { value: 'keyholes', label: 'sen.hang.keyholes' }],
+      allowed: (v, p, m) => v === 'none' || (Number(p.width) >= 80 && cleanWith(bookend, m, p, 'hang', v)),
+      why: () => 'sen.why.hangRoom',
+      affects: ['walls'],
+    },
+    {
+      key: 'clamp', label: 'sen.clamp', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: [{ value: 'none', label: 'sen.clamp.none' }, { value: 'holes', label: 'sen.clamp.holes' }],
+      // on triangular sides with room for both holes
+      allowed: (v, p, m) => v === 'none' || ((p.ends ?? 'one') === 'triangles' && !!clampHoles(Number(p.depth), Number(p.height), m.thickness) && cleanWith(bookend, m, p, 'clamp', v)),
+      why: () => 'sen.why.clampRoom',
+      affects: ['walls'],
+    },
   ],
   generate: generateBookend,
   sentence: { main: 'sen.s.bookend' },

@@ -54,7 +54,7 @@ export type Card = {
   challenges: string[];
   status: 'stable' | 'beta' | 'planned';
   /** Milestone 151: how its pictures look at it (views/illustrate.ts): from where, and how far a tube's bottom flaps hang open. */
-  view?: { dir?: 'front34' | 'high' | 'side34'; bottomOpen?: number; /** What its pictures show inside it (milestone 155; paper, milestone 162). */ prop?: 'cup' | 'product' | 'paper' };
+  view?: { dir?: 'front34' | 'high' | 'side34' | 'rear34'; bottomOpen?: number; /** What its pictures show inside it (milestone 155; paper, milestone 162; goods on shelves, milestone 171). */ prop?: 'cup' | 'product' | 'paper' | 'goods' };
 };
 
 const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
@@ -83,6 +83,9 @@ export const CATALOGUE: Card[] = [
     variants: [
       { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
       { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
+      // milestone 171 (BOXES_PLYWOOD_PLAN.md §2.1): a cap as deep as the box (boxes.py's TwoPiece), and a top fixed on (ClosedBox)
+      { id: 'twoPiece', structure: 'box', style: 'twoPiece', match: { body: 'cross', lid: 'liftoff', rim: 'full' } },
+      { id: 'closedBox', structure: 'box', style: 'closedBox', match: { body: 'cross', lid: 'fixed' } },
     ],
   },
   {
@@ -154,13 +157,22 @@ export const CATALOGUE: Card[] = [
   // milestone 165 (beta): slotted boards, no box and no base, on plywood and 4 mm board only
   { id: 'laptopStand', title: 'card.laptopStand', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'laptopStand', structure: 'laptopStand', match: { body: 'slot', crossing: true } }] },
   { id: 'gridInsert', title: 'card.gridInsert', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridInsert', structure: 'gridInsert', match: { body: 'slot', crossing: true, grid: true } }] },
-  { id: 'shelf', title: 'card.shelf', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } }] },
+  { id: 'shelf', title: 'card.shelf', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [], variants: [{ id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } }] },
   { id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } }] },
   // milestone 166 (beta): boards at a slant held in angled slots, on plywood and 4 mm board only
-  { id: 'deskSign', title: 'card.deskSign', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'deskSign', structure: 'deskSign', match: { body: 'slot', slant: true } }] },
-  { id: 'slantedShelf', title: 'card.slantedShelf', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'slantedShelf', structure: 'slantedShelf', match: { body: 'slot', slant: true, tiers: true } }] },
+  { id: 'deskSign', title: 'card.deskSign', group: 'more', status: 'beta', view: { dir: 'rear34' }, challenges: [], variants: [{ id: 'deskSign', structure: 'deskSign', match: { body: 'slot', slant: true } }] },
+  { id: 'slantedShelf', title: 'card.slantedShelf', group: 'more', status: 'beta', view: { dir: 'side34', prop: 'goods' }, challenges: [], variants: [{ id: 'slantedShelf', structure: 'slantedShelf', match: { body: 'slot', slant: true, tiers: true } }] },
   // milestone 166 (beta): half of a box of boards, its front and one side open
-  { id: 'bookend', title: 'card.bookend', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bookend', structure: 'bookend', match: { body: 'cross', lid: 'none', open: 2 } }] },
+  {
+    // milestone 171 (BOXES_PLYWOOD_PLAN.md §2.2, boxes.py's HalfBox): the bookend card becomes the half box; its sides are triangles
+    id: 'bookend', title: 'card.bookend', word: 'card.bookend.word', group: 'more', status: 'beta', challenges: [],
+    variants: [
+      { id: 'bookend', structure: 'bookend', match: { body: 'cross', lid: 'none', open: 1, slope: true } },
+      { id: 'wallShelf', structure: 'bookend', style: 'wallShelf', match: { body: 'cross', lid: 'none', open: 1, slope: true, hang: true } },
+      { id: 'clampSquare', structure: 'bookend', style: 'clampSquare', match: { body: 'cross', lid: 'none', open: 1, slope: true, jig: true } },
+      { id: 'sturdyBookend', structure: 'bookend', style: 'sturdyBookend', match: { body: 'cross', lid: 'none', open: 2 } },
+    ],
+  },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],

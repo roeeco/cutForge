@@ -55,11 +55,13 @@ const LOOK: Record<MaterialKind, { face: string; edge: string; line: string; det
  * higher one (an organiser's grid); and one from the side (a stand's lean). The light keeps to the upper left of
  * whichever.
  */
-export type ViewName = 'front34' | 'high' | 'side34';
+export type ViewName = 'front34' | 'high' | 'side34' | 'rear34';
 const VIEWS: Record<ViewName, THREE.Vector3> = {
   front34: new THREE.Vector3(0.75, 1.08, 1).normalize(),
   high: new THREE.Vector3(0.55, 1.9, 1).normalize(),
   side34: new THREE.Vector3(1.3, 0.85, 0.45).normalize(),
+  // milestone 171: from behind on the right, for a thing held up from behind (a desk sign's feet)
+  rear34: new THREE.Vector3(1, 0.95, -0.8).normalize(),
 };
 let VIEW = VIEWS.front34.clone();
 let RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), VIEW).normalize();
@@ -200,6 +202,7 @@ function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: F
   if (prop === 'cup') return cupFaces(d, xf, out);
   if (prop === 'paper') return paperFaces(d, xf, out);
   if (prop === 'letter') return letterFaces(d, xf, out);
+  if (prop === 'goods') return goodsFaces(d, xf, out);
   const baseId = boxBases(d)[0];
   if (!baseId) return;
   const base = d.panels[baseId];
@@ -364,6 +367,45 @@ function paperFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
     const lo = new THREE.Vector3(b.min.x + th + off + W * 0.04, b.min.y + 1 + k * H, b.min.z + th + D * 0.04);
     block(lo, new THREE.Vector3(W * 0.92, 0, 0), new THREE.Vector3(0, 0, D * 0.92), new THREE.Vector3(0, H * 0.94, 0), '#f4f1e8', '#7d776b', out, '#fffdf7');
   }
+}
+
+/**
+ * Things on a shelf's boards (milestone 171): on each level shelf (`t:shelf-n`) a few small boxes standing, on each
+ * tilted tier (`t:tier-n`) a stack of cards lying on it, so a shelf reads as a shelf and not as a box at list size.
+ */
+function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const COLS = ['#1fb8ac', '#f2b632', '#e4574b', '#3f7be0', '#7b5bd6'];
+  const ids = d.order.filter((id) => /^t:(shelf|tier)-\d+$/.test(id) && d.panels[id]);
+  const ys = ids.map((id) => (xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(d.panels[id].frame))).map((M) => new THREE.Vector3().applyMatrix4(M).y);
+  ids.forEach((id, k) => {
+    const p = d.panels[id];
+    const M = (xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(p.frame));
+    const s = panelShape(d, p);
+    const [z0, z1] = s.side === 1 ? [0, s.t] : [-s.t, 0];
+    const up0 = new THREE.Vector3(0, 0, 1).transformDirection(M);
+    // its upper face, and that face's normal pointing up
+    const zUp = new THREE.Vector3(0, 0, z1).applyMatrix4(M).y >= new THREE.Vector3(0, 0, z0).applyMatrix4(M).y ? z1 : z0;
+    const n = up0.y >= 0 ? up0 : up0.clone().negate();
+    const at = (x: number, y: number) => new THREE.Vector3(x, y, zUp).applyMatrix4(M);
+    const ex = new THREE.Vector3(1, 0, 0).transformDirection(M), ey = new THREE.Vector3(0, 1, 0).transformDirection(M);
+    const tier = id.startsWith('t:tier');
+    // the room above it: to the next board up, or a third of its depth
+    const above = ys.filter((y, j) => j !== k && y > ys[k] + 1).sort((a, b) => a - b)[0];
+    const room = above !== undefined ? above - ys[k] - s.t : p.h / 2;
+    const n0 = Math.max(2, Math.min(4, Math.floor(p.w / 45)));
+    for (let i = 0; i < n0; i++) {
+      const col = COLS[(i + k * 2) % COLS.length];
+      const cw = (p.w / n0) * 0.62, x = (p.w / n0) * (i + 0.19);
+      if (tier) {
+        // cards: a thin stack lying on the tier, towards its front
+        const dep = Math.min(p.h * 0.62, cw * 1.35), hgt = Math.max(3, Math.min(10, room * 0.2));
+        block(at(x, p.h * 0.08), ex.clone().multiplyScalar(cw), ey.clone().multiplyScalar(dep), n.clone().multiplyScalar(hgt), '#f4f1e8', '#7d776b', out, col);
+      } else {
+        const dep = Math.min(p.h * 0.55, cw), hgt = Math.max(8, room * (0.45 + 0.2 * ((i * 37 + k) % 3) / 2));
+        block(at(x, p.h * 0.3), ex.clone().multiplyScalar(cw), ey.clone().multiplyScalar(dep), new THREE.Vector3(0, hgt, 0), col, '#3a3530', out);
+      }
+    }
+  });
 }
 
 /** Pencils standing in a pen cup (milestone 155): a handful upright in its middle, each leaning a little, a third taller than it. */

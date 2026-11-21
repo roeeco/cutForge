@@ -105,12 +105,13 @@ export const slantedShelf: TemplateDef = {
   params: [
     num('width', 'sen.width', 60, 300, 160),
     num('depth', 'sen.depth', 60, 250, 120),
-    num('height', 'sen.height', 80, 300, 200),
+    // milestone 171: tall enough that its tiers read as a shelf, not a box
+    num('height', 'sen.height', 120, 300, 200),
     int('tiers', 'sen.tiers', 2, 5, 3),
     { key: 'tilt', label: 'sen.tilt', type: 'choice', options: ([10, 15, 20, 25] as const).map((x) => ({ value: x, label: `sen.tilt${x}` as MsgKey })), default: 15 },
   ],
   generate: generateSlantedShelf,
   sentence: { main: 'sen.s.slantedShelf' },
 };
-slantedShelf.limits = sheetLimits(slantedShelf, { width: 60, depth: 60, height: 80 });
+slantedShelf.limits = sheetLimits(slantedShelf, { width: 60, depth: 60, height: 120 });
 slantedShelf.accepts = (m, p) => (cleanAll(slantedShelf, m, p) ? null : 'sen.why.engineSize');

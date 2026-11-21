@@ -172,13 +172,14 @@ export const shelf: TemplateDef = {
   params: [
     num('width', 'sen.width', 60, 300, 200),
     num('depth', 'sen.depth', 40, 250, 100),
-    num('height', 'sen.height', 60, 300, 200),
+    // milestone 171: never lower than a shelf with room to put something on it (picked from a 45 mm box, it was a stack of boards)
+    num('height', 'sen.height', 120, 300, 200),
     int('shelves', 'sen.shelves', 2, 5, 3),
   ],
   generate: generateShelf,
   sentence: { main: 'sen.s.shelf' },
 };
-shelf.limits = sheetLimits(shelf, { width: 60, depth: 40, height: 60 });
+shelf.limits = sheetLimits(shelf, { width: 60, depth: 40, height: 120 });
 shelf.accepts = (m, p) => (cleanAll(shelf, m, p) ? null : 'sen.why.engineSize');
 
 // --- the bottle rack ---

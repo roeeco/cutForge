@@ -28,7 +28,10 @@ export const BOARD_GRADES: BoardGrade[] = [
   scaled('corr-4', 'corr-3', 3, 'corrugated'),
   scaled('corr-4', 'corr-7', 7, 'corrugated'),
   scaled('ply-3', 'ply-4', 4, 'plywood'),
+  // milestone 171 (owner, 21 November: plywood from 3 to 8 mm)
+  scaled('ply-3', 'ply-5', 5, 'plywood'),
   scaled('ply-3', 'ply-6', 6, 'plywood'),
+  scaled('ply-3', 'ply-8', 8, 'plywood'),
 ];
 
 /** The families in the drawer's order, each with the built-ins that belong to it shown first. */

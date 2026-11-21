@@ -22,8 +22,8 @@ const blocking = (d: Design) => validate(d).filter((i) => !NOTE_KEYS.has(i.key))
 const t = (k: string) => (en as Record<string, string>)[k] ?? k;
 
 describe('board grades', () => {
-  it('ten grades, ids not clashing with the built-ins, each found by id and named', () => {
-    expect(BOARD_GRADES).toHaveLength(10);
+  it('twelve grades, ids not clashing with the built-ins, each found by id and named', () => {
+    expect(BOARD_GRADES).toHaveLength(12);
     for (const g of BOARD_GRADES) {
       expect(MATERIALS.some((m) => m.id === g.id)).toBe(false);
       expect(profileById(g.id)).toBe(g);

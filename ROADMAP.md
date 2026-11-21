@@ -288,3 +288,16 @@ Constructions read in boxes.py (a behaviour reference only), for plywood 3 and 4
 | **168** | Shapes: gear, knob, hole pattern, puzzle cut | not built: Shapes-tool work of its own |
 | **169** | Sliding lid and stacking feet | ✅ the sliding-lid box (stacking feet need walls below the base) |
 | **170** | Verification | |
+
+### 5.7 Milestones 171–185: every doable boxes.py design, in plywood (plan of 21 November, `BOXES_PLYWOOD_PLAN.md`)
+
+Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten picks first.
+
+| # | Milestone | Status |
+| --- | --- | --- |
+| **171** | Owner's picks I: plywood 5 and 8 mm, picture fixes, half box, keyholes, box words (closed, rim, grips) | ✅ (lid handle and base overhang moved to 173) |
+| **172** | Owner's picks II: shelf *Rack*, slanted shelf words, bin rack, wall rack | |
+| **173** | Face-glued joint; lids plug, brim, handle; base overhang | |
+| **174** | Tambour door; roll-top box | |
+| **175** | A wrap that opens, latch; flex-door box | |
+| **176–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
