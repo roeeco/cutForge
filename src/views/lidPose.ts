@@ -19,7 +19,7 @@ import type { Bend, BandShown } from './foldView';
 export const LID_OPEN_PAST = 20;
 
 /** `openPast`: how far past straight a folded lid opens (default LID_OPEN_PAST; the illustrations open them about halfway). */
-export type LidView = { shut: Record<string, boolean>; selected: string[]; foldT: number; assembling: boolean; openPast?: number };
+export type LidView = { shut: Record<string, boolean>; selected: string[]; foldT: number; assembling: boolean; openPast?: number; /** Milestone 152: while it goes together, how far its folded lids have closed (0 open as shown, 1 shut). */ closeK?: number };
 
 /** The boards that move with a lid: its parts and anything placed on them. */
 function riders(d: Design, parts: string[]): Set<string> {
@@ -69,8 +69,9 @@ export function applyLidPoses(d: Design, r: { xf: Map<string, THREE.Matrix4>; be
       if (T) move(ids, new THREE.Matrix4().fromArray(T));
       continue;
     }
-    // a folded lid: open unless closed, picked, folding or going together
-    if (v.shut[t.id] || picked || v.foldT < 0.999 || v.assembling) continue;
+    // a folded lid: open unless closed, picked, folding or going together (milestone 152: going together, it closes at the end)
+    if (v.shut[t.id] || picked || v.foldT < 0.999 || (v.assembling && v.closeK === undefined) || (v.closeK ?? 0) >= 1) continue;
+    const k = v.closeK ?? 0;
     const c = parentConnection(d, lid.lid);
     if (!c || c.kind !== 'fold') continue;
     const P = r.xf.get(c.a.panelId) ?? new THREE.Matrix4();
@@ -78,16 +79,16 @@ export function applyLidPoses(d: Design, r: { xf: Map<string, THREE.Matrix4>; be
     const band = bandOf(d, c);
     if (band) {
       // a band unrolls: the lid stands in line with its wall
-      R = new THREE.Matrix4().fromArray(bandChildMove(band, 0)).multiply(new THREE.Matrix4().fromArray(bandChildMove(band, 1)).invert());
+      R = new THREE.Matrix4().fromArray(bandChildMove(band, k)).multiply(new THREE.Matrix4().fromArray(bandChildMove(band, 1)).invert());
       const i = r.bands.findIndex((s) => s.band.id === c.id);
-      if (i >= 0) r.bands[i] = { ...r.bands[i], k: 0 };
+      if (i >= 0) r.bands[i] = { ...r.bands[i], k };
     } else {
       // a crease: turned back about it, as the fold view unfolds it, and a little past
       const L = d.panels[lid.lid];
       const th = tOf(d, L.id);
       const pivot = new THREE.Vector3(...toWorld(L.frame, 0, -th / 2, th / 2));
       const axis = new THREE.Vector3(...L.frame.v).cross(new THREE.Vector3(...matDir(L.frame)).negate()).normalize();
-      const phi = ((180 - c.angle + (v.openPast ?? LID_OPEN_PAST)) * Math.PI) / 180;
+      const phi = (((180 - c.angle + (v.openPast ?? LID_OPEN_PAST)) * Math.PI) / 180) * (1 - k);
       R = new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z).multiply(new THREE.Matrix4().makeRotationAxis(axis, phi)).multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
     }
     move(ids, P.clone().multiply(R).multiply(P.clone().invert()), c.id);

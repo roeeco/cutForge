@@ -9,7 +9,7 @@
 // student's own included; a preset's card may ask for more (milestone 151).
 import * as THREE from 'three';
 import type { Design, Flap3d, Panel } from '../model/types';
-import { foldDisplay } from './foldView';
+import { flapMatrix, foldDisplay } from './foldView';
 import { applyLidPoses } from './lidPose';
 import { boxLid, lidParts } from '../easy/lid';
 import { trayRing } from '../model/cartons';
@@ -238,5 +238,43 @@ export function sideOfFlaps(d: Design, p: Panel, xf: Map<string, THREE.Matrix4>)
       if (Math.abs(s) > 1e-3) return s > 0 ? 1 : -1;
     }
   return 1;
+}
+
+/** How far past upright a tray's top flaps stand open on the stage (milestone 152), as the pictures show them. */
+export const STAGE_ENDS_OPEN = 1.12;
+
+/**
+ * The fold fraction the stage draws a flap at (milestone 152): a tray's top flaps stand open like its folded lid,
+ * unless it is closed (*Close*), one of its boards is selected, the fold slider is moving or it is going together
+ * (then they close at the end, `closeK`); every other flap follows the fold slider.
+ */
+export function stageFlapT(d: Design, connId: string, f: Flap3d, v: { foldT: number; shut: Record<string, boolean>; selected: string[]; closeK?: number }): number {
+  if (f.endOf !== 'top' || !f.hinge || !connId.startsWith('end:') || v.foldT < 0.999) return v.foldT;
+  // `end:<tray>:<end>` (a tray's id may have colons of its own)
+  const tray = connId.slice(4, connId.lastIndexOf(':'));
+  const t = d.trays?.[tray];
+  if (!t || v.shut[tray]) return v.foldT;
+  const ids = new Set([t.baseId, ...trayRing(d, t).map((r) => r.wall)]);
+  if (v.selected.some((id) => ids.has(id))) return v.foldT;
+  const k = v.closeK ?? 0;
+  return 1 - STAGE_ENDS_OPEN * (1 - k);
+}
+
+/**
+ * The box a design fills as the stage shows it (milestone 152): lids opened or lifted as shown and a tray's top flaps
+ * standing open, so framing it leaves nothing cut off (a tall carton's open lid was framed out).
+ */
+export function shownBox(d: Design, shut: Record<string, boolean> = {}): THREE.Box3 {
+  const r = foldDisplay(d, 1);
+  applyLidPoses(d, r, { shut, selected: [], foldT: 1, assembling: false });
+  const box = boxOf(d, d.order, r.xf);
+  for (const c of Object.values(d.connections))
+    for (const f of c.geom?.flaps3d ?? []) {
+      const p = d.panels[f.panelId];
+      if (!p) continue;
+      const M = flapMatrix(d, f, r.xf, stageFlapT(d, c.id, f, { foldT: 1, shut, selected: [] }));
+      for (const q of f.poly) box.expandByPoint(new THREE.Vector3(q.x, q.y, (f.z0 + f.z1) / 2).applyMatrix4(M));
+    }
+  return box;
 }
 

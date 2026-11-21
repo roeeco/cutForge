@@ -2437,6 +2437,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/variants.test.ts` and `tests/e2e/variants.spec.ts`: siblings, picking one, one undo step.
 - Look-alikes after 151: the straight tuck and the snap-lock on 1.6 mm (pictures), box/tray and the two organiser missions (records): all in 153.
 
+## Milestone 152 (presets overhaul) — the stage ✅
+
+- `src/views/pose.ts`: `stageFlapT`, `shownBox`; `src/views/lidPose.ts`: `closeK`; `src/easy/assemble.ts`: the closing phase; `src/views/View3D.tsx`: flaps open on the stage, framing on the shown box, the camera on the test hook; `src/ui/LidUI.tsx`: *Close* for a top of flaps.
+- `tests/stagePose.test.ts` and `tests/e2e/stage-frame.spec.ts`: flaps open and shut, lids closing in the animation, the shown box, five presets framed whole at 1366 × 768, the animation running through its closing.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

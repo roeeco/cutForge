@@ -746,3 +746,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **The design card's *Kind* switch** (`siblingsOf`): the other variants of the design's card on its own structure that the sentence would list for its words, as small pictures at the design's sizes; picking one regenerates the template in one undo step (the student's work kept as with any word). It is not shown for a lone variant or a design with no template. The box and tray are different structures, so they are not switches of each other (153).
 - **Card is whiter on the stage** (`#f8f4ec`, its cut edge `#cdbfa6`): it read as grey (welcome review W10). Exports do not use these colours.
 
+## Milestone 152 (presets overhaul): the stage
+- **A tray's top flaps stand open on the stage, like its folded lid** (`stageFlapT`): open a little past upright, shut by the lid's *Close* pill (the tray card shows it for a top closed by flaps too), while one of the tray's boards is selected (so its faces can be drawn on where they are), and with the fold slider. Only the top's: a bottom's flaps open would hang under the floor.
+- **The design is framed as the stage shows it** (`shownBox`: lids opened or lifted as shown, top flaps open), not as it is in the model: a tall carton's open tuck lid was framed out. A spec checks five presets at 1366 × 768 project inside the canvas.
+- ***Show how it closes* is the end of *Show how it goes together*** (one play button, not two): the nets fold up, the pieces come in, then the folded lids and the top flaps fold shut (`assembleClose`, the last 18 % of the animation, 400 ms longer). `assemblySteps` (milestone 131) orders the seams of a model made from shapes; presets have their own order (walls, pieces, closing), so it is not used for them.
+- **The hero pose on the stage is what the pictures' pose shares with it**: open lids and open top flaps. A drawer pulled out of its sleeve or a sleeve laid down would move boards away from where they are drawn on, so they stay in the pictures only.
+- **The stage's camera is on the test hook** (`__cutforge.stage()`, development and `?test` only) for the framing spec.
+
