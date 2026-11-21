@@ -13,7 +13,12 @@ Written 2026-11-21 against `claude/eloquent-brahmagupta-eip2fd` at `27bb61c` (pr
   - is drawn and posed by `illustrate.ts` and `pose.ts`;
   - is held to the overhaul's rules: one card per thing that looks and works differently, a visible tell, no look-alikes (§3 of the overhaul).
 - **What this lane adds: presets built from boards, for plywood 3 mm and corrugated 4 mm.** The dieline analysis (`DIELINE_GENERATOR_ANALYSIS.md`) brought in folded constructions: tubes, crosses folded from one net, strips and wraps. boxes.py brings rigid boards joined at their edges: finger joints and tabs in slots, half-slots crossing, boards leaning in angled slots. These are the **cross** (walls standing on a base as boards), **stand** and **slot** bodies of the analysis, in the two materials the overhaul calls thin on cards (§2.3 and rule 5: plywood has about 6 distinct cards, 4 mm board about 12 counting beta).
-- **Port the recipes, not the code.** Unchanged from the first draft: each generator becomes a `TemplateDef` written against `model/ops.ts`. The engine picks the joints for the material, and `pack` / `nest` lay out the sheet.
+- **Take the constructions, not the code.** boxes.py is GPL‑3.0. Under `THIRD_PARTY.md`'s rule, it is a behaviour reference only, as Papercraft is. What is read:
+  - which boards a thing has;
+  - how they meet;
+  - its proportions and default sizes.
+
+  Each preset is then written fresh as a `TemplateDef` against `model/ops.ts`, and no code is copied or translated. The engine picks the joints for the material, and `pack` / `nest` lay out the sheet.
 - **Start after 160, the overhaul's verification (decided, owner, 21 November).** Until then nothing here is built. The exception is the three cards the overhaul already plans: magazine file, dice tower and phone stand. For those, the boxes.py recipes go into milestones 155 and 157 as their reference (§2).
 - **Decided with it (owner, 21 November):**
   - angled tabs through slots are allowed on 4 mm board (R3);
@@ -123,7 +128,7 @@ These go in the Shapes tool and on boards, not in the catalogue:
 
 | boxes.py | Becomes |
 |---|---|
-| `gear`, `pulley` | **Gear** footprint (`G` menu of Shapes): involute teeth, module and count; as *Board* it makes a board, on a board it cuts or adds. The maths is a port of `gears.py`. |
+| `gear`, `pulley` | **Gear** footprint (`G` menu of Shapes): involute teeth, module and count; as *Board* it makes a board, on a board it cuts or adds. The involute outline is written fresh from the standard formulas, not from `gears.py`. |
 | `concaveknob`, `wavyknob` | **Knob** footprint, with a centre hole or a D-flat |
 | `holepattern`, `fanhole`, `nemapattern` | **Hole pattern** shape: a grid or ring of holes as one live array (arrays exist, README §7) |
 | `jigsaw` | a set of cut lines on a board (*Puzzle cut*), as milestone 83's lines |
@@ -153,7 +158,7 @@ boxes.py's own settings are not ported:
 
 ## 7. Porting one generator
 
-1. Read its `__init__` (arguments, defaults) and `render()` (parts, edge strings, callbacks).
+1. Read its `__init__` (arguments, defaults) and `render()` (parts, edge strings, callbacks) for what it builds: the boards, how they meet, the proportions and the defaults. This is a description to work from, not code to translate.
 2. Decide what it is in the catalogue: an alias, a variant or a new card. Check its record against `CATALOGUE` first. If it would be the same record as a card and draws the same picture, it is a variant or nothing.
 3. Choose its words:
    - sizes as `width`, `depth`, `height` with `sizeAs`, within `SIZE_MIN` / `SIZE_MAX`;
@@ -162,7 +167,7 @@ boxes.py's own settings are not ported:
 4. Build it in 3D with `addTray`, `growPanel` (with `kind: 'tabslot'` on c4), `addDivider`, the 157 angled-board helper, details for holes. Give every board a `role`.
 5. Add `materials: ['plywood', 'corrugated']` and `canMake: (m) => m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3)`. A card is not offered on card or 1.6 mm board: no folded fallback. A design switched to a thinner stock falls back to the nearest existing card (`fallback`), as a carton on plywood does. Add `limits` / `accepts` by building (`cleanAll`, `cleanWith`, `largestOk`, as `flat.ts` does) and `check`.
 6. Add its card or variant, its `match` pattern, any new record field (R1), its pose (§4.1 of the overhaul: view, open, props, cutaway) and its tell.
-7. Add a line to `THIRD_PARTY.md`: the generator's name, boxes.py, GPL‑3.0, recipe ported.
+7. Name the generator under boxes.py in `THIRD_PARTY.md`: its construction was read, and the preset was written fresh.
 
 ## 8. Tests: the overhaul's gates plus two
 
@@ -201,4 +206,4 @@ E3 (pin hinges) and E4 (a living hinge round any outline) stay in `ROADMAP.md` �
 | 3 | Finger joints on 4 mm board | No. Tabs in slots stay. |
 | 4 | Card and 1.6 mm board | Left off. These cards are plywood 3 and corrugated 4 only. |
 
-Still open: the licence note. For personal use it doesn't matter. If CutForge is deployed to a class, that is distribution, and the ported files carry GPL‑3.0. Listing them in `THIRD_PARTY.md` keeps it clear.
+| 5 | Licence | boxes.py is a behaviour reference only, as `THIRD_PARTY.md` already rules for GPL code. Its constructions and sizes are read, and every preset is written fresh. Nothing in the repository then carries GPL‑3.0, whether CutForge stays personal or goes to a class. |
