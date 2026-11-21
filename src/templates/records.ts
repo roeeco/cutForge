@@ -72,6 +72,14 @@ export type PresetRecord = {
   hang?: boolean;
   /** Milestone 171: square holes for a clamp's jaws through a box's walls (a clamping square). */
   jig?: boolean;
+  /** Milestone 178: boards of their own crossing a box's walls in half-slots (loose dividers, lifted out by hand). */
+  loose?: boolean;
+  /** Milestone 178: upright boards of their own inside a box, standing on its base (partitions between its spaces). */
+  partitions?: boolean;
+  /** Milestone 178: ramps inside a box facing both ways (a scoop at each end). */
+  bothEnds?: boolean;
+  /** Milestone 178: more than two of a box's walls slope (a height per corner). */
+  uneven?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -201,6 +209,46 @@ function hasJig(d: Design, t: Tray): boolean {
   return trayRing(d, t).filter((r) => d.panels[r.wall]?.details.some((x) => x.op === 'cut' && x.shape === 'roundrect' && Math.min(x.w, x.h) >= 20 && Math.abs(x.w - x.h) < 2)).length >= 2;
 }
 
+/** Milestone 178: free boards (not walls, base, lid, divider or grown) inside a box: those that match. */
+function freeIn(d: Design, t: Tray, test: (p: Design['panels'][string]) => boolean): Design['panels'][string][] {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
+  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !p.divider && !p.place && !grown.has(p.id) && test(p));
+}
+
+/** Milestone 178: a board of its own crossing one of a box's walls in a half-slot. */
+function hasLoose(d: Design, t: Tray): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const free = new Set(freeIn(d, t, () => true).map((p) => p.id));
+  return Object.values(d.connections).some((c) => c.kind === 'halflap' && ((walls.has(c.a.panelId) && free.has(c.b.panelId)) || (walls.has(c.b.panelId) && free.has(c.a.panelId))));
+}
+
+/** Milestone 178: an upright board of its own on a box's base, joined to it (not by a half-slot). */
+function hasPartitions(d: Design, t: Tray): boolean {
+  const on = (id: string) => Object.values(d.connections).some((c) => !c.grown && c.kind !== 'halflap' && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
+  return freeIn(d, t, (p) => Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]) < 0.02 && on(p.id)).length > 0;
+}
+
+/** Milestone 178: ramps (slanted boards of their own on the base, joined to the walls) facing both ways along the box. */
+function rampsBothWays(d: Design, t: Tray): boolean {
+  const on = (id: string) => Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
+  const ramps = freeIn(d, t, (p) => {
+    const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
+    return n > 0.2 && n < 0.98 && on(p.id);
+  });
+  // which way each faces: its slope's run along the box (v's level part)
+  const ways = new Set(ramps.map((p) => Math.sign(Math.round(p.frame.v[2] * 1000 + p.frame.v[0] * 1000) * Math.sign(p.frame.v[1] || 1))));
+  return ways.has(1) && ways.has(-1);
+}
+
+/** Milestone 178: walls whose tops slope (a top corner lowered more than a few mm): how many. */
+function slopedWalls(d: Design, t: Tray): number {
+  return trayRing(d, t).filter((r) => {
+    const s = d.panels[r.wall]?.sketch;
+    return s?.kind === 'wall' && ['tl', 'tr'].some((k) => (s.corners?.[k as 'tl' | 'tr']?.dy ?? 0) < -5);
+  }).length;
+}
+
 /** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
 function openWalls(d: Design, t: Tray): number {
   const base = d.panels[t.baseId];
@@ -279,6 +327,10 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && open) rec.open = open;
     if (hangs(d)) rec.hang = true;
     if (!tube && hasJig(d, t)) rec.jig = true;
+    if (!tube && hasLoose(d, t)) rec.loose = true;
+    if (!tube && hasPartitions(d, t)) rec.partitions = true;
+    if (!tube && rampsBothWays(d, t)) rec.bothEnds = true;
+    if (!tube && slopedWalls(d, t) > 2) rec.uneven = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -311,7 +363,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'loose', 'partitions', 'bothEnds', 'uneven'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

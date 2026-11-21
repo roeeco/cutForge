@@ -74,10 +74,22 @@ export const CATALOGUE: Card[] = [
   // milestone 164 (beta): a box of boards with a plate partway down, pens standing in its holes
   { id: 'penHolder', title: 'card.penHolder', group: 'boxes', status: 'beta', view: { prop: 'cup', dir: 'high' }, challenges: [], variants: [{ id: 'penHolder', structure: 'penHolder', match: { body: 'cross', lid: 'none', plate: true } }] },
   // milestone 164 (beta): a low box of boards whose front is a ramp, for scooping tokens and screws out
-  { id: 'scoopTray', title: 'card.scoopTray', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'scoopTray', structure: 'scoopTray', match: { body: 'cross', lid: 'none', ramp: true } }] },
+  { id: 'scoopTray', title: 'card.scoopTray', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [
+    { id: 'scoopTray', structure: 'scoopTray', match: { body: 'cross', lid: 'none', ramp: true } },
+    // milestone 178 (boxes.py's two-sided SmallPartsTray): a ramp at each end
+    { id: 'scoopBoth', structure: 'scoopTray', style: 'scoopBoth', match: { body: 'cross', lid: 'none', ramp: true, bothEnds: true } },
+  ] },
   // milestone 169 (beta): a box of boards whose lid slides out in grooves made by rails on its side walls
-  { id: 'slideBox', title: 'card.slideBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'slideBox', structure: 'slideBox', match: { body: 'cross', lid: 'none', rails: true } }] },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [{ id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } }] },
+  { id: 'slideBox', title: 'card.slideBox', group: 'boxes', status: 'beta', challenges: [], variants: [
+    { id: 'slideBox', structure: 'slideBox', match: { body: 'cross', lid: 'none', rails: true } },
+    // milestone 178 (boxes.py's CompartmentBox): partitions under the lid
+    { id: 'compartmentBox', structure: 'slideBox', style: 'compartmentBox', match: { body: 'cross', lid: 'none', rails: true, partitions: true } },
+  ] },
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [
+    { id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } },
+    // milestone 178 (beta, plywood; boxes.py's DividerTray): loose dividers resting in notches in the side walls' tops
+    { id: 'dividerTray', structure: 'dividerTray', match: { body: 'cross', lid: 'none', loose: true } },
+  ] },
   {
     id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: [],
     variants: [
@@ -104,7 +116,11 @@ export const CATALOGUE: Card[] = [
   { id: 'penCup', title: 'card.penCup', group: 'boxes', status: 'stable', challenges: ['dice-tray'], view: { prop: 'cup' }, variants: [{ id: 'penCup', structure: 'box', style: 'penCup', match: { body: 'cross', footprint: 'poly', lid: 'none' } }] },
   { id: 'drawerBox', title: 'card.drawerBox', group: 'boxes', status: 'stable', challenges: [], variants: [{ id: 'drawer', structure: 'drawer', match: { body: 'cross', relation: 'drawer' } }] },
   // milestone 157 (beta): a box whose side walls slope down to a low front
-  { id: 'magazineFile', title: 'card.magazineFile', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'magazineFile', structure: 'magazineFile', match: { body: 'cross', lid: 'none', slope: true } }] },
+  { id: 'magazineFile', title: 'card.magazineFile', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [
+    { id: 'magazineFile', structure: 'magazineFile', match: { body: 'cross', lid: 'none', slope: true } },
+    // milestone 178 (boxes.py's UnevenHeightBox): a height per corner
+    { id: 'unevenFile', structure: 'magazineFile', style: 'unevenFile', match: { body: 'cross', lid: 'none', slope: true, uneven: true } },
+  ] },
   // cartons
   // milestone 155: a carton with a window and what it holds behind it (before the tuck cartons: of two equally specific, the first)
   { id: 'windowCarton', title: 'card.windowCarton', group: 'cartons', status: 'stable', challenges: [], view: { prop: 'product' }, variants: [{ id: 'windowCarton', structure: 'carton', style: 'windowCarton', match: { body: 'tube', top: 'tuck', window: true } }] },
@@ -194,6 +210,8 @@ export const CATALOGUE: Card[] = [
       { id: 'accordionPad', structure: 'insert', style: 'accordionPad', match: { body: 'folded', strip: true, accordion: true } },
     ],
   },
+  // milestone 178 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.2): an organiser with a ramp in each space (boxes.py's SmallPartsTray2)
+  { id: 'scoopOrganiser', title: 'card.scoopOrganiser', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'scoopOrganiser', structure: 'scoopOrganiser', match: { body: 'cross', lid: 'none', ramp: true, partitions: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

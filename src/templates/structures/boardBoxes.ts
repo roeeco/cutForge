@@ -184,34 +184,54 @@ function restOn(d: Parameters<TemplateDef['generate']>[0], id: string, on: strin
 
 /** The ramp's slant (degrees from level): this, or steeper when the tray is too shallow front to back for it. */
 const RAMP_SLANT = 35;
-/** The most of the inside, front to back, the ramp may take. */
+/** The most of the inside, front to back, the ramp may take; each of two (milestone 178). */
 const RAMP_REACH = 0.6;
+const RAMP_REACH_BOTH = 0.42;
 
 function generateScoopTray(d: Parameters<TemplateDef['generate']>[0], p: Params, role: Role) {
   const tr = sizedBox(d, p);
   if (!tr) return;
   const ins = insideOf(d);
   if (!ins) return;
-  const front = wallsOf(d).e0;
-  const top = front ? d.panels[front].frame.o[1] + d.panels[front].h : d.trays[tr].height;
-  const rise = top - ins.floor, run = ins.zF - ins.zB;
-  // from the front wall's top down to the base, between the side walls
-  const a = Math.max((RAMP_SLANT * Math.PI) / 180, Math.atan(rise / (run * RAMP_REACH)));
-  const len = rise / Math.sin(a);
-  const ramp = addFreePanel(d, {
-    frame: { o: [ins.xL, top, ins.zF], u: [1, 0, 0], v: [0, -Math.sin(a), -Math.cos(a)] },
-    side: 1,
-    outer: [{ x: 0, y: 0 }, { x: ins.xR - ins.xL, y: 0 }, { x: ins.xR - ins.xL, y: len }, { x: 0, y: len }],
-  });
-  solve(d);
-  if (ramp) {
-    connectSeams(d, ramp);
-    // held by the side walls' tabs; it rests on the base and against the front wall's top
-    restOn(d, ramp, d.trays[tr].baseId);
-    if (front) restOn(d, ramp, front);
+  // milestone 178 (boxes.py's two-sided SmallPartsTray, plywood): a ramp at the back too, each reaching less far
+  const both = p.scoops === 'both';
+  const w = wallsOf(d);
+  if (both) {
+    // the side walls rise a web above the ends, so the slots for the ramps' tabs by their tops have board round them
+    const web = Math.max(minWeb(d.material), d.material.thickness);
+    for (const e of ['e1', 'e3']) {
+      if (!w[e]) continue;
+      setCustomHeight(d, w[e], true);
+      setPanelSize(d, w[e], undefined, d.panels[w[e]].h + web);
+    }
+    solve(d);
+  }
+  const ramps: string[] = [];
+  for (const end of both ? (['e0', 'e2'] as const) : (['e0'] as const)) {
+    const wall = w[end];
+    const top = wall ? d.panels[wall].frame.o[1] + d.panels[wall].h : d.trays[tr].height;
+    const rise = top - ins.floor, run = ins.zF - ins.zB;
+    // from the wall's top down to the base, between the side walls
+    const a = Math.max((RAMP_SLANT * Math.PI) / 180, Math.atan(rise / (run * (both ? RAMP_REACH_BOTH : RAMP_REACH))));
+    const len = rise / Math.sin(a);
+    const s = end === 'e0' ? -1 : 1;
+    const ramp = addFreePanel(d, {
+      frame: { o: [ins.xL, top, end === 'e0' ? ins.zF : ins.zB], u: [1, 0, 0], v: [0, -Math.sin(a), s * Math.cos(a)] },
+      side: end === 'e0' ? 1 : -1,
+      outer: [{ x: 0, y: 0 }, { x: ins.xR - ins.xL, y: 0 }, { x: ins.xR - ins.xL, y: len }, { x: 0, y: len }],
+    });
+    if (ramp) ramps.push(ramp);
   }
   solve(d);
-  nameAll(d, role, ramp ? { ramp } : {});
+  ramps.forEach((ramp, i) => {
+    connectSeams(d, ramp);
+    // held by the side walls' tabs; it rests on the base and against its end wall's top
+    restOn(d, ramp, d.trays[tr].baseId);
+    const end = w[i === 0 ? 'e0' : 'e2'];
+    if (end) restOn(d, ramp, end);
+  });
+  solve(d);
+  nameAll(d, role, ramps.length ? { ramp: ramps[0], ...(ramps[1] ? { 'ramp-2': ramps[1] } : {}) } : {});
 }
 
 export const scoopTray: TemplateDef = {
@@ -229,6 +249,14 @@ export const scoopTray: TemplateDef = {
     num('depth', 'sen.depth', 60, SIZE_MAX, 120),
     num('height', 'sen.height', 20, 120, 40),
     sizeAsWord(() => scoopTray),
+    // milestone 178 (BOXES_PLYWOOD_PLAN.md §3.2, boxes.py's two-sided SmallPartsTray): a ramp at each end, on plywood
+    {
+      key: 'scoops', label: 'sen.scoops', type: 'choice', default: 'one', addon: { off: 'one' },
+      options: [{ value: 'one', label: 'sen.scoops.one' }, { value: 'both', label: 'sen.scoops.both' }],
+      allowed: (v, p, m) => v === 'one' || (m.kind === 'plywood' && cleanWith(scoopTray, m, p, 'scoops', v)),
+      why: (_v, _p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.engine'),
+      affects: ['walls'],
+    },
   ],
   generate: generateScoopTray,
   sentence: { main: 'sen.s.scoopTray' },
@@ -392,6 +420,9 @@ bookend.accepts = (m, p) => (cleanAll(bookend, m, p) ? null : 'sen.why.engineSiz
 
 // --- the sliding-lid box ---
 
+/** Milestone 178: room for `n` spaces across a sliding-lid box `W` wide inside, each 20 mm or more. */
+const partsFit = (W: number, t: number, n: number) => (W - (n - 1) * t) / n >= 20;
+
 /** The play a sliding lid has in its grooves (each side): a tenth of the board, never less than the fit or 0.3 mm. */
 export const slidePlay = (t: number, c: number) => Math.max(c, 0.1 * t, 0.3);
 
@@ -433,8 +464,22 @@ function generateSlideBox(d: Parameters<TemplateDef['generate']>[0], p: Params, 
   }
   // a thumb hole near the lid's front edge, to pull it
   if (lid && lidW > 40) addDetail(d, lid, 'circle', 'cut', lidW / 2, Math.min(18, lidD / 5), 18, 18);
+  // milestone 178 (boxes.py's CompartmentBox): partitions front to back under the lid, on the base and between the
+  // front and back walls, their tops a web below the front's so its slots have board round them
+  const n = Math.round(Number(p.parts ?? 1));
+  const parts: string[] = [];
+  if (n > 1) {
+    const web = Math.max(minWeb(d.material), t), sw = (ins.xR - ins.xL - (n - 1) * t) / n;
+    for (let i = 1; i < n; i++) {
+      const x = ins.xL + i * sw + (i - 1) * t;
+      const id = addFreePanel(d, { frame: { o: [x, ins.floor, ins.zF], u: [0, 0, -1], v: [0, 1, 0] }, side: 1, outer: [{ x: 0, y: 0 }, { x: run, y: 0 }, { x: run, y: H - web - ins.floor }, { x: 0, y: H - web - ins.floor }] });
+      if (id) parts.push(id);
+    }
+    solve(d);
+    for (const id of parts) connectSeams(d, id);
+  }
   solve(d);
-  nameAll(d, role, { ...(lid ? { lid } : {}), ...Object.fromEntries(rails.map((x, i) => [`rail-${i + 1}`, x])) });
+  nameAll(d, role, { ...(lid ? { lid } : {}), ...Object.fromEntries(rails.map((x, i) => [`rail-${i + 1}`, x])), ...Object.fromEntries(parts.map((x, i) => [`partition-${i + 1}`, x])) });
 }
 
 export const slideBox: TemplateDef = {
@@ -452,6 +497,14 @@ export const slideBox: TemplateDef = {
     num('width', 'sen.width', 60, 280, 140),
     num('depth', 'sen.depth', 50, 280, 100),
     num('height', 'sen.height', 20, 200, 50),
+    // milestone 178 (BOXES_PLYWOOD_PLAN.md §3.2, boxes.py's CompartmentBox): spaces under the lid, on plywood
+    {
+      key: 'parts', label: 'sen.parts', type: 'choice', default: 1, addon: { off: 1 },
+      options: [1, 2, 3, 4, 5].map((v) => ({ value: v, label: `sen.parts.${v}` as MsgKey })),
+      allowed: (v, p, m) => Number(v) === 1 || (m.kind === 'plywood' && partsFit(Number(p.width), m.thickness, Number(v)) && cleanWith(slideBox, m, p, 'parts', v)),
+      why: (v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : !partsFit(Number(p.width), m.thickness, Number(v)) ? 'sen.why.spaceSmall' : 'sen.why.engine'),
+      affects: ['dividers'],
+    },
   ],
   generate: generateSlideBox,
   sentence: { main: 'sen.s.slideBox' },

@@ -74,6 +74,11 @@ export const STYLES: StyleDef[] = [
   { id: 'presFolder', structure: 'folder', words: {}, group: 'flat', uses: ['stationery'], status: 'stable' },
   { id: 'giftCardHolder', structure: 'cardHolder', words: {}, group: 'flat', uses: ['gift', 'cards'], status: 'stable' },
   { id: 'openSleeve', structure: 'sleeve', words: {}, group: 'cartons', uses: ['cosmetics'], code: 'ECMA D10', status: 'stable' },
+  // milestone 178 (BOXES_PLYWOOD_PLAN.md §3.2; plywood): a scoop tray with a ramp at each end (SmallPartsTray two-sided),
+  // a sliding-lid box with spaces under its lid (CompartmentBox), a magazine file with a height per corner (UnevenHeightBox)
+  { id: 'scoopBoth', structure: 'scoopTray', words: { scoops: 'both' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'compartmentBox', structure: 'slideBox', words: { parts: 3 }, group: 'boxes', uses: ['gift', 'stationery'], status: 'beta' },
+  { id: 'unevenFile', structure: 'magazineFile', words: { uneven: 'uneven' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
 ];
 
 export const styleById = (id: string) => STYLES.find((s) => s.id === id);
