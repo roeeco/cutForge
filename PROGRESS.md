@@ -2413,6 +2413,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/illustrate.test.ts`: every preset (sentence, Guided, missions) in every board draws everything its design has.
 - Look-alikes after 147: the RSC and the closed sealed carton no longer look like the sleeve or the open box on 4 mm board; sealed/RSC, box/sealed on 1.6 mm and the two envelopes wait for 148's poses; the tuck cartons for 151.
 
+## Milestone 148 (presets overhaul) — poses ✅
+
+- `src/views/pose.ts`: `autoPose` and `posedDisplay` (lids, a carton's top flaps, a flat piece's back flap, the drawer assembled, a sleeve laid down, ghosts); `src/views/illustrate.ts` draws through it and gains the soap and letter props.
+- `src/model/cartons.ts`: end flaps carry their hinge, so the fold slider unfolds them too.
+- `tests/pose.test.ts`: the drawer's tray inside its sleeve, end flaps unfolding in line with their walls, poses never change the design, each kind's pose.
+- Look-alikes after 148: only the tuck cartons (pictures, until 151) and box/tray (structure, until 153) are left.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

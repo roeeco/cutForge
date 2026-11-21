@@ -5,11 +5,11 @@
 // back wall (a real panel the tray keeps, closed by milestone 67's closure),
 // four seal flaps, or a snap-lock (1-2-3) bottom; the flaps are derived from
 // the tray's choice on every solve, like a closure, as joints of their own.
-import type { ConnGeom, Connection, Design, P2, Panel, Tray } from './types';
+import type { ConnGeom, Connection, Design, Flap3d, P2, Panel, Tray, V3 } from './types';
 import { findEdge, segLength } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
 import { matOf, tOf } from './materials';
-import { v3dot, v3sub } from '../geom/v3';
+import { v3add, v3cross, v3dot, v3mul, v3norm, v3sub } from '../geom/v3';
 import { reachFor } from './closures';
 
 /** A tray's walls in its base's edge order, with the edge each stands on. */
@@ -159,6 +159,26 @@ export function reconcileEnds(d: Design) {
 const empty = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [], flaps3d: [] });
 
 /**
+ * An end flap's hinge (milestone 148): its wall's end edge, in the wall's coordinates, ordered so that turning the
+ * folded flap back by its 90° about it (as `flapMatrix` does with the fold slider, or a picture's pose) lays it in
+ * line with its wall, past the edge (`out`: 1 past the top, -1 past the bottom).
+ */
+function endHinge(P: Panel, e: { a: P2; b: P2 }, out: number, foldedWorld: V3[], t: number): Pick<Flap3d, 'owner' | 'hinge' | 'angle'> {
+  const h0: V3 = [e.a.x, e.a.y, t / 2], h1: V3 = [e.b.x, e.b.y, t / 2];
+  if (!foldedWorld.length) return {};
+  const W0 = toWorld(P.frame, ...h0), W1 = toWorld(P.frame, ...h1);
+  const k = v3norm(v3sub(W1, W0));
+  const mid: V3 = [(W0[0] + W1[0]) / 2, (W0[1] + W1[1]) / 2, (W0[2] + W1[2]) / 2];
+  const c: V3 = [0, 1, 2].map((i) => foldedWorld.reduce((s, q) => s + q[i], 0) / foldedWorld.length) as V3;
+  const r = v3sub(c, mid);
+  // turned by -90° about k: r' = -(k × r) + k (k · r)
+  const kr = v3dot(k, r);
+  const turned = v3add(v3mul(v3cross(k, r), -1), v3mul(k, kr));
+  const outW = v3mul(P.frame.v, out);
+  return { owner: P.id, angle: 90, hinge: v3dot(turned, outW) >= 0 ? [h0, h1] : [h1, h0] };
+}
+
+/**
  * The flaps of a tray's end, on its four walls' top (e2) or bottom (e0)
  * edges, in each wall's coordinates, folded in across the end in 3D (drawn on
  * the base's plane, or at the walls' tops, one layer above the other):
@@ -214,7 +234,7 @@ export function endGeom(d: Design, c: Connection): ConnGeom | null {
       return toLocal(base.frame, [wpt[0] + mP[0] * q.y, wpt[1] + mP[1] * q.y, wpt[2] + mP[2] * q.y]);
     });
     const z = endZ + (top ? -tW * (layer + 1) : tW * layer);
-    g.flaps3d.push({ panelId: base.id, poly: folded, z0: z, z1: z + tW });
+    g.flaps3d.push({ panelId: base.id, poly: folded, z0: z, z1: z + tW, ...endHinge(P, e, out, fold3d.length ? folded.map((q) => toWorld(base.frame, q.x, q.y, z)) : [], tOf(d, P.id)), endOf: top ? 'top' : 'bottom' });
     layer++;
   };
   const along = (P: Panel) => segLength(findEdge(P, top ? 'e2' : 'e0')!);

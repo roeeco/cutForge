@@ -19,7 +19,7 @@ import type { Prop } from '../views/illustrate';
 type Tile = { list: 'sentence' | 'guided' | 'missions'; id: string; card: MsgKey | null; name: string; src: string | null };
 
 /** The hash distance at or under which two pictures count as looking alike (64 bits). */
-export const LOOKALIKE_BITS = 6;
+export const LOOKALIKE_BITS = 5;
 
 /** A difference hash of a picture drawn at 96 × 64 (the sentence list's size): 64 bits as a string of 0 and 1. */
 function dHash(src: string): Promise<string> {

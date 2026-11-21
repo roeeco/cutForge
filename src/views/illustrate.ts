@@ -6,20 +6,19 @@
 import * as THREE from 'three';
 import type { Design, MaterialKind } from '../model/types';
 import { frameMatrix, panelShape } from './three-geom';
-import { foldDisplay } from './foldView';
 import { bandGeometry } from './bandMesh';
-import { applyLidPoses } from './lidPose';
-import { boxLid, lidParts } from '../easy/lid';
 import { matOf } from '../model/materials';
 import { boxBases, compartments } from '../easy/objects';
+import { trayRing } from '../model/cartons';
 import { flapMatrix } from './foldView';
+import { autoPose, boxOf, posedDisplay, sideOfFlaps, type Pose, type PoseProp, type Posed } from './pose';
 import { edgeFeatures } from '../model/edgeFeatures';
 import { allFoldOvers } from '../model/foldover';
 import { segDir, segInward } from '../model/edges';
 import { clippedLine } from '../model/lines';
 import type { Flap3d, P2 } from '../model/types';
 
-export type Prop = 'pencils' | 'dice' | 'sweets';
+export type Prop = PoseProp;
 
 type Face = {
   pts: THREE.Vector3[];
@@ -177,6 +176,8 @@ function block(o: THREE.Vector3, ax: THREE.Vector3, ay: THREE.Vector3, az: THREE
 
 /** What goes inside: on each compartment's floor, along its longer side. */
 function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: Face[]) {
+  if (prop === 'soap') return soapFaces(d, xf, out);
+  if (prop === 'letter') return letterFaces(d, xf, out);
   const baseId = boxBases(d)[0];
   if (!baseId) return;
   const base = d.panels[baseId];
@@ -284,41 +285,54 @@ function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: F
   }
 }
 
-/**
- * The design posed for a picture: folded lids and tuck tops opened about halfway (enough to show they open, not
- * so far they stand up taller than the box), a lid of its own put on its box and lifted a little, tilted.
- */
-function posed(d: Design) {
-  const shown = foldDisplay(d, 1);
-  const shut: Record<string, boolean> = {};
-  const lifted: { ids: string[]; height: number }[] = [];
-  for (const t of Object.values(d.trays ?? {})) {
-    if (t.lidOf) continue;
-    const lid = boxLid(d, t.id);
-    if (lid.kind !== 'liftoff') continue;
-    shut[t.id] = true;
-    lifted.push({ ids: lidParts(d, lid), height: Number(d.template?.params.height) || 40 });
+/** A bar of soap in a sleeve (milestone 148): along its tube, half again as long, out of its end towards the viewer. */
+function soapFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const t = Object.values(d.trays ?? {}).find((x) => !x.lidOf);
+  if (!t) return;
+  const walls = trayRing(d, t).map((r) => r.wall);
+  if (!walls.length) return;
+  const b = boxOf(d, walls, xf);
+  const th = matOf(d, walls[0]).thickness + 0.6;
+  // the tube's axis: its walls' height, as shown
+  const w0 = d.panels[walls[0]];
+  const ax = new THREE.Vector3(...w0.frame.v).transformDirection(xf.get(w0.id) ?? new THREE.Matrix4());
+  const k = [Math.abs(ax.x), Math.abs(ax.y), Math.abs(ax.z)].indexOf(Math.max(Math.abs(ax.x), Math.abs(ax.y), Math.abs(ax.z)));
+  const lo = b.min.clone(), hi = b.max.clone();
+  for (let i = 0; i < 3; i++) {
+    if (i === k) continue;
+    lo.setComponent(i, lo.getComponent(i) + th);
+    hi.setComponent(i, hi.getComponent(i) - th);
   }
-  applyLidPoses(d, shown, { shut, selected: [], foldT: 1, assembling: false, openPast: -35 });
-  for (const { ids, height } of lifted) {
-    // about the lid's middle: up by about half the box's height, its near side tipped up
-    const c = new THREE.Vector3();
-    let n = 0;
-    for (const id of ids) {
-      const p = d.panels[id];
-      if (!p) continue;
-      c.add(new THREE.Vector3(...p.frame.o).applyMatrix4(shown.xf.get(id) ?? new THREE.Matrix4()));
-      n++;
-    }
-    if (!n) continue;
-    c.divideScalar(n);
-    const tilt = new THREE.Matrix4()
-      .makeTranslation(c.x, c.y + height * 0.75 + 14, c.z)
-      .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), -0.18))
-      .multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z));
-    for (const id of ids) shown.xf.set(id, tilt.clone().multiply(shown.xf.get(id) ?? new THREE.Matrix4()));
-  }
-  return shown;
+  const len = hi.getComponent(k) - lo.getComponent(k);
+  // out of the end nearer the viewer
+  if (VIEW.getComponent(k) >= 0) hi.setComponent(k, hi.getComponent(k) + 0.45 * len);
+  else lo.setComponent(k, lo.getComponent(k) - 0.45 * len);
+  if (hi.x <= lo.x || hi.y <= lo.y || hi.z <= lo.z) return;
+  block(lo, new THREE.Vector3(hi.x - lo.x, 0, 0), new THREE.Vector3(0, 0, hi.z - lo.z), new THREE.Vector3(0, hi.y - lo.y, 0), '#cdb9e6', '#5d4a78', out, '#dccdf0');
+}
+
+/** A letter in an envelope (milestone 148): a sheet under its flaps, out past the opened back flap. */
+function letterFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+  const p = d.panels[d.order[0]];
+  if (!p) return;
+  const M = (xf.get(p.id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(p.frame));
+  const side = sideOfFlaps(d, p, xf);
+  const t = matOf(d, p.id).thickness;
+  const z = side > 0 ? (p.frame.side === 1 ? t : 0) + 0.25 : (p.frame.side === 1 ? 0 : -t) - 0.75;
+  const at = (x: number, y: number, zz = z) => new THREE.Vector3(x, y, zz).applyMatrix4(M);
+  // the board's edge farthest from the viewer: the letter comes out over it
+  const mids = [{ x: p.w / 2, y: 0 }, { x: p.w, y: p.h / 2 }, { x: p.w / 2, y: p.h }, { x: 0, y: p.h / 2 }];
+  const far = mids.reduce((a, b2) => (at(b2.x, b2.y).dot(VIEW) < at(a.x, a.y).dot(VIEW) ? b2 : a));
+  const cx = p.w / 2 + (far.x - p.w / 2) * 0.55, cy = p.h / 2 + (far.y - p.h / 2) * 0.55;
+  const lw = p.w * 0.82, lh = p.h * 0.78;
+  const o = at(cx - lw / 2, cy - lh / 2);
+  const ax = at(cx + lw / 2, cy - lh / 2).sub(o), ay = at(cx - lw / 2, cy + lh / 2).sub(o), az = at(cx - lw / 2, cy - lh / 2, z + 0.5).sub(o);
+  const faces = block(o, ax, ay, az, '#eef3fb', '#7f93b0', out);
+  // three lines of writing on its face
+  faces.slice(0, 2).forEach((f, i) => {
+    const b0 = i === 0 ? o.clone().add(az) : o.clone();
+    f.marks = [0.3, 0.45, 0.6].map((k) => ({ pts: [0.15, 0.7].map((u) => b0.clone().addScaledVector(ax, u).addScaledVector(ay, k)), dashed: false }));
+  });
 }
 
 /**
@@ -348,7 +362,7 @@ function joinedIn(d: Design): (a: string, b: string) => boolean {
 /** The faces and their paint order, for tests. */
 export function facesForTest(design: Design, prop?: Prop) {
   const d = forPicture(design);
-  const shown = posed(d);
+  const shown = posedDisplay(d);
   const faces = designFaces(d, shown);
   const nBoard = faces.length;
   if (prop) propFaces(d, shown.xf, prop, faces);
@@ -468,7 +482,7 @@ const pathOf = (rings: THREE.Vector3[][], close = true) => rings.map((r) => 'M' 
  * The design as an SVG illustration, as a data URL (`w` × `h` is its shape; it scales). `prop` puts things
  * inside its box. Null when there is nothing to draw.
  */
-export function illustrateDesign(d: Design, w: number, h: number, opts: { prop?: Prop } = {}): string | null {
+export function illustrateDesign(d: Design, w: number, h: number, opts: { prop?: Prop; pose?: Pose } = {}): string | null {
   const svg = illustrationSvg(d, w, h, opts);
   return svg ? `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` : null;
 }
@@ -478,7 +492,7 @@ export function illustrateDesign(d: Design, w: number, h: number, opts: { prop?:
  * every flap folded as the 3D view folds it (a joint's glue flaps and a carton's end flaps, a board's shaped edge
  * flaps), every fold-over's liner, and a board's cut lines. `drawn` collects what was drawn, for the coverage test.
  */
-function designFaces(d: Design, shown: ReturnType<typeof posed>, drawn = new Set<string>()): Face[] {
+function designFaces(d: Design, shown: Posed, drawn = new Set<string>()): Face[] {
   const faces: Face[] = [];
   const IDM = new THREE.Matrix4();
   const floors = new Set(boxBases(d));
@@ -495,7 +509,7 @@ function designFaces(d: Design, shown: ReturnType<typeof posed>, drawn = new Set
     const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
     const side = (f.frame ?? on.frame).side;
     const zs: [number, number] = side === 1 ? [f.z0, f.z1] : [-f.z1, -f.z0];
-    slabFaces([f.poly], [], zs, flapMatrix(d, f, shown.xf, 1), matOf(d, owner).kind, owner, `flap:${key}`, faces);
+    slabFaces([f.poly], [], zs, flapMatrix(d, f, shown.xf, shown.flapT.get(key) ?? 1), matOf(d, owner).kind, owner, `flap:${key}`, faces);
     drawn.add(`flap:${key}`);
   };
   for (const c of Object.values(d.connections)) c.geom?.flaps3d.forEach((f, i) => flap(f, `${c.id}:${i}`));
@@ -544,7 +558,7 @@ function designFaces(d: Design, shown: ReturnType<typeof posed>, drawn = new Set
  */
 export function pictureCoverage(design: Design): { want: string[]; drawn: string[] } {
   const d = forPicture(design);
-  const shown = posed(d);
+  const shown = posedDisplay(d);
   const drawn = new Set<string>();
   designFaces(d, shown, drawn);
   const want: string[] = [];
@@ -562,12 +576,15 @@ export function pictureCoverage(design: Design): { want: string[]; drawn: string
   return { want, drawn: [...drawn] };
 }
 
-export function illustrationSvg(design: Design, w: number, h: number, opts: { prop?: Prop } = {}): string | null {
+export function illustrationSvg(design: Design, w: number, h: number, opts: { prop?: Prop; pose?: Pose } = {}): string | null {
   const d = forPicture(design);
-  const shown = posed(d);
+  // milestone 148: posed as the design shows best (pose.ts), unless the caller asks for a pose of its own
+  const pose = opts.pose ?? autoPose(d);
+  const shown = posedDisplay(d, pose);
   const faces = designFaces(d, shown);
   if (!faces.length) return null;
-  if (opts.prop) propFaces(d, shown.xf, opts.prop, faces);
+  const prop = opts.prop ?? pose.prop;
+  if (prop) propFaces(d, shown.xf, prop, faces);
   const visible = faces.filter((f) => f.normal.dot(VIEW) > 1e-4);
   // the frame: every point, with room around it, in the asked proportion
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, low = Infinity;
@@ -609,7 +626,8 @@ export function illustrationSvg(design: Design, w: number, h: number, opts: { pr
       const fill = f.fill.startsWith('#') ? shade(f.fill, f.normal, inner(f), look?.contrast ?? 1) : f.fill;
       // big faces outlined in their material's line; cut edges (thin strips) lighter, so joints do not turn to noise
       const edge = !!f.lines || (f.board && f.pts.length === 4 && Math.abs(f.normal.y) < 0.99 && f.fill === LOOK[kindOfEdge(f.fill)].edge);
-      const shape = `<path d="${pathOf([f.pts, ...(f.holes ?? [])])}" fill="${fill}" fill-rule="evenodd" stroke="${f.stroke}" stroke-opacity="${edge ? 0.45 : 0.85}" stroke-width="${f1(px * (edge ? 0.7 : 1.05) * 10) / 10}" stroke-linejoin="round"/>`;
+      const ghost = f.board && shown.ghost.has(f.board) ? ' opacity="0.28"' : '';
+      const shape = `<path d="${pathOf([f.pts, ...(f.holes ?? [])])}" fill="${fill}"${ghost} fill-rule="evenodd" stroke="${f.stroke}" stroke-opacity="${edge ? 0.45 : 0.85}" stroke-width="${f1(px * (edge ? 0.7 : 1.05) * 10) / 10}" stroke-linejoin="round"/>`;
       const lines = f.lines?.length ? `<path d="${pathOf(f.lines, false)}" fill="none" stroke="${detailFor(f.fill)}" stroke-width="${f1(px * 0.8 * 10) / 10}" opacity="0.8"/>` : '';
       // a board's slits and tear lines (milestone 147): its outline colour, perforations dashed
       const marks = (f.marks ?? []).map((mk) => `<path d="${pathOf([mk.pts], false)}" fill="none" stroke="${f.stroke}" stroke-width="${f1(px * 1.1 * 10) / 10}"${mk.dashed ? ` stroke-dasharray="${f1(px * 3)} ${f1(px * 2)}"` : ''} stroke-linecap="round"/>`).join('');

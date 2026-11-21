@@ -258,7 +258,7 @@ only once the pictures can tell them apart.
 | --- | --- | --- | --- |
 | **146** | One catalogue: the lists read it, each design once; the contact sheet; the look-alike tests and their allowlists | §7 | ✅ |
 | **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §7 | ✅ |
-| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §7 | |
+| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §7 | ✅ |
 | **149** | Engine: ends per wall | §7, analysis §3.2 | |
 | **150** | Engine: preset records and the recogniser | §7, analysis §4 | |
 | **151** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §7 | |

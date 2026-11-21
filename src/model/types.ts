@@ -402,7 +402,7 @@ export type EdgeFlap = {
   hole?: 'round' | 'euro';
 };
 
-export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame; /** The board whose plane and coordinates `frame` is, when it is one (a dust flap under its lid, milestone 76). */ planeOf?: string };
+export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** Milestone 148: the end of a tube this flap closes (a carton's end flaps), for the pictures' poses. */ endOf?: 'top' | 'bottom'; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame; /** The board whose plane and coordinates `frame` is, when it is one (a dust flap under its lid, milestone 76). */ planeOf?: string };
 
 /** Geometry a connection contributes to its panels (all in panel-local mm). */
 export type ConnGeom = {
