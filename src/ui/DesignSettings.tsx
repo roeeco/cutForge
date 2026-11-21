@@ -13,10 +13,11 @@ import { autoFlap } from '../model/seams';
 import type { ConnectionKind } from '../model/types';
 import { fmtNum } from '../i18n';
 import { TemplateSection, templateSummary } from './TemplateUI';
+import { PresetEditor, presetSummary } from './PresetEditor';
 import { useMaterialEdit } from './MaterialDrawer';
 import { Icon } from './icons';
 import { sizedBox, sizesWhy } from '../model/sizes';
-import { shown, useFeature } from '../easy/features';
+import { shown, useFeature, useMode } from '../easy/features';
 
 const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping', 'sizes'];
 /** Below this stage height (px) the sections start closed. */
@@ -78,6 +79,8 @@ export function DesignSettings() {
     </div>
   );
   const tplSum = templateSummary(t, d);
+  // milestone 158: a record editor in Workshop only (Quick build keeps to the template's own words)
+  const presetSum = useMode() === 'workshop' ? presetSummary(t, d) : null;
   const short_ = (k: ConnectionKind | undefined) => (k ? t(`conn.short.${k}` as 'conn.short.fold') : t('settings.mixedShort'));
   const m = d.material;
   const mm = t('unit.mm');
@@ -170,6 +173,8 @@ export function DesignSettings() {
         </>
       )}
       {tplSum !== null && section('template', t('tpl.title'), tplSum, <TemplateSection bare />)}
+      {/* milestone 158: the box or carton as a record, its slots as choices, saved as a preset of its own (Workshop) */}
+      {presetSum !== null && section('preset', t('custom.title'), presetSum, <PresetEditor />)}
       {fJoints &&
         section(
         'joints',

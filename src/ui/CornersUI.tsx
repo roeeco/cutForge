@@ -93,6 +93,7 @@ export function TrayEnds({ tray }: { tray: Tray }) {
           <option value="tuck">{t('carton.tuck')}</option>
           {four && <option value="seal">{t('carton.seal')}</option>}
           {four && <option value="rsc">{t('carton.rsc')}</option>}
+          {four && <option value="full">{t('carton.full')}</option>}
         </select>
       </div>
       {tray.base === 'open' && (
@@ -105,6 +106,7 @@ export function TrayEnds({ tray }: { tray: Tray }) {
             <option value="tuckBack">{t('carton.tuckBack')}</option>
             <option value="seal">{t('carton.seal')}</option>
             <option value="rsc">{t('carton.rsc')}</option>
+            <option value="full">{t('carton.full')}</option>
             {(CRASH_LOCK_OFFERED || tray.bottom === 'crash') && <option value="crash">{t('carton.crash')}</option>}
           </select>
         </div>

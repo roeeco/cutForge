@@ -2400,6 +2400,102 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - A mission (Quick build) starts on its click; Workshop's *Shapes* row starts on its click too (it has nothing to set), with an arrow instead of a radio dot.
 - E2E specs follow: `start-sentence` / `start-cards` replace `tpl-sentence` + `start-go`; missions and *Shapes* need no `start-go`; `start-go` is the blank tile.
 
+## Milestone 146 (presets overhaul) — one catalogue ✅
+
+- `src/templates/catalogue.ts`: 16 cards over today's structures, styles, missions and Guided things (`PRESETS_OVERHAUL.md` §6, less the new cards of 152–153). The sentence's first word, Guided's gallery, the teacher's list of plain things and Quick build's *Follow a mission* read it.
+- No list shows a design twice: the sentence's first word on card went from 20 entries to 18 (*a carton* and *an envelope* were the snap-lock and diamond styles), on 4 mm board from 10 to 9 (*a carton* was the RSC). *A tray* picked from a box starts 30 mm tall (and a box from a tray 45 mm), with a note.
+- `?presets&mat=<board>` (development): the contact sheet of every list in a board; `npm run preset-sheet` saves `docs/preset-shots/sheet-<board>.png`.
+- Tests: `tests/presetCatalogue.test.ts` (membership, a design's card, own sizes, each design once on the cut geometry, structural look-alikes) and `tests/e2e/preset-sheet.spec.ts` (picture look-alikes). Known look-alikes: box/tray (structure); the tuck cartons, closed cartons, the envelopes and the sleeve (pictures), each with the milestone that settles it.
+
+## Milestone 147 (presets overhaul) — pictures draw everything ✅
+
+- `src/views/illustrate.ts`: folded flaps (joints, carton ends, shaped edge flaps), fold-over liners and a board's cut and perforated lines are drawn; card's contrast raised; `pictureCoverage` for the tests. `src/views/picture.ts`: the WebGL fallback at ×2.
+- `tests/illustrate.test.ts`: every preset (sentence, Guided, missions) in every board draws everything its design has.
+- Look-alikes after 147: the RSC and the closed sealed carton no longer look like the sleeve or the open box on 4 mm board; sealed/RSC, box/sealed on 1.6 mm and the two envelopes wait for 148's poses; the tuck cartons for 151.
+
+## Milestone 148 (presets overhaul) — poses ✅
+
+- `src/views/pose.ts`: `autoPose` and `posedDisplay` (lids, a carton's top flaps, a flat piece's back flap, the drawer assembled, a sleeve laid down, ghosts); `src/views/illustrate.ts` draws through it and gains the soap and letter props.
+- `src/model/cartons.ts`: end flaps carry their hinge, so the fold slider unfolds them too.
+- `tests/pose.test.ts`: the drawer's tray inside its sleeve, end flaps unfolding in line with their walls, poses never change the design, each kind's pose.
+- Look-alikes after 148: only the tuck cartons (pictures, until 151) and box/tray (structure, until 153) are left.
+
+## Milestone 149 (presets overhaul) — engine: ends per wall ✅
+
+- `src/model/types.ts`: `EndFlapKind`, `EndFlap`, `EndSpec`, `Tray.ends`; `TrayTop` / `TrayBottom` gain `full`. `src/model/cartons.ts`: `END_STYLES`, `endSpec`, `endStyleOf`, and `endGeom` drawing wall by wall. `src/model/ops.ts`: `setEndFlap`.
+- The full-overlap box (FEFCO 0203) on corrugated: the carton's words, the tray card, the style list and the *Box with flaps* card.
+- `tests/ends.test.ts`: styles are their lists, full overlap builds clean, three lists that are no style build with nothing blocking, one wall set on its own and back. Carton goldens unchanged.
+
+## Milestone 150 (presets overhaul) — engine: preset records and the recogniser ✅
+
+- `src/templates/records.ts`: `PresetRecord`, `recordOf`, `fits`, `recordKey`. `src/templates/catalogue.ts`: every variant's `match`, `recognise`, `tradeCode`; `cardOfDesign` recognises designs made by hand.
+- `tests/records.test.ts`: every style recognised back in every board that lists it, structures' own words, Guided's things, hand-made designs (Quick build's carton, a walled box, a hexagon with a lid), records independent of size. `tests/presetCatalogue.test.ts`: the structural look-alikes by record.
+
+## Milestone 151 (presets overhaul) — views and variants ✅
+
+- `src/views/illustrate.ts`: `ViewName` and `scene` (any view), `bottomOpen`; `src/views/picture.ts`: the card's view by recognition. `src/templates/catalogue.ts`: `Card.view`, `siblingsOf`. `src/ui/TemplateUI.tsx`: the *Kind* switch. `src/views/palette.ts`: card's stage colour.
+- `tests/variants.test.ts` and `tests/e2e/variants.spec.ts`: siblings, picking one, one undo step.
+- Look-alikes after 151: the straight tuck and the snap-lock on 1.6 mm (pictures), box/tray and the two organiser missions (records): all in 153.
+
+## Milestone 152 (presets overhaul) — the stage ✅
+
+- `src/views/pose.ts`: `stageFlapT`, `shownBox`; `src/views/lidPose.ts`: `closeK`; `src/easy/assemble.ts`: the closing phase; `src/views/View3D.tsx`: flaps open on the stage, framing on the shown box, the camera on the test hook; `src/ui/LidUI.tsx`: *Close* for a top of flaps.
+- `tests/stagePose.test.ts` and `tests/e2e/stage-frame.spec.ts`: flaps open and shut, lids closing in the animation, the shown box, five presets framed whole at 1366 × 768, the animation running through its closing.
+
+## Milestone 153 (presets overhaul) — challenges and merges ✅
+
+- `src/templates/catalogue.ts`: one entry per card, `Card.word`, `entryLabel`; `src/sentence/Sentence.tsx`: a card's word and kinds in the list; `src/templates/structures/box.ts`: handles on a box; `src/ui/StartScreen.tsx`: the challenge's card.
+- `tests/presetLookalikes.ts` is empty; `styles.spec.ts`, `sentence.spec.ts` and `sentence.model.test.ts` follow the one-entry list and the box's handles.
+
+## Milestone 154 (presets overhaul) — engine: corner rules ✅ (the gusset; the inward ear deferred)
+
+- `src/model/seams.ts`: `gussetFits`, `gussetGeom`, the gusset among card and corrugated corners; `src/model/jointDefaults.ts`: offered only where it fits; `src/model/types.ts` / `check.ts`: the kind; `src/templates/records.ts`: `corner` in the record; `conn.gusset` in both languages.
+- `tests/corners.test.ts`: offered on card and corrugated only, one uncut net with the creases and four folded gussets on card and 1.6 mm board, never offered on a hexagon, the record's slot.
+
+## Milestone 155 (presets overhaul) — new presets on the engine as it is ✅
+
+- `src/templates/styles.ts`: `roundBox`, `penCup`, `windowCarton`, `phoneStand`, `StyleDef.sizes`; `src/templates/catalogue.ts`: the Round box in the sentence, the Pen cup and Window carton cards, the Phone stand variant, `Card.view.prop`; `src/templates/records.ts`: `window`, `supports`; `src/views/illustrate.ts`: the cup's pencils and the window carton's product; `src/views/three-geom.ts`: `robustClip`.
+- Every new style is in the catalogue and record tests (membership, recognition in every board, each design once per list).
+
+## Milestone 156 (presets overhaul) — engine: strip and wrap builders ✅
+
+- `src/model/builders.ts`: `addStrip`, `addWrap`; `src/templates/structures/insert.ts`: the insert; styles `uLiner`, `zProfile`, `angleGuard`, `accordionPad` and the *Insert* card; records' `strip`, `folds`, `accordion`.
+- `tests/builders.test.ts`: U, Z, L and accordion strips fold as asked and cut as one clean piece; a wrapper's root lies flat with glued flanges; every insert profile on card, 1.6 and 4 mm board builds clean and is recognised.
+
+## Milestone 157 (presets overhaul) — new presets that needed engine work (beta) ✅
+
+- `src/templates/structures/shaped.ts`: the magazine file (sloped side walls to a low front, a finger pull in the back), the dice tower (2–4 slanted baffles, a way out at the bottom of the front) and the mailer box (one wrap, its lid tucked behind the front); three beta cards; records' `slope`, `baffles`, `wrap`; English and Hebrew words.
+- `tests/shaped.test.ts`: each cuts clean in every board it is offered in and is recognised as its own card; the magazine file's front is low and its sides slope (also at a 50 mm front); every dice tower baffle is joined to both side walls, at every depth and height and as many baffles as have room; each starts clean from the sizes the sentence carries over from another card; the mailer opens its lid and the dice tower ghosts its near walls in their pictures; the mailer is seven boards, its tuck just behind the front and narrower than it; none is an open box.
+
+## Milestone 158 (presets overhaul) — engine: custom presets ✅
+
+- `src/templates/custom.ts`: records of slots, `choicesFor` (built and checked, refusals with reasons), `buildCustom`, `customOf`, `nameOf`, `customCard`, `startFromPreset`; `src/ui/PresetEditor.tsx`: *Make it a preset* in Workshop's settings card (picture choices per slot, the catalogue's name for it, *Save as preset*) and *Your presets* on the start screen; `src/store/persist.ts`: `listPresets`, `savePreset`, `deletePreset`; English and Hebrew words.
+- `tests/customPresets.test.ts`: a gable top on a snap-lock bottom and a gusseted octagon build clean; a refused choice says why (a tube in plywood, a round tube, a gusset on a hexagon) and every refusal in four boards has a reason; the corner rule outlives a change of sizes; a record round-trips through a saved preset, the design it opens as and the file format; the recogniser names a tuck-top snap-lock and a hexagonal lidded box exactly and a gable on a crash-lock bottom as nearest; a saved preset's card pattern fits its designs at any size.
+- `tests/e2e/custom-presets.spec.ts`: a card box's corners made gussets from the slot's pictures, saved, and started again from *Your presets* with gusset corners; a tube refused on plywood says why and changes nothing.
+- Found on the way, existing before this milestone (it failed on `main` too): `tests/e2e/settings.spec.ts` (lines 25 and 55), the settings card scrolling at 1366 × 768 since it gained *Sizes* and the *No glue* switch. Fixed: the card now stops 12 px above the view dock (it measures 149 px, 16 px from the bottom; it left 210 px), and the settings card's sections sit 10 px apart, not 14.
+
+## Milestone 159 (presets overhaul) — words and pictures ✅
+
+- `docs/preset-shots/after/`: `sheet-<board>-en.png` and `-he.png` for card, 1.6 mm and 4 mm corrugated and plywood; `sentence-list-card-en.png` and `-he.png`; `stage-after-start.png`. Made by `npm run preset-after` (`tests/e2e/preset-after.spec.ts`).
+- `README.md`: *Presets: ready starting points*, for students and for teachers.
+- Hebrew: every new key of 146–158 has its translation (i18n test).
+
+## Milestone 160 (presets overhaul) — the stage shows the closure and opens it for work (owner's review)
+
+- `src/model/closures.ts`: a lid's lip and tongue hinged on the lid (they ride on it, unfold in line with it); dust flaps hinged on their walls' tops; `src/views/pose.ts`: `stageFlapT` opens them while the lid is open, `openWrapOnStage` opens a mailer's lid; `src/views/View3D.tsx` uses both.
+- `tests/stageOpen.test.ts`: lips and dust flaps on card and corrugated hinged trays ride on their boards and lie in line with them when unfolded; on the stage they open with the lid and shut when it is closed, picked or closed at the end of going together; a mailer's lid opens unless shut or picked. `tests/stagePose.test.ts` follows (the open box holds the shut one within a board).
+- E2E: `closures`, `lids`, `stage-frame`, `quick-shots`, `preset-sheet` pass.
+
+## Milestone 160 (presets overhaul) — verification ✅
+
+- `npm run typecheck` and `npm run build`: clean.
+- `npm test`: 1697 passed (7 skipped), golden exports byte-identical.
+- E2E, every app spec (`pw-app.config.ts`, 280): 195 passed and 62 skipped on the first run; every failure was checked:
+  - **caused by this branch: none.** `settings.spec` (lines 25, 55) failed on `main` too and is fixed here; `classroom.spec` (5) needs the Worker and passes with it (`playwright.config.ts`); `maintenance.spec:185` passes on its own (its camera hook is not up yet under load).
+  - **failing on `main` as well** (left for their own fix, a task is queued): `quick.spec:13`, `sentence-card.spec:7`, `quick-revised.spec:92` (en, he), `gizmo.spec:50/252/376`, `refine.spec:25/341`, `through.spec:16`, `crash.spec:16`, `maintenance.spec:104`, `overhaul.spec:10`, `round.spec:27`, `topbar.spec:75` (Guided, en, 768 × 1024: the bar is 814 px wide).
+- The owner's review during 160 (the stage did not show the closing lip; templates should be edited with lid and lips open) is done (above).
+- Known, not fixed: with the fold slider at 0, a card hinged tray's lid stands upright instead of lying in the net.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

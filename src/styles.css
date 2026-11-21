@@ -189,8 +189,9 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 
 .card-dock {
   position: absolute; top: 16px; inset-inline-end: 16px; z-index: 7; width: 300px;
-  /* stops above the stage's bottom-right buttons (fit view, view cube), scrolling inside */
-  max-height: calc(100% - 210px); display: flex; flex-direction: column; pointer-events: none;
+  /* stops above the stage's bottom-right buttons (the view dock: the cube and its buttons, 149px, 16px from the
+     bottom) with 12px to spare, scrolling inside; at 1366 × 768 the default settings card then fits (settings.spec) */
+  max-height: calc(100% - 193px); display: flex; flex-direction: column; pointer-events: none;
 }
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-float);
@@ -846,6 +847,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
    now keep 8px apart, sections 14px, and wrapped button labels stay legible. */
 .inspector .card-head { margin-block-end: 12px; gap: 6px; }
 .inspector .subsection { margin-block-start: 14px; padding-block-start: 14px; }
+/* the settings card's sections are headers that fold open: closer together, so its five fit a short stage */
+section[data-testid='inspector-design'] .subsection { margin-block-start: 10px; padding-block-start: 10px; }
 .inspector h4 { margin: 0 0 8px; }
 .inspector section > h4:not(:first-child) { margin-block-start: 16px; }
 .inspector .field { margin: 10px 0; }
@@ -1431,3 +1434,13 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .part-title-input { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; padding: 2px 6px; }
 .part-more { margin-top: 4px; }
 .part-more[data-folds='false'] { border: 0; padding: 0; margin: 0; }
+/* milestone 158: custom presets */
+.preset-slot-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; text-decoration: none; padding: 2px 0; }
+.preset-slot-head .head-sum { color: var(--ink-muted); font-size: 12px; }
+.preset-editor .pictures button[aria-disabled="true"] { cursor: help; }
+.preset-save { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.cs-presets { margin: 18px 0 6px; }
+.cs-presets .lib-card .art img { display: block; margin: 0 auto; }
+.preset-editor .preset-slot-head, .preset-editor .preset-slot-head * { text-decoration: none; }
+.preset-editor .preset-slot-head .label { color: var(--ink); font-weight: 600; }
+.preset-editor .pictures img { width: 100%; height: auto; max-width: 96px; }

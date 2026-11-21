@@ -63,7 +63,8 @@ import { isBoxBase, quickWallHeight } from '../easy/recipes';
 import { keepOutZones } from '../easy/guard';
 import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
 import { bundleSize, contentFit, objectById } from '../easy/objects';
-import { assembleFold, assembleLift, playAssembly } from '../easy/assemble';
+import { assembleClose, assembleFold, assembleLift, playAssembly } from '../easy/assemble';
+import { openWrapOnStage, shownBox, stageFlapT } from './pose';
 import { workshopOnly } from '../easy/mode';
 import { registerStage } from '../tour/stage';
 import { TOUR_STEPS } from '../tour/steps';
@@ -208,7 +209,9 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
   const display = useMemo(() => {
     const r = foldDisplay(design, assemble !== null ? assembleFold(assemble) : foldT);
     // lids beside their box or opened back (milestone 76): shown so, not changed
-    const away = applyLidPoses(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT, assembling: assemble !== null });
+    const away = applyLidPoses(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT, assembling: assemble !== null, ...(assemble !== null ? { closeK: assembleClose(assemble) } : {}) });
+    // milestone 160: a wrap's lid (the mailer) opened too, so its inside can be worked in
+    for (const id of openWrapOnStage(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT: assemble !== null ? assembleFold(assemble) : foldT, ...(assemble !== null ? { closeK: assembleClose(assemble) } : {}) })) away.add(id);
     if (assemble !== null) for (const [id, m] of assembleLift(design, assemble)) r.xf.set(id, m.multiply(r.xf.get(id) ?? new THREE.Matrix4()));
     return { ...r, away };
   }, [design, foldT, assemble, lidShut, selKey]);
@@ -764,7 +767,7 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
           />
         );
       })}
-      <Flaps d={design} xf={display.xf} foldT={foldT} />
+      <Flaps d={design} xf={display.xf} foldT={assemble !== null ? assembleFold(assemble) : foldT} shut={lidShut} selected={selKey} closeK={assemble !== null ? assembleClose(assemble) : undefined} />
       {folded && <NetOverlapMarks d={design} xf={display.xf} />}
       {foldOvers.map((fo) => (
         <FoldOverObject key={fo.f.id} d={design} p={design.panels[fo.panelId]} g={fo.g} m={display.xf.get(fo.panelId) ?? IDM} foldT={foldT} index={design.order.indexOf(fo.panelId)} />
@@ -1391,7 +1394,7 @@ function NetOverlapMarks({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> 
   );
 }
 
-function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number }) {
+function Flaps({ d, xf, foldT, shut, selected, closeK }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number; shut: Record<string, boolean>; selected: string; closeK?: number }) {
   const items = useMemo(() => {
     const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number; owner: string; on: string }[] = [];
     for (const c of Object.values(d.connections)) {
@@ -1399,7 +1402,9 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
         const p = d.panels[f.panelId];
         // coloured as the panel it is cut from, moving with it in the fold view
         const owner = f.owner && d.panels[f.owner] ? f.owner : f.panelId;
-        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(owner), owner, on: f.panelId });
+        // milestone 152: a tray's top flaps stand open like its lid (stageFlapT)
+        const t = stageFlapT(d, c.id, f, { foldT, shut, selected: selected ? selected.split(' ') : [], closeK });
+        if (p) out.push({ key: `${c.id}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, t), index: d.order.indexOf(owner), owner, on: f.panelId });
       });
     }
     // shaped flaps folded about their crease (milestone 112)
@@ -1409,7 +1414,7 @@ function Flaps({ d, xf, foldT }: { d: Design; xf: Map<string, THREE.Matrix4>; fo
         if (p) out.push({ key: `${h.panelId}:${h.key}:${i}`, geom: flapGeometry(f.frame ? { ...p, frame: f.frame } : p, f.poly, f.z0, f.z1), matrix: flapMatrix(d, f, xf, foldT), index: d.order.indexOf(p.id), owner: p.id, on: p.id });
       });
     return out;
-  }, [d.connections, d.panels, d.order, xf, foldT]);
+  }, [d.connections, d.panels, d.order, d.trays, xf, foldT, shut, selected, closeK]);
   useEffect(() => () => items.forEach((x) => x.geom.dispose()), [items]);
   return (
     <>
@@ -2711,7 +2716,9 @@ function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal:
   }, [ortho]);
   useEffect(() => {
     if (!fitSignal) return;
-    const box = designBox(useStore.getState().design);
+    // milestone 152: the design as the stage shows it (lids and top flaps open), so nothing is framed out
+    const st = useStore.getState();
+    const box = shownBox(st.design, st.lidShut);
     if (box.isEmpty()) box.setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(200, 0, 200));
     const center = box.getCenter(new THREE.Vector3());
     const radius = Math.max(50, box.getSize(new THREE.Vector3()).length() / 2);
@@ -2742,6 +2749,11 @@ function CameraRig({ ortho, fitSignal, onAutoFit }: { ortho: boolean; fitSignal:
     controls?.update();
     invalidate();
   }, [fitSignal]);
+  // milestone 152: the camera and the canvas's size, for the framing spec (where the test hook is, dev or ?test)
+  useEffect(() => {
+    const hook = (window as unknown as { __cutforge?: Record<string, unknown> }).__cutforge;
+    if (hook) hook.stage = () => ({ camera, width: size.width, height: size.height });
+  }, [camera, size.width, size.height]);
   // a new or opened design is framed (milestone 139, REPORT.md H7: it kept the last design's view)
   const designId = useStore((s) => s.design.id);
   const seenId = useRef(designId);

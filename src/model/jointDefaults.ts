@@ -7,7 +7,7 @@ import { wingKindsFor } from './wings';
 // choice is the default for new joints of that group where allowed.
 import type { Connection, ConnectionKind, Design, DesignJoints, MaterialKind, MaterialProfile } from './types';
 import { connectionsFor, connectionsForPair, matOf, minWeb } from './materials';
-import { autoFlap, seamKinds, seamTypeOf } from './seams';
+import { autoFlap, gussetFits, seamKinds, seamTypeOf } from './seams';
 import { trayKinds } from './trays';
 
 export type JointGroup = 'base' | 'corner';
@@ -107,7 +107,9 @@ export function pairKinds(d: Design, c: Pick<Connection, 'grown' | 'angle' | 'ki
   if (c.kind === 'closure') return ['closure'];
   const ma = matOf(d, c.a.panelId), mb = matOf(d, c.b.panelId);
   if (c.grown) return ma === mb ? connectionsFor(mb, c.angle) : connectionsForPair(mb, ma, c.angle);
-  return seamKinds(ma, seamTypeOf(c), mb);
+  // milestone 154: a gusset only where the corner can be one (a square corner of walls folded off one board)
+  const ks = seamKinds(ma, seamTypeOf(c), mb);
+  return ks.includes('gusset') && !gussetFits(d, c) ? ks.filter((k) => k !== 'gusset') : ks;
 }
 
 /** The material carrying a joint's features: the grown board, or a closing seam's first edge. */

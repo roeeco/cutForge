@@ -78,6 +78,11 @@ export type TemplateDef = {
   sentence?: { main: MsgKey; adds?: Record<string, MsgKey> };
   /** Milestone 94: the word for the structure itself (*a box*), when it is one of the sentence's structures. */
   word?: MsgKey;
+  /**
+   * Milestone 146 (PRESETS_OVERHAUL.md): these words build exactly what another structure builds with those words
+   * (a tray with no handles is a box with no lid), or null. The catalogue's lists use it to show a design once.
+   */
+  sameAs?: (p: Params) => { id: string; params: Params } | null;
 };
 
 /** Can this material make this template? */

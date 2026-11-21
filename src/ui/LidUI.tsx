@@ -14,6 +14,7 @@ import { shown, useFeature } from '../easy/features';
 import { PictureChoice, type PictureOption } from './Pictures';
 import type { MsgKey } from '../i18n';
 import type { Tray } from '../model/types';
+import { endSpec } from '../model/cartons';
 
 /** The help line under the *Lid* row: what the box's lid is. */
 function lidHelp(lid: BoxLid, plywood: boolean, carton: boolean): MsgKey {
@@ -115,7 +116,7 @@ export function LidSection({ panelId }: { panelId: string }) {
           )}
         </div>
       )}
-      {(lid.kind === 'liftoff' || lid.kind === 'hinged' || lid.kind === 'arched') && (
+      {(lid.kind === 'liftoff' || lid.kind === 'hinged' || lid.kind === 'arched' || (tray.top !== 'tuck' && !!endSpec(tray, 'top'))) && (
         // milestone 76: a lid of its own lies beside the box, a folded one is shown open; this shows it in place (view only)
         <div className="field lid-pose">
           <span className="note">{t(lid.kind === 'liftoff' ? (shut ? 'lid.on' : 'lid.beside') : shut ? 'lid.closed' : 'lid.shownOpen')}</span>

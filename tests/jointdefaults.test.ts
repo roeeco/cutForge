@@ -42,7 +42,8 @@ describe('joint groups and the kinds they offer', () => {
     const d = createDesign(CARD);
     // a slit lock (milestone 68) just after each glue flap
     expect(groupKinds(d, 'base')).toEqual(['fold', 'glue', 'lock', 'tabslot', 'butt', 'slide']);
-    expect(groupKinds(d, 'corner')).toEqual(['glue', 'lock', 'tabslot', 'slide', 'butt']);
+    // milestone 154: a gusset too (applied where a corner can be one)
+    expect(groupKinds(d, 'corner')).toEqual(['glue', 'lock', 'gusset', 'tabslot', 'slide', 'butt']);
   });
 
   it('a card wall at 60° adds nothing a 90° wall lacks; the list is kinds allowed for at least one joint', () => {

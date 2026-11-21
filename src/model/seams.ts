@@ -685,6 +685,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
   }
 
   if (c.kind === 'glue' && c.grown) return grownGlue(d, c, A, B);
+  if (c.kind === 'gusset') return c.grown || c.b.edge === FACE ? null : gussetGeom(d, c, A, B);
 
   // edge-on-face kinds: tabslot, slide, glue
   const { owner, edge, receiver } = ownerOf(c);
@@ -1000,6 +1001,53 @@ function cornerGlue(d: Design, c: Connection, O: Panel, eO: string, R: Panel, eR
 }
 
 /**
+ * A gusset corner (milestone 154, DIELINE_GENERATOR_ANALYSIS.md §3.3; FEFCO 0309): the square between two walls
+ * folded off one base, left uncut. In the flat each wall carries half of it, a triangle on its side edge from the
+ * base's corner; the two meet along the square's diagonal, so the net is one piece with the corner closed. Creased
+ * along both side edges and the diagonal, it folds in half and lies flat against the second wall's outside (two
+ * layers). Only where it can be: both walls grown off the same board at 90°, square to each other, the same height.
+ */
+/** Can this corner be a gusset (milestone 154): two walls grown off the same board at 90°, square to each other, the same height? */
+export function gussetFits(d: Design, c: Pick<Connection, 'a' | 'b' | 'grown'>): boolean {
+  if (c.grown || c.b.edge === FACE) return false;
+  const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
+  if (!A || !B) return false;
+  const grownOf = (id: string) => Object.values(d.connections).find((x) => x.grown && x.b.panelId === id);
+  const pa = grownOf(A.id), pb = grownOf(B.id);
+  if (!pa || !pb || pa.a.panelId !== pb.a.panelId || Math.abs(pa.angle - 90) > 1e-6 || Math.abs(pb.angle - 90) > 1e-6) return false;
+  // an edge a cut took away first (cornerFit needs both)
+  const eA = findEdge(A, c.a.edge), eB = findEdge(B, c.b.edge);
+  if (!eA || !eB || Math.abs(segLength(eB) - segLength(eA)) > 0.5) return false;
+  const fit = cornerFit(A, c.a.edge, B, c.b.edge, 1);
+  return !!fit && Math.abs(fit.cos) <= 1e-3;
+}
+
+function gussetGeom(d: Design, c: Connection, A: Panel, B: Panel): ConnGeom | null {
+  const g = empty();
+  if (!gussetFits(d, c)) return null;
+  const eA = findEdge(A, c.a.edge)!, eB = findEdge(B, c.b.edge)!;
+  const L = segLength(eA);
+  // along each side edge from the base's corner (the end at the wall's foot) to its top
+  const sA = eA.a.y <= eA.b.y ? 0 : L, sB = eB.a.y <= eB.b.y ? 0 : segLength(eB);
+  const top = (s: number) => (s === 0 ? L : 0);
+  const pA = (s: number, u: number) => edgePoint(A, c.a.edge, s, -u);
+  const pB = (s: number, u: number) => edgePoint(B, c.b.edge, s, -u);
+  g.adds.push({ panelId: A.id, poly: [pA(sA, 0), pA(top(sA), 0), pA(top(sA), L)] });
+  g.adds.push({ panelId: B.id, poly: [pB(sB, 0), pB(top(sB), 0), pB(top(sB), L)] });
+  // the creases: both side edges, and the diagonal (on A's half: drawn once)
+  g.scores.push({ panelId: A.id, a: pA(sA, 0), b: pA(top(sA), 0) });
+  g.scores.push({ panelId: B.id, a: pB(sB, 0), b: pB(top(sB), 0) });
+  g.scores.push({ panelId: A.id, a: pA(sA, 0), b: pA(top(sA), L) });
+  // folded: a doubled triangle on B's outside, from B's corner up its side and along its foot
+  const tB = tOf(d, B.id), tA = tOf(d, A.id);
+  const centreA = toWorld(A.frame, A.w / 2, A.h / 2, tA / 2);
+  const inward = v3dot(v3sub(centreA, edgeWorld(B, c.b.edge)[0]), matDir(B.frame)) >= 0;
+  const [z0, z1] = inward ? [-2 * tA, 0] : [tB, tB + 2 * tA];
+  g.flaps3d.push({ panelId: B.id, poly: [edgePoint(B, c.b.edge, sB, 0), edgePoint(B, c.b.edge, top(sB), 0), edgePoint(B, c.b.edge, sB, L)], z0, z1, owner: A.id });
+  return g;
+}
+
+/**
  * Glue flap on a grown child's bottom edge, folded onto the parent's face
  * towards the parent's interior. Works at any angle.
  */
@@ -1249,7 +1297,8 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
   // a slit lock (milestone 68) wherever a glue flap is offered, just after it
-  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'lock', 'slide', 'butt'] : ['glue', 'lock', 'tabslot', 'slide', 'butt'];
+  // milestone 154: a gusset (the corner left uncut) on card and corrugated, after the joints that are cut
+  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'lock', 'gusset', 'slide', 'butt'] : ['glue', 'lock', 'gusset', 'tabslot', 'slide', 'butt'];
   // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
   return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'slide', 'butt'];
 }

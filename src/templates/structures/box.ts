@@ -346,7 +346,8 @@ export const box: TemplateDef = {
   word: 'sen.box',
   status: 'stable',
   materials: ['plywood', 'corrugated', 'card'],
-  params: boxParams({ height: 45, lid: true, addons: ['window', 'finger'] }),
+  // milestone 153: a box has a tray's handles too, so the tray is one card with it (Open box) and loses nothing
+  params: boxParams({ height: 45, lid: true, addons: ['window', 'finger', 'handles'] }),
   generate: (d, p, role) => generateBox(d, p, true, role),
   sentence: { main: 'sen.s.box' },
 };
@@ -366,5 +367,7 @@ export const tray: TemplateDef = {
   sentence: { main: 'sen.s.box' },
 };
 tray.limits = boxLimits(tray);
+// the same generator as the box's (`generateBox`): a tray is a box with no lid, window or finger notch (milestone 153: handles on both)
+tray.sameAs = (p) => ({ id: 'box', params: { ...p, lid: 'none', window: 'none', finger: 'none' } });
 tray.accepts = (m, p) => (cleanAll(tray, m, p) ? null : 'sen.why.engineSize');
 

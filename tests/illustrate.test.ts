@@ -43,3 +43,36 @@ describe('illustrations', () => {
         for (const f of tops) expect(order.indexOf(f)).toBeGreaterThan(order.indexOf(floor));
       });
 });
+
+// Milestone 147 (PRESETS_OVERHAUL.md §5.2): every preset's picture draws everything its design has: each board,
+// bent strip, folded flap (a joint's, a carton end's, a shaped edge flap), fold-over and cut line.
+describe('pictures draw everything (milestone 147)', () => {
+  const BASE = ['card-0.5', 'corr-1.6', 'corr-4', 'ply-3'].map((id) => MATERIALS.find((m) => m.id === id)!);
+  it('every preset in every board', async () => {
+    const { sentenceCandidates } = await import('../src/templates/catalogue');
+    const { thingsFor } = await import('../src/guided/things');
+    const { generate } = await import('../src/templates/registry');
+    const { MISSIONS } = await import('../src/easy/missions');
+    const { pictureCoverage } = await import('../src/views/illustrate');
+    const missing: string[] = [];
+    let flaps = 0, lines = 0;
+    for (const m of BASE) {
+      const designs: [string, Design][] = [
+        ...sentenceCandidates(m, BOX, 'box').map((c): [string, Design] => [c.v.id, generate(templateById(c.choice.id)!, m, c.choice.params)]),
+        ...thingsFor(null).filter((x) => x.can(m)).map((x): [string, Design] => [`guided:${x.id}`, x.start(m)]),
+        ...MISSIONS.filter((x) => x.materials.includes(m.kind)).map((x): [string, Design] => [`mission:${x.id}`, startMission(x, m)]),
+      ];
+      for (const [name, d] of designs) {
+        const { want, drawn } = pictureCoverage(d);
+        const got = new Set(drawn);
+        for (const w of want) if (!got.has(w)) missing.push(`${name} ${m.id}: ${w}`);
+        flaps += want.filter((w) => w.startsWith('flap:')).length;
+        lines += want.filter((w) => w.startsWith('line:')).length;
+      }
+    }
+    expect(missing).toEqual([]);
+    // the presets do have flaps and lines to draw (the test is not vacuous)
+    expect(flaps).toBeGreaterThan(50);
+    expect(lines).toBeGreaterThan(0);
+  }, 300_000);
+});

@@ -22,7 +22,7 @@ describe('the sentence as text', () => {
   it('clauses follow the words: a polygon has its sides, an add-on on has its clause, off is in + more', () => {
     const p = { ...defaults(box), shape: 'poly', lid: 'liftoff' };
     expect(clausesOf(box, PLY, p).map((c) => c.key)).toEqual(['sides', 'lid']);
-    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['spacesBy', 'window', 'finger']);
+    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['spacesBy', 'window', 'finger', 'handles']); // milestone 153: a box has handles too
     expect(clausesOf(box, PLY, { ...p, spacesBy: 'size' }).find((c) => c.key === 'spacesBy')!.text).toBe('sen.add.spaces.size');
   });
 });

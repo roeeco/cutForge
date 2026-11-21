@@ -245,3 +245,29 @@ comes before 115, 117 and 118.**
   142–144 fit anywhere after 137.
 - **Not in this round:** structural curved walls (a plan of their own), the teacher view (F) and offline (G3), which
   the browser passes could not test.
+
+### 5.5 Milestones 146–160: the presets overhaul (plan of 21 November, with the preset engine of `DIELINE_GENERATOR_ANALYSIS.md`)
+
+`PRESETS_OVERHAUL.md`, from a contact sheet of every preset in every material (`docs/preset-shots/before/`): 38
+entries in four lists (structures, styles, missions, Guided things), about 15 of them different from each other;
+pictures that leave out flaps and show every preset from one view as it is cut; and gaps for plywood and 4 mm board.
+The answer is one catalogue of cards, a view-only pose per card shared by the pictures and the stage, and new cards
+only once the pictures can tell them apart.
+
+| # | Milestone | Plan | Status |
+| --- | --- | --- | --- |
+| **146** | One catalogue: the lists read it, each design once; the contact sheet; the look-alike tests and their allowlists | §7 | ✅ |
+| **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §7 | ✅ |
+| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §7 | ✅ |
+| **149** | Engine: ends per wall | §7, analysis §3.2 | ✅ |
+| **150** | Engine: preset records and the recogniser | §7, analysis §4 | ✅ |
+| **151** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §7 | ✅ (bottom flaps hang open instead of an inset) |
+| **152** | The stage: hero pose, framing, *Show how it closes* | §7 | ✅ |
+| **153** | Challenges and merges | §7 | ✅ (allowlists empty) |
+| **154** | Engine: corner rules (gusset, inward ear) | §7, analysis §3.3 | ✅ the gusset (the inward ear deferred) |
+| **155** | New cards on the engine as it is | §7 | ✅ |
+| **156** | Engine: strip and wrap builders | §7, analysis §3.1 | ✅ (and the insert) |
+| **157** | New cards that need engine work (beta) | §7 | ✅ (magazine file, dice tower, mailer box) |
+| **158** | Engine: custom presets | §7, analysis §4 | ✅ (record editor, Your presets) |
+| **159** | Words and pictures | §7 | ✅ (after pictures in en and he, README) |
+| **160** | Verification | §7 | ✅ (no regressions; lid lips shown and opened on the stage) |

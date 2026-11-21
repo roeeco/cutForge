@@ -23,15 +23,16 @@ describe('every carton and sleeve the lists allow builds clean', () => {
 });
 
 describe('structures and materials', () => {
-  it('plywood lists neither a carton nor a sleeve; thick corrugated a carton with shipping flaps only (C2)', () => {
+  it('plywood lists neither a carton nor a sleeve; thick corrugated a carton with shipping or full-overlap flaps only (C2, 149)', () => {
     expect(STRUCTURES().filter((t) => makes(t, PLY)).map((t) => t.id)).not.toEqual(expect.arrayContaining(['carton']));
     expect(STRUCTURES().filter((t) => makes(t, PLY)).map((t) => t.id)).not.toContain('sleeve');
     expect(makes(carton, CORR4)).toBe(true);
     expect(makes(sleeve, CORR4)).toBe(true);
     const p = chooseStructure(carton, CORR4, defaults(box)).params;
     expect([p.top, p.bottom]).toEqual(['rsc', 'rsc']);
-    expect(listOf(carton, CORR4, p, 'top')).toEqual(['rsc']);
-    expect(listOf(carton, CORR4, p, 'bottom')).toEqual(['rsc']);
+    // milestone 149: full-overlap flaps too (FEFCO 0203), corrugated like the RSC
+    expect(listOf(carton, CORR4, p, 'top')).toEqual(['rsc', 'full']);
+    expect(listOf(carton, CORR4, p, 'bottom')).toEqual(['rsc', 'full']);
   });
 
   it('box → carton → box keeps the sizes and the window', () => {

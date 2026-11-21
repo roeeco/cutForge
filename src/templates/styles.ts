@@ -25,6 +25,8 @@ export type StyleDef = {
   code?: string;
   codeChecked?: boolean;
   status: 'planned' | 'beta' | 'stable';
+  /** Milestone 155: the sizes it starts at (a pen cup is tall and narrow), applied when it is chosen. */
+  sizes?: Params;
 };
 
 /** The styles in list order (most specific first within a structure, so `styleOf` finds the narrowest). */
@@ -36,6 +38,16 @@ export const STYLES: StyleDef[] = [
   { id: 'hexLid', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'liftoff' }, group: 'boxes', uses: ['gift'], status: 'stable' },
   { id: 'trayLid', structure: 'box', words: { lid: 'liftoff' }, group: 'boxes', uses: ['gift'], code: 'ECMA C20 / FEFCO 0301', status: 'stable' },
   { id: 'drawerBox', structure: 'drawer', words: {}, group: 'boxes', uses: ['gift', 'jewelry'], status: 'stable' },
+  // milestone 155: new styles on the engine as it is
+  { id: 'roundBox', structure: 'box', words: { shape: 'round', lid: 'none' }, group: 'boxes', uses: ['gift'], status: 'stable' },
+  { id: 'penCup', structure: 'box', words: { shape: 'poly', sides: 6, lid: 'none' }, sizes: { width: 75, depth: 75, height: 100 }, group: 'boxes', uses: ['stationery'], status: 'stable' },
+  { id: 'windowCarton', structure: 'carton', words: { top: 'tuck', bottom: 'snap', window: 'rect' }, sizes: { width: 70, depth: 40, height: 110 }, group: 'cartons', uses: ['retail', 'food'], status: 'stable' },
+  // milestone 156: the insert's profiles (FEFCO 09), on the strip builder
+  { id: 'uLiner', structure: 'insert', words: { profile: 'u' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0904', status: 'stable' },
+  { id: 'zProfile', structure: 'insert', words: { profile: 'z' }, group: 'flat', uses: ['shipping'], status: 'stable' },
+  { id: 'angleGuard', structure: 'insert', words: { profile: 'l' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0970', status: 'stable' },
+  { id: 'accordionPad', structure: 'insert', words: { profile: 'accordion' }, group: 'flat', uses: ['shipping'], code: 'FEFCO 0130', status: 'stable' },
+  { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },
   { id: 'rte', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'opposite' }, group: 'cartons', uses: ['cosmetics', 'pharma'], code: 'ECMA A55', status: 'stable' },
@@ -45,6 +57,8 @@ export const STYLES: StyleDef[] = [
   { id: 'sealed', structure: 'carton', words: { top: 'seal', bottom: 'seal' }, group: 'cartons', uses: ['pharma', 'food'], code: 'ECMA A10', status: 'stable' },
   // shipping
   { id: 'rsc', structure: 'carton', words: { top: 'rsc', bottom: 'rsc' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0201', status: 'stable' },
+  // milestone 149: the first style that is only a list of flaps (END_STYLES.full)
+  { id: 'fol', structure: 'carton', words: { top: 'full', bottom: 'full' }, group: 'shipping', uses: ['shipping'], code: 'FEFCO 0203', status: 'stable' },
   // flat pieces
   { id: 'diamondEnvelope', structure: 'envelope', words: { flaps: 'pointed' }, group: 'flat', uses: ['gift', 'stationery'], status: 'stable' },
   { id: 'pocketEnvelope', structure: 'envelope', words: { flaps: 'pocket' }, group: 'flat', uses: ['cards', 'stationery'], status: 'stable' },
@@ -73,12 +87,12 @@ export function styleOf(structure: string, p: Params): StyleDef | null {
 export function chooseStyle(s: StyleDef, m: MaterialProfile, params: Params, byId: (id: string) => TemplateDef | undefined): { id: string; params: Params; changes: Change[] } | null {
   const to = byId(s.structure);
   if (!to || !makes(to, m)) return null;
-  const r = chooseStructure(to, m, { ...params, ...s.words });
+  const r = chooseStructure(to, m, { ...params, ...(s.sizes ?? {}), ...s.words });
   if (styleOf(to.id, r.params)?.id === s.id) return { id: to.id, params: r.params, changes: r.changes };
   // not at these sizes (a gable top on a shallow box): the structure's own sizes, and a note for each size that changed
   const own: Params = {};
   for (const p of to.params) if (p.type === 'number' && p.unit === 'mm') own[p.key] = p.default;
-  const r2 = chooseStructure(to, m, { ...params, ...own, ...s.words });
+  const r2 = chooseStructure(to, m, { ...params, ...own, ...(s.sizes ?? {}), ...s.words });
   const sizes: Change[] = Object.keys(own).filter((k) => k in params && String(params[k]) !== String(r2.params[k])).map((k) => ({ key: k, from: params[k], to: r2.params[k], why: 'sen.why.styleSize' as MsgKey }));
   return { id: to.id, params: r2.params, changes: [...sizes, ...r2.changes] };
 }
@@ -103,6 +117,6 @@ export const styleWord = (s: StyleDef) => `style.${s.id}.word` as MsgKey;
 export const styleDesc = (s: StyleDef) => `style.${s.id}.desc` as MsgKey;
 export const GROUPS: (StyleGroup | 'more')[] = ['boxes', 'cartons', 'shipping', 'flat', 'more'];
 /** Where each structure sits in the first word's list (a structure not named here goes last). */
-export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more' };
+export const STRUCTURE_GROUP: Record<string, StyleGroup | 'more'> = { box: 'boxes', tray: 'boxes', drawer: 'boxes', carton: 'cartons', sleeve: 'cartons', envelope: 'flat', folder: 'flat', cardHolder: 'flat', stand: 'more', insert: 'more', magazineFile: 'boxes', diceTower: 'more', mailer: 'cartons' };
 /** A style whose words are all its structure's own (no word fixed): the structure's entry stands for it. */
 export const isAlias = (s: StyleDef) => Object.keys(s.words).length === 0;

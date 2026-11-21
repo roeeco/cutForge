@@ -45,14 +45,14 @@ describe('board grades', () => {
     }
   });
 
-  it('greyboard over 1 mm folds into nothing (1 mm is the ceiling, so it does); double wall makes no carton or sleeve; B flute a carton with shipping flaps only', () => {
+  it('greyboard over 1 mm folds into nothing (1 mm is the ceiling, so it does); double wall makes no carton or sleeve; B flute a carton with shipping or full-overlap flaps only', () => {
     const offered = (id: string) => STRUCTURES().filter((s) => makes(s, profileById(id)!)).map((s) => s.id);
     expect(offered('grey-1')).toContain('carton');
     for (const id of ['grey-1.5', 'grey-2']) for (const s of ['carton', 'sleeve', 'drawer', 'envelope', 'folder', 'cardHolder']) expect(offered(id), id).not.toContain(s);
     for (const s of ['carton', 'sleeve', 'drawer']) expect(offered('corr-7')).not.toContain(s);
     const carton = templateById('carton')!;
     const p = chooseStructure(carton, profileById('corr-3')!, defaults(carton)).params;
-    expect(listOf(carton, profileById('corr-3')!, p, 'top')).toEqual(['rsc']);
+    expect(listOf(carton, profileById('corr-3')!, p, 'top')).toEqual(['rsc', 'full']);
     // thin boxboard folds as card does
     expect(offered('card-0.4')).toEqual(expect.arrayContaining(['carton', 'sleeve', 'envelope']));
   });

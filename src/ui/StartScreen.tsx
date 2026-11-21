@@ -14,13 +14,15 @@ import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
 import { createWaffleDesign } from '../sculpt/ops';
 import { Library, openFromLibrary } from './Library';
+import { MyPresets } from './PresetEditor';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { Icon, Logo } from './icons';
 import { designPicture, MISSION_PROP } from '../views/picture';
 import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
-import { MISSIONS, missionById, startMission, type Mission } from '../easy/missions';
+import { missionById, startMission, type Mission } from '../easy/missions';
+import { CATALOGUE, catalogueMissions } from '../templates/catalogue';
 import { shown, useFeature, useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
@@ -66,7 +68,7 @@ export function StartScreen() {
   const offered = useStore((s) => s.viewPrefs.missions);
   const mat = MATERIALS.find((m) => m.id === matId)!;
   // only what this material can make is offered (hidden, never greyed)
-  const missions = quick ? MISSIONS.filter((m) => (!offered || offered.includes(m.id)) && m.materials.includes(mat.kind)) : [];
+  const missions = quick ? catalogueMissions().filter((m) => (!offered || offered.includes(m.id)) && m.materials.includes(mat.kind)) : [];
   const mission = missions.find((m) => m.id === missionId);
   // milestone 120: a sculpture design (Workshop only)
   const shapesOk = shown(useFeature('start.shapes'));
@@ -250,6 +252,9 @@ export function StartScreen() {
         </div>
         </div>
 
+        {/* milestone 158: the presets saved in this browser, each a card of its own, started in the board chosen above */}
+        {!quick && <MyPresets material={mat} />}
+
         {/* milestone 86: the designs kept in this browser; *Your designs* in the header scrolls here */}
         <div id="start-library" className="cs-library">
           <Library />
@@ -292,6 +297,12 @@ function MissionView(props: { m: Mission; all: Mission[]; mat: MaterialProfile; 
           ))}
         </div>
         <h3>{t(m.title)}</h3>
+        {/* milestone 153: a mission is a challenge on one of the catalogue's cards */}
+        {challengeCard(m.id) && (
+          <p className="note" data-testid="mission-card">
+            {t('start.challengeOf', { card: t(challengeCard(m.id)!) })}
+          </p>
+        )}
         <p>{t(m.description)}</p>
         <ul className="goal-list" aria-label={t('start.missionGoals')}>
           {m.goals.map((g) => (
@@ -318,3 +329,6 @@ function MissionArt({ id, mat }: { id: string; mat: MaterialProfile }) {
   const src = useMemo(() => missionThumb(id, mat, 520, 380), [id, mat]);
   return src ? <img src={src} alt="" /> : null;
 }
+
+/** The card a mission is a challenge on (milestone 153). */
+const challengeCard = (id: string) => CATALOGUE.find((c) => c.challenges.includes(id))?.title;

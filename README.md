@@ -32,6 +32,7 @@ npx playwright test -c pw-app.config.ts --grep-invert classroom   # app specs on
 SHOTS=1 npx playwright test -c pw-app.config.ts shots             # review screenshots into docs/polygon-shots/
 SHOTS=1 npx playwright test -c pw-app.config.ts refine-shots      # milestones 15–20 screenshots into docs/refine-shots/
 SHOTS=1 npx playwright test -c pw-app.config.ts tour             # the first-use tour, every card in English and Hebrew, into docs/tour-shots/
+npm run preset-sheet                                               # every preset in every list, per board, into docs/preset-shots/ (milestone 146)
 UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an intended change in exported files
 ```
 
@@ -134,6 +135,22 @@ Keyboard: `V` select, `P` panel, `D` divider, `R` rectangle, `U` rounded rectang
 - **The Make card** (only to refine): the material (a change re-chooses every joint you did not set), seams (*Automatic · Glue · Slit locks · Tab and slot*), *Fewest pieces · Fewer cuts*, faces around a curve, **a lid by a cut** (the shape split under its top, the lid made beside the box), the problems with one-click fixes, the **assembly steps** (each seam numbered on the plan, its flap and its partner edge alike, and listed on the printed plan), **Update from shape** when the shapes changed (what you added on the boards, and the joints you picked, carry across), and **Detach**. A made board's card has *Leave this face open*.
 - **Guided** has two ready shapes in its gallery, a **Pyramid** and a **Diamond**, always folded from card, with their width, height and sides on sliders.
 - Every flap depth, tab width and finger size is a starting value, not yet checked on real stock.
+
+## Presets: ready starting points
+
+Every ready starting point (a word in the sentence, a thing in Guided's gallery, a mission) belongs to one **card**, and no two cards are the same thing (milestones 146–160, `PRESETS_OVERHAUL.md`).
+
+**For students**
+- **The cards.** Boxes: *Open box* (and its tray), *Box with a lid that lifts off*, *Box with a hinged lid* (each also on a hexagon), *Round box*, *Pen cup*, *Drawer box*, *Magazine file*. Cartons: *Window carton*, *Tuck-end carton* (snap-lock, reverse tuck, straight tuck), *Gable box*, *Box with flaps* (sealed end, shipping box, full overlap), *Sleeve*, *Mailer box*. Flat pieces: *Envelope* (plain, diamond, pocket), *Presentation folder*, *Gift-card holder*. More: *Stand* (card stand, phone stand), *Dice tower*, *Insert* (U liner, Z profile, angle guard, accordion pad); and Guided's *Pyramid* and *Diamond*.
+- **Pictures show how each one works:** a carton with its flaps open a little, a drawer half out of its sleeve, an envelope with a letter, a pen cup with pencils, a mailer with its lid up, a dice tower with its near walls see-through. The stage opens a preset framed whole; *Show how it goes together* ends with it closed.
+- **Kind:** a design started from a card with more than one way of it shows the others as pictures in its card (*Template → Kind*); pick one to change it, in one undo step.
+- **Beta** cards (*Magazine file*, *Dice tower*, *Mailer box*) cut clean, but cut one and try it before a class set.
+- **Make it a preset** (Workshop, in the settings card of a box or carton): each part is a row of pictures: *Body* (a base with walls, or a tube with ends), *Base* (rectangle, polygon, round), *Sides*, *Lid*, *Corners* (glue flap, slit lock, gusset, tabs and slots, fingers…), *Top*, *Bottom*, *Window*. A greyed choice is one the engine cannot make here; tap it and it says why (*a tube folds: card, or corrugated up to 4 mm*). Under the rows it says what the catalogue calls it: if it is a preset already, it says so; if not, *Save as preset* keeps it under a name you give.
+
+**For teachers**
+- *Your presets* on the welcome screen (Workshop and Guided) lists the presets saved in this browser, each a card of its own: pick a material, then the preset, and it starts in that material (a preset that material cannot make is greyed with the reason). Presets are kept in the browser, like designs: make them on the computer the class uses.
+- A saved preset is a record of parts, not a drawing, so it works at any size and in every material that can make it, and it is always checked by the same engine as everything else.
+- Developers: `npm run preset-sheet` draws every card in every board and fails if two pictures in one list look alike; `npm run preset-after` writes the pictures in `docs/preset-shots/after/` in English and Hebrew.
 
 ## Three levels: Guided, Quick build, Workshop
 

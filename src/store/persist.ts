@@ -5,6 +5,7 @@
 // `kv/current-design`: it is moved into the library once and then left alone.
 // Failures never throw into the editor.
 import type { Design } from '../model/types';
+import type { SavedPreset } from '../templates/custom';
 
 const DB = 'cutforge', KV = 'kv', DESIGNS = 'designs', META = 'meta';
 const OLD_KEY = 'current-design', OPEN_KEY = 'open-design', MOVED_KEY = 'library-moved';
@@ -210,4 +211,30 @@ export async function projectOf(designId: string): Promise<ProjectMeta | null> {
   const [{ live }, projects] = await Promise.all([listDesigns(), listProjects()]);
   const pid = live.find((m) => m.id === designId)?.projectId;
   return (pid && projects.find((p) => p.id === pid)) || null;
+}
+
+// ---------------------------------------------------------------------------
+// Custom presets (milestone 158, src/templates/custom.ts): each a name, a record and sizes, kept in `kv` beside the
+// projects. A saved preset is a card of its own on the start screen.
+const PRESETS_KEY = 'presets';
+
+/** The saved presets, newest first. */
+export async function listPresets(): Promise<SavedPreset[]> {
+  return tx([KV], 'readonly', async (t) => Object.values((await get<Record<string, SavedPreset>>(t, KV, PRESETS_KEY)) ?? {}).sort((a, b) => b.createdAt - a.createdAt));
+}
+
+/** Save a preset (a new one, or one of the same id replaced). */
+export async function savePreset(p: SavedPreset): Promise<void> {
+  await tx([KV], 'readwrite', async (t) => {
+    const all = (await get<Record<string, SavedPreset>>(t, KV, PRESETS_KEY)) ?? {};
+    t.objectStore(KV).put({ ...all, [p.id]: JSON.parse(JSON.stringify(p)) }, PRESETS_KEY);
+  });
+}
+
+export async function deletePreset(id: string): Promise<void> {
+  await tx([KV], 'readwrite', async (t) => {
+    const all = { ...((await get<Record<string, SavedPreset>>(t, KV, PRESETS_KEY)) ?? {}) };
+    delete all[id];
+    t.objectStore(KV).put(all, PRESETS_KEY);
+  });
 }
