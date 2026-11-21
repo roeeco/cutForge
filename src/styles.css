@@ -714,6 +714,10 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
 .op-list button.on { background: var(--accent-soft); border-color: var(--accent); }
 .op-list button svg { flex: none; }
 .op-list .op-text { display: grid; line-height: 1.2; }
+/* milestone 183: the Shapes tool's parts, two to a row, their names only (what each is in its tooltip and below) */
+.part-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.part-grid button { min-height: 0; padding: 5px 6px; font-size: 12px; line-height: 1.2; text-align: start; border-radius: var(--r-md); }
+.part-grid button.on { background: var(--accent-soft); border-color: var(--accent); }
 .op-list .op-text small { color: var(--ink-muted); font-size: 11px; }
 .op-list button[data-op='cut'] svg { color: #b4232a; }
 .op-list button[data-op='add'] svg { color: #2e8b57; }

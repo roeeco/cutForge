@@ -10,6 +10,8 @@ import { QuickRail } from '../easy/QuickRail';
 import { LazySculptRail } from '../sculpt/ui/lazy';
 import { LINE_TYPES } from '../model/lines';
 import { tellUser } from './AppDialog';
+import { PARTS, type PartKind } from '../model/parts';
+import { NumField } from './NumField';
 
 /** The Shapes tool's footprints (milestone 75), in the menu's order. */
 const FEET: { id: ShapeFoot; key: MsgKey; icon: string; kbd?: string; only3d?: boolean }[] = [
@@ -19,12 +21,15 @@ const FEET: { id: ShapeFoot; key: MsgKey; icon: string; kbd?: string; only3d?: b
   { id: 'polygon', key: 'tool.polygon', icon: 'polygon', kbd: 'G', only3d: true },
   { id: 'regular', key: 'tool.regular', icon: 'ngon', only3d: true },
   { id: 'line', key: 'tool.line', icon: 'line', kbd: 'L', only3d: true },
+  // milestone 183: gears, knobs, hole patterns… and the puzzle cut, put down by a click
+  { id: 'part', key: 'tool.part', icon: 'gear', only3d: true },
 ];
 const OP_ICON: Record<DetailOp, string> = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' };
 
 /** The footprint and operator a drawing tool stands for (null: not a Shapes tool). */
 export function shapeOf(tool: Tool, polyMode: 'click' | 'ngon' | 'round' | 'rounded' | 'line', board: boolean): { foot: ShapeFoot; board: boolean } | null {
   if (tool === 'panel') return { foot: 'rect', board: true };
+  if (tool === 'part') return { foot: 'part', board };
   if (tool === 'rect') return { foot: 'rect', board: false };
   if (tool === 'roundrect') return { foot: 'rounded', board: false };
   if (tool === 'circle') return { foot: 'circle', board: false };
@@ -110,6 +115,7 @@ function WorkshopRail() {
   const shapeNote = useStore((s) => s.shapeNote);
   const lastFoot = useStore((s) => s.shapeFoot);
   const lineType = useStore((s) => s.lineType);
+  const partKind = useStore((s) => s.partKind);
   const railBtn = (id: Tool, key: MsgKey, icon: string, kbd: string) => (
     <button key={id} className={tool === id ? 'on' : ''} aria-pressed={tool === id} aria-label={t(key)} onClick={() => setTool(id)} data-testid={`tool-${id}`}>
       <Icon name={icon} />
@@ -130,7 +136,7 @@ function WorkshopRail() {
       <nav className="rail" aria-label={t('tool.title')}>
         {railBtn('select', 'tool.select', 'select', 'V')}
         {/* one Shapes tool: a footprint drawn as a board, or as a shape on one (milestone 75) */}
-        <button className={inShapes ? 'on' : ''} aria-pressed={inShapes} aria-expanded={inShapes} aria-label={t('tool.shapes')} onClick={() => (inShapes ? setTool('select') : useStore.getState().chooseShape(view === '3d' ? lastFoot : lastFoot === 'polygon' || lastFoot === 'regular' ? 'rect' : lastFoot))} data-testid="tool-shapes">
+        <button className={inShapes ? 'on' : ''} aria-pressed={inShapes} aria-expanded={inShapes} aria-label={t('tool.shapes')} onClick={() => (inShapes ? setTool('select') : useStore.getState().chooseShape(view === '3d' ? lastFoot : lastFoot === 'polygon' || lastFoot === 'regular' || lastFoot === 'part' ? 'rect' : lastFoot))} data-testid="tool-shapes">
           <Icon name={FEET.find((f) => f.id === foot)!.icon} />
           <span className="tip" aria-hidden>
             {t('tool.shapes')}
@@ -177,6 +183,7 @@ function WorkshopRail() {
       {(inShapes || tool === 'text') && (
         // the shape card: what the footprint does (only while the Shapes or Text tool is in use)
         <aside className="quick-card shape-card" aria-label={t('tool.op')} data-testid="shape-card">
+          {foot === 'part' && inShapes && <PartList board={isBoard} />}
           {foot === 'line' && inShapes ? (
             // the Line footprint (milestone 84): its operators are the line types
             <>
@@ -207,7 +214,7 @@ function WorkshopRail() {
                 </span>
               </button>
             )}
-            {(['cut', 'engrave', 'score', 'add'] as const).map((o) => {
+            {(foot === 'part' && inShapes && partKind === 'puzzle' ? [] : (['cut', 'engrave', 'score', 'add'] as const)).map((o) => {
               const on = !isBoard && op === o;
               const pick = () => {
                 setOp(o);
@@ -253,6 +260,29 @@ function WorkshopRail() {
           )}
         </aside>
       )}
+    </>
+  );
+}
+
+/** The Shapes tool's Parts (milestone 183): which part a click puts down; a puzzle's piece size. */
+function PartList({ board }: { board: boolean }) {
+  const t = useT();
+  const kind = useStore((s) => s.partKind);
+  const piece = useStore((s) => s.puzzlePiece);
+  const items: { id: PartKind | 'puzzle'; key: MsgKey }[] = [...PARTS.map((p) => ({ id: p.kind, key: p.key })), { id: 'puzzle', key: 'part.puzzle' }];
+  return (
+    <>
+      <h4>{t('tool.part')}</h4>
+      <div className="part-grid" role="radiogroup" aria-label={t('tool.part')} data-testid="part-list">
+        {items.map((p) => (
+          <button key={p.id} role="radio" aria-checked={kind === p.id} className={kind === p.id ? 'on' : ''} title={t(`part.desc.${p.id}` as MsgKey)} onClick={() => useStore.getState().set({ partKind: p.id })} data-testid={`part-${p.id}`}>
+            {t(p.key)}
+          </button>
+        ))}
+      </div>
+      <p className="note" data-testid="part-desc">{t(`part.desc.${kind}` as MsgKey)}</p>
+      {kind === 'puzzle' && <NumField label={t('tool.partSize')} value={piece} unit={t('unit.mm')} min={15} max={200} onCommit={(v) => useStore.getState().set({ puzzlePiece: v })} testId="puzzle-piece" />}
+      {!board && <p className="hint" data-testid="part-help">{t('tool.shapeOnBoard')}</p>}
     </>
   );
 }

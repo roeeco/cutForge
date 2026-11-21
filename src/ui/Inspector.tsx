@@ -43,6 +43,7 @@ import { LazySculptCard } from '../sculpt/ui/lazy';
 import { MadeFaceSection } from '../make/MadeFace';
 import { boxOfBase, SizeAsSwitch, statedField } from './BoxSizeUI';
 import { outlineWhy } from '../model/outlineWhy';
+import { PartFields, partTitle } from './PartUI';
 
 const OP_ICONS = { add: 'opAdd', cut: 'opCut', engrave: 'opEngrave', score: 'opScore' } as const;
 
@@ -134,7 +135,7 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
         <section data-testid="inspector-detail">
           <p className="kicker">{t('insp.shapeOn', { panel: panelLabel(d, panel.id, t) })}</p>
           <div className="card-head">
-            <h3>{t(`shape.${dt.shape}`)}</h3>
+            <h3>{dt.part ? t(partTitle(dt.part)) : t(`shape.${dt.shape}`)}</h3>
             <button className="ghost icon-btn danger" onClick={() => apply((x) => deleteDetail(x, dt.id))} aria-label={t('insp.delete')} title={t('insp.delete')}>
               <Icon name="trash" />
             </button>
@@ -172,7 +173,10 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
               {dt.through && <span className="note" data-testid="detail-through-count">{t('through.cuts', { n: panelsCutBy(d, dt.id).length })}</span>}
             </div>
           )}
-          {dt.shape === 'text' && dt.text ? (
+          {dt.part ? (
+            // milestone 183: a part's sizes draw it, in place of its box's
+            <PartFields id={dt.id} part={dt.part} />
+          ) : dt.shape === 'text' && dt.text ? (
             <TextFields id={dt.id} text={dt.text} />
           ) : isCircle ? (
             <NumField label={t('insp.diameter')} value={dt.w} unit={mm} min={0.5} onCommit={(v) => apply((x) => updateDetail(x, dt.id, { w: v }))} testId="detail-diameter" />

@@ -8,6 +8,7 @@ import { quickGuard, type GuardNote } from '../easy/guard';
 import { keepsCuttable, type Mode } from '../easy/features';
 import { produce, type Draft } from 'immer';
 import type { ClosureStyle, ConnectionKind, LineType, Design, Detail, DetailOp, DetailShape, MaterialProfile, SketchGraph, V3, WallSketch } from '../model/types';
+import type { PartKind } from '../model/parts';
 import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
@@ -56,11 +57,11 @@ export function detailSel(ids: string[]): Selection {
 }
 
 /** The Shapes tool's footprints (milestone 75). */
-export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular' | 'line';
+export type ShapeFoot = 'rect' | 'rounded' | 'circle' | 'polygon' | 'regular' | 'line' | 'part';
 /** Tools the Shapes tool drives: a footprint drawn as a board or as a shape on one. */
 export const SHAPE_DRAW_TOOLS = new Set<string>(['panel', 'rect', 'roundrect', 'circle', 'polygon']);
 
-export type Tool = 'select' | 'panel' | 'text' | Exclude<DetailShape, 'text' | 'path'> | QuickTool | SculptTool;
+export type Tool = 'select' | 'panel' | 'text' | 'part' | Exclude<DetailShape, 'text' | 'path'> | QuickTool | SculptTool;
 /** Sculpture designs' tools (milestone 120): place shapes, sketch an outline, round corners. */
 export type SculptTool = 'shapes' | 'sketch' | 'radius';
 /** Ids of the selected 3D shapes (empty when none). */
@@ -71,7 +72,7 @@ export function shapeSel(ids: string[]): Selection {
   return ids.length ? { kind: 'shape', id: ids[ids.length - 1], ids } : null;
 }
 /** Tools that work on the 3D stage only. */
-const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider', 'shapes', 'sketch', 'radius']);
+const ONLY_3D = new Set<string>(['panel', 'box', 'wall', 'divider', 'shapes', 'sketch', 'radius', 'part']);
 /** Quick build's own tools (milestones 37–38): a box, a wall or lid on an edge, a divider line, a sticker. */
 export type QuickTool = 'box' | 'wall' | 'divider' | 'sticker';
 
@@ -365,6 +366,9 @@ type State = {
   boxHeight: number;
   /** The sticker the Sticker tool places. */
   sticker: string;
+  /** The Shapes tool's Parts (milestone 183): which part a click puts down, and a puzzle's piece size (mm). */
+  partKind: PartKind | 'puzzle';
+  puzzlePiece: number;
   /** Show how it goes together (milestone 40): the animation's progress 0–1, or null. */
   assemble: number | null;
   /** New Cut shapes cut through the whole design. */
@@ -474,7 +478,7 @@ type State = {
   clickPanel: (id: string, additive: boolean) => void;
   setLang: (l: Lang) => void;
   setGrow: (g: Partial<GrowOptions>) => void;
-  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'edit2d' | 'sel2d' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble'>>) => void;
+  set: (p: Partial<Pick<State, 'needsMaterial' | 'saveState' | 'exportOpen' | 'sheetCopy' | 'drawerOpen' | 'hoverPart' | 'foldT' | 'openJoint' | 'shapeNote' | 'lineType' | 'polyMode' | 'ngonSides' | 'roundShape' | 'roundCorner' | 'editOutline' | 'selVertex' | 'edit2d' | 'sel2d' | 'extrude' | 'shapeThrough' | 'panelGhost' | 'standHeight' | 'pasting' | 'spanPick' | 'boxFoot' | 'boxSides' | 'boxCorner' | 'boxHeight' | 'sticker' | 'assemble' | 'partKind' | 'puzzlePiece'>>) => void;
   setPrefs: (p: Partial<ViewPrefs>) => void;
   /** Flat or standing boards: the rail's Board and Standing board buttons set it before choosing the Board tool. */
   setBoardPose: (pose: 'flat' | 'standing') => void;
@@ -626,6 +630,8 @@ export const useStore = create<State>()((set, get) => ({
   boxCorner: 15,
   boxHeight: 45,
   sticker: 'star',
+  partKind: 'gear',
+  puzzlePiece: 40,
   assemble: null,
   shapeThrough: false,
   view: '3d',
@@ -829,7 +835,7 @@ export const useStore = create<State>()((set, get) => ({
     const f = foot ?? s.shapeFoot;
     // boards are made on the 3D stage; on the cut plan a shape works on a piece, and polygons are drawn in 3D only
     const in3d = s.view === '3d';
-    if (!in3d && (f === 'polygon' || f === 'regular' || f === 'line')) return;
+    if (!in3d && (f === 'polygon' || f === 'regular' || f === 'line' || f === 'part')) return;
     const b = in3d && (board ?? s.shapeBoard);
     set({ shapeFoot: f, shapeNote: null, ...(in3d ? { shapeBoard: b } : {}) });
     const poly = (m: State['polyMode']) => {
@@ -839,6 +845,8 @@ export const useStore = create<State>()((set, get) => ({
     if (f === 'line') return poly('line');
     if (f === 'polygon') return poly('click');
     if (f === 'regular') return poly('ngon');
+    // milestone 183: a part is put down by a click, on a board or (as a board) on the floor
+    if (f === 'part') return get().setTool('part');
     if (b) return f === 'rect' ? get().setTool('panel') : poly(f === 'rounded' ? 'rounded' : 'round');
     get().setTool(f === 'rect' ? 'rect' : f === 'rounded' ? 'roundrect' : 'circle');
   },
