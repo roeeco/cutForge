@@ -110,6 +110,21 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
       if (!wa || !wb) continue;
       // the wall that closes the corner: the outgoing one, or the incoming one where it gives way so the net lies flat (milestone 35)
       const tray = Object.values(d.trays ?? {}).find((t) => t.baseId === base.id);
+      if (tray?.insideCorners === 'finger' && d.panels[wa] && d.panels[wb]) {
+        // milestone 180: both walls reach on to where their inner faces meet (P), and are fingered there as a corner
+        // seen from inside. Each inner face is its edge moved in (to the left of the CCW outline) by its wall's thickness.
+        const tA = tOf(d, wa), tB = tOf(d, wb);
+        const na = { x: -a.y, y: a.x }, nb = { x: -b.y, y: b.x };
+        // V + na·tA + s·a = V + nb·tB + u·b: A reaches s past the corner, B starts −u before it
+        const rx = nb.x * tB - na.x * tA, ry = nb.y * tB - na.y * tA;
+        const det = a.x * -b.y - a.y * -b.x;
+        if (Math.abs(det) < 1e-9) continue;
+        const s = (rx * -b.y - ry * -b.x) / det, u = (a.x * ry - a.y * rx) / det;
+        const A = d.panels[wa], B = d.panels[wb];
+        A.ext = { s: A.ext?.s ?? 0, e: Math.max(0, s) };
+        B.ext = { s: Math.max(0, -u), e: B.ext?.e ?? 0 };
+        continue;
+      }
       const flip = tray?.fixPlan?.extOn?.[cur.key] === 'prev';
       const [closer, other] = flip ? [wa, wb] : [wb, wa];
       const W = d.panels[closer];

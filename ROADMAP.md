@@ -304,8 +304,8 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **177** | Stacking feet (E6): crate, stacking notes box, stacking rack, stacking bin, sieve stack | ✅ |
 | **178** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
 | **179** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
-| **180** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
-| **181** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **180** | Any footprint: inside corners fingered; chamfered, coffin, tetromino and star boxes | ✅ (taper and Feeder: spike failed) |
+| **181** | A band round any outline: U box, rounded polygon, rounded trapezoid, heart | ✅ (plywood 3 and 4 mm) |
 | **182** | Layered things on the face-glued joint | in part: frame (photo, plaque, shadow box), spool; light box, twist-lid box and drill box wait |
 | **183** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
 | **184** | See `BOXES_PLYWOOD_PLAN.md` §5 | |

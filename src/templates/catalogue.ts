@@ -215,6 +215,16 @@ export const CATALOGUE: Card[] = [
   // milestone 177 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.7): boxes on stacking feet
   { id: 'stackBin', title: 'card.stackBin', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'stackBin', structure: 'stackBin', match: { body: 'cross', lid: 'none', open: 1, baffles: true, stack: true } }] },
   { id: 'sieveStack', title: 'card.sieveStack', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'sieveStack', structure: 'sieveStack', match: { body: 'cross', lid: 'none', stack: true, sieve: true } }] },
+  // milestone 180 (beta, plywood; BOXES_PLYWOOD_PLAN.md E7): boxes of boards on any footprint, fingered at inside corners too
+  { id: 'chamferBox', title: 'card.chamferBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'chamferBox', structure: 'chamferBox', match: { body: 'cross', footprint: 'free', lid: 'none' } }] },
+  { id: 'coffinBox', title: 'card.coffinBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'coffinBox', structure: 'coffinBox', match: { body: 'cross', footprint: 'free', sides: 6, lid: 'liftoff' } }] },
+  { id: 'tetrominoBox', title: 'card.tetrominoBox', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'tetrominoBox', structure: 'tetrominoBox', match: { body: 'cross', footprint: 'concave', lid: 'none' } }] },
+  { id: 'starBox', title: 'card.starBox', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'starBox', structure: 'starBox', match: { body: 'cross', footprint: 'concave', star: true, lid: 'none' } }] },
+  // milestone 181 (beta, plywood that bends; BOXES_PLYWOOD_PLAN.md E8): walls bent round living hinges on any outline
+  { id: 'uBox', title: 'card.uBox', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'uBox', structure: 'uBox', match: { body: 'cross', lid: 'none', bends: true } }] },
+  { id: 'roundPolyBox', title: 'card.roundPolyBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'roundPolyBox', structure: 'roundPolyBox', match: { body: 'cross', footprint: 'poly', rounded: true, lid: 'none' } }] },
+  { id: 'roundTrapBox', title: 'card.roundTrapBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'roundTrapBox', structure: 'roundTrapBox', match: { body: 'cross', footprint: 'free', rounded: true, lid: 'none' } }] },
+  { id: 'heartBox', title: 'card.heartBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'heartBox', structure: 'heartBox', match: { body: 'cross', footprint: 'concave', rounded: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

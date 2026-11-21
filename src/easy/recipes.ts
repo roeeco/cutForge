@@ -1,10 +1,10 @@
 // Quick build's five actions as recipes over the existing ops (milestone 38).
 import { bestReach } from '../model/bendPatterns';
-import { defaultEnd, defaultSeam } from '../model/round';
+import { defaultEnd, defaultSeam, MIN_END } from '../model/round';
 // Each one is what doing the same steps in Workshop makes; the stage runs it
 // as one preview transaction confirmed with ✓ (one undo step).
-import type { Design, DetailOp, DetailShape, DividerRec, MaterialProfile, P2, V3 } from '../model/types';
-import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, autoConnect, createDesign, setRoundMinOf, dividerFromLine, DIVIDER_GAP, MIN_PANEL, parentConnection, regularPolygon, type FacePick } from '../model/ops';
+import type { Design, DetailOp, DetailShape, DividerRec, MaterialProfile, P2, SketchPt, V3 } from '../model/types';
+import { addRoundPanel, addRoundedRect, addDetail, addDividerRec, addPathShape, addPlacedPanel, addPolygonPanel, addRootPanel, addText, addTray, autoConnect, createDesign, setRoundMinOf, dividerFromLine, DIVIDER_GAP, MIN_PANEL, normalizeSketch, parentConnection, regularPolygon, solve, type FacePick } from '../model/ops';
 import { validate } from '../model/validate';
 import { planDividerRec, rowAt, rowGaps, type DividerSpan, type DividerWhy } from '../model/dividers';
 import { matDir, toLocal, toWorld } from '../model/frame';
@@ -24,7 +24,14 @@ export type Footprint =
   /** milestone 64: a rectangle with its corners rounded to `r` (at least what its walls bend to) */
   | { kind: 'rounded'; x0: number; z0: number; x1: number; z1: number; r: number; height?: number }
   /** milestone 65: a circle (a drag about as wide as deep) or an oval, no tighter than its walls bend */
-  | { kind: 'round'; x0: number; z0: number; x1: number; z1: number; height?: number };
+  | { kind: 'round'; x0: number; z0: number; x1: number; z1: number; height?: number }
+  /**
+   * milestone 180 (BOXES_PLYWOOD_PLAN.md E7): any polygon, convex or with inside corners, from its points (floor
+   * coordinates: x along world X, y along world −Z); a point with `curve: 'round'` is a corner rounded to `r`, at least
+   * what its walls bend round (milestone 181, E8). Its walls meet at inside corners as corners seen from inside,
+   * fingered on plywood (`Tray.insideCorners`).
+   */
+  | { kind: 'outline'; pts: SketchPt[]; height?: number };
 
 /**
  * The smallest corner radius a box's walls can bend round in this material
@@ -84,6 +91,7 @@ function estimateMin(m: MaterialProfile, height: number): number {
 
 /** The base a footprint makes (the same as drawing it with the Panel or Polygon tool); null when too small. */
 export function addBoxBase(d: Design, f: Footprint): string | null {
+  if (f.kind === 'outline') return addOutlineBase(d, f.pts, f.height);
   const x0 = Math.min(f.x0, f.x1), x1 = Math.max(f.x0, f.x1), z0 = Math.min(f.z0, f.z1), z1 = Math.max(f.z0, f.z1);
   if (x1 - x0 < MIN_PANEL || z1 - z0 < MIN_PANEL) return null;
   if (f.kind === 'rect') return addRootPanel(d, x0, z1, x1 - x0, z1 - z0);
@@ -92,6 +100,34 @@ export function addBoxBase(d: Design, f: Footprint): string | null {
   // a regular polygon inside the dragged square, centred on it
   const r = Math.min(x1 - x0, z1 - z0) / 2;
   return addPolygonPanel(d, (x0 + x1) / 2, (z0 + z1) / 2, regularPolygon(f.sides, r));
+}
+
+/**
+ * A base from an outline's points (milestone 180): the polygon (refused when it crosses itself), its rounded corners
+ * kept, each no tighter than its walls bend round on a wall `height` tall (milestone 181).
+ */
+export function addOutlineBase(d: Design, pts: SketchPt[], height?: number): string | null {
+  const minX = Math.min(...pts.map((q) => q.x)), minY = Math.min(...pts.map((q) => q.y));
+  const id = addPolygonPanel(d, minX, -minY, pts.map((q) => ({ x: q.x - minX, y: q.y - minY })));
+  if (!id) return null;
+  const s = d.panels[id].sketch;
+  if (s.kind !== 'poly' || !pts.some((q) => q.curve === 'round')) return id;
+  // the corners again by where they are (the polygon may have been turned round to run anticlockwise)
+  const min = roundedMin(d.material, height);
+  const n = s.pts.length;
+  s.pts.forEach((q, i) => {
+    const src = pts.find((z) => Math.abs(z.x - minX - q.x) < 1e-6 && Math.abs(z.y - minY - q.y) < 1e-6);
+    if (src?.curve !== 'round') return;
+    // a corner that turns less than a right angle bends over a shorter band, which holds fewer lines of its pattern:
+    // its radius grows as its turn shrinks, so the band is as long as a right angle's at the least radius
+    const a = s.pts[(i + n - 1) % n], b = s.pts[(i + 1) % n];
+    const turn = Math.abs(Math.atan2((q.x - a.x) * (b.y - q.y) - (q.y - a.y) * (b.x - q.x), (q.x - a.x) * (b.x - q.x) + (q.y - a.y) * (b.y - q.y)));
+    q.curve = 'round';
+    q.r = Math.max(MIN_END, src.r ?? 0, min * Math.max(1, Math.PI / 2 / Math.max(turn, 0.1)));
+  });
+  normalizeSketch(d.panels[id]);
+  solve(d);
+  return id;
 }
 
 /**
@@ -121,8 +157,8 @@ export function addRoundBox(d: Design, x0: number, z0: number, x1: number, z1: n
  * box with its automatic lid (the cap until milestone 74); or a carton, a tube
  * with a tuck top and a bottom that snaps shut. Returns the tray.
  */
-export function boxTray(d: Design, baseId: string, height: number, kind: BoxKind = 'open'): string | null {
-  const tray = addTray(d, baseId, height, kind === 'carton' ? { base: 'open', bottom: 'snap', top: 'tuck' } : undefined);
+export function boxTray(d: Design, baseId: string, height: number, kind: BoxKind = 'open', insideCorners?: 'finger'): string | null {
+  const tray = addTray(d, baseId, height, kind === 'carton' ? { base: 'open', bottom: 'snap', top: 'tuck' } : insideCorners ? { insideCorners } : undefined);
   if (tray && kind === 'lid') setBoxLid(d, tray, 'liftoff');
   return tray;
 }
@@ -132,7 +168,7 @@ export function boxRecipe(d: Design, f: Footprint, height: number, kind: BoxKind
   const baseId = addBoxBase(d, f);
   if (!baseId) return null;
   // a carton needs a board that folds (milestone 116: card up to 1 mm, corrugated up to 4 as before) and a rectangle
-  boxTray(d, baseId, height, kind === 'carton' && (!foldsAsCarton(d.material, 4) || f.kind !== 'rect') ? 'open' : kind);
+  boxTray(d, baseId, height, kind === 'carton' && (!foldsAsCarton(d.material, 4) || f.kind !== 'rect') ? 'open' : kind, f.kind === 'outline' && d.material.kind === 'plywood' ? 'finger' : undefined);
   return { baseId };
 }
 

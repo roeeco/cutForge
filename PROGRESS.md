@@ -2544,6 +2544,19 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Words** (plywood): `stack` on the box and tray (style *Crate*, with handle slots), the open-front box (*Stacking notes box*) and the shelf's rack (*Stacking rack*).
 - **Stacking bin** (StackableBin) and **Sieve stack** (BrickSorter), new plywood cards (`boardStacks.ts`).
 - Records `stack` and `sieve`; pictures show two stacked (`Pose.stack`). `tests/plywood177.test.ts` (two stack within the play, and no further).
+## Milestone 180 (every doable boxes.py design in plywood) ✅ any footprint (E7)
+
+- **Inside corners fingered** (`Tray.insideCorners`): both walls reach to where their inner faces meet and are fingered as a corner seen from inside; `cornerFit` finds such corners on the inner faces. Trays that do not ask are unchanged.
+- **`Footprint` `'outline'`** (any polygon from points; `addOutlineBase`), `growOutline` for sizes said inside.
+- **Records:** footprints `free` and `concave` (with `sides`), `star`.
+- **Chamfered box** (AngledBox), **Coffin box** (Coffin; a lid that lifts off, a cross engraved), **Tetromino box** (Tetris: L, T, S, Z), **Star box** (4 to 8 points): plywood only, beta; `tests/plywood180.test.ts`.
+- The taper spike failed (compound-angle corners are not found); the Feeder waits on it.
+
+## Milestone 181 (every doable boxes.py design in plywood) ✅ a band round any outline (E8)
+
+- Rounded corners on chosen corners of any outline (`curve: 'round'` on an outline's points); a corner that turns less than 90° bends round a larger radius.
+- **U box** (UBox: the base bends up into the front and back), **Rounded polygon box** (RoundedRegularBox), **Rounded trapezoid box** (RoundedTrapezoidBox: all, back two or front two corners), **Heart box** (HeartBox, a lid that drops in): plywood 3 and 4 mm (`bendsRound`), beta; `tests/plywood181.test.ts`.
+- Records `rounded`, `bends`.
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
