@@ -191,6 +191,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   }
   // a board made from a shape's face (milestone 123)
   if (x.src !== undefined && !(isObj(x.src) && typeof x.src.face === 'string')) delete x.src;
+  // stacking edges (milestone 177): a bad one is dropped, the board kept
+  if (x.stack !== undefined && !(isObj(x.stack) && ['h', 'w', 'inset', 'play'].every((k) => Number.isFinite(x.stack[k]) && x.stack[k] >= 0 && x.stack[k] < 1000))) delete x.stack;
   if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin' || x.lidOf.kind === 'plug' || x.lidOf.kind === 'brim'))) delete x.lidOf;
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {

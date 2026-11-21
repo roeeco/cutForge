@@ -9,6 +9,7 @@ import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
+import { stacks } from '../model/stack';
 
 export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers';
 
@@ -90,6 +91,10 @@ export type PresetRecord = {
   boards?: number;
   /** A ready shape's kind. */
   solid?: 'pyramid' | 'diamond';
+  /** Milestone 177: stacking edges (feet under its boards, tongues on their tops): one like it stacks on it. */
+  stack?: boolean;
+  /** Milestone 177: a grid of holes through a box's base (four or more): a sieve. */
+  sieve?: boolean;
 };
 
 const boxTrays = (d: Design): Tray[] => Object.values(d.trays ?? {}).filter((t) => !t.lidOf);
@@ -212,6 +217,14 @@ function hasJig(d: Design, t: Tray): boolean {
   return trayRing(d, t).filter((r) => d.panels[r.wall]?.details.some((x) => x.op === 'cut' && x.shape === 'roundrect' && Math.min(x.w, x.h) >= 20 && Math.abs(x.w - x.h) < 2)).length >= 2;
 }
 
+/** Milestone 177: a grid of holes cut through a box's base, four or more of one size (a sieve's floor). */
+function hasSieve(d: Design, t: Tray): boolean {
+  const b = d.panels[t.baseId];
+  if (!b) return false;
+  const cuts = b.details.filter((x) => x.op === 'cut' && x.w >= 4 && x.h >= 4);
+  return cuts.length >= 4 && cuts.every((x) => Math.abs(x.w - cuts[0].w) < 0.01 && Math.abs(x.h - cuts[0].h) < 0.01);
+}
+
 /** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
 function openWalls(d: Design, t: Tray): number {
   const base = d.panels[t.baseId];
@@ -255,6 +268,8 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (ids.some((id) => !level(id) && d.panels[id].details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 20))) rec.holes = true;
   // milestone 172: it hangs on a wall (a bin rack's back, a wall rack's)
   if (hangs(d)) rec.hang = true;
+  // milestone 177: one like it stacks on it (a rack's sides and back)
+  if (stacks(d)) rec.stack = true;
   return rec;
 }
 
@@ -315,6 +330,8 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && open) rec.open = open;
     if (hangs(d)) rec.hang = true;
     if (!tube && hasJig(d, t)) rec.jig = true;
+    if (stacks(d)) rec.stack = true;
+    if (!tube && hasSieve(d, t)) rec.sieve = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -349,7 +366,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

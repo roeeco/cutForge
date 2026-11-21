@@ -15,6 +15,7 @@ import { addDetail, addFreePanel, connectSeams, solve } from '../../model/ops';
 import { MIN_COMPARTMENT } from '../../model/dividers';
 import { minWeb } from '../../model/materials';
 import { boardStock } from './boards';
+import { addStack, stackLeast } from '../../model/stack';
 import { cleanAll } from './box';
 import { sheetLimits } from './shaped';
 
@@ -170,6 +171,8 @@ function generateShelf(d: Design, p: Params, role: Role) {
     ids.push(level(d, -W / 2, y, z, W, dz));
     names.push(`shelf-${k + 1}`);
   }
+  // milestone 177: a rack that stacks has feet under its sides and back and tongues on their tops (their ends free)
+  if (rails && p.stack === 'feet') addStack(d, ids.slice(0, 3), 0);
   joinAll(d, ids, role, names);
 }
 
@@ -193,6 +196,14 @@ export const shelf: TemplateDef = {
       why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : Number(p.shelves) < 3 ? 'sen.why.railsLevels' : 'sen.why.engine'),
     },
     { key: 'rail', label: 'sen.rail', type: 'number', unit: 'mm', min: 10, max: 60, default: 30, when: (p) => p.rails === 'rails' },
+    // milestone 177 (StorageRack's stackable edges): feet under the rack's sides and back and tongues on their tops,
+    // so racks stack; on a rack, on plywood
+    {
+      key: 'stack', label: 'sen.stack', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: [{ value: 'none', label: 'sen.stack.none' }, { value: 'feet', label: 'sen.stack.feet' }],
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && p.rails === 'rails' && Number(p.shelves) >= 3 && Math.min(Number(p.width), Number(p.depth)) >= stackLeast(m) && cleanAll(shelf, m, { ...p, stack: v })),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.rails !== 'rails' || Number(p.shelves) < 3 ? 'sen.why.stackRack' : Math.min(Number(p.width), Number(p.depth)) < stackLeast(m) ? 'sen.why.stackRoom' : 'sen.why.engine'),
+    },
   ],
   generate: generateShelf,
   sentence: { main: 'sen.s.shelf' },

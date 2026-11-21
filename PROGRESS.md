@@ -2538,6 +2538,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Spool** (Spool, FilamentSpool, plywood, new card): two flanges on a hub of rings glued face to face.
 - Record body `layers` (`layers`, `deep`, `disc`). `tests/plywood182.test.ts`.
 - Not built: the light box, the twist-lid box and the drill box (`DECISIONS.md` says why).
+## Milestone 177 (every doable boxes.py design in plywood) ✅ stacking feet (E6)
+
+- **Stacking edges** (`Panel.stack`, `src/model/stack.ts`): feet under a board's ends and a tongue over its top, added after its joints in the cut, the 3D and the pictures; a base finger's notch over a foot becomes a slot. Goldens unchanged.
+- **Words** (plywood): `stack` on the box and tray (style *Crate*, with handle slots), the open-front box (*Stacking notes box*) and the shelf's rack (*Stacking rack*).
+- **Stacking bin** (StackableBin) and **Sieve stack** (BrickSorter), new plywood cards (`boardStacks.ts`).
+- Records `stack` and `sieve`; pictures show two stacked (`Pose.stack`). `tests/plywood177.test.ts` (two stack within the play, and no further).
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.

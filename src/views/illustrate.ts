@@ -16,6 +16,7 @@ import { edgeFeatures } from '../model/edgeFeatures';
 import { allFoldOvers } from '../model/foldover';
 import { segDir, segInward } from '../model/edges';
 import { clippedLine } from '../model/lines';
+import { stackPitch } from '../model/stack';
 import type { Flap3d, P2 } from '../model/types';
 
 export type Prop = PoseProp;
@@ -196,13 +197,13 @@ function block(o: THREE.Vector3, ax: THREE.Vector3, ay: THREE.Vector3, az: THREE
 }
 
 /** What goes inside: on each compartment's floor, along its longer side. */
-function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: Face[]) {
+function propFaces(d: Design, xf: Map<string, THREE.Matrix4>, prop: Prop, out: Face[], pitch: number | null = null) {
   if (prop === 'soap') return soapFaces(d, xf, out);
   if (prop === 'product') return productFaces(d, xf, out);
   if (prop === 'cup') return cupFaces(d, xf, out);
   if (prop === 'paper') return paperFaces(d, xf, out);
   if (prop === 'letter') return letterFaces(d, xf, out);
-  if (prop === 'goods') return goodsFaces(d, xf, out);
+  if (prop === 'goods') return goodsFaces(d, xf, out, pitch);
   const baseId = boxBases(d)[0];
   if (!baseId) return;
   const base = d.panels[baseId];
@@ -373,7 +374,7 @@ function paperFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
  * Things on a shelf's boards (milestone 171): on each level shelf (`t:shelf-n`) a few small boxes standing, on each
  * tilted tier (`t:tier-n`) a stack of cards lying on it, so a shelf reads as a shelf and not as a box at list size.
  */
-function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
+function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[], pitch: number | null = null) {
   const COLS = ['#1fb8ac', '#f2b632', '#e4574b', '#3f7be0', '#7b5bd6'];
   // milestone 172: a bin rack's floors (`t:bottom`, `t:floor-n`) hold parts too
   const ids = d.order.filter((id) => /^t:(shelf-\d+|tier-\d+|floor-\d+|bottom)$/.test(id) && d.panels[id]);
@@ -381,6 +382,8 @@ function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
   const levelsAt = d.order.filter((id) => /^t:(shelf|tier|rail|floor)-[\d-]+$|^t:(bottom|top)$/.test(id) && d.panels[id]);
   const yOf = (id: string) => new THREE.Vector3().applyMatrix4((xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(d.panels[id].frame))).y;
   const ys = ids.map(yOf), all = levelsAt.map(yOf);
+  // milestone 177: one like it stacked on it: the top shelf's room ends at the bottom shelf of the one above
+  if (pitch) all.push(...all.map((y) => y + pitch));
   ids.forEach((id, k) => {
     const p = d.panels[id];
     const M = (xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(p.frame));
@@ -503,8 +506,39 @@ function joinedIn(d: Design): ((a: string, b: string) => boolean) & { reach?: (a
     stand.set(`${id}|${pl.host}`, r);
     stand.set(`${pl.host}|${id}`, r);
   }
-  const f = (a: string, b: string) => pairs.has(`${a}|${b}`);
-  return Object.assign(f, { reach: (a: string, b: string) => stand.get(`${a}|${b}`) ?? 0 });
+  // milestone 177: a stacked copy's boards (`<id>@@<k>`) are joined as the boards they copy, within the same copy
+  const f = (a: string, b: string) => {
+    const [a0, ka = ''] = a.split(COPY), [b0, kb = ''] = b.split(COPY);
+    return ka === kb && pairs.has(`${a0}|${b0}`);
+  };
+  return Object.assign(f, {
+    reach: (a: string, b: string) => {
+      const [a0, ka = ''] = a.split(COPY), [b0, kb = ''] = b.split(COPY);
+      return ka === kb ? stand.get(`${a0}|${b0}`) ?? 0 : 0;
+    },
+  });
+}
+
+/** How a stacked copy's boards are named in a picture's faces (milestone 177): `<board>@@<copy>`. */
+const COPY = '@@';
+
+/**
+ * Milestone 177: the faces of a box like the design standing on it `k` times over (`pose.stack`), each `pitch` higher
+ * on its feet, named as copies (`<board>@@<k>`) so the paint order keeps each copy's joints to itself.
+ */
+function stackedFaces(d: Design, shown: Posed, pitch: number, k: number): Face[] {
+  const T = new THREE.Matrix4().makeTranslation(0, pitch * k, 0);
+  const IDM = new THREE.Matrix4();
+  const xf = new Map<string, THREE.Matrix4>();
+  for (const id of Object.keys(d.panels)) xf.set(id, T.clone().multiply(shown.xf.get(id) ?? IDM));
+  const faces = designFaces(d, { ...shown, xf });
+  for (const f of faces) {
+    if (!f.board) continue;
+    if (shown.ghost.has(f.board)) shown.ghost.add(`${f.board}${COPY}${k}`);
+    f.board = `${f.board}${COPY}${k}`;
+    f.part = `${f.part}${COPY}${k}`;
+  }
+  return faces;
 }
 
 /** The faces and their paint order, for tests. */
@@ -735,8 +769,11 @@ export function illustrationSvg(design: Design, w: number, h: number, opts: Pict
   const shown = posedDisplay(d, pose);
   const faces = designFaces(d, shown);
   if (!faces.length) return null;
+  // milestone 177: a box that stacks is drawn with one like it standing on it
+  const pitch = (pose.stack ?? 1) > 1 ? stackPitch(d) : null;
+  if (pitch) for (let k = 1; k < pose.stack!; k++) faces.push(...stackedFaces(d, shown, pitch, k));
   const prop = opts.prop ?? pose.prop;
-  if (prop) propFaces(d, shown.xf, prop, faces);
+  if (prop) propFaces(d, shown.xf, prop, faces, pitch);
   const main = scene(d, shown, faces, w, h, opts.view ?? 'front34', true);
   const [vx, vy, vw, vh] = main.box;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(vx)} ${f1(vy)} ${f1(vw)} ${f1(vh)}" width="${w}" height="${h}"><defs><radialGradient id="cf-shadow"><stop offset="0" stop-color="#232b38" stop-opacity="0.22"/><stop offset="1" stop-color="#232b38" stop-opacity="0"/></radialGradient></defs>${main.body}</svg>`;

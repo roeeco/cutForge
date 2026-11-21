@@ -19,6 +19,7 @@ import { panelEdges } from '../../model/edges';
 import { pairKinds } from '../../model/jointDefaults';
 import { minWeb } from '../../model/materials';
 import { boardBoxRect, boardStock, hangByKeyholes, plywoodOnly } from './boards';
+import { addStack, stackLeast } from '../../model/stack';
 import { cleanAll, cleanWith, mainTray } from './box';
 import { innerFace, nameAll, reseam, sheetLimits, wallsOf } from './shaped';
 
@@ -26,7 +27,7 @@ type Role = (name: string, id: string) => void;
 const num = (key: string, label: MsgKey, min: number, max: number, dflt: number): ParamDef => ({ key, label, type: 'number', unit: 'mm', min, max, default: dflt });
 
 /** Inside or outside, for a box of boards (no crease to crease: nothing folds). */
-const sizeAsWord = (def: () => TemplateDef): ParamDef => ({
+export const sizeAsWord = (def: () => TemplateDef): ParamDef => ({
   key: 'sizeAs', label: 'sen.sizeAs', type: 'choice', default: 'inside',
   options: [{ value: 'inside', label: 'sen.sizeAs.inside' }, { value: 'outside', label: 'sen.sizeAs.outside' }],
   allowed: (v, p, m) => cleanWith(def(), m, p, 'sizeAs', v),
@@ -34,10 +35,22 @@ const sizeAsWord = (def: () => TemplateDef): ParamDef => ({
 });
 
 /**
+ * Milestone 177 (BOXES_PLYWOOD_PLAN.md E6): stacking feet under a box of boards' walls and tongues on their tops, on
+ * plywood, where the walls are wide enough for both feet and a tongue.
+ */
+export const stackWord = (def: () => TemplateDef): ParamDef => ({
+  key: 'stack', label: 'sen.stack', type: 'choice', default: 'none', addon: { off: 'none' },
+  options: [{ value: 'none', label: 'sen.stack.none' }, { value: 'feet', label: 'sen.stack.feet' }],
+  allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && Math.min(Number(p.width), Number(p.depth)) >= stackLeast(m) && Number(p.height) >= 20 && cleanWith(def(), m, p, 'stack', v)),
+  why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : Math.min(Number(p.width), Number(p.depth)) < stackLeast(m) || Number(p.height) < 20 ? 'sen.why.stackRoom' : 'sen.why.engine'),
+  affects: ['walls'],
+});
+
+/**
  * A box of boards at these sizes, inside or outside as the words say: its tray, or null. `shape` changes it before it
  * is sized (a wall taken away), so the sizes are measured on the box as it ends up.
  */
-function sizedBox(d: Parameters<TemplateDef['generate']>[0], p: Params, shape?: () => void): string | null {
+export function sizedBox(d: Parameters<TemplateDef['generate']>[0], p: Params, shape?: () => void): string | null {
   const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
   const as = p.sizeAs === 'outside' ? 'outside' : 'inside';
   if (!boardBoxRect(d, W, D, H)) return null;
@@ -58,6 +71,8 @@ function generateFrontOpen(d: Parameters<TemplateDef['generate']>[0], p: Params,
     if (front) deletePanel(d, front);
   });
   if (!tr) return;
+  // milestone 177 (boxes.py's NotesHolder, stackable): feet under the walls and tongues on their tops
+  if (p.stack === 'feet') addStack(d, Object.values(wallsOf(d)));
   nameAll(d, role);
 }
 
@@ -76,6 +91,7 @@ export const frontOpen: TemplateDef = {
     num('depth', 'sen.depth', 40, SIZE_MAX, 110),
     num('height', 'sen.height', 15, SIZE_MAX, 60),
     sizeAsWord(() => frontOpen),
+    stackWord(() => frontOpen),
   ],
   generate: generateFrontOpen,
   sentence: { main: 'sen.s.frontOpen' },

@@ -11,6 +11,7 @@ import { flapGeom, flapIsFlat } from '../model/edgeFeatures';
 import type { P2 } from '../model/types';
 import { frameNormal } from '../model/frame';
 import { profileOf, tOf } from '../model/materials';
+import { stackPolys } from '../model/stack';
 
 /**
  * Matrix taking panel-local (x, y, z) to world, with z measured along the
@@ -72,6 +73,17 @@ export function panelShape(d: Design, p: Panel, opts: { joints?: boolean } = {})
     if (res) rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
   }
   const extraHoles: Vec2[][] = [];
+  // milestone 177: stacking feet and a tongue (stack.ts), added after the joints; a joint's notch above a foot is
+  // closed by it into a slot, a hole the union keeps
+  const stackAdds = opts.joints === false || !p.stack ? [] : stackPolys(p);
+  if (stackAdds.length) {
+    const ring = (pts: Vec2[]) => pts.map((q) => [q.x, q.y] as [number, number]);
+    const res = robustClip('union', rings.map((r) => [ring(r)]), stackAdds.map((k) => [ring(k)]));
+    if (res) {
+      rings = res.map((poly) => poly[0].slice(0, -1).map(([x, y]) => ({ x, y })));
+      for (const poly of res) for (const h of poly.slice(1)) extraHoles.push(h.slice(0, -1).map(([x, y]) => ({ x, y })));
+    }
+  }
   const cuts = opts.joints === false ? [] : [...panelExtras(d, p).cuts, ...throughRegions(d, p.id)];
   if (cuts.length) {
     // material a joint removes past a corner

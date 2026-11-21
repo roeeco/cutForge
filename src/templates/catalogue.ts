@@ -67,10 +67,12 @@ export const CATALOGUE: Card[] = [
     variants: [
       { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
+      // milestone 177 (beta, plywood; boxes.py's Crate): handle slots and stacking feet
+      { id: 'crate', structure: 'box', style: 'crate', match: { body: 'cross', lid: 'none', stack: true } },
     ],
   },
   // milestone 162 (beta; BOXES_PRESETS_PLAN.md): boards with no top and no front, on plywood and 4 mm board only
-  { id: 'frontOpen', title: 'card.frontOpen', group: 'boxes', status: 'beta', view: { prop: 'paper' }, challenges: [], variants: [{ id: 'frontOpen', structure: 'frontOpen', match: { body: 'cross', lid: 'none', open: 1 } }] },
+  { id: 'frontOpen', title: 'card.frontOpen', group: 'boxes', status: 'beta', view: { prop: 'paper' }, challenges: [], variants: [{ id: 'frontOpen', structure: 'frontOpen', match: { body: 'cross', lid: 'none', open: 1 } }, { id: 'stackNotes', structure: 'frontOpen', style: 'stackNotes', match: { body: 'cross', lid: 'none', open: 1, stack: true } }] },
   // milestone 164 (beta): a box of boards with a plate partway down, pens standing in its holes
   { id: 'penHolder', title: 'card.penHolder', group: 'boxes', status: 'beta', view: { prop: 'cup', dir: 'high' }, challenges: [], variants: [{ id: 'penHolder', structure: 'penHolder', match: { body: 'cross', lid: 'none', plate: true } }] },
   // milestone 164 (beta): a low box of boards whose front is a ramp, for scooping tokens and screws out
@@ -166,6 +168,8 @@ export const CATALOGUE: Card[] = [
       { id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } },
       // milestone 172 (boxes.py's StorageRack): rails instead of shelves between the lowest and the highest
       { id: 'rack', structure: 'shelf', style: 'rack', match: { body: 'slot', shelves: true, rails: true } },
+      // milestone 177 (StorageRack's stackable edges): a rack on feet that stacks
+      { id: 'stackRack', structure: 'shelf', style: 'stackRack', match: { body: 'slot', shelves: true, rails: true, stack: true } },
     ],
   },
   { id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } }] },
@@ -208,6 +212,9 @@ export const CATALOGUE: Card[] = [
       { id: 'accordionPad', structure: 'insert', style: 'accordionPad', match: { body: 'folded', strip: true, accordion: true } },
     ],
   },
+  // milestone 177 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.7): boxes on stacking feet
+  { id: 'stackBin', title: 'card.stackBin', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'stackBin', structure: 'stackBin', match: { body: 'cross', lid: 'none', open: 1, baffles: true, stack: true } }] },
+  { id: 'sieveStack', title: 'card.sieveStack', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'sieveStack', structure: 'sieveStack', match: { body: 'cross', lid: 'none', stack: true, sieve: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

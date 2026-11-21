@@ -19,6 +19,7 @@ import { layerDepth, lidLayers } from '../../model/lid';
 import { dividersOn } from '../../model/dividers';
 import { tOf } from '../../model/materials';
 import { largestOk } from '../../sentence/resolve';
+import { addStack, stackLeast } from '../../model/stack';
 
 export type Shape = 'rect' | 'rounded' | 'round' | 'poly';
 
@@ -113,6 +114,9 @@ export const spaceSize = (L: number, t: number, n: number) => (L - (n - 1) * t) 
 const sizeLimit = (m: MaterialProfile): number => Math.min(m.sheetW, m.sheetH) - 10;
 
 const SHAPES: Shape[] = ['rect', 'rounded', 'round', 'poly'];
+
+/** Room for stacking feet (milestone 177): every wall at least as wide as both feet and a tongue between them take. */
+export const stackRoom = (m: MaterialProfile, p: Params) => Math.min(Number(p.width), Number(p.depth)) >= stackLeast(m) && Number(p.height) >= 20;
 
 /** The parameters a box and a tray share (keys shared across structures: SENTENCE_BUILDER_PLAN.md §3.2). */
 function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finger' | 'handles')[] }): ParamDef[] {
@@ -237,6 +241,16 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape === 'rect' || p.shape === 'poly' ? 'sen.why.engine' : 'sen.why.lidShape'),
       affects: ['base'],
     });
+  if (o.addons.includes('handles'))
+    // milestone 177 (boxes.py's Crate, UniversalBox's stackable edges): feet under the walls and tongues on their tops,
+    // so one box stacks on another like it; on plywood, a square box with no lid (a lid would rest on the tongues)
+    out.push({
+      key: 'stack', label: 'sen.stack', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: [{ value: 'none', label: 'sen.stack.none' }, { value: 'feet', label: 'sen.stack.feet' }],
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && p.shape === 'rect' && (p.lid ?? 'none') === 'none' && p.handles !== 'grips' && stackRoom(m, p) && engine('stack')(v, p, m)),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : (p.lid ?? 'none') !== 'none' ? 'sen.why.stackLid' : p.handles === 'grips' ? 'sen.why.stackGrips' : p.shape !== 'rect' ? 'sen.why.stackShape' : !stackRoom(m, p) ? 'sen.why.stackRoom' : 'sen.why.engine'),
+      affects: ['walls'],
+    });
   return out;
 }
 
@@ -347,6 +361,8 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
       if (P) holeRecipe(d, P.id, 'roundrect', P.w / 2, P.h - 12, Math.min(40, P.w * 0.4), 10);
     }
   }
+  // milestone 177: stacking feet and tongues on every wall
+  if (p.stack === 'feet') addStack(d, trayRing(d, d.trays[tray]).map((r) => r.wall));
   if (kindLid && p.lid === 'closed') addClosedTop(d, tray);
   else if (kindLid && (p.lid === 'plug' || p.lid === 'brim')) {
     // milestone 173: a plug or a brim under the lid's top reaches into the box: the dividers stop under it
