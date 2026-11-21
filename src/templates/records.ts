@@ -21,6 +21,8 @@ export type PresetRecord = {
   bottom?: string | null;
   /** A box's lid (`boxLid`). */
   lid?: string;
+  /** How a box's walls meet at its corners (milestone 154): the tray's corner joint (`gusset`, `glue`, `finger`, …). */
+  corner?: string;
   /** Another part it is sized from: a drawer's sleeve. */
   relation?: 'drawer' | null;
   /** It has dividers. */
@@ -85,6 +87,7 @@ export function recordOf(d: Design): PresetRecord {
       rec.bottom = endOf(d, t, 'bottom');
     } else {
       rec.lid = boxLid(d, t.id).kind;
+      rec.corner = t.cornerKind;
       rec.spaces = dividersOn(d, t.baseId).length > 0;
     }
     rec.relation = ts.length === 2 && ts.some((x) => x !== t && x.base === 'open' && !x.top && !x.bottom) ? 'drawer' : null;

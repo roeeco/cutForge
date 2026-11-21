@@ -133,6 +133,7 @@ export const en = {
   'conn.lock': 'Slit lock (no glue)',
   'conn.butt': 'Edge to edge (no joint)',
   'conn.fold': "Fold (stays one piece)",
+  'conn.gusset': "Gusset (corner uncut, folded flat)",
   'conn.glue': "Glue flap",
   'conn.tabslot': "Tabs and slots",
   'conn.slide': "Slide fit (no slots)",

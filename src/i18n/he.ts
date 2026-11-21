@@ -135,6 +135,7 @@ export const he: Record<MsgKey, string> = {
   'conn.lock': 'נעילת חריץ (בלי דבק)',
   'conn.butt': 'קצה אל קצה (ללא חיבור)',
   'conn.fold': "קיפול (נשאר חלק אחד)",
+  'conn.gusset': "משולש פינה (פינה לא חתוכה, מקופלת)",
   'conn.glue': "דש הדבקה",
   'conn.tabslot': "לשוניות וחריצים",
   'conn.slide': "החלקה (בלי חריצים)",

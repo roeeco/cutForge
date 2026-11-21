@@ -2447,6 +2447,11 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `src/templates/catalogue.ts`: one entry per card, `Card.word`, `entryLabel`; `src/sentence/Sentence.tsx`: a card's word and kinds in the list; `src/templates/structures/box.ts`: handles on a box; `src/ui/StartScreen.tsx`: the challenge's card.
 - `tests/presetLookalikes.ts` is empty; `styles.spec.ts`, `sentence.spec.ts` and `sentence.model.test.ts` follow the one-entry list and the box's handles.
 
+## Milestone 154 (presets overhaul) — engine: corner rules ✅ (the gusset; the inward ear deferred)
+
+- `src/model/seams.ts`: `gussetFits`, `gussetGeom`, the gusset among card and corrugated corners; `src/model/jointDefaults.ts`: offered only where it fits; `src/model/types.ts` / `check.ts`: the kind; `src/templates/records.ts`: `corner` in the record; `conn.gusset` in both languages.
+- `tests/corners.test.ts`: offered on card and corrugated only, one uncut net with the creases and four folded gussets on card and 1.6 mm board, never offered on a hexagon, the record's slot.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

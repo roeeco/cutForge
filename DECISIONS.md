@@ -759,3 +759,10 @@ Defaults chosen where the brief left room. Each is reversible.
 - **Missions are challenges on a card**: *Follow a mission* says which (*A challenge on: Organiser*); two missions on one card are two challenges (their goals differ), so the look-alike test does not compare them.
 - **The look-alike allowlists are empty**: no list shows two presets of the same record or of the same picture at list size.
 
+## Milestone 154 (presets overhaul): corner rules
+- **The gusset is a corner joint** (`ConnectionKind 'gusset'`, card and corrugated): each wall carries half of the uncut corner square, a triangle on its side edge; the cut plan's union of a net joins the two into one corner, creased along both walls' sides and the square's diagonal (scored once). In 3D it is a doubled triangle lying flat on the second wall's outside. FEFCO 0309's leakproof tray.
+- **It is offered only where it can be made** (`gussetFits`: both walls grown at 90° off the same board, square to each other, the same height): `pairKinds` leaves it out elsewhere, so a hexagon's corners never show it, and a corner that stops fitting falls back to its usual joint as any refused kind does.
+- **The corner is a slot of the record** (`PresetRecord.corner`, the tray's corner joint); no pattern names it, so a gusseted tray is still recognised as its card.
+- **The inward diagonal ear is not built.** It is an ear (a glue flap) creased diagonally and tucked inside; in the analysis it serves telescope lids (FEFCO 0303, 0304, 0308), which cutForge's cap lid does with its own rim. It waits until a preset needs it; the gusset was the mechanism the analysis singled out.
+- **The fold slider does not unfold a gusset**: it stays drawn folded against its wall while the walls open (it has two creases, not one hinge).
+
