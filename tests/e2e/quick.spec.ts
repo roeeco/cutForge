@@ -46,7 +46,8 @@ test('Quick build: five actions, no joint controls, Workshop parts read-only', a
   });
   const before = await design(page);
   await page.getByTestId('fit-view').click();
-  await expect(page.getByTestId('toggle-joints')).toHaveAttribute('aria-label', "How it's built");
+  // the joints view's Quick build name, its visible words (milestone 140 moved it under the card, named by its text)
+  await expect(page.getByTestId('toggle-joints')).toHaveAccessibleName("How it's built");
 
   // a wall: no joint list, no hinge; More… shows the Workshop card
   await S(page, (id: string) => (window as any).__cutforge.store.getState().select({ kind: 'panel', id }), ids.walls[0]);

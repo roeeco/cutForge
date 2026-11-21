@@ -12,12 +12,13 @@ test('the card hides what does not apply, says what a change dropped, and refuse
   await page.getByTestId('sen-more').click();
   await page.getByTestId('sen-more-opt-spacesBy').click();
   await expect(page.getByTestId('sen-nx')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('sen-nx').fill('12');
+  // within the sentence's limit (SPACES_MAX 11: at most ten dividers)
+  await page.getByTestId('sen-nx').fill('10');
   await page.getByTestId('sen-nx').press('Enter');
-  await expect(page.getByTestId('sen-nx')).toHaveValue('12', { timeout: 15_000 });
+  await expect(page.getByTestId('sen-nx')).toHaveValue('10', { timeout: 15_000 });
   await page.getByTestId('start-sentence').click();
   let d = await design(page);
-  expect(d.template.params.nx).toBe(12);
+  expect(d.template.params.nx).toBe(10);
   await expect(page.getByTestId('template-section')).toBeVisible();
   // words a count does not use are not on the card
   await expect(page.getByTestId('tp-sx')).toHaveCount(0);
@@ -27,7 +28,7 @@ test('the card hides what does not apply, says what a change dropped, and refuse
   await expect(page.getByTestId('template-notes')).toBeVisible({ timeout: 15_000 });
   d = await design(page);
   expect(d.template.params.width).toBe(60);
-  expect(d.template.params.nx).toBeLessThan(12);
+  expect(d.template.params.nx).toBeLessThan(10);
   // past its end: refused, with the range
   // (the field's own bound is 11, ten dividers; the box holds fewer)
   await page.getByTestId('tp-nx').click();
