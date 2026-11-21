@@ -98,6 +98,8 @@ export const FEATURES = {
   edgeFlap: 'hide',
   /** A flap's shape pictures, fold angle, tapers, radius and hang hole (112). */
   'flap.shape': 'hide',
+  /** *Edge endings* on a grown board's card (161): a flap or a fold-over on each free edge, a lip where it meets another board, their lengths and folds; their handles on the stage. */
+  endings: 'hide',
   /** The material drawer's *More boards…* and its board grades (116). */
   'drawer.grades': 'hide',
   /** The welcome screen's *Shapes* (a sculpture design: the shape stage, *Fold it*, *Build from boards*; 120). */
@@ -206,6 +208,7 @@ export const GUIDED = {
   bend: 'auto',
   edgeFlap: 'hide',
   'flap.shape': 'hide',
+  endings: 'hide',
   'drawer.grades': 'hide',
   'start.shapes': 'hide',
   'plan.nets': 'hide',
@@ -285,6 +288,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   // an edge (the grow card)
   'edge-flap': 'edgeFlap',
   'flap-shape': 'flap.shape',
+  // a grown board's edge endings (milestone 161)
+  'endings-section': 'endings',
   'drawer-grades': 'drawer.grades',
   // milestone 120: the shape stage's cards (a sculpture design; Workshop only, by 'start.shapes')
   'sculpt-combine-section': null,

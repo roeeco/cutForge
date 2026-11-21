@@ -8,7 +8,8 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { detailSel, gridSnap, growKind, noSmartSnap, selectedDetailIds, selectedPanelIds, uiDir, useStore, useT, type Quality } from '../store/store';
 import type { Connection, Content, Design, Detail, Frame, LineType, P2, Panel, V3, WallSketch } from '../model/types';
-import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide, withSeam } from '../model/ops';
+import type { MsgKey } from '../i18n';
+import { addTray, movePlaced, rotatePlaced, trayFlatInfo, addText, edgeConnection, MIN_PANEL, addRootPanel, addDetail, findDetail, newId, updateDetail, movePanel, parentConnection, setPanelSize, seatingOf, defaultOffset, setConnection, rotateDetails, rotatePanel, setDividerOffset, planDividerFor, addDividerFor, wallPicks, flipPlacedSide, withSeam, setEndingHinge, setEndingLength } from '../model/ops';
 import { checkHinge, fromHinge, hingeOf } from '../model/hinge';
 import { hingeText } from '../ui/AngleDial';
 import { inwardWorld, ownerOf, tabLocks } from '../model/seams';
@@ -17,7 +18,7 @@ import { detailBBox, detailContour, detailContours, detailCorners } from '../mod
 import { edgeFeatures } from '../model/edgeFeatures';
 import { snapBox, snapContext, snapFloor, snapPoint, type Guide } from '../model/snap';
 import { SNAP_PX } from '../geom/types';
-import { v3add, v3dot, v3mul } from '../geom/v3';
+import { v3add, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { contourLinePoints, contourShapeGeometry, faceSlits, faceZ, slabOutline, flapGeometry, frameMatrix, panelGeometry, panelShape, shapeGeometry, shapeKey } from './three-geom';
 import { fmtNum, translate } from '../i18n';
 import { STAGE, boardColors, partColors } from './palette';
@@ -27,6 +28,7 @@ import { connKindKey } from '../ui/connLabel';
 import { matOf, tOf } from '../model/materials';
 import { MaterialLegend } from '../ui/MaterialLegend';
 import { flapMatrix, foldDisplay, type Bend } from './foldView';
+import { endingHandles, type EndingHandle, type LocalPt } from '../model/endingHandles';
 import { applyLidPoses } from './lidPose';
 import { clippedLine } from '../model/lines';
 import { AngleArc, DimLabel, DimLine, Gizmo, MeshEdges, OverlayContext, PushPull, ScreenSized, StageHtml, closestOnLine, mmPerPx, priorityRaycast, useGrazing, useHandleDrag, useRayFromScreen } from './widgets';
@@ -169,6 +171,7 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
   const openJoint = useStore((s) => s.openJoint);
   const panelGhost = useStore((s) => s.panelGhost);
   const fHinge = shown(useFeature('hinge')), fJoints = shown(useFeature('joints'));
+  const fEndings = shown(useFeature('endings'));
   // Quick build (and Guided, milestone 105) shows parts made with Workshop tools read-only (milestone 37): no edges, gizmo or slide on them
   const quick = keepsCuttable(useMode());
   const locked = (id: string | null | undefined) => quick && !!id && !!workshopOnly(design, id);
@@ -805,6 +808,8 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
         <OutlineHandles key={outlineHover} p={design.panels[outlineHover]} m={display.xf.get(outlineHover) ?? IDM} t={design.material.thickness} faint />
       )}
       {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fHinge && fWidgets && !selLocked && <HingeWidget d={design} c={selGrown} m={display.xf.get(selGrown.a.panelId) ?? IDM} />}
+      {/* milestone 163: the grown fold's handles on each of the board's edge endings */}
+      {selPanel && tool === 'select' && !folded && !jointsOn && selGrown && editOutline !== selPanel && fEndings && fWidgets && !selLocked && <EndingHandles d={design} panelId={selPanel} xf={display.xf} foldT={foldT} />}
       {selPanel && tool === 'select' && !folded && !jointsOn && design.panels[selPanel]?.divider && editOutline !== selPanel && !selLocked && fDividerSlide && (
         <DividerSlide key="divider-slide" d={design} id={selPanel} m={display.xf.get(selPanel) ?? IDM} tolAt={tolAt} />
       )}
@@ -1987,6 +1992,77 @@ function cutOnTrayBase(d: Design, sel: ReturnType<typeof useStore.getState>['sel
   const f = findDetail(d, sel.id);
   if (!f || f.detail.op !== 'cut' || !trayOf(d, f.panel.id) || trayOf(d, f.panel.id)!.baseId !== f.panel.id) return false;
   return isOutlineShape(f.panel, f.detail.id);
+}
+
+/**
+ * Milestone 163: a selected grown board's edge endings take the grown fold's
+ * handles: an arrow on each ending's far edge for its length (click to type),
+ * and for a flap a hinge ring about its crease with the grown fold's numbers.
+ * Dragging previews; letting go is one undo step.
+ */
+function EndingHandles({ d, panelId, xf, foldT }: { d: Design; panelId: string; xf: Map<string, THREE.Matrix4>; foldT: number }) {
+  const t = useT();
+  const hs = useMemo(() => endingHandles(d, panelId), [d, panelId]);
+  const st = useStore.getState;
+  const at = (h: EndingHandle, pt: LocalPt): V3 =>
+    'flap' in h.spot
+      ? (new THREE.Vector3(pt[0], pt[1], h.frame.side * pt[2]).applyMatrix4(flapMatrix(d, h.spot.flap, xf, foldT)).toArray() as V3)
+      : W(xf.get(h.spot.panel) ?? IDM, h.frame, pt[0], pt[1], pt[2]);
+  return (
+    <>
+      {hs.map((h) => {
+        const far = at(h, h.far), crease = at(h, h.crease);
+        const axis = v3sub(far, crease);
+        const id = h.edge.replace('#', '-');
+        return (
+          <group key={h.edge}>
+            {v3len(axis) > 1e-6 && (
+              <PushPull
+                at={far}
+                axis={v3norm(axis)}
+                value={h.value}
+                min={h.min}
+                max={h.max}
+                onPreview={(v) => st().preview((x) => void setEndingLength(x, panelId, h.edge, v))}
+                onCommit={() => st().commit()}
+                onCancel={() => st().cancel()}
+                testId={`end-len-${id}`}
+              />
+            )}
+            {h.hinge && <EndingHinge h={h.hinge} edge={h.edge} panelId={panelId} m={xf.get(h.hinge.panel) ?? IDM} name={t(`endings.ending.${h.ending}` as MsgKey)} testId={`end-hinge-${id}`} />}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+const ENDING_TARGETS = [90, 180, 270];
+const OK_ZONE = () => 'ok' as const;
+
+/** A flap's hinge ring (milestone 163): about its crease, 180 flat, 90 square towards the board's material side. */
+function EndingHinge({ h, edge, panelId, m, name, testId }: { h: NonNullable<EndingHandle['hinge']>; edge: string; panelId: string; m: THREE.Matrix4; name: string; testId: string }) {
+  const basis = useMemo(() => {
+    const o = new THREE.Vector3(...h.o).applyMatrix4(m).toArray() as V3;
+    return { o, x: Wdir(m, h.x), y: Wdir(m, h.y) };
+  }, [m, h.o[0], h.o[1], h.o[2], h.x[0], h.x[1], h.x[2], h.y[0], h.y[1], h.y[2]]);
+  const pointAt = useMemo(() => (a: number) => {
+    const r = (a * Math.PI) / 180;
+    return v3add(basis.o, v3add(v3mul(basis.x, h.r * Math.cos(r)), v3mul(basis.y, h.r * Math.sin(r))));
+  }, [basis, h.r]);
+  return (
+    <AngleArc
+      pointAt={pointAt}
+      hinge={basis}
+      zoneAt={OK_ZONE}
+      value={h.value}
+      targets={ENDING_TARGETS}
+      onChange={(a) => useStore.getState().preview((x) => void setEndingHinge(x, panelId, edge, a))}
+      onEnd={(cancel) => (cancel ? useStore.getState().cancel() : useStore.getState().commit())}
+      label={`${name} ${Math.round(h.value)}°`}
+      testId={testId}
+    />
+  );
 }
 
 /** Selected grown panel: the hinge ring at its parent edge, to turn it in place. */

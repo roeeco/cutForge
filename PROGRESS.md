@@ -2496,6 +2496,60 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - The owner's review during 160 (the stage did not show the closing lip; templates should be edited with lid and lips open) is done (above).
 - Known, not fixed: with the fold slider at 0, a card hinged tray's lid stands upright instead of lying in the net.
 
+## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`) ✅
+
+What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its
+angle. Each edge but the one it hinges on has a row. A free edge has seven pictures (*None, Flap, Tuck, Dust flap,
+Glue flap, Hang tab, Fold-over*); picking one puts it on at its automatic length (*Automatic: follows the board*), and a
+flap gets the grown fold's dial (180° flat, 90° square, past 180° folded the other way). Typing a length keeps it;
+*Automatic* gives the automatic one back. An edge that meets another wall shows its joint, a **Lip** from the start on
+card, with its width (automatic until set) and the board it is cut on. On the stage each ending has the grown fold's
+handles: an arrow on its far edge (drag it, or click and type) and, for a flap, a ring at its crease labelled with
+the ending (*Tuck 90°*). Changing an ending, a length or a fold is one undo step.
+
+- `src/model/endings.ts`: the concept and its rules in one place (`boardEndings`, `ENDINGS`, `LIP`, `flapHinge` /
+  `hingeToFlap`, `refreshAutoFlaps`); `src/model/ops.ts`: `setEnding`, `setEndingLength`, `setEndingHinge`,
+  `setEndingJoint`; `solve` re-works out automatic flaps once boards are sized; `addEdgeFlap` takes `auto`;
+  `setEdgeFlap` keeps a plain flap's fold and drops `auto` when a length is given.
+- `src/model/types.ts` / `check.ts`: `EdgeFlap.auto`; `src/model/edgeFeatures.ts`: a plain flap may be turned (stored
+  plain flaps have no angle: their output is unchanged).
+- `src/ui/EndingsUI.tsx` (the card), `src/ui/Inspector.tsx` (placed under *Angle*, *Bend* after it),
+  `src/ui/Pictures.tsx` (`endNone`, `flapTuck`, `foldOver`, `lip`), `src/styles.css`.
+- `src/model/endingHandles.ts` (where the handles go, pure) and `EndingHandles` / `EndingHinge` in
+  `src/views/View3D.tsx`.
+- Feature `endings` (Workshop; hidden in Quick build and Guided like `edgeFlap`), section `endings-section`; words
+  `endings.*` in English and Hebrew.
+
+**Verified**
+- `tests/edgeEndings.test.ts` (17): the rows of a grown wall (and none on a base, on plywood, or on an edge a child
+  grows from); every ending on the top edge at its automatic length, one at a time, kept by a file check; a fold-over
+  only on the top edge, with its reason; an automatic dust flap following the wall's height, a set one staying, *null*
+  giving it back, a new shape starting automatic; a fold-over hem and back; the hinge numbers both ways; a plain flap
+  turned and flat again (stored as before); a lip on a card corner from the start, its width set and automatic again,
+  another joint and back, no flap on a meeting edge; corrugated offers the lip; a design with endings validates with
+  no issues and opens from its file the same; flaps made before 161 keep their length. Handles: a flat flap's arrow
+  in the wall's plane, a folded tuck's along its fold (and the other side at 270°), a fold-over's down the wall, a
+  lip's along its face on both walls, none for a slit lock or no ending.
+- `tests/e2e/endings.spec.ts` (en, he): ✓ selects the wall and its card shows three rows; a tuck in one undo step at
+  18 mm (automatic); the fold-over refused on a side edge with its reason; 20 mm typed, *Automatic* back to 18; the
+  dial to 270° folds it out; the stage's arrow and ring are there; the arrow clicked and 25 typed; the arrow dragged
+  (one undo step); a second wall grown off the base's next edge has a lip on the corner, its width set to 14; the cut
+  plan has one net.
+- `npm test`: 1714 passed (7 skipped), golden exports byte-identical. `npm run typecheck`, `npm run build`: clean.
+- E2E (`pw-app.config.ts`): `endings`, `flaps`, `foldover`, `boards`, `walls`, `trays`, `joints`, `closures`,
+  `editing`, `grow-cleanup`, `make-fold`, `quick`, `guided`, `offline`, `settings`: 54 passed, 1 failed:
+  `quick.spec:13`, which fails on `main` too (listed under milestone 160).
+- Looked at in the browser (en, he): the card's rows and pictures, the handles on a wall with a tuck and a dust flap
+  and on its neighbour with a fold-over and the lip.
+
+**Limitations**
+- Edge endings are on grown boards only; a root board or a placed board keeps the grow card's *Add a flap*.
+- Setting an ending on the ghost before ✓ is not offered (the request was for after).
+- A fold-over has no ring (it always turns in flat) and only goes on the top edge; a lip is cut on the earlier of the
+  two boards and cannot be moved to the other.
+- With the fold slider below 1 or the lid shown open, the handles are hidden (as a grown fold's are).
+- The Nets view has no ending handles yet.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

@@ -224,6 +224,8 @@ export type ViewPrefs = {
   startView?: 'sentence' | 'cards';
   /** A board's *Edges* list is open (milestone 78; closed by default). */
   edgesOpen?: boolean;
+  /** A grown board's *Edge endings* closed (milestone 161; open unless closed). */
+  endingsShut?: boolean;
   /** The part card's *More for this part* is open (the editor review, 21 November; closed by default). */
   partMore?: boolean;
   /** The settings card is open while there are boards and nothing is selected (milestone 78; it folds to its header by default). */

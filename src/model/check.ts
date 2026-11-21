@@ -207,6 +207,7 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
         if (f.angle !== undefined && !(Number.isFinite(f.angle) && f.angle >= 0 && f.angle <= 180)) delete f.angle;
         if (f.dir !== undefined && f.dir !== 'in' && f.dir !== 'out') delete f.dir;
         if (f.hole !== undefined && f.hole !== 'round' && f.hole !== 'euro') delete f.hole;
+        if (f.auto !== undefined && f.auto !== true) delete f.auto;
       }
     }
   }

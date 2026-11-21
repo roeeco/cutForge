@@ -35,6 +35,7 @@ import { MultiPanel } from './MultiPanel';
 import { DividerSection, PlacedSection, placedWhere } from './PlacedUI';
 import { panelsCutBy } from '../model/through';
 import { ExtrudeSection, FoldOverSection, TraySection, TrayWallNote } from './TrayUI';
+import { EndingsSection } from './EndingsUI';
 import { Gate } from '../easy/Gate';
 import { InsideSection } from '../easy/InsideUI';
 import { ModeOverride, shown, useFeature, useMode } from '../easy/features';
@@ -254,6 +255,10 @@ function InspectorBody({ footer }: { footer?: ReactElement | null }) {
           )}
           <Gate f="hinge">
             <PanelHinge panelId={id} />
+          </Gate>
+          {/* milestone 161: how each edge of a grown board ends, right under its fold (✓ selects the new board) */}
+          <EndingsSection panelId={id} />
+          <Gate f="hinge">
             {pc?.kind === 'fold' && <BendSection c={pc} />}
             {pc && <CutChoice c={pc} />}
           </Gate>

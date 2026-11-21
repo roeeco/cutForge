@@ -112,6 +112,11 @@ const PICS = {
   flapDust: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L9 5 L33 5 L36 18',
   flapGlue: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L12 10 L30 10 L36 18 M14 14 L28 14',
   flapHang: 'M6 18 L36 18 L36 30 L6 30 Z M14 18 L14 6 Q14 3 17 3 L25 3 Q28 3 28 6 L28 18 M19 8 A2 2 0 1 0 23 8 A2 2 0 1 0 19 8',
+  /** Edge endings (milestone 161): a bare edge; a tuck (square ends, round corners); a fold-over, from the side; a lip where two walls meet. */
+  endNone: 'M6 18 L36 18 L36 30 L6 30 Z M6 18 L36 18',
+  flapTuck: 'M6 18 L36 18 L36 30 L6 30 Z M8 18 L8 9 Q8 6 11 6 L31 6 Q34 6 34 9 L34 18',
+  foldOver: 'M6 30 L36 30 M17 30 L17 9 Q17 4 21 4 Q25 4 25 9 L25 26',
+  lip: 'M4 12 L22 12 L22 30 L4 30 Z M22 12 L36 6 L36 24 L22 30 M22 14 L17 15.5 L17 27 L22 28',
 } as const;
 
 export type PicName = keyof typeof PICS;
