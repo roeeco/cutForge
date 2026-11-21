@@ -241,7 +241,7 @@ Crate (stackable) w · StackableBin ★ **Stacking bin** · WallStackableBin ◇
 
 | # | Milestone | Done when |
 |---|---|---|
-| **171** | **Owner's picks I, on today's engine**: the two picture fixes (§1); lid *closed*, *rim* (two-piece), *grips*, a lid handle, base *overhang* (§2.1); Half box with three variants (§2.2); E0 keyhole holes | each new variant differs from its siblings by the hash test; goldens for TwoPiece, Half box × 3 on ply-3 |
+| **171** | **Owner's picks I, on today's engine**: plywood 5 and 8 mm grades (§6); the two picture fixes (§1); lid *closed*, *rim* (two-piece), *grips*, a lid handle, base *overhang* (§2.1); Half box with three variants (§2.2); E0 keyhole holes | each new variant differs from its siblings by the hash test; goldens for TwoPiece, Half box × 3 on ply-3 |
 | **172** | **Owner's picks II, shelves**: Shelf *Rack* (StorageRack), Slanted shelf words (DisplayShelf), ★ Bin rack, ★ Wall rack | contract tests (defaults, every min and max, on one sheet), census clean, contact sheet |
 | **173** | **E1 face-glued joint**; lid *plug*, lid *brim* | a plug lid seats in 3D within clearance; export check clean |
 | **174** | **E2 tambour door**; ★ Roll-top box (one corner, two corners, bread box) | the door follows the groove shut and open in 3D; its slit pitch from `bendPatterns.ts` at the groove's radius; beta until cut |
@@ -259,11 +259,11 @@ Crate (stackable) w · StackableBin ★ **Stacking bin** · WallStackableBin ◇
 
 Plywood after 185: about 31 entries today → about 75 cards and variants, plus the challenges.
 
-## 6. Decisions for the owner
+## 6. Owner decisions (21 November)
 
-| # | Question | Proposed |
+| # | Question | Decision |
 |---|---|---|
-| 1 | Which plywood thicknesses and sheet size? Only `ply-3` on 600 × 400 exists. Several designs want 4–6 mm (Kamishibai, Skådis, key board), several are bigger than 600 × 400 (HobbyCase, Arcade, AirPurifier). | Add the owner's stock as profiles before 178 (E9). |
-| 2 | The roll-top box, flex-door box, latches and pin hinges only work if their clearances are right. Can test pieces be cut? | They stay beta until a cut; the plan doesn't block on it. |
-| 3 | UniversalBox's options as words on the box, not a card of their own? | Yes: a card of every lid would be look-alikes of the lidded box. |
-| 4 | *Bookend* renamed *Half box* (with bookend as its first variant)? | Yes; the word *a bookend* stays. |
+| 1 | Plywood thicknesses and sheet size | **3 to 8 mm plywood; sheets 600 × 400, at most 787 × 488.** Plywood 4 and 6 mm are already grades in the material drawer (`model/boards.ts`, milestone 116) and a profile's sheet size is editable there; 171 adds **5 and 8 mm**. Every new card is held to its contract at **3 and 8 mm on 600 × 400**, and its sizes' limits read the board's own sheet (`sheetLimits`), so on a 787 × 488 sheet they open up by themselves. E9 shrinks to: test the large cards (HobbyCase, Arcade, AirPurifier, Kamishibai) on 787 × 488, and split with keys what is larger still. |
+| 2 | Test cuts | **Yes, the owner cuts test pieces.** The roll-top door, flex doors, latches and pin hinges are built beta and leave beta after their cut; the cut's result goes in `DECISIONS.md`. |
+| 3 | UniversalBox's options as words on the box, not a card of their own | **Yes.** |
+| 4 | *Bookend* becomes *Half box*, bookend its first variant | **Yes**; the word *a bookend* stays. |
