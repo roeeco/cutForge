@@ -77,9 +77,10 @@ export function TopBar() {
   const saveText = s.saveState === 'saving' ? t('top.saving') : s.saveState === 'failed' ? t('top.saveFailed') : s.saveState === 'paused' ? t('top.savePaused') : t('top.saved');
   return (
     <header className="topbar" inert={s.needsMaterial || undefined}>
-      <div className="brand">
+      {/* the logo takes you to the welcome screen, as in Guided; the open design stays open and saved */}
+      <button className="ghost brand brand-home" onClick={() => useStore.setState({ needsMaterial: true })} title={t('g.home')} aria-label={t('g.home')} data-testid="brand-home">
         <Logo />
-      </div>
+      </button>
       <span className="sep" />
       <div className="proj" ref={menuRef}>
         <input
