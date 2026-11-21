@@ -2534,6 +2534,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **Chamfered box** (AngledBox), **Coffin box** (Coffin; a lid that lifts off, a cross engraved), **Tetromino box** (Tetris: L, T, S, Z), **Star box** (4 to 8 points): plywood only, beta; `tests/plywood180.test.ts`.
 - The taper spike failed (compound-angle corners are not found); the Feeder waits on it.
 
+## Milestone 181 (every doable boxes.py design in plywood) ✅ a band round any outline (E8)
+
+- Rounded corners on chosen corners of any outline (`curve: 'round'` on an outline's points); a corner that turns less than 90° bends round a larger radius.
+- **U box** (UBox: the base bends up into the front and back), **Rounded polygon box** (RoundedRegularBox), **Rounded trapezoid box** (RoundedTrapezoidBox: all, back two or front two corners), **Heart box** (HeartBox, a lid that drops in): plywood 3 and 4 mm (`bendsRound`), beta; `tests/plywood181.test.ts`.
+- Records `rounded`, `bends`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

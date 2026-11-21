@@ -114,12 +114,17 @@ export function addOutlineBase(d: Design, pts: SketchPt[], height?: number): str
   if (s.kind !== 'poly' || !pts.some((q) => q.curve === 'round')) return id;
   // the corners again by where they are (the polygon may have been turned round to run anticlockwise)
   const min = roundedMin(d.material, height);
-  for (const q of s.pts) {
+  const n = s.pts.length;
+  s.pts.forEach((q, i) => {
     const src = pts.find((z) => Math.abs(z.x - minX - q.x) < 1e-6 && Math.abs(z.y - minY - q.y) < 1e-6);
-    if (src?.curve !== 'round') continue;
+    if (src?.curve !== 'round') return;
+    // a corner that turns less than a right angle bends over a shorter band, which holds fewer lines of its pattern:
+    // its radius grows as its turn shrinks, so the band is as long as a right angle's at the least radius
+    const a = s.pts[(i + n - 1) % n], b = s.pts[(i + 1) % n];
+    const turn = Math.abs(Math.atan2((q.x - a.x) * (b.y - q.y) - (q.y - a.y) * (b.x - q.x), (q.x - a.x) * (b.x - q.x) + (q.y - a.y) * (b.y - q.y)));
     q.curve = 'round';
-    q.r = Math.max(MIN_END, src.r ?? 0, min);
-  }
+    q.r = Math.max(MIN_END, src.r ?? 0, min * Math.max(1, Math.PI / 2 / Math.max(turn, 0.1)));
+  });
   normalizeSketch(d.panels[id]);
   solve(d);
   return id;

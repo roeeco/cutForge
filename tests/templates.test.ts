@@ -24,7 +24,8 @@ describe('template registry', () => {
         expect(Object.values(d.connections).some((c) => c.broken), `${t.id} ${m.id}`).toBe(false);
         expect(validate(d).map((i) => i.key), `${t.id} ${m.id}`).toEqual([]);
       }
-  });
+    // (milestones 180–181 added eight plywood structures: past the default 5 s on a busy machine)
+  }, 60_000);
   it('generating twice gives the same ids', () => {
     const a = generate(org, PLY, defaults(org)), b = generate(org, PLY, defaults(org));
     expect(a.order).toEqual(b.order);

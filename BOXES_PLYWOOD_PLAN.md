@@ -9,6 +9,7 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 - **171 ✅** (21 November): plywood 5 and 8 mm; picture fixes; the half box (bookend, wall shelf, clamping square); keyholes; box words *closed*, *rim*, *grips*; lidded box variants *Two-piece* and *Closed*. The lid handle and the base overhang moved to 173. Details in `DECISIONS.md`.
 - **172 ✅** (21 November): the shelf's *Rack*; the slanted shelf's lip, spaces, back and sloped sides; the *Bin rack* and the *Wall rack* (plywood, hung by keyholes).
 - **180 ✅** (21 November): E7, any footprint: inside corners fingered (`Tray.insideCorners`); *Chamfered box*, *Coffin box*, *Tetromino box*, *Star box* (the star as a footprint; RegularStarBox's two interlocking boxes are not built). The taper spike failed: the *Feeder* waits.
+- **181 ✅** (21 November): E8, a band round any outline: *U box* (its base bending up, as boxes.py's U), *Rounded polygon box*, *Rounded trapezoid box* (all, back two or front two corners), *Heart box*; on plywood 3 and 4 mm (thicker plywood does not bend at these sizes).
 
 ## 0. In short
 
