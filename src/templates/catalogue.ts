@@ -157,8 +157,18 @@ export const CATALOGUE: Card[] = [
   // milestone 165 (beta): slotted boards, no box and no base, on plywood and 4 mm board only
   { id: 'laptopStand', title: 'card.laptopStand', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'laptopStand', structure: 'laptopStand', match: { body: 'slot', crossing: true } }] },
   { id: 'gridInsert', title: 'card.gridInsert', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridInsert', structure: 'gridInsert', match: { body: 'slot', crossing: true, grid: true } }] },
-  { id: 'shelf', title: 'card.shelf', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [], variants: [{ id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } }] },
+  {
+    id: 'shelf', title: 'card.shelf', word: 'card.shelf.word', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [],
+    variants: [
+      { id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } },
+      // milestone 172 (boxes.py's StorageRack): rails instead of shelves between the lowest and the highest
+      { id: 'rack', structure: 'shelf', style: 'rack', match: { body: 'slot', shelves: true, rails: true } },
+    ],
+  },
   { id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } }] },
+  // milestone 172 (beta, plywood; BOXES_PLYWOOD_PLAN.md §2): racks that hang on a wall by keyholes in their backs
+  { id: 'binRack', title: 'card.binRack', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [], variants: [{ id: 'binRack', structure: 'binRack', match: { body: 'slot', shelves: true, slant: true, tiers: true, hang: true } }] },
+  { id: 'wallRack', title: 'card.wallRack', group: 'more', status: 'beta', view: { prop: 'goods' }, challenges: [], variants: [{ id: 'wallRack', structure: 'wallRack', match: { body: 'slot', shelves: true, hang: true } }] },
   // milestone 166 (beta): boards at a slant held in angled slots, on plywood and 4 mm board only
   { id: 'deskSign', title: 'card.deskSign', group: 'more', status: 'beta', view: { dir: 'rear34' }, challenges: [], variants: [{ id: 'deskSign', structure: 'deskSign', match: { body: 'slot', slant: true } }] },
   { id: 'slantedShelf', title: 'card.slantedShelf', group: 'more', status: 'beta', view: { dir: 'side34', prop: 'goods' }, challenges: [], variants: [{ id: 'slantedShelf', structure: 'slantedShelf', match: { body: 'slot', slant: true, tiers: true } }] },

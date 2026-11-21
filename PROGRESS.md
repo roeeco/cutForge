@@ -2518,6 +2518,14 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood171.test.ts`.
 - Moved to later milestones: a handle on the lid and the base's overhang (173, with the other lid work).
 
+## Milestone 172 (every doable boxes.py design in plywood) ✅ the owner's picks II, shelves
+
+- **Shelf *Rack*** (StorageRack): rails between the lowest and highest shelves (`rails`, `rail`); record `rails` on a slot body.
+- **Slanted shelf words** (DisplayShelf, plywood): `lip`, `spaces` on each shelf, `back`, `slope` (sides cut back); tilt 30° and 35°.
+- **Bin rack** (BinTray, plywood, new card): rows of bins with a 45° slope across each row's foot, keyholes in the back.
+- **Wall rack** (WallRack, plywood, new card): a back hung by keyholes with lipped shelves.
+- Every board of these is held by tabs in slots (lips and frames given the board round their slots); `tests/plywood172.test.ts`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

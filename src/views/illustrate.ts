@@ -375,8 +375,12 @@ function paperFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
  */
 function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
   const COLS = ['#1fb8ac', '#f2b632', '#e4574b', '#3f7be0', '#7b5bd6'];
-  const ids = d.order.filter((id) => /^t:(shelf|tier)-\d+$/.test(id) && d.panels[id]);
-  const ys = ids.map((id) => (xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(d.panels[id].frame))).map((M) => new THREE.Vector3().applyMatrix4(M).y);
+  // milestone 172: a bin rack's floors (`t:bottom`, `t:floor-n`) hold parts too
+  const ids = d.order.filter((id) => /^t:(shelf-\d+|tier-\d+|floor-\d+|bottom)$/.test(id) && d.panels[id]);
+  // the room above a board ends at the next board up, a rack's rails and a bin rack's top included (milestone 172)
+  const levelsAt = d.order.filter((id) => /^t:(shelf|tier|rail|floor)-[\d-]+$|^t:(bottom|top)$/.test(id) && d.panels[id]);
+  const yOf = (id: string) => new THREE.Vector3().applyMatrix4((xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(d.panels[id].frame))).y;
+  const ys = ids.map(yOf), all = levelsAt.map(yOf);
   ids.forEach((id, k) => {
     const p = d.panels[id];
     const M = (xf.get(id) ?? new THREE.Matrix4()).clone().multiply(frameMatrix(p.frame));
@@ -390,7 +394,7 @@ function goodsFaces(d: Design, xf: Map<string, THREE.Matrix4>, out: Face[]) {
     const ex = new THREE.Vector3(1, 0, 0).transformDirection(M), ey = new THREE.Vector3(0, 1, 0).transformDirection(M);
     const tier = id.startsWith('t:tier');
     // the room above it: to the next board up, or a third of its depth
-    const above = ys.filter((y, j) => j !== k && y > ys[k] + 1).sort((a, b) => a - b)[0];
+    const above = all.filter((y) => y > ys[k] + 1).sort((a, b) => a - b)[0];
     const room = above !== undefined ? above - ys[k] - s.t : p.h / 2;
     const n0 = Math.max(2, Math.min(4, Math.floor(p.w / 45)));
     for (let i = 0; i < n0; i++) {

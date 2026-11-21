@@ -54,6 +54,8 @@ export const STYLES: StyleDef[] = [
   { id: 'wallShelf', structure: 'bookend', words: { ends: 'triangles', hang: 'keyholes', clamp: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'clampSquare', structure: 'bookend', words: { ends: 'triangles', hang: 'none', clamp: 'holes' }, sizes: { width: 80, depth: 120, height: 120 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'sturdyBookend', structure: 'bookend', words: { ends: 'one', hang: 'none', clamp: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 172 (StorageRack): a shelf whose levels between its lowest and highest are rails, for trays to slide in
+  { id: 'rack', structure: 'shelf', words: { rails: 'rails' }, sizes: { shelves: 4 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

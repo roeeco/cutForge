@@ -231,6 +231,9 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (crossing) rec.crossing = true;
   if (crossing && ids.length >= 3) rec.grid = true;
   if (ids.some(level)) rec.shelves = true;
+  // milestone 172: narrow level strips beside full ones (a rack's rails)
+  const areas = ids.filter(level).map((id) => sketchArea(d.panels[id]));
+  if (areas.length >= 2 && Math.min(...areas) < 0.4 * Math.max(...areas)) rec.rails = true;
   const upright = (id: string) => {
     const f = d.panels[id].frame;
     return Math.abs(f.u[2] * f.v[0] - f.u[0] * f.v[2]) < 0.2;
@@ -239,6 +242,8 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (slanted) rec.slant = true;
   if (slanted >= 2) rec.tiers = true;
   if (ids.some((id) => !level(id) && d.panels[id].details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 20))) rec.holes = true;
+  // milestone 172: it hangs on a wall (a bin rack's back, a wall rack's)
+  if (hangs(d)) rec.hang = true;
   return rec;
 }
 

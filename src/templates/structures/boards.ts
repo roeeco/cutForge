@@ -82,16 +82,16 @@ export function keyholeShape(head = 9, shank = 4.5, rise = 10): { polys: { x: nu
 }
 
 /**
- * Two keyholes near a board's top edge, an eighth of its width in from each end (milestone 171), each marked as a
+ * Two keyholes near a board's top edge (or `below` it, mm), an eighth of its width in from each end (milestone 171), each marked as a
  * hole to hang by (`mount`), so the record knows the thing hangs. Its slot points up the board (+y).
  */
-export function hangByKeyholes(d: Design, panelId: string): string[] {
+export function hangByKeyholes(d: Design, panelId: string, below?: number): string[] {
   const p = d.panels[panelId];
   if (!p) return [];
   const t = d.material.thickness;
   const k = keyholeShape(Math.max(8, Math.min(10, 2 * t + 3)));
-  // the slot's top clear of the board's top edge by a web of two boards (never under 6 mm)
-  const cy = p.h - Math.max(6, 2 * t) - k.h / 2;
+  // the slot's top clear of the board's top edge by a web of two boards (never under 6 mm), or as far as asked
+  const cy = p.h - (below ?? Math.max(6, 2 * t)) - k.h / 2;
   const out: string[] = [];
   for (const x of [p.w * 0.125, p.w * 0.875]) {
     const id = addPathShape(d, panelId, k.polys, x, cy, k.w, k.h, 'cut');

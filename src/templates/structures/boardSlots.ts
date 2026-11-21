@@ -155,9 +155,19 @@ function generateShelf(d: Design, p: Params, role: Role) {
   names.push('back');
   // the shelves, evenly from a little above the floor to the top, between the sides and in front of the back
   const bottom = Math.max(10, 3 * t), top = H - t - web;
+  // milestone 172 (StorageRack): a rack keeps its lowest and highest shelves and has a pair of rails at each level
+  // between, one on each side, for trays and boxes with floors of their own to slide in on
+  const rails = p.rails === 'rails' && n >= 3;
+  const rw = Math.max(10, Math.min(Number(p.rail) || 30, W / 3));
   for (let k = 0; k < n; k++) {
     const y = bottom + ((top - bottom) * k) / (n - 1);
-    ids.push(level(d, -W / 2, y, -D / 2 + web + t, W, D - web - t));
+    const z = -D / 2 + web + t, dz = D - web - t;
+    if (rails && k > 0 && k < n - 1) {
+      ids.push(level(d, -W / 2, y, z, rw, dz), level(d, W / 2 - rw, y, z, rw, dz));
+      names.push(`rail-${k}-1`, `rail-${k}-2`);
+      continue;
+    }
+    ids.push(level(d, -W / 2, y, z, W, dz));
     names.push(`shelf-${k + 1}`);
   }
   joinAll(d, ids, role, names);
@@ -175,6 +185,14 @@ export const shelf: TemplateDef = {
     // milestone 171: never lower than a shelf with room to put something on it (picked from a 45 mm box, it was a stack of boards)
     num('height', 'sen.height', 120, 300, 200),
     int('shelves', 'sen.shelves', 2, 5, 3),
+    // milestone 172 (BOXES_PLYWOOD_PLAN.md §2, boxes.py's StorageRack): rails between the lowest and highest shelves, on plywood
+    {
+      key: 'rails', label: 'sen.rails', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: [{ value: 'none', label: 'sen.rails.none' }, { value: 'rails', label: 'sen.rails.rails' }],
+      allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && Number(p.shelves) >= 3 && cleanAll(shelf, m, { ...p, rails: v })),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : Number(p.shelves) < 3 ? 'sen.why.railsLevels' : 'sen.why.engine'),
+    },
+    { key: 'rail', label: 'sen.rail', type: 'number', unit: 'mm', min: 10, max: 60, default: 30, when: (p) => p.rails === 'rails' },
   ],
   generate: generateShelf,
   sentence: { main: 'sen.s.shelf' },
