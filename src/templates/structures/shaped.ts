@@ -85,6 +85,11 @@ export function sheetLimits(def: TemplateDef, lows: Record<string, number>): Non
 
 // --- the magazine file ---
 
+/** Milestone 178: the uneven file's right side at the back, never above its left. */
+const unevenLow = (p: Params) => Math.min(Number(p.low ?? 160), Number(p.height) - 10);
+/** Room for it: the right side 10 mm or more below the left, and its front corner 25 mm tall or more. */
+const unevenRoom = (p: Params) => Number(p.low) <= Number(p.height) - 10 && (Math.min(Number(p.front), Number(p.height) - 10) * unevenLow(p)) / Number(p.height) >= 25;
+
 function generateMagazineFile(d: Design, p: Params, role: Role) {
   const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
   const F = Math.min(Number(p.front), H - 10);
@@ -100,6 +105,17 @@ function generateMagazineFile(d: Design, p: Params, role: Role) {
   if (w.e0) {
     setCustomHeight(d, w.e0, true);
     setPanelSize(d, w.e0, undefined, F);
+  }
+  // milestone 178 (boxes.py's UnevenHeightBox, plywood): the right side lower, its back corner at `low` and its front
+  // in proportion, so the top slopes across as well as down to the front: the back and front lowered on that side
+  if (p.uneven === 'uneven') {
+    const L = unevenLow(p);
+    const fr = (F * L) / H;
+    if (w.e1) setWallCorner(d, w.e1, 'tr', { dx: 0, dy: -(H - L) });
+    if (w.e1) setWallCorner(d, w.e1, 'tl', { dx: 0, dy: -(H - fr) });
+    // the back (e2) runs from the right to the left: its first top corner is on the right; the front (e0) from the left
+    if (w.e2) setWallCorner(d, w.e2, 'tl', { dx: 0, dy: -(H - L) });
+    if (w.e0) setWallCorner(d, w.e0, 'tr', { dx: 0, dy: -(F - fr) });
   }
   reseam(d, d.trays[tr].cornerKind);
   // a finger pull at the top of the back (a slot, not a window)
@@ -123,6 +139,15 @@ export const magazineFile: TemplateDef = {
     num('depth', 'sen.depth', 100, 300, 200),
     num('height', 'sen.height', 120, 300, 240),
     num('front', 'sen.frontHeight', 40, 200, 80),
+    // milestone 178 (BOXES_PLYWOOD_PLAN.md §3.2, boxes.py's UnevenHeightBox): a height per corner, on plywood
+    {
+      key: 'uneven', label: 'sen.uneven', type: 'choice', default: 'level', addon: { off: 'level' },
+      options: [{ value: 'level', label: 'sen.uneven.level' }, { value: 'uneven', label: 'sen.uneven.uneven' }],
+      allowed: (v, p, m) => v === 'level' || (m.kind === 'plywood' && unevenRoom(p) && cleanWith(magazineFile, m, p, 'uneven', v)),
+      why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : !unevenRoom(p) ? 'sen.why.unevenRoom' : 'sen.why.engine'),
+      affects: ['walls'],
+    },
+    { key: 'low', label: 'sen.lowCorner', type: 'number', unit: 'mm', min: 40, max: 290, default: 160, when: (p) => p.uneven === 'uneven' },
   ],
   generate: generateMagazineFile,
   sentence: { main: 'sen.s.magazineFile' },

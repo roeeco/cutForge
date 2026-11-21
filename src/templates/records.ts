@@ -94,6 +94,30 @@ export type PresetRecord = {
   deep?: boolean;
   /** Milestone 182: a layered body with round boards (a spool's flanges: an outline of 16 points or more). */
   disc?: boolean;
+  /** Milestone 178: boards of their own crossing a box's walls in half-slots (loose dividers, lifted out by hand). */
+  loose?: boolean;
+  /** Milestone 178: upright boards of their own inside a box, standing on its base (partitions between its spaces). */
+  partitions?: boolean;
+  /** Milestone 178: ramps inside a box facing both ways (a scoop at each end). */
+  bothEnds?: boolean;
+  /** Milestone 178: more than two of a box's walls slope (a height per corner). */
+  uneven?: boolean;
+  /** Milestone 178: an upright board of its own across a box, held by its walls and standing clear of its base (a dispenser's front). */
+  chute?: boolean;
+  /** Milestone 178: a wall's top cut down in notches (a castle's crenels). */
+  crenels?: boolean;
+  /** Milestone 178: a level plate in a box with square openings 30 mm or more (a Gridfinity base). */
+  openings?: boolean;
+  /** Milestone 178: a board of its own rising well above a box's walls with a hand hole (a caddy's handle). */
+  carry?: boolean;
+  /** Milestone 178: a board with a row of long narrow slits (a record rack's). */
+  combs?: boolean;
+  /** Milestone 178: a board with a motor's hole pattern: a boss hole and four screw holes round it. */
+  motor?: boolean;
+  /** Milestone 178: a board with rows of small upright slots for pegboard hooks. */
+  pegs?: boolean;
+  /** Milestone 178: a slot body of two boards, one lying level that the other stands in (a flyer stand's foot). */
+  foot?: boolean;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -275,6 +299,75 @@ function hasSieve(d: Design, t: Tray): boolean {
   return cuts.length >= 4 && cuts.every((x) => Math.abs(x.w - cuts[0].w) < 0.01 && Math.abs(x.h - cuts[0].h) < 0.01);
 }
 
+/** Milestone 178: free boards (not walls, base, lid, divider or grown) inside a box: those that match. */
+function freeIn(d: Design, t: Tray, test: (p: Design['panels'][string]) => boolean): Design['panels'][string][] {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
+  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !p.divider && !p.place && !grown.has(p.id) && test(p));
+}
+
+/** Milestone 178: a board of its own crossing one of a box's walls in a half-slot. */
+function hasLoose(d: Design, t: Tray): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const free = new Set(freeIn(d, t, () => true).map((p) => p.id));
+  return Object.values(d.connections).some((c) => c.kind === 'halflap' && ((walls.has(c.a.panelId) && free.has(c.b.panelId)) || (walls.has(c.b.panelId) && free.has(c.a.panelId))));
+}
+
+/** Milestone 178: an upright board of its own on a box's base, joined to it (not by a half-slot). */
+function hasPartitions(d: Design, t: Tray): boolean {
+  const on = (id: string) => Object.values(d.connections).some((c) => !c.grown && c.kind !== 'halflap' && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
+  return freeIn(d, t, (p) => Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]) < 0.02 && on(p.id)).length > 0;
+}
+
+/** Milestone 178: ramps (slanted boards of their own on the base, joined to the walls) facing both ways along the box. */
+function rampsBothWays(d: Design, t: Tray): boolean {
+  const on = (id: string) => Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
+  const ramps = freeIn(d, t, (p) => {
+    const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
+    return n > 0.2 && n < 0.98 && on(p.id);
+  });
+  // which way each faces: its slope's run along the box (v's level part)
+  const ways = new Set(ramps.map((p) => Math.sign(Math.round(p.frame.v[2] * 1000 + p.frame.v[0] * 1000) * Math.sign(p.frame.v[1] || 1))));
+  return ways.has(1) && ways.has(-1);
+}
+
+/** Milestone 178: walls whose tops slope (a top corner lowered more than a few mm): how many. */
+function slopedWalls(d: Design, t: Tray): number {
+  return trayRing(d, t).filter((r) => {
+    const s = d.panels[r.wall]?.sketch;
+    return s?.kind === 'wall' && ['tl', 'tr'].some((k) => (s.corners?.[k as 'tl' | 'tr']?.dy ?? 0) < -5);
+  }).length;
+}
+
+/** Milestone 178: an upright board of its own joined to a box's walls (not by half-slots) and not to its base, its foot clear of it. */
+function hasChute(d: Design, t: Tray): boolean {
+  const walls = new Set(trayRing(d, t).map((r) => r.wall));
+  const base = d.panels[t.baseId];
+  if (!base) return false;
+  const floor = base.frame.o[1] + d.material.thickness;
+  const joins = (id: string, to: (x: string) => boolean) => Object.values(d.connections).some((c) => !c.grown && c.kind !== 'halflap' && ((c.a.panelId === id && to(c.b.panelId)) || (c.b.panelId === id && to(c.a.panelId))));
+  return freeIn(d, t, (p) => Math.abs(p.frame.v[1]) > 0.98 && p.frame.v[1] > 0 && p.frame.o[1] > floor + 3 && joins(p.id, (x) => walls.has(x)) && !joins(p.id, (x) => x === t.baseId)).length > 0;
+}
+
+/** Milestone 178: a wall whose top is notched down (inserts on its top edge more than 3 mm below it). */
+function hasCrenels(d: Design, t: Tray): boolean {
+  return trayRing(d, t).some((r) => {
+    const s = d.panels[r.wall]?.sketch;
+    return s?.kind === 'wall' && (s.inserts ?? []).filter((x) => x.edge === 'e2' && x.off < -3).length >= 2;
+  });
+}
+
+/** Milestone 178: a level board of its own in a box with square openings, 30 mm or larger. */
+function hasOpenings(d: Design, t: Tray): boolean {
+  return freeIn(d, t, (p) => Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]) > 0.98 && p.details.filter((x) => x.op === 'cut' && x.shape === 'roundrect' && Math.min(x.w, x.h) >= 30 && Math.abs(x.w - x.h) < 2).length >= 1).length > 0;
+}
+
+/** Milestone 178: an upright board of its own reaching 20 mm or more above a box's tallest wall, with a hole cut in it. */
+function hasCarry(d: Design, t: Tray): boolean {
+  const top = Math.max(...trayRing(d, t).map((r) => (d.panels[r.wall] ? d.panels[r.wall].frame.o[1] + d.panels[r.wall].h : 0)));
+  return freeIn(d, t, (p) => Math.abs(p.frame.v[1]) > 0.98 && p.frame.o[1] + p.h > top + 20 && p.details.some((x) => x.op === 'cut')).length > 0;
+}
+
 /** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
 function openWalls(d: Design, t: Tray): number {
   const base = d.panels[t.baseId];
@@ -283,6 +376,15 @@ function openWalls(d: Design, t: Tray): number {
     const x = findEdge(base, e);
     return !!x && segLength(x) >= MIN_EDGE;
   }).length;
+}
+
+/** Milestone 178: what a board's cuts make of it: long narrow slits, a motor's holes, pegboard slots. */
+function cutsOf(p: Design['panels'][string]): { combs: boolean; motor: boolean; pegs: boolean } {
+  const cuts = p.details.filter((x) => x.op === 'cut');
+  const slits = cuts.filter((x) => x.shape === 'roundrect' && Math.min(x.w, x.h) <= 15 && Math.max(x.w, x.h) >= 4 * Math.min(x.w, x.h));
+  const circles = cuts.filter((x) => x.shape === 'circle');
+  const pegs = cuts.filter((x) => x.shape === 'roundrect' && Math.min(x.w, x.h) < 8 && Math.max(x.w, x.h) < 4 * Math.min(x.w, x.h));
+  return { combs: slits.length >= 2, motor: circles.some((x) => x.w >= 20) && circles.filter((x) => x.w < 8).length >= 4, pegs: pegs.length >= 10 };
 }
 
 /** The joints a slot body is held by: half-slots, tabs in slots, and edges stopped at a face. */
@@ -320,6 +422,12 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (hangs(d)) rec.hang = true;
   // milestone 177: one like it stacks on it (a rack's sides and back)
   if (stacks(d)) rec.stack = true;
+  // milestone 178: slits, a motor's holes, pegboard slots; a foot with one board standing in it
+  const cut = ids.map((id) => cutsOf(d.panels[id]));
+  if (cut.some((x) => x.combs)) rec.combs = true;
+  if (cut.some((x) => x.motor)) rec.motor = true;
+  if (cut.some((x) => x.pegs)) rec.pegs = true;
+  if (ids.length === 2 && ids.filter(level).length === 1) rec.foot = true;
   return rec;
 }
 
@@ -384,11 +492,23 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && hasJig(d, t)) rec.jig = true;
     if (stacks(d)) rec.stack = true;
     if (!tube && hasSieve(d, t)) rec.sieve = true;
+    if (!tube && hasLoose(d, t)) rec.loose = true;
+    if (!tube && hasPartitions(d, t)) rec.partitions = true;
+    if (!tube && rampsBothWays(d, t)) rec.bothEnds = true;
+    if (!tube && slopedWalls(d, t) > 2) rec.uneven = true;
+    if (!tube && hasChute(d, t)) rec.chute = true;
+    if (!tube && hasCrenels(d, t)) rec.crenels = true;
+    if (!tube && hasOpenings(d, t)) rec.openings = true;
+    if (!tube && hasCarry(d, t)) rec.carry = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
   const flaps = ids.flatMap((id) => (d.panels[id].edgeFlaps ?? []).map((f) => f.shape ?? 'plain')).sort().join(',');
-  if (ids.length === 1) return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}) };
+  // milestone 178: a pegboard is one board too, its slots and keyholes said
+  if (ids.length === 1) {
+    const pegs = cutsOf(d.panels[ids[0]]).pegs, hang = hangs(d);
+    return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}), ...(pegs ? { pegs } : {}), ...(pegs && hang ? { hang } : {}) };
+  }
   const grown = Object.values(d.connections).filter((c) => c.grown);
   // milestone 165: boards of their own held together by slots and tabs, nothing grown off another (BOXES_PRESETS_PLAN.md)
   const slot = slotOf(d, ids);
@@ -418,7 +538,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

@@ -13,6 +13,7 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 - **177 ✅** (21 November): stacking feet (E6) as material added to a board after its joints; the word *stack* (Crate, NotesHolder, StorageRack); the *Stacking bin* and the *Sieve stack*. PaintStorage waits for the jars variant (178), WallStackableBin for 179, DrillBox and Dispenser for their cards.
 - **180 ✅** (21 November): E7, any footprint: inside corners fingered (`Tray.insideCorners`); *Chamfered box*, *Coffin box*, *Tetromino box*, *Star box* (the star as a footprint; RegularStarBox's two interlocking boxes are not built). The taper spike failed: the *Feeder* waits.
 - **181 ✅** (21 November): E8, a band round any outline: *U box* (its base bending up, as boxes.py's U), *Rounded polygon box*, *Rounded trapezoid box* (all, back two or front two corners), *Heart box*; on plywood 3 and 4 mm (thicker plywood does not bend at these sizes).
+- **178, part 1 ✅** (21 November): divider tray (organiser variant), scoop tray *both ends*, ★ *Scoop organiser*, *Compartment box*, magazine file *uneven*, ★ *Console* (and *Wedge*), ★ *Dispenser*, ★ *Record rack*, ★ *Honeycomb rack* (diamond cells: slats at 60° in half-slots), stand *flyer*, ★ *Cutlery caddy*, ★ *Castle tower*, ★ *Gridfinity base*, ★ *Pegboard* (and standing), ★ *Motor bracket*. Left: CoinDisplay, StevensonScreenBox, CanStorage, BottleStack, SpicesRack, Folder, Clock, the jigs, PizzaShovel and the challenges. Details in `DECISIONS.md`.
 
 ## 0. In short
 

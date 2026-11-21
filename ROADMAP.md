@@ -302,7 +302,7 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **175** | A wrap that opens, latch; flex-door box | |
 | **176** | Pin hinges | |
 | **177** | Stacking feet (E6): crate, stacking notes box, stacking rack, stacking bin, sieve stack | ✅ |
-| **178** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **178** | The rest of §3.2 on today's engine | part 1 ✅: nineteen entries (eleven cards, eight variants and words); showcase, louvred box, can dispenser, bottle stack, jars, book cover, clock, jigs, peel and the challenges left |
 | **179** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
 | **180** | Any footprint: inside corners fingered; chamfered, coffin, tetromino and star boxes | ✅ (taper and Feeder: spike failed) |
 | **181** | A band round any outline: U box, rounded polygon, rounded trapezoid, heart | ✅ (plywood 3 and 4 mm) |

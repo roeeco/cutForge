@@ -2557,6 +2557,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - Rounded corners on chosen corners of any outline (`curve: 'round'` on an outline's points); a corner that turns less than 90° bends round a larger radius.
 - **U box** (UBox: the base bends up into the front and back), **Rounded polygon box** (RoundedRegularBox), **Rounded trapezoid box** (RoundedTrapezoidBox: all, back two or front two corners), **Heart box** (HeartBox, a lid that drops in): plywood 3 and 4 mm (`bendsRound`), beta; `tests/plywood181.test.ts`.
 - Records `rounded`, `bends`.
+## Milestone 178 (every doable boxes.py design in plywood) ✅ part 1: nineteen of §3.2
+
+- **New cards** (plywood, beta): *Scoop organiser* (SmallPartsTray2), *Console* with a *Wedge* style (Console, Ramp), *Dispenser*, *Castle tower*, *Gridfinity base*, *Cutlery caddy* (Silverware), *Record rack* (DiscRack), *Motor bracket* (NemaMount), *Pegboard* with a *Standing pegboard* style (SkadisBoard, SkadisStand), *Honeycomb rack* (WineRack: diamond cells).
+- **On existing cards**: *Divider tray* on the organiser card (loose dividers in half-slots), *Scoop at both ends* (scoop tray `scoops`), *Compartment box* (sliding-lid box `parts`), *Uneven file* (magazine file `uneven`, `low`), *Flyer stand* on the stand card (Display).
+- Records: `loose`, `partitions`, `bothEnds`, `uneven`, `chute`, `crenels`, `openings`, `carry`, `combs`, `motor`, `pegs`, `foot`.
+- `tests/plywood178.test.ts`; `tests/templates.test.ts` lists the flyer stand and pegboard among the designs of fewer than four boards.
+- Left for a later part: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, laser jigs, pizza peel, and the challenges (`DECISIONS.md`).
 
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
