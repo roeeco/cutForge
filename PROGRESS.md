@@ -2480,6 +2480,12 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `README.md`: *Presets: ready starting points*, for students and for teachers.
 - Hebrew: every new key of 146–158 has its translation (i18n test).
 
+## Milestone 160 (presets overhaul) — the stage shows the closure and opens it for work (owner's review)
+
+- `src/model/closures.ts`: a lid's lip and tongue hinged on the lid (they ride on it, unfold in line with it); dust flaps hinged on their walls' tops; `src/views/pose.ts`: `stageFlapT` opens them while the lid is open, `openWrapOnStage` opens a mailer's lid; `src/views/View3D.tsx` uses both.
+- `tests/stageOpen.test.ts`: lips and dust flaps on card and corrugated hinged trays ride on their boards and lie in line with them when unfolded; on the stage they open with the lid and shut when it is closed, picked or closed at the end of going together; a mailer's lid opens unless shut or picked. `tests/stagePose.test.ts` follows (the open box holds the shut one within a board).
+- E2E: `closures`, `lids`, `stage-frame`, `quick-shots`, `preset-sheet` pass.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

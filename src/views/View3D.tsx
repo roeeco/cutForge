@@ -64,7 +64,7 @@ import { keepOutZones } from '../easy/guard';
 import { moverSet, planeLines, snapFlush, type Seg } from '../model/planeSnap';
 import { bundleSize, contentFit, objectById } from '../easy/objects';
 import { assembleClose, assembleFold, assembleLift, playAssembly } from '../easy/assemble';
-import { shownBox, stageFlapT } from './pose';
+import { openWrapOnStage, shownBox, stageFlapT } from './pose';
 import { workshopOnly } from '../easy/mode';
 import { registerStage } from '../tour/stage';
 import { TOUR_STEPS } from '../tour/steps';
@@ -210,6 +210,8 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
     const r = foldDisplay(design, assemble !== null ? assembleFold(assemble) : foldT);
     // lids beside their box or opened back (milestone 76): shown so, not changed
     const away = applyLidPoses(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT, assembling: assemble !== null, ...(assemble !== null ? { closeK: assembleClose(assemble) } : {}) });
+    // milestone 160: a wrap's lid (the mailer) opened too, so its inside can be worked in
+    for (const id of openWrapOnStage(design, r, { shut: lidShut, selected: selKey ? selKey.split(' ') : [], foldT: assemble !== null ? assembleFold(assemble) : foldT, ...(assemble !== null ? { closeK: assembleClose(assemble) } : {}) })) away.add(id);
     if (assemble !== null) for (const [id, m] of assembleLift(design, assemble)) r.xf.set(id, m.multiply(r.xf.get(id) ?? new THREE.Matrix4()));
     return { ...r, away };
   }, [design, foldT, assemble, lidShut, selKey]);

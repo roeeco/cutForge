@@ -69,7 +69,9 @@ describe('the stage (milestone 152)', () => {
     // closed, the box is smaller than shown with its tuck lid open
     const closed = shownBox(tall, { [t.id]: true });
     const open = shownBox(tall);
-    expect(open.containsBox(closed)).toBe(true);
+    // (within a board: milestone 160's lip rides on the opened lid, so the shut lid's edge over the front is not shown)
+    expect(open.clone().expandByScalar(1).containsBox(closed)).toBe(true);
+    expect(open.max.y).toBeGreaterThan(closed.max.y + 50);
     expect(open.equals(closed)).toBe(false);
     const sealed = styled('sealed', C16);
     const shut = shownBox(sealed, { [Object.values(sealed.trays)[0].id]: true });

@@ -197,7 +197,7 @@ const empty = (): ConnGeom => ({ edges: [], holes: [], adds: [], scores: [], fla
  * folded flap back by its 90° about it (as `flapMatrix` does with the fold slider, or a picture's pose) lays it in
  * line with its wall, past the edge (`out`: 1 past the top, -1 past the bottom).
  */
-function endHinge(P: Panel, e: { a: P2; b: P2 }, out: number, foldedWorld: V3[], t: number): Pick<Flap3d, 'owner' | 'hinge' | 'angle'> {
+export function endHinge(P: Panel, e: { a: P2; b: P2 }, out: number, foldedWorld: V3[], t: number): Pick<Flap3d, 'owner' | 'hinge' | 'angle'> {
   const h0: V3 = [e.a.x, e.a.y, t / 2], h1: V3 = [e.b.x, e.b.y, t / 2];
   if (!foldedWorld.length) return {};
   const W0 = toWorld(P.frame, ...h0), W1 = toWorld(P.frame, ...h1);

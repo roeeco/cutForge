@@ -120,8 +120,35 @@ function slantWalls(d: Design): string[] {
   return out;
 }
 
+/** How far a wrap's lid opens on the stage (degrees from shut): a little past upright, so the inside is clear. */
+export const STAGE_WRAP_OPEN = 110;
+
+/**
+ * A wrap's lid on the stage (milestone 160, the mailer): opened as a box's folded lid is, unless it is shut, picked
+ * (it and its tuck), folding, or closed at the end of going together. Returns the boards it moved.
+ */
+export function openWrapOnStage(d: Design, r: { xf: Map<string, THREE.Matrix4> }, v: { shut: Record<string, boolean>; selected: string[]; foldT: number; closeK?: number }): string[] {
+  const w = wrapLid(d);
+  if (!w || v.shut[`wrap:${w.lid}`] || v.foldT < 0.999 || (v.closeK ?? 0) >= 1) return [];
+  const sub = wrapSub(d, w.lid);
+  if (v.selected.some((id) => sub.includes(id))) return [];
+  openWrapLid(d, r, STAGE_WRAP_OPEN * (1 - (v.closeK ?? 0)));
+  return sub;
+}
+
+/** A wrap's lid and every board folded off it. */
+function wrapSub(d: Design, lid: string): string[] {
+  const sub: string[] = [];
+  const walk = (id: string) => {
+    sub.push(id);
+    for (const x of Object.values(d.connections)) if (x.grown && x.a.panelId === id) walk(x.b.panelId);
+  };
+  walk(lid);
+  return sub;
+}
+
 /** The lid of a wrap opened `deg` from shut, about its fold with the board it comes off (it and what folds off it). */
-function openWrapLid(d: Design, shown: Posed, deg: number) {
+function openWrapLid(d: Design, shown: { xf: Map<string, THREE.Matrix4> }, deg: number) {
   const w = wrapLid(d);
   const c = w && d.connections[w.hinge];
   if (!w || !c) return;
@@ -131,12 +158,7 @@ function openWrapLid(d: Design, shown: Posed, deg: number) {
   const [a, b] = edgeWorld(parent, c.a.edge).map((q) => new THREE.Vector3(...q).applyMatrix4(M));
   const axis = b.clone().sub(a).normalize();
   // it and every board folded off it
-  const sub: string[] = [];
-  const walk = (id: string) => {
-    sub.push(id);
-    for (const x of Object.values(d.connections)) if (x.grown && x.a.panelId === id) walk(x.b.panelId);
-  };
-  walk(w.lid);
+  const sub = wrapSub(d, w.lid);
   const lid = d.panels[w.lid];
   const centre = new THREE.Vector3(...toWorld(lid.frame, lid.w / 2, lid.h / 2, 0)).applyMatrix4(shown.xf.get(lid.id) ?? new THREE.Matrix4());
   // the way that lifts the lid
@@ -319,6 +341,7 @@ export const STAGE_ENDS_OPEN = 1.12;
  * (then they close at the end, `closeK`); every other flap follows the fold slider.
  */
 export function stageFlapT(d: Design, connId: string, f: Flap3d, v: { foldT: number; shut: Record<string, boolean>; selected: string[]; closeK?: number }): number {
+  if (f.opensWith && f.hinge) return lidFlapT(d, f, v);
   if (f.endOf !== 'top' || !f.hinge || !connId.startsWith('end:') || v.foldT < 0.999) return v.foldT;
   // `end:<tray>:<end>` (a tray's id may have colons of its own)
   const tray = connId.slice(4, connId.lastIndexOf(':'));
@@ -330,6 +353,27 @@ export function stageFlapT(d: Design, connId: string, f: Flap3d, v: { foldT: num
   return 1 - STAGE_ENDS_OPEN * (1 - k);
 }
 
+/** How far a closure's lip stands open on an open lid: nearly in line with it, so the inside is clear and the lip shows. */
+export const STAGE_LIP_OPEN = 0.85;
+
+/**
+ * A closure's flap on the stage (milestone 160): while its lid is shown open (as `applyLidPoses` opens it: not shut,
+ * not picked, not folding, not closed at the end of going together) the dust flaps stand a little past upright and
+ * the lid's lip opens nearly in line with the lid, so the inside is clear to work in (dividers, shapes on the walls).
+ */
+function lidFlapT(d: Design, f: Flap3d, v: { foldT: number; shut: Record<string, boolean>; selected: string[]; closeK?: number }): number {
+  if (v.foldT < 0.999) return v.foldT;
+  const t = Object.values(d.trays ?? {}).find((x) => !x.lidOf && boxLid(d, x.id).kind === 'hinged' && (boxLid(d, x.id) as { lid?: string }).lid === f.opensWith);
+  if (!t || v.shut[t.id]) return v.foldT;
+  const lid = boxLid(d, t.id);
+  const ids = new Set(lidParts(d, lid));
+  if (v.selected.some((id) => ids.has(id))) return v.foldT;
+  const k = v.closeK ?? 0;
+  if (k >= 1) return 1;
+  const open = f.owner === f.opensWith ? STAGE_LIP_OPEN : STAGE_ENDS_OPEN;
+  return 1 - open * (1 - k);
+}
+
 /**
  * The box a design fills as the stage shows it (milestone 152): lids opened or lifted as shown and a tray's top flaps
  * standing open, so framing it leaves nothing cut off (a tall carton's open lid was framed out).
@@ -337,6 +381,7 @@ export function stageFlapT(d: Design, connId: string, f: Flap3d, v: { foldT: num
 export function shownBox(d: Design, shut: Record<string, boolean> = {}): THREE.Box3 {
   const r = foldDisplay(d, 1);
   applyLidPoses(d, r, { shut, selected: [], foldT: 1, assembling: false });
+  openWrapOnStage(d, r, { shut, selected: [], foldT: 1 });
   const box = boxOf(d, d.order, r.xf);
   for (const c of Object.values(d.connections))
     for (const f of c.geom?.flaps3d ?? []) {

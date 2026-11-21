@@ -8,14 +8,14 @@
 // between the lid and those walls. Pulled short, the lid stops sealing and
 // the joint goes; its settings stay, and come back with it.
 import { flatLidGeom } from './lid';
-import type { Closure, ClosureStyle, ConnGeom, Connection, Design, MaterialKind, P2, Panel } from './types';
+import type { Closure, ClosureStyle, ConnGeom, Connection, Design, Flap3d, MaterialKind, P2, Panel } from './types';
 import { findEdge, segLength } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
 import { matOf, tOf } from './materials';
 import { v3cross, v3dot, v3sub, v3norm } from '../geom/v3';
 import { autoFlap } from './seams';
 import { bandOf } from './bands';
-import { endGeom, reconcileEnds } from './cartons';
+import { endGeom, endHinge, reconcileEnds } from './cartons';
 
 /** The closure joint of a lid. */
 export const closureId = (lid: string) => `close:${lid}`;
@@ -177,6 +177,16 @@ function roundedTab(x0: number, x1: number, y0: number, y1: number, r: number): 
  * wall; dust flaps on the side walls' top edges, folded in under the lid; a
  * slot for the tongue and a thumb notch in the front wall.
  */
+/**
+ * A closure's lip (and a tab's tongue) as a flap of the lid: its folded slab is in the front wall's coordinates, but it
+ * turns with the lid about the lid's far edge (`owner` the lid), so an opened lid carries it and the fold view lays
+ * it out in line with the lid; it opens with the lid on the stage (`opensWith`).
+ */
+function lipHinge(L: Panel, s0: number, s1: number, F: Panel, folded: P2[], tF: number, tL: number): Pick<Flap3d, 'owner' | 'hinge' | 'angle' | 'frame' | 'opensWith'> {
+  const h = endHinge(L, { a: { x: s0, y: L.h }, b: { x: s1, y: L.h } }, 1, folded.map((q) => toWorld(F.frame, q.x, q.y, tF + tL / 2)), tL);
+  return { ...h, frame: { o: [...F.frame.o], u: [...F.frame.u], v: [...F.frame.v], side: F.frame.side }, opensWith: L.id };
+}
+
 export function closureGeom(d: Design, c: Connection): ConnGeom | null {
   // a tray's flapped end (milestone 68)
   if (c.id.startsWith('end:')) return endGeom(d, c);
@@ -204,8 +214,11 @@ export function closureGeom(d: Design, c: Connection): ConnGeom | null {
       const lip = roundedTab(s0, s1, L.h, L.h + len, style === 'glued' ? 1 : 4);
       g.adds.push({ panelId: L.id, poly: lip });
       g.scores.push({ panelId: L.id, a: { x: s0, y: L.h }, b: { x: s1, y: L.h } });
-      // folded down inside the front wall
-      g.flaps3d.push({ panelId: F.id, poly: lip.map((q) => down(q.x, q.y - L.h)), z0: tF, z1: tF + tL });
+      // folded down inside the front wall, hinged on the lid's far edge so it rides with the lid (an opened lid
+      // shows its lip; the fold view unfolds it in line with the lid)
+      const lipIn = lip.map((q) => down(q.x, q.y - L.h));
+      const onLid = lipHinge(L, s0, s1, F, lipIn, tF, tL);
+      g.flaps3d.push({ panelId: F.id, poly: lipIn, z0: tF, z1: tF + tL, ...onLid });
       if (style === 'tuckLock') {
         // slits at the ends of the lip's fold, into the lid: they catch the dust flaps' shoulders
         g.lines = [
@@ -220,7 +233,7 @@ export function closureGeom(d: Design, c: Connection): ConnGeom | null {
         const tongue = roundedTab(mid - tw / 2, mid + tw / 2, L.h + len - 0.01, L.h + len + tl, 2);
         g.adds.push({ panelId: L.id, poly: tongue });
         // in 3D it folds down with the lip, its end through the slot (it was cut but never drawn)
-        g.flaps3d.push({ panelId: F.id, poly: tongue.map((q) => down(q.x, q.y - L.h)), z0: tF, z1: tF + tL });
+        g.flaps3d.push({ panelId: F.id, poly: tongue.map((q) => down(q.x, q.y - L.h)), z0: tF, z1: tF + tL, ...onLid });
         const at = down(mid, len);
         const sw = tw + clr, sh = tL + clr;
         g.holes.push({ panelId: F.id, poly: [{ x: at.x - sw / 2, y: at.y - sh / 2 }, { x: at.x + sw / 2, y: at.y - sh / 2 }, { x: at.x + sw / 2, y: at.y + sh / 2 }, { x: at.x - sw / 2, y: at.y + sh / 2 }] });
@@ -265,7 +278,11 @@ export function closureGeom(d: Design, c: Connection): ConnGeom | null {
         return toLocal(L.frame, p);
       };
       // in the lid's plane but riding on its side wall (milestone 76: an opened lid leaves it where it is)
-      g.flaps3d.push({ panelId: S.id, owner: S.id, planeOf: L.id, frame: { o: [...L.frame.o], u: [...L.frame.u], v: [...L.frame.v], side: L.frame.side }, poly: ring.map(under), z0: tL, z1: tL + tS });
+      // hinged on the side wall's top edge: it unfolds in line with the wall in the fold view, and stands open on the
+      // stage while the lid is open (milestone 160)
+      const folded = ring.map(under);
+      const hinge = endHinge(S, { a: { x: Math.min(xh, xf), y: y0 }, b: { x: Math.max(xh, xf), y: y0 } }, 1, folded.map((q) => toWorld(L.frame, q.x, q.y, tL + tS / 2)), tS);
+      g.flaps3d.push({ panelId: S.id, owner: S.id, planeOf: L.id, frame: { o: [...L.frame.o], u: [...L.frame.u], v: [...L.frame.v], side: L.frame.side }, poly: folded, z0: tL, z1: tL + tS, ...hinge, opensWith: L.id });
     }
   }
   // a thumb notch in the front wall's top, at its middle
