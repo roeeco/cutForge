@@ -2400,6 +2400,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - A mission (Quick build) starts on its click; Workshop's *Shapes* row starts on its click too (it has nothing to set), with an arrow instead of a radio dot.
 - E2E specs follow: `start-sentence` / `start-cards` replace `tpl-sentence` + `start-go`; missions and *Shapes* need no `start-go`; `start-go` is the blank tile.
 
+## Milestone 146 (presets overhaul) — one catalogue ✅
+
+- `src/templates/catalogue.ts`: 16 cards over today's structures, styles, missions and Guided things (`PRESETS_OVERHAUL.md` §6, less the new cards of 152–153). The sentence's first word, Guided's gallery, the teacher's list of plain things and Quick build's *Follow a mission* read it.
+- No list shows a design twice: the sentence's first word on card went from 20 entries to 18 (*a carton* and *an envelope* were the snap-lock and diamond styles), on 4 mm board from 10 to 9 (*a carton* was the RSC). *A tray* picked from a box starts 30 mm tall (and a box from a tray 45 mm), with a note.
+- `?presets&mat=<board>` (development): the contact sheet of every list in a board; `npm run preset-sheet` saves `docs/preset-shots/sheet-<board>.png`.
+- Tests: `tests/presetCatalogue.test.ts` (membership, a design's card, own sizes, each design once on the cut geometry, structural look-alikes) and `tests/e2e/preset-sheet.spec.ts` (picture look-alikes). Known look-alikes: box/tray (structure); the tuck cartons, closed cartons, the envelopes and the sleeve (pictures), each with the milestone that settles it.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

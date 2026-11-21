@@ -700,3 +700,14 @@ Defaults chosen where the brief left room. Each is reversible.
 
 ## Milestone 133 (Shapes R14): verification
 - **Made boards are numbered** like every other board (their face key stays in `src`), so the cut plan, the joint cards and the steps name them as the Workshop does.
+
+## Milestone 146 (presets overhaul): one catalogue
+- **The catalogue is a list of cards over what exists** (`src/templates/catalogue.ts`): no structure, style or mission changed, so saved designs, class lists and goldens are untouched. A design's card is worked out from its mission, template and words (`cardOfDesign`), never stored.
+- **The lists keep their values and test ids**: the sentence's first word still offers a structure's id or `style:<id>`, Guided's things keep their ids (`box`, `box-lid`, …), the missions theirs. Only what is listed, its order and its group headings come from the catalogue.
+- **A design is shown once per list.** Two entries that build the same design, or the same named style at other sizes, are one entry: the one the word shows now, else the named style, else the first. On card that drops *a carton* (it is *Tuck-top snap-lock*) and *an envelope* (it is *Diamond envelope*); on 4 mm board *a carton* is the RSC.
+- **The lists' check is cheap and exact**: a key of the structure and every word (`choiceKey`), with `TemplateDef.sameAs` for a structure that builds what another does (a tray with no handles is a box with no lid). A unit test compares it with the cut geometry, so it can never hide an entry that is different.
+- **A box and a tray start at their own heights** (45 and 30 mm) when one is picked from the other, with a note: kept, the shared height made them the same box. From any other structure the shared words are kept as before. A box that is already 30 mm with no lid *is* the tray, so the list then offers no separate *a tray* (its handles are one pick away after a height change).
+- **Group headings are the cards' groups**: *Boxes and trays*, *Cartons* (the RSC joins the sealed carton under *Box with flaps*, so *Shipping* is no longer a heading), *Flat pieces*, *More*.
+- **Look-alikes are tested twice and allowlisted** (`tests/presetLookalikes.ts`): a structural fingerprint in the unit suite and a difference hash of each picture at 96 × 64 in the browser (`preset-sheet.spec.ts`, 6 of 64 bits: true look-alikes measured 0–5, different presets 7 and up). A pair not listed fails, and so does a listed pair that no longer looks alike, so the lists only shrink; each pair names the group and milestone that settles it.
+- **Mission order and Guided's order are unchanged**; a mission belongs to one card (Pencil box and Game organiser: Organiser; Dice tray: Open box until the pen cup; Card stand: Stand; Escape box: Hinged box).
+

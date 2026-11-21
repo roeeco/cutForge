@@ -54,7 +54,10 @@ test('a change of material after the sentence is filled in keeps what it can and
   await fresh(page);
   await page.getByTestId('mat-card-0.5').click();
   await page.getByTestId('sen-structure').click();
-  await page.getByTestId('sen-structure-opt-carton').click();
+  // milestone 146: on card a carton at its own words is the snap-lock style, listed once under that name
+  await expect(page.getByTestId('sen-structure-opt-carton')).toHaveCount(0);
+  await page.getByTestId('sen-structure-opt-style:tuckSnap').click();
+  await expect(page.getByTestId('sentence')).toHaveAttribute('data-structure', 'carton');
   await page.getByTestId('sen-width').fill('90');
   await page.getByTestId('sen-width').press('Enter');
   await expect(page.getByTestId('sen-width')).toHaveValue('90');

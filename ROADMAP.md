@@ -245,3 +245,24 @@ comes before 115, 117 and 118.**
   142–144 fit anywhere after 137.
 - **Not in this round:** structural curved walls (a plan of their own), the teacher view (F) and offline (G3), which
   the browser passes could not test.
+
+### 5.5 Milestones 146–155: the presets overhaul (plan of 21 November)
+
+`PRESETS_OVERHAUL.md`, from a contact sheet of every preset in every material (`docs/preset-shots/before/`): 38
+entries in four lists (structures, styles, missions, Guided things), about 15 of them different from each other;
+pictures that leave out flaps and show every preset from one view as it is cut; and gaps for plywood and 4 mm board.
+The answer is one catalogue of cards, a view-only pose per card shared by the pictures and the stage, and new cards
+only once the pictures can tell them apart.
+
+| # | Milestone | Plan | Status |
+| --- | --- | --- | --- |
+| **146** | One catalogue: the lists read it, each design once; the contact sheet; the look-alike tests and their allowlists | §7 | ✅ |
+| **147** | Pictures draw everything: flaps, edge features, cut lines, windows; card's contrast | §4.2 | |
+| **148** | Poses: flap hinges, edge-flap angles, the drawer assembled, cutaways, props | §4.1 | |
+| **149** | Views and variants: per-card camera, the view from below, the variant switch; the stage's card colour | §4.3, §4.5 | |
+| **150** | The stage: hero pose, framing, *Show how it closes* | §4.4 | |
+| **151** | Challenges and merges | §6 | |
+| **152** | New cards on the engine as it is | §6 | |
+| **153** | New cards that need engine work (beta) | §6 | |
+| **154** | Words and pictures | — | |
+| **155** | Verification | — | |

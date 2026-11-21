@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test --trace off",
+    "preset-sheet": "SHOTS=1 playwright test -c pw-app.config.ts preset-sheet --trace off",
     "typecheck": "tsc -b --noEmit && tsc -p worker/tsconfig.json --noEmit",
     "dev:worker": "wrangler d1 migrations apply cutforge --local && wrangler dev --port 8787",
     "db:generate": "drizzle-kit generate",

@@ -1,16 +1,12 @@
 // Guided's gallery (milestone 106, GUIDED_MODE.md §3.1): the things a student can start from. The missions,
 // then the plain things, each one of the sentence's structures with set words (ROADMAP §5.2 #3): this file
-// holds only words, never a recipe.
-import { CARD_FOLD_MAX, foldsAsCarton, MATERIALS } from '../model/materials';
-import { createDesign } from '../model/ops';
-import { reassemble } from '../model/reassemble';
-import { solidPoly } from '../model/solids';
+// holds only words, never a recipe. Milestone 146: which things, in which order and with which words, is the
+// catalogue's (templates/catalogue.ts); their ids are kept for the classes' saved lists.
 import type { Design, MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
-import { defaults, generate, templateById } from '../templates/registry';
-import { makes, type Params } from '../templates/types';
-
-import { MISSIONS, startMission } from '../easy/missions';
+import { catalogueMissions, guidedCan, guidedEntries } from '../templates/catalogue';
+import { guidedDesign, solidDesign } from '../templates/guidedDesigns';
+import { startMission } from '../easy/missions';
 import { offered } from '../easy/plainThings';
 
 export type Thing = {
@@ -26,46 +22,21 @@ export type Thing = {
   start: (m: MaterialProfile) => Design;
 };
 
-/**
- * A plain thing's design: its structure with its words, then detached from the template (owner question 6):
- * nothing later rebuilds it from the words (a change of board, the class's profile, a fix), so Build's sizes
- * stay. Its sizes stay stated as the inside, and its boards keep their stable names.
- */
-function plain(id: string, words: Params): (m: MaterialProfile) => Design {
-  return (m) => {
-    const t = templateById(id)!;
-    const d = generate(t, m, { ...defaults(t), ...words });
-    delete d.template;
-    d.sizeAs = 'inside';
-    return d;
-  };
-}
+/** The plain things: the catalogue's Guided entries that are structures (owner question 12: the round box is 100 × 100 outside, its inside measured). */
+export const PLAIN: Thing[] = guidedEntries()
+  .filter((x) => !x.v.solid)
+  .map(({ v, g }) => ({ id: g.id, title: g.title, blurb: g.blurb, can: (m: MaterialProfile) => guidedCan(v, g, m), ...(g.why ? { why: g.why } : {}), start: (m: MaterialProfile) => guidedDesign(v, g, m) }));
 
-/** The plain things (owner question 12: the round box is 100 × 100 outside, its inside measured). */
-export const PLAIN: Thing[] = [
-  { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside' }) },
-  { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 120, depth: 80, height: 45, sizeAs: 'inside', lid: 'liftoff' }) },
-  { id: 'round-box', title: 'g.thing.round', blurb: 'g.thing.round.blurb', can: (m) => makes(templateById('box')!, m), start: plain('box', { width: 100, depth: 100, height: 45, sizeAs: 'inside', shape: 'round' }) },
-  { id: 'carton', title: 'g.thing.carton', blurb: 'g.thing.carton.blurb', can: (m) => makes(templateById('carton')!, m) && foldsAsCarton(m, 2), why: 'g.thing.cartonNo', start: plain('carton', {}) },
-];
+/** A ready shape (milestone 128): see templates/guidedDesigns.ts. */
+export const startSolid = solidDesign;
 
-/** A ready shape (milestone 128, SHAPES_TO_DIELINES_PLAN.md R9): always folded from card, its net made at once (no kernel). */
-export function startSolid(kind: 'pyramid' | 'diamond', m: MaterialProfile): Design {
-  const card = m.kind === 'card' && m.thickness <= CARD_FOLD_MAX ? m : MATERIALS[0];
-  const d = createDesign(card);
-  const solid = kind === 'pyramid' ? { kind, w: 100, h: 80, n: 4 } : { kind, w: 100, h: 80, n: 8 };
-  reassemble(d, solidPoly(solid), { as: 'fold', solid });
-  return d;
-}
-
-/** The ready shapes (R9): a pyramid and a diamond. */
-export const SHAPE_THINGS: Thing[] = [
-  { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', can: () => true, start: (m) => startSolid('pyramid', m) },
-  { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', can: () => true, start: (m) => startSolid('diamond', m) },
-];
+/** The ready shapes (R9): a pyramid and a diamond, from the catalogue. */
+export const SHAPE_THINGS: Thing[] = guidedEntries()
+  .filter((x) => !!x.v.solid)
+  .map(({ v, g }) => ({ id: g.id, title: g.title, blurb: g.blurb, can: (m: MaterialProfile) => guidedCan(v, g, m), start: (m: MaterialProfile) => guidedDesign(v, g, m) }));
 
 /** The missions Guided offers (the Escape box needs hasps, which Guided does not have: owner question 8). */
-export const GUIDED_MISSIONS: Thing[] = MISSIONS.filter((ms) => !ms.levels || ms.levels.includes('guided')).map((ms) => ({
+export const GUIDED_MISSIONS: Thing[] = catalogueMissions().filter((ms) => !ms.levels || ms.levels.includes('guided')).map((ms) => ({
   id: ms.id,
   title: ms.title,
   blurb: ms.description,

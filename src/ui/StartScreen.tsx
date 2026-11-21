@@ -20,7 +20,8 @@ import { Icon, Logo } from './icons';
 import { designPicture, MISSION_PROP } from '../views/picture';
 import { listDesigns, loadDesign, type DesignMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
-import { MISSIONS, missionById, startMission, type Mission } from '../easy/missions';
+import { missionById, startMission, type Mission } from '../easy/missions';
+import { catalogueMissions } from '../templates/catalogue';
 import { shown, useFeature, useMode } from '../easy/features';
 
 const thumbCache = new Map<string, string | null>();
@@ -66,7 +67,7 @@ export function StartScreen() {
   const offered = useStore((s) => s.viewPrefs.missions);
   const mat = MATERIALS.find((m) => m.id === matId)!;
   // only what this material can make is offered (hidden, never greyed)
-  const missions = quick ? MISSIONS.filter((m) => (!offered || offered.includes(m.id)) && m.materials.includes(mat.kind)) : [];
+  const missions = quick ? catalogueMissions().filter((m) => (!offered || offered.includes(m.id)) && m.materials.includes(mat.kind)) : [];
   const mission = missions.find((m) => m.id === missionId);
   // milestone 120: a sculpture design (Workshop only)
   const shapesOk = shown(useFeature('start.shapes'));

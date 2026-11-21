@@ -8,15 +8,16 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
 import { useStore, useT } from '../store/store';
-import { STRUCTURES, templateById } from '../templates/registry';
-import { makes, type ParamDef, type TemplateDef } from '../templates/types';
-import { choose, chooseStructure, listOf, rangeNow, resolve, type Change, type Value } from './resolve';
+import { templateById } from '../templates/registry';
+import { type ParamDef, type TemplateDef } from '../templates/types';
+import { choose, listOf, rangeNow, resolve, type Change, type Value } from './resolve';
 import { addable, clausesOf, parts, readout, type Readout, type SentenceValue } from './model';
 import { Word } from './Word';
 import { NumberWord, type NumRange } from './NumberWord';
 import { designPicture } from '../views/picture';
 import { builtFor } from '../templates/structures/box';
-import { GROUPS, STRUCTURE_GROUP, STYLES, chooseStyle, isAlias, styleById, styleDesc, styleListed, styleName, styleOf, styleWord } from '../templates/styles';
+import { STYLES, isAlias, styleById, styleDesc, styleName, styleOf, styleWord } from '../templates/styles';
+import { entryChoice, entryGroupKey, sentenceEntries } from '../templates/catalogue';
 
 const pics = new Map<string, string | null>();
 function picture(def: TemplateDef, m: MaterialProfile, p: Record<string, Value>, w = 96, h = 64): string | null {
@@ -103,7 +104,8 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
     else apply(r);
   };
 
-  // the first word (milestone C1): the structures and the named styles of each group; the word shows the style its words match
+  // the first word (milestone C1): the structures and the named styles of each group; the word shows the style its words match.
+  // Milestone 146: the list is the catalogue's (templates/catalogue.ts), each design in it once
   const style = styleOf(def.id, p);
   const structureValue: Value = style && !isAlias(style) ? `style:${style.id}` : def.id;
   const entryText = (v: Value) => {
@@ -115,25 +117,14 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
     const k = String(v);
     return k.startsWith('style:') ? { style: styleById(k.slice(6))! } : { def: templateById(k)! };
   };
-  const entryGroup = (v: Value) => {
-    const e = entryOf(v);
-    return t(`style.group.${e.style ? e.style.group : (STRUCTURE_GROUP[e.def!.id] ?? 'more')}` as MsgKey);
-  };
+  const entryGroup = (v: Value) => t(entryGroupKey(v));
   const entryDetail = (v: Value) => {
     const e = entryOf(v);
     if (e.style) return t(styleDesc(e.style));
     const alias = STYLES.find((x) => x.structure === e.def!.id && isAlias(x));
     return alias ? `${t(styleName(alias))} · ${t(styleDesc(alias))}` : null;
   };
-  const entries = (): Value[] => {
-    const structs = STRUCTURES().filter((x) => makes(x, m));
-    const out: Value[] = [];
-    for (const g of GROUPS) {
-      for (const x of structs) if ((STRUCTURE_GROUP[x.id] ?? 'more') === g) out.push(x.id);
-      for (const st of STYLES) if (st.group === g && !isAlias(st) && styleListed(st, m, p, templateById)) out.push(`style:${st.id}`);
-    }
-    return out;
-  };
+  const entries = (): Value[] => sentenceEntries(m, p, structureValue);
   const structureWord = (
     <Word
       name={t('sen.structure')}
@@ -143,16 +134,11 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
       group={entryGroup}
       detail={entryDetail}
       picture={(v) => {
-        const e = entryOf(v);
-        if (e.style) {
-          const r = chooseStyle(e.style, m, p, templateById);
-          return r ? picture(templateById(r.id)!, m, r.params) : null;
-        }
-        return picture(e.def!, m, chooseStructure(e.def!, m, p).params);
+        const r = entryChoice(v, m, p, structureValue);
+        return r ? picture(templateById(r.id)!, m, r.params) : null;
       }}
       onPick={(v) => {
-        const e = entryOf(v);
-        const r = e.style ? chooseStyle(e.style, m, p, templateById) : { id: e.def!.id, ...chooseStructure(e.def!, m, p) };
+        const r = entryChoice(v, m, p, structureValue);
         if (!r) return;
         setNotes(r.changes);
         props.onChange({ id: r.id, params: r.params }, r.changes);

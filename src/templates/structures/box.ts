@@ -366,5 +366,7 @@ export const tray: TemplateDef = {
   sentence: { main: 'sen.s.box' },
 };
 tray.limits = boxLimits(tray);
+// the same generator as the box's (`generateBox`): with no handles, a tray is a box with no lid, window or finger notch
+tray.sameAs = (p) => (!p.handles || p.handles === 'none' ? { id: 'box', params: { ...p, lid: 'none', window: 'none', finger: 'none' } } : null);
 tray.accepts = (m, p) => (cleanAll(tray, m, p) ? null : 'sen.why.engineSize');
 

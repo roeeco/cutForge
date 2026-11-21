@@ -32,6 +32,7 @@ npx playwright test -c pw-app.config.ts --grep-invert classroom   # app specs on
 SHOTS=1 npx playwright test -c pw-app.config.ts shots             # review screenshots into docs/polygon-shots/
 SHOTS=1 npx playwright test -c pw-app.config.ts refine-shots      # milestones 15–20 screenshots into docs/refine-shots/
 SHOTS=1 npx playwright test -c pw-app.config.ts tour             # the first-use tour, every card in English and Hebrew, into docs/tour-shots/
+npm run preset-sheet                                               # every preset in every list, per board, into docs/preset-shots/ (milestone 146)
 UPDATE_GOLDEN=1 npx vitest run tests/golden.test.ts               # only for an intended change in exported files
 ```
 

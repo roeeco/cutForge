@@ -226,6 +226,8 @@ Each ends as before: typecheck, unit suite, goldens byte-identical unless a chan
 | **154** | **Words and pictures:** Hebrew names, `docs/preset-shots/after/`, README for students and teachers. | i18n coverage; the contact sheet reviewed in en and he. |
 | **155** | **Verification**, as milestone 145. | `PROGRESS.md`. |
 
+**Status (2026-11-21):** 146 ✅. Where it differs from the row above: the catalogue holds the 16 cards that exist today (the new ones join in 152–153); a design is shown once per list (Guided's box with a lid and the sentence's *Tray + lid* are in different lists, so both stay); *a box* and *a tray* start at their own heights when one is picked from the other; and the visual look-alike test runs in the browser on the contact sheet (`?presets`). See `DECISIONS.md` and `PROGRESS.md`.
+
 If time is short: 146–149 fix what the owner sees (pictures and look-alikes) without a new preset. 150 makes the stage show how things close. 152 is the first that adds variety.
 
 ## 8. Decisions for the owner
