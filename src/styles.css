@@ -189,8 +189,9 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 
 .card-dock {
   position: absolute; top: 16px; inset-inline-end: 16px; z-index: 7; width: 300px;
-  /* stops above the stage's bottom-right buttons (fit view, view cube), scrolling inside */
-  max-height: calc(100% - 210px); display: flex; flex-direction: column; pointer-events: none;
+  /* stops above the stage's bottom-right buttons (the view dock: the cube and its buttons, 149px, 16px from the
+     bottom) with 12px to spare, scrolling inside; at 1366 × 768 the default settings card then fits (settings.spec) */
+  max-height: calc(100% - 193px); display: flex; flex-direction: column; pointer-events: none;
 }
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-float);
@@ -846,6 +847,8 @@ a.btn.subtle { border-color: transparent; color: var(--ink-muted); font-size: 13
    now keep 8px apart, sections 14px, and wrapped button labels stay legible. */
 .inspector .card-head { margin-block-end: 12px; gap: 6px; }
 .inspector .subsection { margin-block-start: 14px; padding-block-start: 14px; }
+/* the settings card's sections are headers that fold open: closer together, so its five fit a short stage */
+section[data-testid='inspector-design'] .subsection { margin-block-start: 10px; padding-block-start: 10px; }
 .inspector h4 { margin: 0 0 8px; }
 .inspector section > h4:not(:first-child) { margin-block-start: 16px; }
 .inspector .field { margin: 10px 0; }
