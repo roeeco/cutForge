@@ -13,7 +13,7 @@ import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
 import { addDetail, addFreePanel, connectSeams, solve } from '../../model/ops';
 import { minWeb } from '../../model/materials';
-import { hangByKeyholes, plywoodOnly } from './boards';
+import { cleatFits, cleatSizes, hangByCleat, hangByKeyholes, plywoodOnly } from './boards';
 import { cleanAll, cleanWith } from './box';
 import { sheetLimits } from './shaped';
 
@@ -209,8 +209,10 @@ motorBracket.accepts = (m, p) => (cleanAll(motorBracket, m, p) ? null : 'sen.why
 const PEG = { w: 5, h: 15, dx: 20, dy: 40 };
 
 function generatePegboard(d: Design, p: Params, role: Role) {
-  const W = Number(p.width), H = Number(p.height), feet = p.mount === 'feet';
+  const W = Number(p.width), H = Number(p.height), feet = p.mount === 'feet', cleat = p.mount === 'cleat';
   const t = d.material.thickness;
+  // milestone 179: on a cleat, the slots clear of its band at the top and its stand-off at the foot
+  const band = cleat ? cleatSizes(t).band + 8 : 0;
   const ids: (string | null)[] = [], names: string[] = [];
   // standing: two feet front to back crossing the board's foot in half-slots (the feet first, so they are slotted from their tops)
   const fh = 50, fd = Math.max(100, Math.round(H * 0.4));
@@ -225,17 +227,19 @@ function generatePegboard(d: Design, p: Params, role: Role) {
   names.push('board');
   if (board) {
     // the slots in a grid centred on the board, a margin clear of its edges (and of the feet's slots)
-    const mx = 15, my = feet ? fh + 10 : 25;
-    const cols = Math.floor((W - 2 * mx - PEG.w) / PEG.dx) + 1, rows = Math.floor((H - my - 25 - PEG.h - PEG.dy / 2) / PEG.dy) + 1;
+    const mx = 15, my = (feet ? fh + 10 : 25) + band;
+    const cols = Math.floor((W - 2 * mx - PEG.w) / PEG.dx) + 1, rows = Math.floor((H - my - 25 - band - PEG.h - PEG.dy / 2) / PEG.dy) + 1;
     const x0 = (W - (cols - 1) * PEG.dx) / 2;
     for (let i = 0; i < cols; i++)
       for (let j = 0; j < rows; j++) {
         const cy = my + PEG.h / 2 + j * PEG.dy + (i % 2 ? PEG.dy / 2 : 0);
-        if (cy + PEG.h / 2 < H - 20) addDetail(d, board, 'roundrect', 'cut', x0 + i * PEG.dx, cy, PEG.w, PEG.h);
+        if (cy + PEG.h / 2 < H - 20 - band) addDetail(d, board, 'roundrect', 'cut', x0 + i * PEG.dx, cy, PEG.w, PEG.h);
       }
   }
   finish(d, ids, names, role);
-  if (!feet && board) {
+  if (cleat && board) {
+    for (const c of hangByCleat(d, board, { below: 4, stud: { y: 4, h: cleatSizes(t).band, x0: W * 0.25, x1: W * 0.75 } })) role(c.name, c.id);
+  } else if (!feet && board) {
     // hung on a wall: keyholes between the top two rows of slots
     hangByKeyholes(d, board, 4);
     solve(d);
@@ -254,9 +258,10 @@ export const pegboard: TemplateDef = {
     num('height', 'sen.height', 200, 400, 280),
     {
       key: 'mount', label: 'sen.mount', type: 'choice', default: 'keyholes',
-      options: [{ value: 'keyholes', label: 'sen.mount.keyholes' }, { value: 'feet', label: 'sen.mount.feet' }],
-      allowed: (v, p, m) => cleanWith(pegboard, m, p, 'mount', v),
-      why: () => 'sen.why.engine',
+      // milestone 179: or on a cleat (the word *hang by* of every wall card)
+      options: [{ value: 'keyholes', label: 'sen.mount.keyholes' }, { value: 'feet', label: 'sen.mount.feet' }, { value: 'cleat', label: 'sen.mount.cleat' }],
+      allowed: (v, p, m) => (v === 'cleat' ? cleatFits(pegboard, m, p, 'mount', 'cleat') : cleanWith(pegboard, m, p, 'mount', v)),
+      why: (v, _p, m) => (v === 'cleat' && m.kind !== 'plywood' ? 'sen.why.plyOnly' : v === 'cleat' ? 'sen.why.cleatRoom' : 'sen.why.engine'),
     },
   ],
   generate: generatePegboard,

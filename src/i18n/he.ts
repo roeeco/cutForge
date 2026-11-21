@@ -2570,4 +2570,9 @@ export const he: Record<MsgKey, string> = {
   'sen.honeycombRack': "מתקן חלת דבש",
   'sen.honeycombRack.desc': "פסים שמצטלבים ב־60° בחצאי חריצים בתוך מסגרת: בקבוקים שוכבים בתאים דמויי היהלום",
   'sen.s.honeycombRack': "אני רוצה להכין {structure} לבקבוקים בקוטר {bottle} מ״מ, {columns} תאים לרוחב ו־{rows} שורות לגובה, בעומק {depth} מ״מ",
+  // --- milestones 178 (part 2) and 179 (BOXES_PLYWOOD_PLAN.md §3.2, §3.3)
+  "sen.hang.cleat": "מחזיק מדורג: וו מודבק על גבו נכנס מאחורי פס שמוברג לקיר",
+  "sen.why.cleatRoom": "אין מקום בגב למחזיק מדורג: הגדילו את הגובה",
+  "sen.mount.cleat": "תלוי על הקיר במחזיק מדורג",
+  // --- end of milestones 178 (part 2) and 179
 };

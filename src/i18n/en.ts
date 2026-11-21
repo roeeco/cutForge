@@ -2568,6 +2568,11 @@ export const en = {
   'sen.honeycombRack': "a honeycomb rack",
   'sen.honeycombRack.desc': "Slats crossing at 60° in half-slots inside a frame: bottles lie in the diamond-shaped cells",
   'sen.s.honeycombRack': "I'd like to make {structure} for bottles {bottle} mm across, {columns} cells across and {rows} rows high, {depth} mm deep",
+  // --- milestones 178 (part 2) and 179 (BOXES_PLYWOOD_PLAN.md §3.2, §3.3)
+  "sen.hang.cleat": "a cleat: a hook glued on its back drops behind a strip screwed to the wall",
+  "sen.why.cleatRoom": "No room on its back for a cleat: make it taller",
+  "sen.mount.cleat": "hung on a wall by a cleat",
+  // --- end of milestones 178 (part 2) and 179
 } as const;
 
 export type MsgKey = keyof typeof en;

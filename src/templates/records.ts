@@ -130,6 +130,8 @@ export type PresetRecord = {
   stack?: boolean;
   /** Milestone 177: a grid of holes through a box's base (four or more): a sieve. */
   sieve?: boolean;
+  /** Milestone 179: it hangs on a cleat (boards marked `Panel.cleat`); the rest of the record is the thing without them. */
+  cleat?: boolean;
 };
 
 const boxTrays = (d: Design): Tray[] => Object.values(d.trays ?? {}).filter((t) => !t.lidOf);
@@ -457,6 +459,17 @@ function layersOf(d: Design, ids: string[]): PresetRecord | null {
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
+  // milestone 179: a thing hung on a cleat is the thing (read without the cleat's boards), and it hangs
+  if (d.order.some((id) => d.panels[id]?.cleat)) {
+    const keep = (id: string) => !!d.panels[id] && !d.panels[id].cleat;
+    const bare: Design = {
+      ...d,
+      panels: Object.fromEntries(Object.entries(d.panels).filter(([id]) => keep(id))),
+      order: d.order.filter(keep),
+      connections: Object.fromEntries(Object.entries(d.connections).filter(([, c]) => keep(c.a.panelId) && keep(c.b.panelId))),
+    };
+    return { ...recordOf(bare), hang: true, cleat: true };
+  }
   const t = mainOf(d);
   const slits = Object.values(d.panels).some((p) => (p.lines ?? []).some((l) => l.type === 'cut'));
   if (t) {

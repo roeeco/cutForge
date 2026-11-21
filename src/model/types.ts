@@ -185,6 +185,12 @@ export type Panel = {
    * joint's notch above a foot becomes a slot it closes. Absent: none.
    */
   stack?: PanelStack;
+  /**
+   * Milestone 179 (BOXES_PLYWOOD_PLAN.md §3.3): a board of a cleat to hang the thing on a wall by (`hangByCleat`):
+   * `item`, glued on the thing's back (its hook and stand-off); `wall`, the matching board screwed to the wall. The
+   * record reads the thing without them, and that it hangs. Absent: none.
+   */
+  cleat?: 'item' | 'wall';
 };
 
 /** A board's stacking edges (milestone 177): see `Panel.stack`. */
