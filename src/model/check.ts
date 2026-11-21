@@ -33,7 +33,7 @@ const oneOf = <T,>(v: unknown, all: readonly T[], where: string): T => (all.incl
 const arr = (v: unknown, where: string): any[] => (Array.isArray(v) ? v : fail(where, 'not a list'));
 
 const MATERIAL_KINDS = ['card', 'corrugated', 'plywood'] as const;
-const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'lock', 'gusset', 'butt'] as const;
+const CONNECTION_KINDS = ['finger', 'tabslot', 'slide', 'fold', 'glue', 'halflap', 'lean', 'key', 'closure', 'lock', 'gusset', 'laminate', 'butt'] as const;
 const PATTERNS = ['auto', 'smooth', 'score', 'perf', 'kiss', 'slits', 'wave', 'diamond'] as const;
 const CURVE_KINDS = ['teeth', 'tabslot', 'none'] as const;
 const SHAPES = ['rect', 'roundrect', 'circle', 'text', 'path', 'polygon'] as const;

@@ -202,6 +202,8 @@ export function OpenSeams({ panelId }: { panelId: string }) {
         const label =
           s.type === 'cross'
             ? t('seam.cross', { panel: panelLabel(d, other.id, t) })
+            : s.type === 'laminate'
+              ? t('seam.laminate', { panel: panelLabel(d, other.id, t) })
             : mine.edge !== FACE
               ? t('seam.corner', { edge: edgeLabel(d, mine.panelId, mine.edge, t), panel: panelLabel(d, other.id, t) })
               : t('seam.face', { panel: panelLabel(d, other.id, t) });

@@ -2312,6 +2312,9 @@ export const en = {
   'sen.slideBox': "a box with a sliding lid",
   'sen.slideBox.desc': "A lid that slides out in grooves made by rails on the side walls, over a low front",
   'sen.s.slideBox': "I'd like to make {structure} that is {width} wide, {depth} deep and {height} mm tall under the lid",
+  'conn.laminate': "Glued face to face",
+  'conn.short.laminate': "Glued flat",
+  'seam.laminate': "Lies face to face on panel {panel}",
 } as const;
 
 export type MsgKey = keyof typeof en;

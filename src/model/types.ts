@@ -237,6 +237,7 @@ export type ConnectionKind =
   | 'lean' // angled panel resting on its parent, held by side walls (plywood; corrugated of 3 mm or more since milestone 163)
   | 'key' // two boards end to end, held by a puzzle key cut across the seam (milestone 64)
   | 'closure' // how a lid closes the box it seals: its lip, dust flaps, locks (milestone 67; derived from `Design.closures`)
+  | 'laminate' // two boards face to face, glued over the area they share: nothing cut (milestone 173, E1)
   | 'butt'; // edge to edge, no joint
 
 /**

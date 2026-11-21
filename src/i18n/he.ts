@@ -2314,4 +2314,7 @@ export const he: Record<MsgKey, string> = {
   'sen.slideBox': "קופסה עם מכסה נשלף",
   'sen.slideBox.desc': "מכסה שמחליק החוצה בתעלות שיוצרים פסים על הדפנות, מעל חזית נמוכה",
   'sen.s.slideBox': "אני רוצה להכין {structure} ברוחב {width}, בעומק {depth} ובגובה {height} מ״מ מתחת למכסה",
+  'conn.laminate': "הדבקה פנים אל פנים",
+  'conn.short.laminate': "הדבקה שטוחה",
+  'seam.laminate': "מונח פנים אל פנים על לוח {panel}",
 };

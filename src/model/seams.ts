@@ -17,6 +17,7 @@ import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
 import { seamFit, seamGlue } from './seamFold';
+import { laminateFit, laminateGeom } from './laminate';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -354,7 +355,7 @@ export function seamContact(d: Design, c: Connection): number {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return 0;
   if ((c.a.edge !== FACE && !findEdge(A, c.a.edge)) || (c.b.edge !== FACE && !findEdge(B, c.b.edge))) return 0;
-  if (c.kind === 'halflap') return 0;
+  if (c.kind === 'halflap' || c.kind === 'laminate') return 0;
   if (c.b.edge !== FACE && !c.grown) {
     const f = cornerFit(A, c.a.edge, B, c.b.edge, 1e-6);
     if (f) return f.s1 - f.s0;
@@ -402,7 +403,7 @@ function cornerSlivers(P: Panel, key: string, depth: number): { panelId: string;
  */
 export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
   const g = connectionGeomRaw(d, c);
-  if (!g || c.grown || c.wing || c.bandEnd || c.kind === 'closure') return g;
+  if (!g || c.grown || c.wing || c.bandEnd || c.kind === 'closure' || c.kind === 'laminate') return g;
   let out = g;
   for (const x of Object.values(d.connections)) {
     if (!x.grown || x.kind !== 'fold' || !((x.radius ?? 0) > 0) || (x.a.panelId !== c.a.panelId && x.a.panelId !== c.b.panelId)) continue;
@@ -477,6 +478,8 @@ function connectionGeomRaw(d: Design, c: Connection): ConnGeom | null {
   if (c.bandEnd) return bandEndGeom(d, c);
   // a lid's closure (milestone 67)
   if (c.kind === 'closure') return closureGeom(d, c);
+  // two boards glued face to face (milestone 173): nothing cut, only where the glue goes
+  if (c.kind === 'laminate') return laminateGeom(d, c);
   // a closing seam on an edge a cut split into pieces: one joint per pair of pieces that meet
   if (!c.grown && c.kind !== 'halflap') {
     const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
@@ -1128,13 +1131,13 @@ function withFold(t: number, O: Panel, flat: P2[], f: Flap3d, R: Panel): Flap3d 
   return { ...f, owner: O.id, hinge: [local3(O, P), local3(O, v3add(P, v3mul(a, len)))], angle: (th * 180) / Math.PI };
 }
 
-export type SeamType = 'corner' | 'face' | 'cross';
+export type SeamType = 'corner' | 'face' | 'cross' | 'laminate';
 export type OpenSeam = { type: SeamType; a: { panelId: string; edge: string }; b: { panelId: string; edge: string }; overlapping: boolean; /** Corner angle (degrees). */ angle?: number };
 
 /** World segment where a seam's panels meet (along its owner edge), or null. */
 function seamSegment(d: Design, s: { type: SeamType; a: EdgeRef2; b: EdgeRef2 }): [V3, V3] | null {
   const A = d.panels[s.a.panelId], B = d.panels[s.b.panelId];
-  if (!A || !B || s.type === 'cross') return null;
+  if (!A || !B || s.type === 'cross' || s.type === 'laminate') return null;
   if (s.a.edge === FACE || !findEdge(A, s.a.edge)) return null;
   const f = s.type === 'corner' && s.b.edge !== FACE && findEdge(B, s.b.edge) ? cornerFit(A, s.a.edge, B, s.b.edge, 1e-6) : faceFit(A, s.a.edge, B, tOf(d, B.id), true, 1e-6, undefined, true, tOf(d, A.id));
   if (!f) return null;
@@ -1184,6 +1187,8 @@ export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
   const fa = faceA.map((x) => ({ type: 'face' as const, a: { panelId: A.id, edge: x.e }, b: { panelId: B.id, edge: FACE }, overlapping: x.f!.d1 > 1e-6 }));
   cand.push(...(preferA ? [...fa, ...fb] : [...fb, ...fa]));
   if (crossFit(A, B, tA, tB)) cand.push({ type: 'cross', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: true });
+  // milestone 173 (E1): two boards lying face to face, glued
+  if (!cand.length && laminateFit(d, A, B)) cand.push({ type: 'laminate', a: { panelId: A.id, edge: FACE }, b: { panelId: B.id, edge: FACE }, overlapping: false });
   return dedupeSeams(d, cand, []);
 }
 
@@ -1193,8 +1198,8 @@ function dedupeSeams(d: Design, cand: OpenSeam[], taken: { type: SeamType; a: Ed
   const segs = taken.map((x) => seamSegment(d, x));
   for (const c of cand) {
     const all = [...taken, ...out];
-    if (c.type === 'cross') {
-      if (!all.some((x) => x.type === 'cross')) out.push(c);
+    if (c.type === 'cross' || c.type === 'laminate') {
+      if (!all.some((x) => x.type === c.type)) out.push(c);
       continue;
     }
     // the same two edges, or the same place reached from different edges, is one seam
@@ -1284,7 +1289,7 @@ export const seamKey = (s: { a: EdgeRef2; b: EdgeRef2 }) =>
 
 /** What kind of meeting a closing seam is. */
 export function seamTypeOf(c: Pick<Connection, 'kind' | 'b'>): SeamType {
-  return c.kind === 'halflap' ? 'cross' : c.b.edge !== FACE ? 'corner' : 'face';
+  return c.kind === 'halflap' ? 'cross' : c.kind === 'laminate' ? 'laminate' : c.b.edge !== FACE ? 'corner' : 'face';
 }
 
 /** Connection kinds offered for a closing seam. */
@@ -1294,6 +1299,8 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
     return k.length ? k : ['butt'];
   }
   if (type === 'cross') return ['halflap'];
+  // milestone 173: boards face to face are glued over the area they share, whatever they are
+  if (type === 'laminate') return ['laminate'];
   const ply = m.kind === 'plywood';
   // corners: tab-and-slot for every material at any corner angle; the corrugated default
   // a slit lock (milestone 68) wherever a glue flap is offered, just after it
