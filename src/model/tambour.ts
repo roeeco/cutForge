@@ -305,7 +305,6 @@ export function stripReach(d: Design, len: number): number {
 export function addStripHandle(d: Design, board: StripBoard & { end: 'start' | 'end' }, width: number, from: number, h: number): string | null {
   const B = d.panels[board.id];
   if (!B) return null;
-  const t = d.material.thickness;
   // along the board: y at the handle's face nearer the end; it stands outward (against the board's material)
   const yEnd = board.end === 'start' ? 0 : board.y1;
   const yFace = board.end === 'start' ? yEnd + from : yEnd - from;
@@ -319,7 +318,6 @@ export function addStripHandle(d: Design, board: StripBoard & { end: 'start' | '
   solve(d);
   connectSeams(d, id);
   solve(d);
-  void t;
   return id;
 }
 

@@ -14,10 +14,10 @@ import { addDetail, addFreePanel, laminateBoards, placeBoardOn, connectSeams, de
 import { straightRing, segInward, segLength } from '../../model/edges';
 import { minWeb } from '../../model/materials';
 import { toLocal, toWorld } from '../../model/frame';
-import { addFlexStrip, addStripHandle, endRoom, endRooms, insetPath, legAt, legSpans, pathBand, pathLength, slitStrip, stripReach, uAt, type FlexPath, type FlexPlane, type StripBoard } from '../../model/tambour';
+import { addFlexStrip, addStripHandle, endRoom, endRooms, insetPath, legSpans, pathBand, pathLength, slitStrip, stripReach, uAt, type FlexPath, type FlexPlane, type StripBoard } from '../../model/tambour';
 import { boardBoxRect, plywoodOnly } from './boards';
 import { slidePlay } from './boardBoxes';
-import { cleanAll, cleanWith, mainTray } from './box';
+import { cleanAll, cleanWith } from './box';
 import { nameAll, sheetLimits, wallsOf } from './shaped';
 
 type Role = (name: string, id: string) => void;
@@ -99,7 +99,6 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
   if (Ro <= 2 * t + 2) return { why: 'sen.why.rollRadius' };
   const path: FlexPath = { pts, Ro, t, k: 0.5, turn: 1 };
   const shell = insetPath(path, tp);
-  const sp = legSpans(path);
   const total = pathLength(path);
   // a point on a leg by its coordinate along it (s on a level leg, y on an upright one)
   const at = (leg: number, c: number) => {
@@ -159,7 +158,6 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
   const mid = (shut + open) / 2;
   let half = shut;
   for (let u = Math.min(shut, open); u <= Math.max(shut, open) + 1e-9; u += 0.5) if (room(u, u + Ld) && Math.abs(u - mid) < Math.abs(half - mid)) half = u;
-  void sp;
   return {
     roll, W, D, H, R, t, play, path, shell, Ld,
     door: { w: dw, handle: roll === 'bread' ? 'start' : 'end', from: hd.from, h: hd.h, hw: dw - 2 * t - 2, keep: hd.keep },
@@ -269,7 +267,6 @@ function generateRollTop(d: Design, p: Params, role: Role) {
   const L = rollLayout(roll, W, D, H, R, t, d.material.clearance);
   if ('why' in L) return;
   if (!boardBoxRect(d, W, D, H)) return;
-  const tr = mainTray(d)!;
   const w = wallsOf(d);
   const named: Record<string, string> = {};
   // the opening: the front wall lowered to it (and the back for two), or taken away (a bread box's open front)
@@ -292,10 +289,8 @@ function generateRollTop(d: Design, p: Params, role: Role) {
     const g = growPanel(d, w.e2, 'e2', { height: 10, angle: 90, dir: 'up', kind: 'finger' });
     if (g) {
       const T = d.panels[g.panelId];
-      const back = d.panels[w.e2];
       // its v runs forward from the back wall's top: as far as the opening's edge
-      const reach = L.stop - (T.frame.o[2] + D / 2) - 0;
-      void back;
+      const reach = L.stop - (T.frame.o[2] + D / 2);
       setPanelSize(d, g.panelId, undefined, Math.max(10, reach));
       solve(d);
       connectSeams(d, g.panelId);
@@ -334,7 +329,6 @@ function generateRollTop(d: Design, p: Params, role: Role) {
     handle = addStripHandle(d, { ...hb, end: L.door.handle }, L.door.hw, L.door.from, L.door.h);
   }
   solve(d);
-  void tr;
   const first: Record<string, string> = { ...named };
   (door ?? []).forEach((b, i) => (first[`door-${i + 1}`] = b.id));
   if (handle) first.handle = handle;
@@ -542,8 +536,7 @@ function generateFlexDoor(d: Design, p: Params, role: Role) {
   const doorBoards = [wall[0], wall[wall.length - 1]].slice(0, doors === 'two' ? 2 : 1);
   for (const b of doorBoards) {
     const B = d.panels[b.id];
-    const first = b === wall[0];
-    // the door's end along its own y: the first board's end is its far one (it was grown back from the left end)
+    // the door's end along its own y: each door was grown away from its corner, so its end is its far one
     const yEnd = B.h;
     for (const sgn of [1, -1] as const) {
       const z = sgn * (D / 2 - L.inset) - (sgn * t) / 2;
@@ -556,7 +549,6 @@ function generateFlexDoor(d: Design, p: Params, role: Role) {
     // a finger notch in the door's end, to lift it by
     const notch = Math.min(16, D / 3);
     addDetail(d, b.id, 'circle', 'cut', B.w / 2, yEnd, notch, notch);
-    void first;
   }
   solve(d);
   for (const id of [...plates, ...wall.map((b) => b.id)]) connectSeams(d, id);
@@ -617,5 +609,4 @@ flexDoor.accepts = (m, p) => {
   return cleanAll(flexDoor, m, p) ? null : 'sen.why.engineSize';
 };
 
-void legAt;
 export type { StripBoard };
