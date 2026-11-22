@@ -758,7 +758,8 @@ export function recordOf(d: Design): PresetRecord {
     // milestone 183: gears inside the box (two or more toothed boards of their own); a game's squares engraved
     if (!tube && freeIn(d, t, toothed).length >= 2) rec.gears = true;
     if (hasGame(d)) rec.game = true;
-    if (!tube && hasStepped(d, t)) rec.stepped = true;
+    // (a roll-top's side walls fall at their rounded corner: a tambour box is never a stepped one)
+    if (!tube && !rec.tambour && hasStepped(d, t)) rec.stepped = true;
     // milestone 178 (part 2): a slanted board of its own with a coin's hole
     if (!tube && freeIn(d, t, (p) => { const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]); return n > 0.2 && n < 0.98 && p.details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 15); }).length) rec.coin = true;
     return rec;
