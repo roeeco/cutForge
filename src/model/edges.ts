@@ -238,8 +238,32 @@ export function straightRing(p: Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; ext?
  * its Add shapes − its Cut shapes, src/model/outline.ts), all rings in turn.
  */
 export function panelEdges(p: Edged): EdgeSeg[] {
+  if (edgeMemo) {
+    let m = edgeMemo.get(p);
+    if (!m) {
+      const r = ownRings(p);
+      edgeMemo.set(p, (m = r.length === 1 ? [...r[0]] : r.flat()));
+    }
+    return m;
+  }
   const r = ownRings(p);
   return r.length === 1 ? r[0] : r.flat();
+}
+
+/**
+ * Milestone 183: while a search for seams runs (`findOpenSeams`, `seamsBetween`), no board changes, so each board's
+ * edges are worked out once and looked up by key. A board with hundreds of edges (a gear) made every lookup work its
+ * whole outline out again. Nested calls share the outer memo; the result is the same as without it.
+ */
+let edgeMemo: WeakMap<object, EdgeSeg[]> | null = null;
+export function withEdgeMemo<T>(fn: () => T): T {
+  if (edgeMemo) return fn();
+  edgeMemo = new WeakMap();
+  try {
+    return fn();
+  } finally {
+    edgeMemo = null;
+  }
 }
 
 type Edged = Pick<Panel, 'w' | 'h'> & { sketch?: Sketch; details?: Panel['details'] };
@@ -257,7 +281,7 @@ export function findEdge(p: Edged, key: EdgeArg): EdgeSeg | undefined {
   const k = ek(key);
   const all = panelEdges(p);
   // a shared (cached) outline is looked up by key, not scanned: a rounded base has dozens of arc segments (milestone 64)
-  if (Object.isFrozen(all)) {
+  if (Object.isFrozen(all) || edgeMemo) {
     let idx = edgeIndex.get(all);
     if (!idx) {
       idx = new Map();
