@@ -1,9 +1,9 @@
 // The sentence (milestone 97, SENTENCE_BUILDER_PLAN.md §4): one whole
 // sentence per language with its words as buttons and number fields, the
 // add-on clauses with × and *+ more*, a line of values measured on the built
-// design, the change notes (read out from a live region), and a picture
-// rebuilt 150 ms after the last change. Under 600 px wide the same words are
-// labelled rows. The material is the welcome screen's step 1.
+// design, the change notes (read out from a live region), and the design on
+// the editor's 3D stage (it can be turned), rebuilt 150 ms after the last
+// change. Under 600 px wide the same words are labelled rows. The material is the welcome screen's step 1.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { MaterialProfile } from '../model/types';
 import type { MsgKey } from '../i18n';
@@ -15,6 +15,8 @@ import { addable, clausesOf, parts, readout, type Readout, type SentenceValue } 
 import { Word } from './Word';
 import { NumberWord, type NumRange } from './NumberWord';
 import { designPicture } from '../views/picture';
+import { Preview3D } from '../views/Preview3D';
+import type { Design } from '../model/types';
 import { builtFor } from '../templates/structures/box';
 import { STYLES, isAlias, styleById, styleDesc, styleName, styleOf, styleWord } from '../templates/styles';
 import { entryChoice, entryGroupKey, entryLabel, sentenceEntries } from '../templates/catalogue';
@@ -34,6 +36,12 @@ function picture(def: TemplateDef, m: MaterialProfile, p: Record<string, Value>,
     pics.set(key, src);
   }
   return pics.get(key) ?? null;
+}
+
+/** The old picture, drawn only where there is no WebGL for the 3D one. */
+function FlatPicture({ d, w, h }: { d: Design; w: number; h: number }) {
+  const src = useMemo(() => designPicture(d, w, h), [d, w, h]);
+  return src ? <img src={src} alt="" /> : null;
 }
 
 /** Narrow screens show the words as labelled rows. */
@@ -64,7 +72,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   const [notes, setNotes] = useState<Change[]>([]);
   const [refusedChoice, setRefusedChoice] = useState<MsgKey | null>(null);
   const [out, setOut] = useState<Readout | null>(null);
-  const [img, setImg] = useState<string | null>(null);
+  const [built, setBuilt] = useState<Design | null>(null);
   const [busy, setBusy] = useState(false);
   const live = useRef<HTMLDivElement>(null);
   const [pw, ph] = props.picture ?? [300, 210];
@@ -79,10 +87,10 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
       const r = readout(def, m, p);
       setOut(r);
       setBusy(false);
-      setImg(r.design ? designPicture(r.design, pw, ph) : null);
+      setBuilt(r.design);
     }, 150);
     return () => clearTimeout(h);
-  }, [def, m, p, pw, ph]);
+  }, [def, m, p]);
 
   const word = (key: string) => words.find((w) => w.key === key);
   const pdef = (key: string) => def.params.find((x) => x.key === key) as ParamDef | undefined;
@@ -248,7 +256,7 @@ export function Sentence(props: { m: MaterialProfile; value: SentenceValue; onCh
   return (
     <div className={`sentence${narrow ? ' narrow' : ''}`} data-testid="sentence" data-structure={def.id} lang={lang}>
       <div className="sen-picture" aria-label={t('sen.picture')} role="img" data-testid="sen-picture">
-        {img && <img src={img} alt="" />}
+        <Preview3D design={built} fallback={built ? <FlatPicture d={built} w={pw} h={ph} /> : null} />
       </div>
       <fieldset className="sen-body">
         <legend className="sr-only">{t('sen.legend')}</legend>

@@ -15,8 +15,8 @@ test('start screen, drawer, stage widgets, seam pills and folding', async ({ pag
   // start screen: material first, then a template drawn by the renderer
   await page.getByTestId('mat-corr-1.6').click();
   await expect(page.getByTestId('mat-corr-1.6')).toHaveAttribute('aria-checked', 'true');
-  // milestone 98: the sentence's picture is drawn by the renderer; the organiser starts as its card did
-  await expect(page.getByTestId('sen-picture').locator('img')).toHaveAttribute('src', /^data:image\/png/, { timeout: 15_000 });
+  // the sentence's picture is the design on the editor's 3D stage; the organiser starts as its card did
+  await expect(page.getByTestId('sen-picture').locator('canvas')).toBeVisible({ timeout: 15_000 });
   await startTemplate(page, 'organiser', 'corr-1.6');
   let d = await design(page);
   expect(d.material.id).toBe('corr-1.6');

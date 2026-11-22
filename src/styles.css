@@ -954,6 +954,10 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .sentence { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
 .sentence .sen-picture { grid-column: 2; grid-row: 1; height: 210px; background: #f3efe8; border-radius: 12px; display: grid; place-items: center; overflow: hidden; }
 .sentence .sen-picture img { width: 100%; height: 100%; object-fit: contain; }
+/* the design on the editor's stage, turned by dragging (the camera stays on its middle) */
+.sentence .sen-picture { position: relative; }
+.sentence .sen-picture .preview3d { position: absolute !important; inset: 0; cursor: grab; touch-action: none; }
+.sentence .sen-picture .preview3d:active { cursor: grabbing; }
 .sentence .sen-body { grid-column: 1; grid-row: 1; border: 0; padding: 0; margin: 0; min-width: 0; }
 .sen-text { font-size: 20px; line-height: 2.3; margin: 0; }
 .sen-word-wrap { position: relative; display: inline-block; }

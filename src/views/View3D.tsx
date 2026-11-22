@@ -957,7 +957,7 @@ function AOEffects() {
   return null;
 }
 
-function PanelObject(props: {
+export function PanelObject(props: {
   d: Design;
   p: Panel;
   index: number;
@@ -1332,7 +1332,7 @@ function GuardOverlay({ d, panelId, xf }: { d: Design; panelId?: string; xf: Map
 }
 
 /** Rounded bend along a fold, with the crease (score line) on its outside. */
-function BendBead({ b, d, index, outlines }: { b: Bend; d: Design; index: number; outlines: boolean }) {
+export function BendBead({ b, d, index, outlines }: { b: Bend; d: Design; index: number; outlines: boolean }) {
   const q = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.axis), [b.axis]);
   const color = useMemo(() => boardColors(d, b.panelId, Math.max(0, index)).face, [d.material, d.materials, d.panels[b.panelId]?.material, b.panelId, index]);
   const crease = useMemo(() => {
@@ -1413,7 +1413,7 @@ function NetOverlapMarks({ d, xf }: { d: Design; xf: Map<string, THREE.Matrix4> 
   );
 }
 
-function Flaps({ d, xf, foldT, shut, selected, closeK }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number; shut: Record<string, boolean>; selected: string; closeK?: number }) {
+export function Flaps({ d, xf, foldT, shut, selected, closeK }: { d: Design; xf: Map<string, THREE.Matrix4>; foldT: number; shut: Record<string, boolean>; selected: string; closeK?: number }) {
   const items = useMemo(() => {
     const out: { key: string; geom: THREE.BufferGeometry; matrix: THREE.Matrix4; index: number; owner: string; on: string }[] = [];
     for (const c of Object.values(d.connections)) {
