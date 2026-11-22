@@ -2134,6 +2134,8 @@ export const en = {
   'make.prefer.pieces': "Fewest pieces",
   'make.prefer.cuts': "Fewer cuts",
   'make.facets': "Faces around a curve",
+  'make.facetsAuto': "Automatic, from each curve's size and the board: {n}",
+  'make.facetsReset': "Automatic",
   'make.working': "Working out the net…",
   'make.problems': "To look at",
   'make.again': "Make again",

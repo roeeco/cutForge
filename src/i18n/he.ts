@@ -2136,6 +2136,8 @@ export const he: Record<MsgKey, string> = {
   'make.prefer.pieces': "הכי מעט חלקים",
   'make.prefer.cuts': "פחות חיתוכים",
   'make.facets': "פאות סביב עיקול",
+  'make.facetsAuto': 'אוטומטי, לפי גודל כל עקומה והלוח: {n}',
+  'make.facetsReset': 'אוטומטי',
   'make.working': "מחשבים את הפריסה…",
   'make.problems': "לבדוק",
   'make.again': "להכין שוב",

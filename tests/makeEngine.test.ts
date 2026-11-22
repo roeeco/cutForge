@@ -193,3 +193,41 @@ describe('boards that meet at a point or past a joint, in plywood (milestone 187
     expect(d.panels[butt!.b.panelId].src!.face).toMatch(/slope$/);
   });
 });
+
+describe('faces around a curve from its size and the material (milestone 188)', () => {
+  const fold = (t: number) => ({ thickness: t });
+  it('keeps the old counts where they suit, and moves only where faces were too wide or too narrow', async () => {
+    const { autoFacets } = await import('../src/sculpt/polyhedron');
+    const s = (kind: Parameters<typeof primitiveShape>[0], w: number, h = 100) => primitiveShape(kind, { x: 0, z: 0, w, d: w }, h) as Shape3;
+    // a cylinder of card: 12 as before; a wide one more, so no face is over 25 mm; a thin one fewer
+    expect(autoFacets(s('cylinder', 80), 'fold', fold(0.5))).toBe(12);
+    expect(autoFacets(s('cylinder', 250), 'fold', fold(0.5))).toBe(24);
+    expect(autoFacets(s('cylinder', 20), 'fold', fold(0.5))).toBe(12);
+    // 4 mm corrugated: no face narrower than 24 mm where the size allows
+    expect(autoFacets(s('cylinder', 80), 'fold', fold(4))).toBe(10);
+    expect(autoFacets(s('torus', 120, 20), 'fold', fold(4))).toBe(6);
+    // a sphere: a multiple of 4 (the kernel cuts it so), at most 16 folded
+    expect(autoFacets(s('sphere', 100, 100), 'fold', fold(0.5))).toBe(12);
+    expect(autoFacets(s('sphere', 250, 250), 'fold', fold(0.5))).toBe(16);
+    // boards: at most 12 (neighbours at 150° or less still take a joint)
+    expect(autoFacets(s('cylinder', 80), 'boards', fold(3))).toBe(8);
+    expect(autoFacets(s('cylinder', 250), 'boards', fold(3))).toBe(12);
+    // a rounded box: by its corners' radius; no curve, none
+    expect(autoFacets({ ...s('box', 100), corners: [15, 15, 15, 15] }, 'fold', fold(4))).toBe(4);
+    expect(autoFacets(s('box', 100), 'fold', fold(0.5))).toBeUndefined();
+  });
+
+  it('a ring of 4 mm corrugated folds with no slivers and nothing to fix (it was 144 faces of 5 mm)', async () => {
+    const { facetsFor } = await import('../src/make/run');
+    const d = createWaffleDesign(CORR4);
+    d.id = 'ring';
+    addShape(d, P('torus', 120, 20, 120));
+    const f = facetsFor({ as: 'fold' }, CORR4);
+    const poly = shapePolyhedron(k, d.sculpt!, f.n, f.byShape);
+    expect(Object.keys(poly.faces).length).toBeLessThan(50);
+    reassemble(d, poly, { as: 'fold' });
+    expect(validate(d).map((i) => i.key).filter((x) => x === 'val.collide' || x === 'val.sliver')).toEqual([]);
+    // a number set on the Make card wins
+    expect(facetsFor({ as: 'fold', facets: { card: 8 } }, CORR4).n).toBe(8);
+  });
+});

@@ -5,7 +5,7 @@
 import { useStore } from '../store/store';
 import type { Design, MakeSpec, MaterialProfile } from '../model/types';
 import { kernelNow } from '../sculpt/kernel';
-import { DEFAULT_FACETS, shapePolyhedron, splitPolyhedra } from '../sculpt/polyhedron';
+import { autoFacets, DEFAULT_FACETS, shapePolyhedron, splitPolyhedra, type Facets } from '../sculpt/polyhedron';
 import { reassemble, unfoldFlaps, unfoldSpecOf, type Lost, type MakeIssue } from '../model/reassemble';
 import { solidKey } from '../sculpt/build';
 import { unfold, type Unfolding, type UnfoldSpec } from '../model/unfold';
@@ -37,17 +37,33 @@ export function materialFor(as: 'fold' | 'boards', m: MaterialProfile): Material
   return as === 'fold' ? MATERIALS[0] : MATERIALS[3];
 }
 
-/** Faces around a curve for this Make. */
-export function facetsFor(spec: Pick<MakeSpec, 'as' | 'facets'>): { n: number; byShape: Record<string, number> } {
-  const n = spec.as === 'fold' ? (spec.facets?.card ?? DEFAULT_FACETS.card) : (spec.facets?.boards ?? DEFAULT_FACETS.boards);
-  return { n, byShape: spec.facets?.byShape ?? {} };
+/**
+ * Faces around a curve for this Make: the number set on the Make card for every curve, else
+ * each curve's own from its size and the material (milestone 188, `autoFacets`). `set` is the
+ * card's number, undefined while it is automatic.
+ */
+export function facetsFor(spec: Pick<MakeSpec, 'as' | 'facets'>, m: Pick<MaterialProfile, 'thickness'>): { n: Facets; set: number | undefined; byShape: Record<string, number> } {
+  const set = spec.as === 'fold' ? spec.facets?.card : spec.facets?.boards;
+  const dflt = spec.as === 'fold' ? DEFAULT_FACETS.card : DEFAULT_FACETS.boards;
+  return { n: set ?? ((s) => autoFacets(s, spec.as, m) ?? dflt), set, byShape: spec.facets?.byShape ?? {} };
+}
+
+/** The counts the design's curved shapes get (automatic or set), each once, smallest first. */
+export function facetCounts(d: Design, spec: Pick<MakeSpec, 'as' | 'facets'>, m: Pick<MaterialProfile, 'thickness'> = d.material): number[] {
+  const f = facetsFor(spec, m);
+  const out = new Set<number>();
+  for (const [id, s] of Object.entries(d.sculpt?.shapes ?? {})) {
+    if (autoFacets(s, spec.as, m) === undefined) continue;
+    out.add(f.byShape[id] ?? s.facets ?? (typeof f.n === 'number' ? f.n : f.n(s)));
+  }
+  return [...out].sort((a, b) => a - b);
 }
 
 /** The face graph of the design's shapes for a Make spec (null before the kernel loads). With a lid by a cut, the box and the lid beside it, both open at the cut. */
 export function polyOf(d: Design, spec: Pick<MakeSpec, 'as' | 'facets' | 'lid'>): Polyhedron | null {
   const k = kernelNow();
   if (!k || !d.sculpt) return null;
-  const f = facetsFor(spec);
+  const f = facetsFor(spec, d.material);
   const whole = shapePolyhedron(k, d.sculpt, f.n, f.byShape);
   if (!spec.lid) return whole;
   const b = polyBounds(whole);

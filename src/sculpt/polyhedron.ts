@@ -18,19 +18,76 @@ import { allCuts, trimmedSegPoints } from '../sketch/flatten';
 export const DEFAULT_FACETS = { card: 12, boards: 8 } as const;
 const CURVED = new Set<Shape3['kind']>(['cylinder', 'cone', 'sphere', 'halfsphere', 'torus', 'revolve']);
 
+/** Faces around a full turn for each shape: one count for all, or one worked out per shape (`autoFacets`). */
+export type Facets = number | ((s: Shape3) => number);
+const countOf = (f: Facets, s: Shape3) => (typeof f === 'number' ? f : f(s));
+/** A count to name an extrusion's facets by (its roles do not change with the automatic count). */
+const nameCount = (f: Facets) => (typeof f === 'number' ? f : DEFAULT_FACETS.card);
+
 /** A copy of the shapes with every curved one cut into flat facets: its own count, `byShape`'s, or `facets`. */
-export function facetedCopy(sc: Sculpt, facets: number, byShape: Record<string, number> = {}): Sculpt {
+export function facetedCopy(sc: Sculpt, facets: Facets, byShape: Record<string, number> = {}): Sculpt {
   const shapes: Sculpt['shapes'] = {};
   for (const [id, s] of Object.entries(sc.shapes)) {
-    const n = byShape[id] ?? s.facets ?? facets;
+    const n = byShape[id] ?? s.facets ?? countOf(facets, s);
     if (CURVED.has(s.kind)) shapes[id] = { ...s, facets: n };
     // a box's or prism's rounded corners: faces per full turn, as a cylinder's (a quarter corner of 12 is 3)
     else if ((s.kind === 'box' || s.kind === 'prism') && s.corners?.some((r) => r > 0)) shapes[id] = { ...s, facets: n };
     // an extrusion's arcs and curves: its count is per quarter turn
-    else if (s.kind === 'extrude' && curvedSketch(s)) shapes[id] = { ...s, facets: byShape[id] ? Math.max(3, Math.round(byShape[id] / 4)) : (s.facets ?? Math.max(3, Math.round(facets / 4))) };
+    else if (s.kind === 'extrude' && curvedSketch(s)) shapes[id] = { ...s, facets: byShape[id] ? Math.max(3, Math.round(byShape[id] / 4)) : (s.facets ?? Math.max(3, Math.round(countOf(facets, s) / 4))) };
     else shapes[id] = s;
   }
   return { ...sc, shapes };
+}
+
+/**
+ * Faces around a full turn for a curved shape, from its size and what it is made of
+ * (milestone 188). Today's default (12 folded, 8 for boards), raised until no face is wider
+ * than `wide` and lowered until none is narrower than `narrow` (a face of 4 mm corrugated
+ * folded on a 20 mm tube was 5 mm wide; narrow wins: 6t, at least 4 mm folded, 8t and 20 mm for boards), then kept between the least and most a
+ * shape folds or builds well: a sphere or ring folded at most 16 (it stays gluable), boards at
+ * most 12 (neighbours meet at 150° or less, where a joint is cut). Even (a sphere's a multiple
+ * of 4, as the kernel cuts it), so a shape stays symmetric.
+ * Undefined for a shape with no curve.
+ */
+export function autoFacets(s: Shape3, as: 'fold' | 'boards', m: { thickness: number }): number | undefined {
+  const r = curveRadius(s);
+  if (r === undefined || !(r > 0)) return undefined;
+  const t = m.thickness;
+  const fold = as === 'fold';
+  const round = s.kind === 'box' || s.kind === 'prism';
+  const doubly = s.kind === 'sphere' || s.kind === 'halfsphere' || s.kind === 'torus';
+  const narrow = fold ? Math.max(6 * t, 4) : Math.max(8 * t, 20);
+  // a doubly curved face may be wider: its count squares the faces to glue
+  const wide = fold ? (doubly ? 35 : 25) : 60;
+  const least = round ? 4 : 6, most = fold ? (doubly ? 16 : 24) : 12;
+  // the kernel cuts a sphere in multiples of 4
+  const step = s.kind === 'sphere' || s.kind === 'halfsphere' ? 4 : 2;
+  const turn = 2 * Math.PI * r;
+  const lo = Math.max(least, Math.ceil(turn / wide)), hi = Math.max(least, Math.min(most, Math.floor(turn / narrow)));
+  const n = Math.min(hi, Math.max(lo, fold ? DEFAULT_FACETS.card : DEFAULT_FACETS.boards));
+  const up = Math.ceil(n / step) * step, down = Math.floor(n / step) * step;
+  return up <= hi ? up : Math.max(down, Math.ceil(least / step) * step);
+}
+
+/** The radius that decides a curved shape's faces: a cylinder's or cone's base, a sphere's, a ring's tube, a rounded corner's. */
+function curveRadius(s: Shape3): number | undefined {
+  const [w, h, d] = s.size ?? [0, 0, 0];
+  const k = Math.max(...(s.stretch ?? [1, 1, 1]));
+  switch (s.kind) {
+    case 'cylinder':
+    case 'cone':
+    case 'halfsphere':
+      return (k * Math.max(w, d)) / 2;
+    case 'sphere':
+      return (k * Math.max(w, h, d)) / 2;
+    case 'torus':
+      return (k * (s.tube ?? h)) / 2;
+    case 'box':
+    case 'prism':
+      return s.corners?.some((x) => x > 0) ? k * Math.max(...s.corners) : undefined;
+    default:
+      return undefined;
+  }
 }
 
 const curvedSketch = (s: Shape3) => !!s.sketch && (Object.values(s.sketch.segs).some((g) => !g.cons && g.k !== 'line') || Object.values(s.sketch.pts).some((p) => (p.r ?? 0) > 0 || (p.ch ?? 0) > 0));
@@ -168,21 +225,21 @@ function roleOf(s: Shape3, n: V, c: V, N: number, segPts: { id: string; pts: P2[
  * their own count. Keys are `<shapeId>:<role>`, a Hole's `hole:<shapeId>:<role>`, faces
  * merged across shapes join theirs with '+'.
  */
-export function shapePolyhedron(k: Kernel, sc: Sculpt, facets: number = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): Polyhedron {
+export function shapePolyhedron(k: Kernel, sc: Sculpt, facets: Facets = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): Polyhedron {
   const fsc = facetedCopy(sc, facets, byShape);
-  return scope(() => meshPoly(buildSolid(k, fsc), fsc, facets));
+  return scope(() => meshPoly(buildSolid(k, fsc), fsc, nameCount(facets)));
 }
 
 /** A lid by a cut (milestone 130): the solid split by a level plane `cutY` (world y); each half with the cut face keyed `cut`, the lid's keys prefixed `lid/`. */
-export function splitPolyhedra(k: Kernel, sc: Sculpt, cutY: number, facets: number = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): { box: Polyhedron; lid: Polyhedron } | null {
+export function splitPolyhedra(k: Kernel, sc: Sculpt, cutY: number, facets: Facets = DEFAULT_FACETS.card, byShape: Record<string, number> = {}): { box: Polyhedron; lid: Polyhedron } | null {
   const fsc = facetedCopy(sc, facets, byShape);
   return scope(() => {
     const m = buildSolid(k, fsc);
     if (m.isEmpty()) return null;
     const [below, above] = m.splitByPlane([0, -1, 0], -cutY) as unknown as [typeof m, typeof m];
     if (below.isEmpty() || above.isEmpty()) return null;
-    const box = meshPoly(below, fsc, facets, cutY);
-    const lid = meshPoly(above, fsc, facets, cutY);
+    const box = meshPoly(below, fsc, nameCount(facets), cutY);
+    const lid = meshPoly(above, fsc, nameCount(facets), cutY);
     return { box, lid: prefixPoly(lid, 'lid/') };
   });
 }

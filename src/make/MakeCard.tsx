@@ -9,15 +9,15 @@ import type { Design, MakeSpec } from '../model/types';
 import { Segmented, NumField } from '../ui/NumField';
 import { Icon } from '../ui/icons';
 import { buildPieces } from '../model/pieces';
-import { canMake, facetsFor, LID_OPEN, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
+import { canMake, facetCounts, facetsFor, LID_OPEN, madeWith, makeNow, matKey, polyOf, shapesChanged, useMake } from './run';
 import { detach, rechooseJoints, type MakeIssue } from '../model/reassemble';
 import { MATERIALS } from '../model/materials';
 import { StepsSection } from './Steps';
 import { kernelNow } from '../sculpt/kernel';
+import { DEFAULT_FACETS } from '../sculpt/polyhedron';
 import { askConfirm } from '../ui/AppDialog';
 
 
-const CURVED = new Set(['cylinder', 'cone', 'sphere', 'halfsphere', 'torus', 'revolve']);
 
 /** The material's name as the top bar names it. */
 function useMatName(): string {
@@ -33,7 +33,7 @@ function Problem({ issue, spec }: { issue: MakeIssue; spec: MakeSpec }) {
   const d = useStore((s) => s.design);
   const redo = (over: Partial<MakeSpec>) => void makeNow(spec.as, over, { play: false });
   const fewer = () => {
-    const f = facetsFor(spec).n;
+    const f = facetsFor(spec, d.material).set ?? Math.max(DEFAULT_FACETS.boards, ...facetCounts(d, spec));
     return redo({ facets: { ...(spec.facets ?? {}), [spec.as === 'fold' ? 'card' : 'boards']: Math.max(4, f - 4) } });
   };
   let text = '';
@@ -114,18 +114,26 @@ export function MakeCard() {
     const st = useStore.getState();
     const dd = st.design;
     if (!dd.make || !kernelNow()) return;
-    const made = madeWith.get(dd.id);
-    if (made === undefined) return void madeWith.set(dd.id, key);
-    if (made === key || !canMake(dd.make.as, dd.material)) return;
+    const was = madeWith.get(dd.id);
+    if (was === undefined) return void madeWith.set(dd.id, key);
+    if (was === key || !canMake(dd.make.as, dd.material)) return;
     const P = polyOf(dd, dd.make);
     if (!P) return;
+    // the curves' automatic faces follow the material (milestone 188): other faces are made again, not re-chosen
+    const made = new Set(dd.order.map((id) => dd.panels[id]?.src?.face).filter(Boolean));
+    const now = Object.keys(P.faces).filter((f) => !(dd.make!.open ?? []).includes(f));
+    if (now.length !== made.size || now.some((f) => !made.has(f))) {
+      madeWith.set(dd.id, key);
+      return void makeNow(dd.make.as, {}, { play: false });
+    }
     let n = 0;
     st.apply((x) => void (n = rechooseJoints(x as Design, P)));
     madeWith.set(dd.id, key);
     useMake.setState({ changed: n, changedFor: useStore.getState().design });
   }, [key]);
   const pieces = useMemo(() => buildPieces(d).length, [d]);
-  const curved = useMemo(() => Object.values(d.sculpt?.shapes ?? {}).some((s) => CURVED.has(s.kind)), [d.sculpt]);
+  const counts = useMemo(() => (spec ? facetCounts(d, spec) : []), [d.sculpt, d.material, spec]);
+  const curved = counts.length > 0;
   if (!spec) return null;
   const nFolds = Object.values(d.connections).filter((c) => c.seam && c.kind === 'fold').length;
   const nFlaps = Object.values(d.connections).filter((c) => c.kind === 'glue' || c.kind === 'lock').length;
@@ -169,15 +177,32 @@ export function MakeCard() {
         </>
       )}
       {curved && (
-        <NumField
-          label={t('make.facets')}
-          value={facetsFor(spec).n}
-          min={4}
-          max={64}
-          decimals={0}
-          onCommit={(v) => redo({ facets: { ...(spec.facets ?? {}), [spec.as === 'fold' ? 'card' : 'boards']: Math.round(v) } })}
-          testId="make-facets"
-        />
+        <>
+          <NumField
+            label={t('make.facets')}
+            value={facetsFor(spec, d.material).set ?? Math.max(...counts)}
+            min={4}
+            max={64}
+            decimals={0}
+            onCommit={(v) => redo({ facets: { ...(spec.facets ?? {}), [spec.as === 'fold' ? 'card' : 'boards']: Math.round(v) } })}
+            testId="make-facets"
+          />
+          {facetsFor(spec, d.material).set === undefined ? (
+            <p className="note" data-testid="make-facets-auto">{t('make.facetsAuto', { n: counts.join(', ') })}</p>
+          ) : (
+            <button
+              className="link"
+              onClick={() => {
+                const f = { ...(spec.facets ?? {}) };
+                delete f[spec.as === 'fold' ? 'card' : 'boards'];
+                redo({ facets: f });
+              }}
+              data-testid="make-facets-reset"
+            >
+              {t('make.facetsReset')}
+            </button>
+          )}
+        </>
       )}
       {/* milestone 130: openings and a lid by a cut */}
       {(spec.open ?? []).filter((k) => !LID_OPEN.includes(k)).length > 0 && (

@@ -2647,6 +2647,15 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - Plywood 3 mm, shapes with export problems 18 of 40 → 8 (sphere 144 collisions → 0, diamond 44 → 0, cone 20 → 0, obelisk 10 → 0, loft 8 → 0; wedge, half sphere, rounded box clean). Corrugated boards likewise. Card folds unchanged.
 - `tests/reassemble.test.ts`: the diamond's sharp corners are now glued edge to face, not listed; `tests/makeEngine.test.ts` (+3). `npm test` 2105 passed (7 skipped); typecheck clean; `make-boards`, `make-fold` app specs pass. Looked at in the browser: the plywood pyramid's cut plan and 3D model.
 
+## Milestone 188 (faces around a curve from its size and the material, `MAKE_ENGINE_REVIEW.md` §3.3) ✅
+
+- `autoFacets` (`src/sculpt/polyhedron.ts`): each curved shape's faces a turn from its radius (a ring's tube, a rounded corner's) and the material's thickness: the old default (12 folded, 8 boards), raised until no face is over 25 mm folded (35 on a sphere or ring) or 60 mm as boards, lowered until none is under 6t (4 mm at least) folded or 8t and 20 mm as boards; folded 6–24 (16 on a sphere or ring), boards 6–12; even, a sphere's a multiple of 4. `facetedCopy`, `shapePolyhedron` and `splitPolyhedra` take a count or a count per shape.
+- `facetsFor` (`src/make/run.ts`) gives the Make card's number when one is set, else the automatic count; `facetCounts` lists what the curves get. The card shows *Automatic, from each curve's size and the board: …*, and *Automatic* clears a typed number; *Fewer faces* starts from the largest count.
+- A change of material on the Make card that changes the faces makes the model again (it re-chose the joints of the old faces only; the new count's faces are a subset of the old ones' keys, so both sets are compared).
+- Corrugated 4 mm folded: shapes with nothing to fix 32 → 34 of 40 (the ring was 144 faces 5 mm wide, 120 collisions); plywood 32 → 33 (the ring: 64 boards, 16 broken joints, 5 s → 14 boards, clean, 0.2 s). Card unchanged.
+- `tests/makeEngine.test.ts` (+2); `npm test` 2107 passed; typecheck clean; `make-fold`, `make-boards` app specs pass. In the browser: a card cylinder (*Automatic … 12*), 8 typed (an octagonal prism, one piece), *Automatic* back to 12, the material changed to corrugated 4 mm (made again with 10 faces).
+- Words `make.facetsAuto`, `make.facetsReset` in English and Hebrew (the Hebrew to be checked).
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

@@ -67,19 +67,27 @@ Still open on boards: the torus (64 boards, 16 broken joints, 5 s), a bitten sph
 (1–2 collisions each), twin spheres (11 broken tab-and-slot joints from the general joiner,
 as before), and hole walls still left out on boards (listed).
 
-### 3.3 Faces around a curve ignore the size and the material
-Every curved shape gets 12 faces a turn on card and 8 on boards, whatever its size. A 20 mm
-tube of corrugated 4 mm becomes 96 slivers (and boards running into each other); a 100 mm
-sphere of card is coarse.
+### 3.3 Faces around a curve — fixed in milestone 188
+Every curve had 12 faces a turn folded and 8 for boards, whatever its size: a ring of 4 mm
+corrugated came out as 144 faces 5 mm wide (120 collisions), a plywood ring as 64 boards with 16
+broken joints (5 s).
 
-*How:* pick N for each curved shape from its radius r and the thickness t: each face about
-6t wide or more and 25 mm or less (N = 2πr / clamp(·)), between 6 and 24, still overridden by the
-student's per-shape number. Facet keys already follow N, so this is one function in
-`src/make/run.ts` (`facetsFor`) and `src/sculpt/polyhedron.ts` (`facetedCopy`).
+Now `autoFacets` (`src/sculpt/polyhedron.ts`) works each curve's count out from its radius
+(a ring's tube, a rounded corner's radius) and the material: the old default, raised until no
+face is wider than 25 mm folded (35 on a sphere or ring) or 60 mm as boards, lowered until none
+is narrower than 6t (at least 4 mm) folded or 8t and 20 mm as boards; folded at most 24 (16 on a
+sphere or ring, so it stays gluable), boards at most 12 (neighbours at 150° or less take a joint);
+even, a sphere's a multiple of 4 (the kernel cuts it so). The Make card shows it (*Automatic, from
+each curve's size and the board: 10*); a number typed there wins for every curve, *Automatic*
+gives it back. A change of material that changes the faces makes the model again (it used to only
+re-choose the joints of the old faces).
+
+Corrugated 4 mm folded: shapes with nothing to fix 32 → 34 of 40 (ring, twin spheres); plywood
+32 → 33 (the ring: 14 boards, clean, 0.2 s). Card unchanged.
 
 ### 3.4 The unfolder still splits some curved and holed shapes
 Card: a tall cylinder 60 × 150 (2–3 pieces, by seed), corrugated cylinders (2), the T-pipe (5),
-three crossed holes (5, now on 2 sheets: the rim flaps take room), the torus (7).
+three crossed holes (4, on 2 sheets: the rim flaps take room), the ring (6).
 
 *How:* (a) **strip first** for a ruled face: fold all of one curve's facet-to-facet edges before
 anything else, then hang each cap from facets far apart along the strip; (b) the **merge pass**
@@ -99,6 +107,8 @@ boards. *How:* for made boards, take the pairs from the face graph's edges (it k
 meet), and run the general search only for boards the student added.
 
 ### 3.7 Small things
+- Corrugated 1.6 mm folded: a box with a square hole through it (the "square donut") has 8
+  collisions, and a 5 mm-walled tray 5: thick board in thin walls, not a curve.
 - A 0.5 mm step between two boxes leaves 0.5 mm slivers (listed). The face graph could weld
   faces that are flush within a thickness (`src/model/polyhedron.ts`, tidy).
 - Two boxes touching only along an edge make a solid that is not one piece (listed as unjoined).
