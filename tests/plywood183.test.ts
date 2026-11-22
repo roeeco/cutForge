@@ -285,6 +285,16 @@ describe('cards on parts (milestone 183): the gearbox and the game board', () =>
     expect(recordOf(d).game).toBe(true);
   });
 
+  it('their limits: the gearbox’s gear and module by the sheet, its pinion under its gear; the game board’s squares by the sheet', () => {
+    const g = templateById('gearbox')!;
+    const lg = g.limits!(P3, defaults(g));
+    expect(lg.gear.max).toBeGreaterThanOrEqual(24);
+    expect(lg.pinion.max).toBe(20);
+    expect(g.limits!(P3, { ...defaults(g), gear: 16 }).pinion.max).toBe(15);
+    const b = templateById('gameBoard')!;
+    expect(b.limits!(P3, defaults(b)).square.max).toBeGreaterThanOrEqual(30);
+  }, 240_000);
+
   it('the cards are plywood only', () => {
     for (const m of MATERIALS.filter((x) => x.kind !== 'plywood')) for (const id of ['gearbox', 'gameBoard']) expect(makes(templateById(id)!, m), m.id).toBe(false);
   });

@@ -2565,6 +2565,13 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood178.test.ts`; `tests/templates.test.ts` lists the flyer stand and pegboard among the designs of fewer than four boards.
 - Left for a later part: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, laser jigs, pizza peel, and the challenges (`DECISIONS.md`).
 
+## Milestone 183 (every doable boxes.py design in plywood) ✅ parts in the Shapes tool, gearbox, game board
+
+- **Parts** (`Detail.part`, `src/model/parts.ts`): gear (involute, undercut from the rack's sweep), timing pulley (GT2, GT3, T5), knob (round bites or wavy, bore round, D or hex), hole pattern (hex or square grid in a rectangle or a circle; *Make it a live array*), fan grille, motor mount (NEMA 14, 17, 23), 7-segment digits, drill gauge (sizes engraved, following it: `labelOf`), puzzle cut (lines that cut the board into pieces: `BoardLine.pieces`). Shapes tool → *Parts* (3D): a click on a board, or with *Board* on the floor. Their sizes stay editable on their card; stretched or edited by hand they become plain shapes.
+- **Cards** (plywood, beta, `structures/boardGears.ts`): *Gearbox* (GearBox: 1–3 stages on two axles, each gear glued through a ring to the next pinion) and *Game board* (RoyalGame: Ur's board engraved on a lid that lifts off, a token tray glued inside). Records `gears`, `game`.
+- Engine: the seams search works each board's edges out once (`withEdgeMemo`); a gear board made it 200× slower.
+- `tests/plywood183.test.ts`. Not made: a knob card (a plain board's look), Planetary and Linkage (`DECISIONS.md`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
