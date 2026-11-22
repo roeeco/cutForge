@@ -87,13 +87,13 @@ export const CATALOGUE: Card[] = [
     // milestone 178 (boxes.py's CompartmentBox): partitions under the lid
     { id: 'compartmentBox', structure: 'slideBox', style: 'compartmentBox', match: { body: 'cross', lid: 'none', rails: true, partitions: true } },
   ] },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser', 'wall-tray', 'game-insert'], variants: [
     { id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } },
     // milestone 178 (beta, plywood; boxes.py's DividerTray): loose dividers resting in notches in the side walls' tops
     { id: 'dividerTray', structure: 'dividerTray', match: { body: 'cross', lid: 'none', loose: true } },
   ] },
   {
-    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: [],
+    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: ['card-box', 'display-case', 'traffic-light'],
     variants: [
       { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
       { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
@@ -183,7 +183,7 @@ export const CATALOGUE: Card[] = [
   { id: 'laptopStand', title: 'card.laptopStand', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'laptopStand', structure: 'laptopStand', match: { body: 'slot', crossing: true } }] },
   { id: 'gridInsert', title: 'card.gridInsert', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridInsert', structure: 'gridInsert', match: { body: 'slot', crossing: true, grid: true } }] },
   {
-    id: 'shelf', title: 'card.shelf', word: 'card.shelf.word', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [],
+    id: 'shelf', title: 'card.shelf', word: 'card.shelf.word', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: ['sbc-rack'],
     variants: [
       { id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } },
       // milestone 172 (boxes.py's StorageRack): rails instead of shelves between the lowest and the highest
@@ -192,7 +192,15 @@ export const CATALOGUE: Card[] = [
       { id: 'stackRack', structure: 'shelf', style: 'stackRack', match: { body: 'slot', shelves: true, rails: true, stack: true } },
     ],
   },
-  { id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } }] },
+  {
+    id: 'bottleRack', title: 'card.bottleRack', group: 'more', status: 'beta', challenges: [],
+    variants: [
+      { id: 'bottleRack', structure: 'bottleRack', match: { body: 'slot', shelves: true, holes: true } },
+      // milestone 178, part 2 (beta, plywood): boxes.py's BottleStack (cradles on beams crossing feet) and SpicesRack (jars through holes)
+      { id: 'bottleStack', structure: 'bottleStack', match: { body: 'slot', crossing: true, grid: true, cradles: true } },
+      { id: 'jarRack', structure: 'jarRack', match: { body: 'slot', shelves: true, wells: true } },
+    ],
+  },
   // milestone 172 (beta, plywood; BOXES_PLYWOOD_PLAN.md §2): racks that hang on a wall by keyholes in their backs
   { id: 'binRack', title: 'card.binRack', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [], variants: [{ id: 'binRack', structure: 'binRack', match: { body: 'slot', shelves: true, slant: true, tiers: true, hang: true } }] },
   { id: 'wallRack', title: 'card.wallRack', group: 'more', status: 'beta', view: { prop: 'goods' }, challenges: [], variants: [{ id: 'wallRack', structure: 'wallRack', match: { body: 'slot', shelves: true, hang: true } }] },
@@ -296,6 +304,43 @@ export const CATALOGUE: Card[] = [
   // milestone 183 (beta, plywood; BOXES_PLYWOOD_PLAN.md E10): cards built on parts (gears, a game's board)
   { id: 'gearbox', title: 'card.gearbox', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'gearbox', structure: 'gearbox', match: { body: 'cross', lid: 'none', gears: true } }] },
   { id: 'gameBoard', title: 'card.gameBoard', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gameBoard', structure: 'gameBoard', match: { body: 'cross', lid: 'liftoff', game: true } }] },
+  // milestone 179 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.3): things that hang on a wall, by keyholes or on a cleat
+  {
+    // boxes.py's WallSlottedHolder, WallChiselHolder, WallWrenchHolder and WallPliersHolder
+    id: 'toolHolder', title: 'card.toolHolder', word: 'card.toolHolder.word', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [],
+    variants: [
+      { id: 'toolHolder', structure: 'toolHolder', match: { body: 'slot', shelves: true, hang: true, notches: 'square' } },
+      { id: 'toolHoles', structure: 'toolHolder', style: 'toolHoles', match: { body: 'slot', shelves: true, hang: true, wells: true } },
+      { id: 'wrenchHolder', structure: 'toolHolder', style: 'wrenchHolder', match: { body: 'slot', shelves: true, hang: true, notches: 'angled' } },
+      { id: 'pliersHolder', structure: 'pliersHolder', match: { body: 'slot', hang: true, bar: true } },
+    ],
+  },
+  {
+    // boxes.py's WallHook, KeyHolder and WallPinRow
+    id: 'wallHooks', title: 'card.wallHooks', word: 'card.wallHooks.word', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [],
+    variants: [
+      { id: 'wallHooks', structure: 'wallHooks', match: { body: 'slot', hang: true, hooks: true } },
+      { id: 'keyBoard', structure: 'wallHooks', style: 'keyBoard', match: { body: 'slot', hang: true, hooks: true, shelves: true } },
+      { id: 'pinRow', structure: 'pinRow', match: { body: 'slot', hang: true, slant: true } },
+    ],
+  },
+  { id: 'rollHolder', title: 'card.rollHolder', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'rollHolder', structure: 'rollHolder', match: { body: 'slot', hang: true, holes: true } }] },
+  { id: 'hopper', title: 'card.hopper', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'hopper', structure: 'hopper', match: { body: 'cross', lid: 'none', chute: true, slope: true, stepped: true, hang: true } }] },
+  {
+    // boxes.py's WallStairs, DrillStand and WallDrillBox
+    id: 'wallSteps', title: 'card.wallSteps', word: 'card.wallSteps.word', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [],
+    variants: [
+      { id: 'wallSteps', structure: 'wallSteps', match: { body: 'slot', shelves: true, hang: true, steps: true } },
+      { id: 'drillStand', structure: 'drillStand', match: { body: 'cross', lid: 'none', partitions: true, slope: true, stepped: true } },
+      { id: 'wallDrillBox', structure: 'drillStand', style: 'wallDrillBox', match: { body: 'cross', lid: 'none', partitions: true, slope: true, stepped: true, hang: true } },
+    ],
+  },
+  // milestone 178, part 2 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.2): boxes.py's CoinDisplay, StevensonScreenBox, CanStorage, Folder, Clock
+  { id: 'showcase', title: 'card.showcase', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'showcase', structure: 'showcase', match: { body: 'cross', lid: 'none', slope: true, partitions: true, coin: true } }] },
+  { id: 'louvreBox', title: 'card.louvreBox', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'louvreBox', structure: 'louvreBox', match: { body: 'cross', lid: 'none', open: 2, baffles: true, plate: true } }] },
+  { id: 'canDispenser', title: 'card.canDispenser', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'canDispenser', structure: 'canDispenser', match: { body: 'slot', shelves: true, slant: true, tiers: true } }] },
+  { id: 'bookCover', title: 'card.bookCover', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bookCover', structure: 'bookCover', match: { body: 'folded', strip: true, spine: true } }] },
+  { id: 'clockFace', title: 'card.clockFace', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'clockFace', structure: 'clockFace', match: { body: 'slot', crossing: true, grid: true, disc: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

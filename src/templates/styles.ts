@@ -101,6 +101,12 @@ export const STYLES: StyleDef[] = [
   { id: 'wedge', structure: 'console', words: { frontWall: 'none' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   // milestone 178 (boxes.py's SkadisStand): the pegboard standing on two feet
   { id: 'pegboardStand', structure: 'pegboard', words: { mount: 'feet' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  // milestone 179 (BOXES_PLYWOOD_PLAN.md §3.3; plywood): the tool holder's shelf with round holes (WallChiselHolder) or
+  // slanted slots of stepped widths (WallWrenchHolder); hooks under a shelf (KeyHolder); the drill stand on a wall (WallDrillBox)
+  { id: 'toolHoles', structure: 'toolHolder', words: { kind: 'holes' }, sizes: { size: 25 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'wrenchHolder', structure: 'toolHolder', words: { kind: 'wrench' }, sizes: { size: 24, tools: 8 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'keyBoard', structure: 'wallHooks', words: { shelf: 'shelf' }, sizes: { hooks: 6, mouth: 12 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'wallDrillBox', structure: 'drillStand', words: { hang: 'keyholes' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
 ];
 
 export const styleById = (id: string) => STYLES.find((s) => s.id === id);

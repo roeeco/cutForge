@@ -202,6 +202,12 @@ export type Panel = {
   pinLid?: PinLid;
   /** Milestone 176: a knuckle of a pin hinge: the lid it hinges, whether it stands on the lid or on the back wall, and which one it is (from the left). */
   knuckle?: PanelKnuckle;
+  /**
+   * Milestone 179 (BOXES_PLYWOOD_PLAN.md §3.3): a board of a cleat to hang the thing on a wall by (`hangByCleat`):
+   * `item`, glued on the thing's back (its hook and stand-off); `wall`, the matching board screwed to the wall. The
+   * record reads the thing without them, and that it hangs. Absent: none.
+   */
+  cleat?: 'item' | 'wall';
 };
 
 /** A board's stacking edges (milestone 177): see `Panel.stack`. */

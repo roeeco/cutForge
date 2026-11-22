@@ -18,7 +18,7 @@ import { addDetail, addFreePanel, addWallInsert, connectSeams, deletePanel, grow
 import { panelEdges } from '../../model/edges';
 import { pairKinds } from '../../model/jointDefaults';
 import { minWeb } from '../../model/materials';
-import { boardBoxRect, boardStock, hangByKeyholes, plywoodOnly } from './boards';
+import { boardBoxRect, boardStock, cleatFits, hangByCleat, hangByKeyholes, plywoodOnly } from './boards';
 import { addStack, stackLeast } from '../../model/stack';
 import { cleanAll, cleanWith, mainTray } from './box';
 import { innerFace, nameAll, reseam, sheetLimits, wallsOf } from './shaped';
@@ -386,8 +386,10 @@ function generateBookend(d: Parameters<TemplateDef['generate']>[0], p: Params, r
       }
   }
   if (p.hang === 'keyholes' && w.e2) hangByKeyholes(d, w.e2);
+  // milestone 179: or on a cleat across its back, clear of the corners' fingers, its stand-off above the base's
+  const cleat = p.hang === 'cleat' && w.e2 ? hangByCleat(d, w.e2, { stud: { y: 2 * t + 2, x0: (d.panels[w.e2].w * 0.25), x1: d.panels[w.e2].w * 0.75 } }) : [];
   solve(d);
-  nameAll(d, role);
+  nameAll(d, role, Object.fromEntries(cleat.map((c) => [c.name, c.id])));
 }
 
 export const bookend: TemplateDef = {
@@ -414,9 +416,10 @@ export const bookend: TemplateDef = {
     },
     {
       key: 'hang', label: 'sen.hang', type: 'choice', default: 'none', addon: { off: 'none' },
-      options: [{ value: 'none', label: 'sen.hang.none' }, { value: 'keyholes', label: 'sen.hang.keyholes' }],
-      allowed: (v, p, m) => v === 'none' || (Number(p.width) >= 80 && cleanWith(bookend, m, p, 'hang', v)),
-      why: () => 'sen.why.hangRoom',
+      // milestone 179: or a cleat (plywood only)
+      options: [{ value: 'none', label: 'sen.hang.none' }, { value: 'keyholes', label: 'sen.hang.keyholes' }, { value: 'cleat', label: 'sen.hang.cleat' }],
+      allowed: (v, p, m) => v === 'none' || (v === 'cleat' ? cleatFits(bookend, m, p) : Number(p.width) >= 80 && cleanWith(bookend, m, p, 'hang', v)),
+      why: (v, _p, m) => (v === 'cleat' ? (m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.cleatRoom') : 'sen.why.hangRoom'),
       affects: ['walls'],
     },
     {

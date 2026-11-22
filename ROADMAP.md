@@ -302,8 +302,8 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **175** | A wrap that opens, latch; flex-door box | ✅ in part (two doors, one door; FlexBox2, FlexBox4 and the book box wait) |
 | **176** | Pin hinges | ✅ beta until cut: knuckle hinge (dowel or wire pin, a stop at 105°); box lid *pins*, *Pin-hinge box*, dice box, chest |
 | **177** | Stacking feet (E6): crate, stacking notes box, stacking rack, stacking bin, sieve stack | ✅ |
-| **178** | The rest of §3.2 on today's engine | part 1 ✅: nineteen entries (eleven cards, eight variants and words); showcase, louvred box, can dispenser, bottle stack, jars, book cover, clock, jigs, peel and the challenges left |
-| **179** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **178** | The rest of §3.2 on today's engine | ✅ part 1: nineteen entries (eleven cards, eight variants and words); part 2: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, six challenges (laser jigs, pizza peel, HobbyCase, TriangleLamp, OrganPipe, BeeQueenCage not built: `DECISIONS.md`) |
+| **179** | Wall-mounted: hang by keyholes or a cleat; tool holder, pliers holder, hooks, key board, pin row, roll holder, hopper, wall steps, drill stand, the wall tray challenge | ✅ (caliper and plane holders, WallStackableBin not built: `DECISIONS.md`) |
 | **180** | Any footprint: inside corners fingered; chamfered, coffin, tetromino and star boxes | ✅ (taper and Feeder: spike failed) |
 | **181** | A band round any outline: U box, rounded polygon, rounded trapezoid, heart | ✅ (plywood 3 and 4 mm) |
 | **182** | Layered things on the face-glued joint | in part: frame (photo, plaque, shadow box), spool; light box, twist-lid box and drill box wait |

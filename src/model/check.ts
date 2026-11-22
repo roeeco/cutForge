@@ -202,6 +202,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
   // a pin-hinged lid and its knuckles (milestone 176): a bad record is dropped, the board kept
   if (x.pinLid !== undefined && !(isObj(x.pinLid) && typeof x.pinLid.tray === 'string' && ['pin', 'knuckles', 'play', 'open'].every((k) => Number.isFinite(x.pinLid[k]) && x.pinLid[k] > 0 && x.pinLid[k] < 1000))) delete x.pinLid;
   if (x.knuckle !== undefined && !(isObj(x.knuckle) && typeof x.knuckle.lid === 'string' && (x.knuckle.on === 'lid' || x.knuckle.on === 'wall') && Number.isInteger(x.knuckle.k) && x.knuckle.k >= 0)) delete x.knuckle;
+  // a cleat's board (milestone 179): an unknown kind is dropped, the board kept
+  if (x.cleat !== undefined && x.cleat !== 'item' && x.cleat !== 'wall') delete x.cleat;
   if (x.lidOf !== undefined && !(isObj(x.lidOf) && typeof x.lidOf.tray === 'string' && (x.lidOf.kind === 'flat' || x.lidOf.kind === 'dropin' || x.lidOf.kind === 'plug' || x.lidOf.kind === 'brim'))) delete x.lidOf;
   if (isObj(x.lidOf) && x.lidOf.hasps !== undefined && !(isObj(x.lidOf.hasps) && [1, 2, 3].includes(x.lidOf.hasps.n) && Number.isFinite(x.lidOf.hasps.hole) && x.lidOf.hasps.hole >= 3 && x.lidOf.hasps.hole <= 20)) delete x.lidOf.hasps;
   if (x.edgeFlaps !== undefined) {

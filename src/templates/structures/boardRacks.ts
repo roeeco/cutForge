@@ -9,7 +9,7 @@ import type { Design, P2 } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
 import { addFreePanel, connectSeams, solve } from '../../model/ops';
-import { hangByKeyholes, plywoodOnly } from './boards';
+import { cleatSizes, hangThing, hangWord, plywoodOnly, type CleatAt } from './boards';
 import { cleanAll } from './box';
 import { sheetLimits } from './shaped';
 
@@ -30,14 +30,18 @@ const along = (d: Design, x: number, y: number, z: number, outer: P2[]) =>
 const across = (d: Design, x: number, y: number, z: number, outer: P2[]) =>
   addFreePanel(d, { frame: { o: [x, y, z], u: [1, 0, 0], v: [0, 1, 0] }, side: -1, outer });
 
-/** Join every board to the boards it meets, hang the back by keyholes (`below` its top edge), then name them. */
-function finish(d: Design, ids: (string | null)[], role: Role, names: string[], back: string | null, below?: number) {
+/**
+ * Join every board to the boards it meets, hang the back as the words say (keyholes `below` its top edge, or a cleat
+ * placed `at`), then name them.
+ */
+function finish(d: Design, p: Params, ids: (string | null)[], role: Role, names: string[], back: string | null, below?: number, at?: CleatAt) {
   solve(d);
   for (const id of ids) if (id) connectSeams(d, id);
   solve(d);
-  if (back) hangByKeyholes(d, back, below);
+  const cleat = back ? hangThing(d, p, back, below, at) : [];
   solve(d);
   ids.forEach((id, i) => id && role(names[i] ?? `part-${i + 1}`, id));
+  for (const c of cleat) role(c.name, c.id);
 }
 
 const plywood: Pick<TemplateDef, 'materials' | 'canMake' | 'fallback' | 'status' | 'version'> = {
@@ -63,8 +67,11 @@ function generateBinRack(d: Design, p: Params, role: Role) {
   const g = d.material.clearance, s2 = Math.SQRT1_2;
   const ids: (string | null)[] = [], names: string[] = [];
   // the back (its front face at z = −D/2 + w + t, as tall as the sides), the sides outside the width, the bottom and the top
-  const bz = -D / 2 + w + t, fd = D / 2 - bz;
-  ids.push(across(d, -W / 2, 0, bz, rect(W, H)), along(d, -W / 2 - t, 0, D / 2, rect(D, H)), along(d, W / 2, 0, D / 2, rect(D, H)));
+ const bz = -D / 2 + w + t, fd = D / 2 - bz;
+  // milestone 179: hung on a cleat, the back reaches above the frame by the cleat's band (its rear face below is
+  // crossed by the slots of every board joined to it)
+  const cleat = p.hang === 'cleat', top = cleat ? cleatSizes(t).band + Math.max(6, 2 * t) + 2 : 0;
+  ids.push(across(d, -W / 2, 0, bz, rect(W, H + top)), along(d, -W / 2 - t, 0, D / 2, rect(D, H)), along(d, W / 2, 0, D / 2, rect(D, H)));
   names.push('back', 'side-1', 'side-2');
   ids.push(level(d, -W / 2, w, D / 2, W, fd), level(d, -W / 2, H - w - t, D / 2, W, fd));
   names.push('bottom', 'top');
@@ -89,7 +96,8 @@ function generateBinRack(d: Design, p: Params, role: Role) {
     }
   }
   // the keyholes in the top bin's back, clear of the top board's slots
-  finish(d, ids, role, names, ids[0], w + t + 6);
+  const web = Math.max(2 * t, 6);
+  finish(d, p, ids, role, names, ids[0], w + t + 6, { below: Math.max(6, 2 * t), stud: { y: w + t + web, h: Math.min(cleatSizes(t).band, rh - 2 * web), x0: web, x1: cw - web } });
 }
 
 export const binRack: TemplateDef = {
@@ -108,6 +116,7 @@ export const binRack: TemplateDef = {
       key: 'front', label: 'sen.binFront', type: 'choice', default: 0.4,
       options: [0.3, 0.4, 0.5].map((v) => ({ value: v, label: `sen.binFront.${v * 10}` as MsgKey })),
     },
+    hangWord(() => binRack),
   ],
   generate: generateBinRack,
   sentence: { main: 'sen.s.binRack' },
@@ -156,7 +165,8 @@ function generateWallRack(d: Design, p: Params, role: Role) {
     ids.push(along(d, -W / 2 - t, y - 2 * w, L, end), along(d, W / 2, y - 2 * w, L, end));
     names.push(`end-${k + 1}-1`, `end-${k + 1}-2`);
   }
-  finish(d, ids, role, names, ids[0]);
+  // a cleat at the back's top, above the end lips; its stand-off under the lowest shelf, between the end lips
+  finish(d, p, ids, role, names, ids[0], undefined, { stud: { y: 2, h: Math.max(5, y0 - 2 * w - 4), x0: web + t + web, x1: bw - web - t - web } });
 }
 
 export const wallRack: TemplateDef = {
@@ -171,6 +181,7 @@ export const wallRack: TemplateDef = {
     num('spacing', 'sen.shelfSpacing', 50, 200, 100),
     int('shelves', 'sen.shelves', 1, 5, 3),
     num('lip', 'sen.lipHeight', 10, 40, 20),
+    hangWord(() => wallRack),
   ],
   generate: generateWallRack,
   sentence: { main: 'sen.s.wallRack' },

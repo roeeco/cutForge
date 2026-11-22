@@ -7,7 +7,7 @@ import type { Design, Tray } from '../model/types';
 import { endSpec, endStyleOf, trayRing } from '../model/cartons';
 import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
-import { findEdge, segLength } from '../model/edges';
+import { findEdge, segLength, straightRing } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
 import { stacks } from '../model/stack';
 import { hasBand } from '../model/bands';
@@ -144,6 +144,26 @@ export type PresetRecord = {
   gears?: boolean;
   /** Milestone 183: a board with a game's squares engraved on it (twelve or more of one size). */
   game?: boolean;
+  /** Milestone 179: it hangs on a cleat (boards marked `Panel.cleat`); the rest of the record is the thing without them. */
+  cleat?: boolean;
+  /** Milestone 179: a level board of a slot body cut in from an edge in slots (a tool holder's shelf): square to it, or at a slant (a wrench holder's). */
+  notches?: 'square' | 'angled';
+  /** Milestone 179: round holes 10 mm or more through a level board of a slot body, two or more (tools or jars stand in them). */
+  wells?: boolean;
+  /** Milestone 179: upright boards of a slot body with a curved mouth in their outline (J hooks). */
+  hooks?: boolean;
+  /** Milestone 179: a hung slot body with no level board and an upright board in front of the one it hangs by, parallel to it (a pliers holder's bar). */
+  bar?: boolean;
+  /** Milestone 179: level boards at two heights or more whose fronts step back as they rise (wall steps). */
+  steps?: boolean;
+  /** Milestone 179: a box wall whose top steps down along it (inserts going one way only: a hopper's sides, a drill stand's). */
+  stepped?: boolean;
+  /** Milestone 178 (part 2): a board at a slant inside a box, of its own, with a round hole 15 mm or more (a showcase's coin plate). */
+  coin?: boolean;
+  /** Milestone 178 (part 2): an upright board of a slot body with two hollows or more in its outline (a bottle stack's cradles). */
+  cradles?: boolean;
+  /** Milestone 178 (part 2): a strip of three boards bent on living hinges, the middle one narrower than the others (a book cover's spine). */
+  spine?: boolean;
 };
 
 /** Milestone 176: the boards of pin-hinged lids (the lid, its knuckles, a crown built on it) and the box's knuckles: the lid's, not boards in the box. */
@@ -374,7 +394,34 @@ function hasChute(d: Design, t: Tray): boolean {
 function hasCrenels(d: Design, t: Tray): boolean {
   return trayRing(d, t).some((r) => {
     const s = d.panels[r.wall]?.sketch;
-    return s?.kind === 'wall' && (s.inserts ?? []).filter((x) => x.edge === 'e2' && x.off < -3).length >= 2;
+    // milestone 179: notches that go down and back up (a top stepping one way is `stepped`)
+    return s?.kind === 'wall' && (s.inserts ?? []).filter((x) => x.edge === 'e2' && x.off < -3).length >= 2 && !oneWay(d.panels[r.wall]);
+  });
+}
+
+/** Milestone 179: a wall's top, from its top right corner to its top left one, through its inserts (its outline's points). */
+function topProfile(p: Design['panels'][string]): { x: number; y: number }[] {
+  const ring = straightRing(p);
+  const top = ring.filter((e) => e.key !== 'e0' && e.key !== 'e1' && e.key !== 'e3');
+  return top.length ? [...top.map((e) => e.a), top[top.length - 1].b] : [];
+}
+
+/** Milestone 179: a wall's top never turning back: each point no higher than the one before along it, or each no lower. */
+function oneWay(p: Design['panels'][string]): boolean {
+  const ys = topProfile(p).map((q) => q.y);
+  const down = ys.every((v, i) => i === 0 || v <= ys[i - 1] + 0.5), up = ys.every((v, i) => i === 0 || v >= ys[i - 1] - 0.5);
+  return down || up;
+}
+
+/** Milestone 179: a wall whose top steps down along it, one way only (an upright drop of 3 mm or more in it, never turning back). */
+function hasStepped(d: Design, t: Tray): boolean {
+  return trayRing(d, t).some((r) => {
+    const P = d.panels[r.wall];
+    const s = P?.sketch;
+    if (s?.kind !== 'wall' || !(s.inserts ?? []).some((x) => x.edge === 'e2')) return false;
+    const pts = topProfile(P);
+    const drop = pts.some((q, i) => i > 0 && Math.abs(q.x - pts[i - 1].x) < 1 && Math.abs(q.y - pts[i - 1].y) >= 3);
+    return drop && oneWay(P);
   });
 }
 
@@ -469,7 +516,118 @@ function slotOf(d: Design, ids: string[]): PresetRecord | null {
   if (cut.some((x) => x.motor)) rec.motor = true;
   if (cut.some((x) => x.pegs)) rec.pegs = true;
   if (ids.length === 2 && ids.filter(level).length === 1) rec.foot = true;
+  // milestone 179: a shelf cut in slots, round holes through a level board, J hooks, a bar, steps
+  const notch = ids.filter(level).map((id) => notchesOf(d.panels[id])).find((x) => x);
+  if (notch) rec.notches = notch;
+  const steps = hasSteps(d, ids.filter(level));
+  if (steps) rec.steps = true;
+  // (holes in steps are the steps')
+  if (!steps && ids.some((id) => level(id) && d.panels[id].details.filter((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 10).length >= 2)) rec.wells = true;
+  if (ids.some((id) => upright(id) && isHook(d.panels[id]))) rec.hooks = true;
+  // milestone 178 (part 2): cradles in a beam's top, a round board (a clock's face)
+  if (ids.some((id) => upright(id) && hollows(d.panels[id]) >= 2)) rec.cradles = true;
+  if (ids.some((id) => isRound(d.panels[id]))) rec.disc = true;
+  if (hungBoards(d).size && !rec.shelves && hasBar(d, ids)) rec.bar = true;
   return rec;
+}
+
+/** Milestone 179: a board's outline points and which corners turn inwards. */
+function outlineOf(p: Design['panels'][string]): { pts: { x: number; y: number }[]; reflex: boolean[] } {
+  const s = p.sketch as { kind: string; pts?: { x: number; y: number }[] };
+  const pts = s.kind === 'poly' && s.pts ? s.pts : [];
+  const n = pts.length;
+  const turns = pts.map((q, i) => {
+    const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    return (q.x - a.x) * (b.y - q.y) - (q.y - a.y) * (b.x - q.x);
+  });
+  const ccw = Math.sign(turns.reduce((x, y) => x + y, 0)) || 1;
+  return { pts, reflex: turns.map((x) => x * ccw < -1e-6) };
+}
+
+/** Milestone 179: slots cut in from a board's edge (two or more, four inward corners or more): square to its sides, or at a slant. */
+function notchesOf(p: Design['panels'][string]): 'square' | 'angled' | null {
+  const { pts, reflex } = outlineOf(p);
+  if (reflex.filter(Boolean).length < 4 || pts.length > 80) return null;
+  // a slanted side next to an inward corner: neither along the board's x nor its y
+  const n = pts.length;
+  const slanted = pts.some((q, i) => {
+    if (!reflex[i]) return false;
+    const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    return [a, b].some((r) => {
+      const dx = Math.abs(r.x - q.x), dy = Math.abs(r.y - q.y);
+      return Math.min(dx, dy) > 0.1 * Math.max(dx, dy) && Math.hypot(dx, dy) > 4;
+    });
+  });
+  return slanted ? 'angled' : 'square';
+}
+
+/** Milestone 179: the hollows in a board's outline: runs of three inward corners or more in a row. */
+function hollows(p: Design['panels'][string]): number {
+  const { reflex } = outlineOf(p);
+  const n = reflex.length;
+  if (!n || reflex.every(Boolean)) return 0;
+  // start after a corner that turns outwards, so a run is not split at the outline's first point
+  const s = reflex.findIndex((r) => !r);
+  let runs = 0, len = 0;
+  for (let k = 1; k <= n; k++) {
+    if (reflex[(s + k) % n]) len++;
+    else {
+      if (len >= 3) runs++;
+      len = 0;
+    }
+  }
+  return runs;
+}
+
+/** Milestone 179: a hook: a board whose outline is curved (ten points or more) with one mouth. */
+function isHook(p: Design['panels'][string]): boolean {
+  return outlineOf(p).pts.length >= 10 && hollows(p) === 1;
+}
+
+/** Milestone 178 (part 2): a round board: sixteen points or more, all as far from their middle. */
+function isRound(p: Design['panels'][string]): boolean {
+  const { pts } = outlineOf(p);
+  if (pts.length < 16) return false;
+  const cx = pts.reduce((a, q) => a + q.x, 0) / pts.length, cy = pts.reduce((a, q) => a + q.y, 0) / pts.length;
+  const r = pts.map((q) => Math.hypot(q.x - cx, q.y - cy));
+  return Math.max(...r) - Math.min(...r) < 0.02 * Math.max(...r);
+}
+
+/** Milestone 179: the boards a design hangs by: its keyholes', or (set while a cleat's boards are read away) those the cleat is glued to. */
+let hungBy: Set<string> | null = null;
+const hungBoards = (d: Design) => hungBy ?? new Set(Object.values(d.panels).filter((p) => p.details.some((x) => x.mount === 'keyhole')).map((p) => p.id));
+
+/** Milestone 179: an upright board parallel to a board the thing hangs by, 15 mm or more in front of it, its span over that board's. */
+function hasBar(d: Design, ids: string[]): boolean {
+  const hung = [...hungBoards(d)].filter((id) => ids.includes(id));
+  const nrm = (id: string) => {
+    const f = d.panels[id].frame;
+    return [f.u[1] * f.v[2] - f.u[2] * f.v[1], f.u[2] * f.v[0] - f.u[0] * f.v[2], f.u[0] * f.v[1] - f.u[1] * f.v[0]];
+  };
+  return hung.some((h) => {
+    const nh = nrm(h), oh = d.panels[h].frame.o;
+    return ids.some((id) => {
+      if (id === h) return false;
+      const n = nrm(id), o = d.panels[id].frame.o;
+      if (Math.abs(n[0] * nh[0] + n[1] * nh[1] + n[2] * nh[2]) < 0.999 || Math.abs(n[1]) > 0.02) return false;
+      return Math.abs((o[0] - oh[0]) * nh[0] + (o[1] - oh[1]) * nh[1] + (o[2] - oh[2]) * nh[2]) >= 15;
+    });
+  });
+}
+
+/** Milestone 179: level boards at two heights or more whose fronts (their furthest reach towards +z) step back as they rise. */
+function hasSteps(d: Design, levels: string[]): boolean {
+  const at = new Map<number, number>();
+  for (const id of levels) {
+    const p = d.panels[id], f = p.frame;
+    const y = Math.round(f.o[1]);
+    const { pts } = outlineOf(p);
+    const ring = pts.length ? pts : [{ x: 0, y: 0 }, { x: p.w, y: 0 }, { x: p.w, y: p.h }, { x: 0, y: p.h }];
+    const front = Math.max(...ring.map((q) => f.o[2] + q.x * f.u[2] + q.y * f.v[2]));
+    at.set(y, Math.max(at.get(y) ?? -Infinity, front));
+  }
+  const fronts = [...at.entries()].sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+  return fronts.length >= 2 && fronts.every((v, i) => i === 0 || v <= fronts[i - 1] + 0.5) && fronts[0] - fronts[fronts.length - 1] >= 10;
 }
 
 /**
@@ -531,6 +689,24 @@ function tambourOf(d: Design, t: Tray): number {
 /** A design's record. */
 export function recordOf(d: Design): PresetRecord {
   if (d.make?.solid) return { body: 'solid', solid: d.make.solid.kind };
+  // milestone 179: a thing hung on a cleat is the thing (read without the cleat's boards), and it hangs
+  if (d.order.some((id) => d.panels[id]?.cleat)) {
+    const keep = (id: string) => !!d.panels[id] && !d.panels[id].cleat;
+    const bare: Design = {
+      ...d,
+      panels: Object.fromEntries(Object.entries(d.panels).filter(([id]) => keep(id))),
+      order: d.order.filter(keep),
+      connections: Object.fromEntries(Object.entries(d.connections).filter(([, c]) => keep(c.a.panelId) && keep(c.b.panelId))),
+    };
+    const glued = (id: string) => Object.values(d.connections).filter((c) => c.kind === 'laminate' && (c.a.panelId === id || c.b.panelId === id)).map((c) => (c.a.panelId === id ? c.b.panelId : c.a.panelId));
+    const was = hungBy;
+    hungBy = new Set(d.order.filter((id) => d.panels[id]?.cleat === 'item').flatMap(glued).filter(keep));
+    try {
+      return { ...recordOf(bare), hang: true, cleat: true };
+    } finally {
+      hungBy = was;
+    }
+  }
   const t = mainOf(d);
   const slits = Object.values(d.panels).some((p) => (p.lines ?? []).some((l) => l.type === 'cut'));
   if (t) {
@@ -582,6 +758,9 @@ export function recordOf(d: Design): PresetRecord {
     // milestone 183: gears inside the box (two or more toothed boards of their own); a game's squares engraved
     if (!tube && freeIn(d, t, toothed).length >= 2) rec.gears = true;
     if (hasGame(d)) rec.game = true;
+    if (!tube && hasStepped(d, t)) rec.stepped = true;
+    // milestone 178 (part 2): a slanted board of its own with a coin's hole
+    if (!tube && freeIn(d, t, (p) => { const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]); return n > 0.2 && n < 0.98 && p.details.some((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= 15); }).length) rec.coin = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -616,6 +795,10 @@ export function recordOf(d: Design): PresetRecord {
       const sign = (c: (typeof grown)[number]) => (c.dir === 'up' ? '+' : '-');
       rec.folds = grown.map((c) => `${sign(c)}${Math.round(180 - c.angle)}`).sort().join(',');
       rec.accordion = grown.length >= 2 && grown.some((c) => c.dir === 'up') && grown.some((c) => c.dir === 'down') && grown.every((c) => Math.abs(c.angle - 90) > 1);
+      // milestone 178 (part 2): three boards bent on living hinges, the middle one narrower (0.6 or less) than the others (a book cover)
+      const area = (id: string) => sketchArea(d.panels[id]);
+      const mid = ids.find((id) => grown.some((c) => c.b.panelId === id) && grown.some((c) => c.a.panelId === id));
+      if (ids.length === 3 && mid && grown.every((c) => hasBand(d, c)) && ids.every((id) => id === mid || area(mid) <= 0.6 * area(id))) rec.spine = true;
     }
     return rec;
   }
@@ -623,7 +806,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins', 'crown', 'tambour', 'doors', 'gears', 'game'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins', 'crown', 'tambour', 'doors', 'gears', 'game', 'notches', 'wells', 'hooks', 'bar', 'steps', 'stepped', 'coin', 'cradles', 'spine'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {
