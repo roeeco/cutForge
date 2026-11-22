@@ -707,6 +707,16 @@ export function recordOf(d: Design): PresetRecord {
       hungBy = was;
     }
   }
+  // milestone 184: an enclosure is its box (read without its corner blocks, rack front and rails)
+  if (d.order.some((id) => d.panels[id]?.fitting)) {
+    const keep = (id: string) => !!d.panels[id] && !d.panels[id].fitting;
+    return recordOf({
+      ...d,
+      panels: Object.fromEntries(Object.entries(d.panels).filter(([id]) => keep(id))),
+      order: d.order.filter(keep),
+      connections: Object.fromEntries(Object.entries(d.connections).filter(([, c]) => keep(c.a.panelId) && keep(c.b.panelId))),
+    });
+  }
   const t = mainOf(d);
   const slits = Object.values(d.panels).some((p) => (p.lines ?? []).some((l) => l.type === 'cut'));
   if (t) {

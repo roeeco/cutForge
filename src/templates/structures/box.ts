@@ -21,6 +21,7 @@ import { dividersOn } from '../../model/dividers';
 import { tOf } from '../../model/materials';
 import { largestOk } from '../../sentence/resolve';
 import { addStack, stackLeast } from '../../model/stack';
+import { addEuroRails, addRackFront, addScrewTop, blockRoom, EURO_DEPTH, fittingsOf, rackFits, type RackKind } from './enclosure';
 
 export type Shape = 'rect' | 'rounded' | 'round' | 'poly';
 
@@ -81,7 +82,8 @@ export function cleanWith(def: TemplateDef, m: MaterialProfile, p: Params, key: 
       // the word *closed* makes the lid the engine calls *fixed* (milestone 171); a plug or brim lid lifts off (173)
       const l = tr ? boxLid(d, tr) : null;
       // milestone 176: *pins*, a lid hinged on pins
-      ok = !!l && (v === 'plug' || v === 'brim' ? l.kind === 'liftoff' && l.style === v : v === 'pins' ? l.kind === 'hinged' && !!l.pins : l.kind === (v === 'closed' ? 'fixed' : v));
+      // milestone 184: *screwed*, a top on corner blocks (the engine's drop-in lid, resting on them)
+      ok = !!l && (v === 'plug' || v === 'brim' ? l.kind === 'liftoff' && l.style === v : v === 'pins' ? l.kind === 'hinged' && !!l.pins : v === 'screwed' ? l.kind === 'liftoff' && l.style === 'dropin' && fittingsOf(d, 'block').length >= 4 : l.kind === (v === 'closed' ? 'fixed' : v));
     }
   } catch {
     ok = false;
@@ -155,9 +157,11 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       // milestone 171 (UniversalBox's closed top): *closed*, a top fixed on with the walls' joint, on plywood
       // milestone 173 (UniversalBox's *flat* and *flatbrim*): a lid with a plug glued under it, or a brim of strips in slots
       // milestone 176 (UniversalBox's hinge edges, IntegratedHingeBox): *pins*, a lid hinged on knuckles and a pin, on plywood
-      options: (['none', 'liftoff', 'hinged', 'arched', 'closed', 'plug', 'brim', 'pins'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
+      // milestone 184 (boxes.py's ElectronicsBox): *screwed*, a top screwed on corner blocks, on plywood
+      options: (['none', 'liftoff', 'hinged', 'arched', 'closed', 'plug', 'brim', 'pins', 'screwed'] as const).map((v) => ({ value: v, label: `sen.lid.${v}` as MsgKey })),
       allowed: (v, p, m) => {
         if (v === 'none') return true;
+        if (v === 'screwed') return m.kind === 'plywood' && p.shape === 'rect' && blockRoom(m.thickness, insideWords(p, m)) && cleanWith(box, m, p, 'lid', v);
         if (v === 'pins') return m.kind === 'plywood' && p.shape === 'rect' && pinFits(m, p) && cleanWith(box, m, p, 'lid', v);
         if (v === 'closed') return m.kind === 'plywood' && p.shape !== 'round' && p.shape !== 'rounded' && cleanWith(box, m, p, 'lid', v);
         if (v === 'plug' || v === 'brim') return m.kind === 'plywood' && (p.shape === 'rect' || (v === 'plug' && p.shape === 'poly')) && cleanWith(box, m, p, 'lid', v);
@@ -167,6 +171,7 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       },
       why: (v, p, m) => {
         if (v === 'closed') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : 'sen.why.closedShape';
+        if (v === 'screwed') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape !== 'rect' ? 'sen.why.lidShape' : !blockRoom(m.thickness, insideWords(p, m)) ? 'sen.why.blockRoom' : 'sen.why.engine';
         if (v === 'pins') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape !== 'rect' ? 'sen.why.pinShape' : !pinFits(m, p) ? 'sen.why.pinRoom' : 'sen.why.engine';
         if (v === 'plug' || v === 'brim') return m.kind !== 'plywood' ? 'sen.why.plyOnly' : p.shape === 'rect' || (v === 'plug' && p.shape === 'poly') ? 'sen.why.engine' : 'sen.why.lidShape';
         const d = builtFor(box, m, { ...p, lid: 'none' }, true);
@@ -264,6 +269,16 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       options: [{ value: 'none', label: 'sen.stack.none' }, { value: 'feet', label: 'sen.stack.feet' }],
       allowed: (v, p, m) => v === 'none' || (m.kind === 'plywood' && p.shape === 'rect' && (p.lid ?? 'none') === 'none' && p.handles !== 'grips' && stackRoom(m, p) && engine('stack')(v, p, m)),
       why: (_v, p, m) => (m.kind !== 'plywood' ? 'sen.why.plyOnly' : (p.lid ?? 'none') !== 'none' ? 'sen.why.stackLid' : p.handles === 'grips' ? 'sen.why.stackGrips' : p.shape !== 'rect' ? 'sen.why.stackShape' : !stackRoom(m, p) ? 'sen.why.stackRoom' : 'sen.why.engine'),
+      affects: ['walls'],
+    });
+  if (o.lid)
+    // milestone 184 (boxes.py's Rack19Box, Rack10Box, EuroRackSkiff): a front panel with a rack's ears on a box with a
+    // top screwed on or fixed on, or Eurorack rails along an open box's front and back walls; plywood, a rectangle
+    out.push({
+      key: 'rack', label: 'sen.rack', type: 'choice', default: 'none', addon: { off: 'none' },
+      options: (['none', '19', '10', 'euro'] as const).map((v) => ({ value: v, label: `sen.rack.${v}` as MsgKey })),
+      allowed: (v, p, m) => v === 'none' || (rackWhy(v, p, m) === null && fittingsOf(builtFor(box, m, { ...p, rack: v }), v === 'euro' ? 'rail' : 'front').length > 0 && cleanWith(box, m, p, 'rack', v)),
+      why: (v, p, m) => rackWhy(v, p, m) ?? 'sen.why.engine',
       affects: ['walls'],
     });
   return out;
@@ -379,6 +394,11 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
   // milestone 177: stacking feet and tongues on every wall
   if (p.stack === 'feet') addStack(d, trayRing(d, d.trays[tray]).map((r) => r.wall));
   if (kindLid && p.lid === 'closed') addClosedTop(d, tray);
+  // milestone 184: a top screwed on corner blocks; the dividers stop under the blocks
+  else if (kindLid && p.lid === 'screwed') {
+    addScrewTop(d, tray);
+    lowerUnder(d, tray, (tOf(d, d.trays[tray].baseId) < 5 - 1e-9 ? 3 : 2) * tOf(d, d.trays[tray].baseId));
+  }
   // milestone 176: a lid hinged on pins
   else if (kindLid && p.lid === 'pins') addPinLid(d, tray, { pin: pinOf(p, d.material) });
   else if (kindLid && (p.lid === 'plug' || p.lid === 'brim')) {
@@ -400,6 +420,12 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
     if (l.kind === 'liftoff' && l.style !== 'cap' && l.style !== 'dropin') addLidHandle(d, l.top);
   }
   if (kindLid && p.overhang === 'plate') addBasePlate(d, tray, overhangOf(tOf(d, d.trays[tray].baseId)));
+  // milestone 184: a rack's front panel, or Eurorack rails (the dividers stop under the rails)
+  if (kindLid && (p.rack === '19' || p.rack === '10')) addRackFront(d, tray, p.rack);
+  if (kindLid && p.rack === 'euro') {
+    lowerUnder(d, tray, 2 * tOf(d, d.trays[tray].baseId));
+    addEuroRails(d, tray);
+  }
   nameRoles(d, role);
 }
 
@@ -411,6 +437,31 @@ export function pinFits(m: MaterialProfile, p: Params): boolean {
   const room = pinRoom(m.thickness, pinOf(p, m));
   const out = (v: number) => Number(v) + (p.sizeAs === 'outside' ? 0 : 2 * m.thickness);
   return out(Number(p.width)) >= room.width && Number(p.height) + (p.sizeAs === 'outside' ? 0 : m.thickness) >= room.height;
+}
+
+/** A box's inside for these words (milestone 184): the sizes said inside, or outside less the walls and the base. */
+export function insideWords(p: Params, m: Pick<MaterialProfile, 'thickness'>): { w: number; d: number; h: number } {
+  const t = m.thickness, out = p.sizeAs === 'outside';
+  return { w: Number(p.width) - (out ? 2 * t : 0), d: Number(p.depth) - (out ? 2 * t : 0), h: Number(p.height) - (out ? t : 0) };
+}
+
+/**
+ * Why a rack fitting cannot be had with these words (milestone 184), or null: plywood and a rectangle; a rack's front
+ * on a box whose top is screwed or fixed on, that goes between the rack's rails and is a unit tall or more; Eurorack
+ * rails in an open box as deep inside as the modules and their screw lines take.
+ */
+export function rackWhy(v: string | number, p: Params, m: MaterialProfile): MsgKey | null {
+  if (v === 'none') return null;
+  if (m.kind !== 'plywood') return 'sen.why.plyOnly';
+  if (p.shape !== 'rect') return 'sen.why.lidShape';
+  if ((p.overhang ?? 'none') !== 'none') return 'sen.why.rackBase';
+  const ins = insideWords(p, m), t = m.thickness;
+  if (v === 'euro') {
+    if ((p.lid ?? 'none') !== 'none') return 'sen.why.euroLid';
+    return ins.d >= EURO_DEPTH.min - 1e-9 && ins.d <= EURO_DEPTH.max + 1e-9 && ins.h >= 3 * t + 20 ? null : 'sen.why.euroDepth';
+  }
+  if (p.lid !== 'screwed' && p.lid !== 'closed') return 'sen.why.rackLid';
+  return rackFits(v as RackKind, { w: ins.w + 2 * t, h: ins.h + t }) ? null : 'sen.why.rackSize';
 }
 
 /** How far a base plate stands out past the walls (milestone 173): two boards, never under 6 mm. */
@@ -427,13 +478,18 @@ export function handleOf(d: Design): string | null {
 function lowerUnderLid(d: Design, trayId: string) {
   const l = boxLid(d, trayId);
   if (l.kind !== 'liftoff') return;
+  lowerUnder(d, trayId, layerDepth(d, l.top));
+}
+
+/** Dividers stop a play under what reaches `depth` mm down from the walls' tops (a layered lid's plug, corner blocks, rails). */
+function lowerUnder(d: Design, trayId: string, depth: number) {
   const t = d.trays[trayId];
   const B = d.panels[t.baseId];
   const walls = trayRing(d, t).map((r) => d.panels[r.wall]).filter(Boolean);
   if (!B || !walls.length) return;
   const top = Math.max(...walls.map((w) => w.frame.o[1] + w.h));
   const floor = B.frame.o[1] + tOf(d, B.id);
-  const most = top - layerDepth(d, l.top) - 1 - floor;
+  const most = top - depth - 1 - floor;
   let changed = false;
   for (const id of dividersOn(d, B.id)) {
     const P = d.panels[id];

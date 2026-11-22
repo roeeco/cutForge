@@ -404,9 +404,24 @@ function dropinOutline(d: Design, box: Tray): { pts: SketchPt[]; edgeIds: string
   return { pts: shrunk.map((q) => ({ ...q, x: q.x - x0, y: q.y - y0 })), edgeIds: [...B.sketch.edgeIds], x0, y0 };
 }
 
+/** Milestone 184: the corner blocks a box's top is screwed onto (`Panel.fitting 'block'`, joined to its walls; a layer glued under one is not). */
+export function cornerBlocks(d: Design, box: Tray): Panel[] {
+  const walls = new Set(Object.values(d.connections).filter((c) => c.grown && c.trayId === box.id && c.a.panelId === box.baseId).map((c) => c.b.panelId));
+  return d.order
+    .map((id) => d.panels[id])
+    .filter((p) => p?.fitting === 'block' && Object.values(d.connections).some((c) => (c.a.panelId === p.id && walls.has(c.b.panelId)) || (c.b.panelId === p.id && walls.has(c.a.panelId))));
+}
+
 /** The height a Drop-in lid rests at over the base's frame: on the tallest divider. */
 export function dropinRest(d: Design, box: Tray): number {
   const B = d.panels[box.baseId];
+  // milestone 184: a top screwed on corner blocks rests on them, its top flush with the walls'
+  const blocks = cornerBlocks(d, box);
+  if (B && blocks.length) {
+    const up = matDir(B.frame);
+    const lift = (p: Panel) => (p.frame.o[0] - B.frame.o[0]) * up[0] + (p.frame.o[1] - B.frame.o[1]) * up[1] + (p.frame.o[2] - B.frame.o[2]) * up[2] + tOf(d, p.id);
+    return Math.max(...blocks.map(lift));
+  }
   const tops = boxDividers(d, box).map((p) => p.h);
   return (B ? tOf(d, B.id) : 0) + (tops.length ? Math.max(...tops) : box.height / 2);
 }

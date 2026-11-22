@@ -208,6 +208,18 @@ export type Panel = {
    * record reads the thing without them, and that it hangs. Absent: none.
    */
   cleat?: 'item' | 'wall';
+  /**
+   * Milestone 184 (BOXES_PLYWOOD_PLAN.md §3.8): a board that fits a box out as an enclosure: `block`, a corner block a
+   * top is screwed onto; `front`, a rack's front panel with its ears, glued on the front wall; `rail`, a Eurorack rail
+   * the modules are screwed to. The record reads the box without them. Absent: none.
+   */
+  fitting?: 'block' | 'front' | 'rail';
+  /**
+   * Milestone 184 (E9): a board larger than its sheet is cut across into pieces that fit, joined by puzzle keys
+   * (`keySplit.ts`, worked out in the cut, not stored). The student asks for it (the export check's *Split with keys*).
+   * Absent: a board too big is reported, as before.
+   */
+  keyed?: true;
 };
 
 /** A board's stacking edges (milestone 177): see `Panel.stack`. */
