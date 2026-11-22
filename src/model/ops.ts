@@ -18,6 +18,7 @@ import { pointInPolygon, polygonArea, segDistPoint } from '../geom/vec';
 import { panelNotches, panelOutline } from './geometry';
 import { SCHEMA_VERSION } from './types';
 import { edgeFeatureKind, flapDefaultLen } from './edgeFeatures';
+import { boardEnding, hingeToFlap, LIP, refreshAutoFlaps, type Ending } from './endings';
 import { DEFAULT_MATERIAL, bendOf, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
 import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
@@ -107,8 +108,13 @@ export function fitKind(c: Connection, allowed: ConnectionKind[], fallback?: Con
  */
 export function solve(d: Design) {
   settle(d);
+  // automatic flaps follow their boards (milestone 161), once the boards are sized
+  refreshAutoFlaps(d);
   // nets that do not fit their sheet are cut into pieces that do (milestone 69); then solved again
-  for (let i = 0; i < 3 && fitSplit(d); i++) settle(d);
+  for (let i = 0; i < 3 && fitSplit(d); i++) {
+    settle(d);
+    refreshAutoFlaps(d);
+  }
 }
 
 function settle(d: Design) {
@@ -2666,14 +2672,14 @@ export function setClosure(d: Design, lidId: string, patch: Partial<Closure>) {
  * Refused on plywood, on a joined edge and on an edge with a fold-over. A flap
  * already on the edge is replaced.
  */
-export function addEdgeFlap(d: Design, panelId: string, edge: string, opt?: number | { shape?: FlapShape; len?: number }): string | null {
+export function addEdgeFlap(d: Design, panelId: string, edge: string, opt?: number | { shape?: FlapShape; len?: number; auto?: boolean }): string | null {
   const p = d.panels[panelId];
   const e = p && findEdge(p, edge);
   if (!p || !e || edgeFeatureKind('flap').blocked!(d, p, edge)) return null;
   const o = typeof opt === 'number' ? { len: opt } : (opt ?? {});
   const shape = o.shape && o.shape !== 'plain' ? o.shape : undefined;
   const id = newId('fl');
-  const f: EdgeFlap = { id, edge, len: o.len ?? flapDefaultLen(d, p, e, shape ?? 'plain'), ...(shape ? { shape } : {}) };
+  const f: EdgeFlap = { id, edge, len: o.len ?? flapDefaultLen(d, p, e, shape ?? 'plain'), ...(shape ? { shape } : {}), ...(o.len === undefined && o.auto ? { auto: true as const } : {}) };
   p.edgeFlaps = [...(p.edgeFlaps ?? []).filter((x) => x.edge !== edge), f];
   solve(d);
   return id;
@@ -2692,23 +2698,118 @@ export function setEdgeFlap(d: Design, panelId: string, edge: string, patch: num
   else
     p.edgeFlaps = p.edgeFlaps.map((f) => {
       if (f.edge !== edge) return f;
-      if (typeof patch === 'number') return { ...f, len: Math.max(2, patch) };
+      if (typeof patch === 'number') {
+        const { auto: _auto, ...rest } = f;
+        return { ...rest, len: Math.max(2, patch) };
+      }
       let next: EdgeFlap = { ...f };
       if ('shape' in patch && (patch.shape ?? 'plain') !== (f.shape ?? 'plain')) {
         const e = findEdge(p, edge);
         const shape = patch.shape && patch.shape !== 'plain' ? patch.shape : undefined;
-        next = { id: f.id, edge: f.edge, len: patch.len ?? (e ? flapDefaultLen(d, p, e, shape ?? 'plain') : f.len), ...(shape ? { shape } : {}) };
+        // an automatic flap stays automatic in its new shape (milestone 161)
+        next = { id: f.id, edge: f.edge, len: patch.len ?? (e ? flapDefaultLen(d, p, e, shape ?? 'plain') : f.len), ...(shape ? { shape } : {}), ...(f.auto && patch.len === undefined ? { auto: true as const } : {}) };
       }
       for (const [k, v] of Object.entries(patch)) {
         if (k === 'shape') continue;
         if (v === undefined) delete (next as Record<string, unknown>)[k];
         else (next as Record<string, unknown>)[k] = k === 'len' ? Math.max(2, v as number) : v;
       }
-      if (next.shape === undefined) for (const k of ['taper', 'inset', 'r', 'angle', 'dir', 'hole'] as const) delete next[k];
+      // a plain flap keeps milestone 67's outline; it may be turned (milestone 161)
+      if (next.shape === undefined) for (const k of ['taper', 'inset', 'r', 'hole'] as const) delete next[k];
+      if (next.shape === undefined && !next.angle) delete next.dir;
+      if (next.shape === undefined && next.angle === 0) delete next.angle;
+      // a length given is the student's (milestone 161): it stops following the board
+      if (typeof patch === 'object' && patch.len !== undefined && !('auto' in patch)) delete next.auto;
       return next;
     });
   if (!p.edgeFlaps.length) delete p.edgeFlaps;
   solve(d);
+}
+
+/**
+ * The ends of a board (milestone 161, GROW_ENDINGS_PLAN.md; the rules are in
+ * `src/model/endings.ts`). Put an ending on a free edge: what was there (a flap
+ * or a fold-over) comes off in the same edit, and the new one starts at its
+ * automatic length. False when the edge is not a free end of the board or the
+ * ending cannot go there.
+ */
+export function setEnding(d: Design, panelId: string, edge: string, ending: Ending): boolean {
+  const p = d.panels[panelId];
+  const row = boardEnding(d, panelId, edge);
+  if (!p || !row || row.kind !== 'free' || row.why[ending]) return false;
+  if (row.ending === ending) return true;
+  const key = row.edge;
+  const flap = p.edgeFlaps?.find((f) => findEdge(p, f.edge)?.key === key);
+  // a flap changing shape starts from the new shape's starting values, at its automatic length
+  if (flap && ending !== 'none' && ending !== 'foldover') {
+    setEdgeFlap(d, panelId, flap.edge, { shape: ending === 'plain' ? undefined : ending });
+    const f2 = d.panels[panelId].edgeFlaps?.find((f) => f.id === flap.id);
+    if (f2) f2.auto = true;
+    solve(d);
+    return true;
+  }
+  if (flap) p.edgeFlaps = p.edgeFlaps!.filter((f) => f.id !== flap.id);
+  if (!p.edgeFlaps?.length) delete p.edgeFlaps;
+  const fo = p.foldOvers?.find((f) => findEdge(p, f.edge)?.key === key);
+  if (fo) {
+    p.foldOvers = p.foldOvers!.filter((f) => f.id !== fo.id);
+    if (!p.foldOvers.length) delete p.foldOvers;
+  }
+  if (ending === 'none') {
+    solve(d);
+    return true;
+  }
+  const made = ending === 'foldover' ? addFoldOver(d, panelId, key) : addEdgeFlap(d, panelId, key, { shape: ending, auto: true });
+  if (!made) solve(d);
+  return !!made;
+}
+
+/**
+ * An end's length (milestone 161): a flap's reach, a fold-over's liner, a
+ * lip's width. A number is the student's; null makes it automatic again.
+ */
+export function setEndingLength(d: Design, panelId: string, edge: string, len: number | null): boolean {
+  const p = d.panels[panelId];
+  const row = boardEnding(d, panelId, edge);
+  if (!p || !row) return false;
+  if (row.kind === 'meets') {
+    if (row.joint !== LIP) return false;
+    setConnection(d, row.conn, { flap: len === null ? null : Math.round(len * 10) / 10 });
+    return true;
+  }
+  if (row.ending === 'none') return false;
+  if (row.ending === 'foldover') {
+    const fo = p.foldOvers!.find((f) => findEdge(p, f.edge)?.key === row.edge)!;
+    // a liner set to its full depth is the automatic one
+    const full = p.h - tOf(d, panelId);
+    updateFoldOver(d, panelId, fo.id, { depth: len === null || len >= full - 0.05 ? null : len });
+    return true;
+  }
+  const f = p.edgeFlaps!.find((x) => findEdge(p, x.edge)?.key === row.edge)!;
+  if (len === null) {
+    f.auto = true;
+    solve(d);
+  } else setEdgeFlap(d, panelId, f.edge, Math.round(len * 10) / 10);
+  return true;
+}
+
+/** How far a flap folds (milestone 161), as a grown fold's number: 180 flat, 90 square towards the material side, past 180 the other way. */
+export function setEndingHinge(d: Design, panelId: string, edge: string, h: number): boolean {
+  const p = d.panels[panelId];
+  const row = boardEnding(d, panelId, edge);
+  if (!p || !row || row.kind !== 'free' || row.hinge === null) return false;
+  const f = p.edgeFlaps!.find((x) => findEdge(p, x.edge)?.key === row.edge)!;
+  const { angle, dir } = hingeToFlap(h);
+  setEdgeFlap(d, panelId, f.edge, { angle, dir: dir === 'in' ? undefined : dir });
+  return true;
+}
+
+/** The joint where an edge meets another board (milestone 161): a lip (a glue flap) or one of the seam's other joints. */
+export function setEndingJoint(d: Design, panelId: string, edge: string, kind: ConnectionKind): boolean {
+  const row = boardEnding(d, panelId, edge);
+  if (!row || row.kind !== 'meets' || !row.options.includes(kind)) return false;
+  if (row.joint !== kind) setConnection(d, row.conn, { kind });
+  return true;
 }
 
 /**

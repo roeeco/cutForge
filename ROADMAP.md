@@ -310,3 +310,18 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **183** | Parts in the Shapes tool (gear, pulley, knob, hole pattern, fan grille, NEMA, digits, drill gauge, puzzle cut); gearbox, game board | ✅ (knob card, Planetary and Linkage not made) |
 | **184** | Bigger than 600 × 400 (E9): the largest sheet's limits measured, its one-click choice, *Split with keys*; enclosures: a top screwed on corner blocks, rack fronts, Eurorack rails; five challenges | ✅ (HobbyCase, Arcade, AirPurifier, CarbonFilter, latched hatches not built: `DECISIONS.md`) |
 | **185** | Verification | ✅ (2078 unit tests; the first-word list 22 s → 6 s; no app spec failing because of this lane) |
+
+### 5.8 Edge endings of a grown board, milestones 161–164 of their own lane (owner's request of 21 November)
+
+These numbers overlap §5.6: the two lanes ran on separate branches the same day and were merged on 22 November.
+
+`GROW_ENDINGS_PLAN.md`: after ✓ on a grow, each edge of the new board ends in something (a flap, a fold-over, or a
+lip where it meets another board, offered automatically), at an automatic length until one is set, and each is
+changed the way a grown fold is: the arrow and the hinge ring on the stage, the length and the dial on the card.
+
+| # | Milestone | Plan | Status |
+| --- | --- | --- | --- |
+| **161** | Engine: the edge endings of a board, one edit to change one; automatic lengths | §3 | ✅ |
+| **162** | The card: *Edge endings* under the board's angle | §3 | ✅ |
+| **163** | The stage: the grown fold's handles on each ending | §3 | ✅ |
+| **164** | Verification | §3 | ✅ |

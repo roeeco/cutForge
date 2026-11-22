@@ -135,6 +135,8 @@ describe('the feature table (rule 3)', () => {
       'drawer.grades',
       'edgeFlap',
       'edit2d',
+      // milestone 161: a grown board's edge endings are Workshop's, like the flaps they set
+      'endings',
       'exportCheck',
       'flap.shape',
       'foldover',

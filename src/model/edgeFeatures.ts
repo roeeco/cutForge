@@ -127,14 +127,15 @@ export function flapSpec(f: EdgeFlap, t: number) {
     taper: f.taper ?? D.taper,
     inset: f.inset ?? D.inset(t),
     r: f.r ?? D.r(len),
-    angle: shape === 'plain' ? 0 : (f.angle ?? D.angle),
+    // a plain flap lies flat unless it is turned (milestone 161): stored plain flaps have no angle
+    angle: shape === 'plain' ? (f.angle ?? 0) : (f.angle ?? D.angle),
     dir: f.dir ?? D.dir,
     hole: shape === 'hang' ? (f.hole ?? 'round') : undefined,
   };
 }
 
 /** Is it a plain flap as milestone 67 made it (drawn by `flapOn`, byte for byte)? */
-const isPlain = (f: EdgeFlap) => (f.shape ?? 'plain') === 'plain' && f.taper === undefined && f.inset === undefined && f.r === undefined;
+const isPlain = (f: EdgeFlap) => (f.shape ?? 'plain') === 'plain' && f.taper === undefined && f.inset === undefined && f.r === undefined && !f.angle;
 
 /** The width a flap's far edge would have with its tapers as asked (before clamping), mm. */
 export function flapFarWidth(e: EdgeSeg, f: EdgeFlap, t: number): number {

@@ -264,6 +264,12 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .pictures .pic { display: block; }
 .quick-card .pictures.n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pictures-field .warn-text { color: #8a5a00; }
+/* milestone 161: a grown board's edge endings, seven pictures in two rows */
+.endings .pictures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.endings .ending-row { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.endings .ending-head { margin: 0; font-size: 13px; }
+.endings .ending-head strong { display: inline-block; }
+.endings .ending-head strong::first-letter { text-transform: uppercase; }
 .lid-section .link { margin-top: 2px; }
 .op-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .op-dot.cut { background: var(--op-cut); }

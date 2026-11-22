@@ -454,6 +454,8 @@ export type EdgeFlap = {
   dir?: 'in' | 'out';
   /** A hang tab's hole. */
   hole?: 'round' | 'euro';
+  /** Milestone 161: its length follows its board (re-worked out by `solve` from its shape's starting length) until one is set. */
+  auto?: true;
 };
 
 export type Flap3d = { panelId: string; poly: P2[]; z0: number; z1: number; owner?: string; hinge?: [V3, V3]; angle?: number; /** Milestone 148: the end of a tube this flap closes (a carton's end flaps), for the pictures' poses. */ endOf?: 'top' | 'bottom'; /** The folded slab's own plane, when it is not `panelId`'s (a divider's flap folded against a band, milestone 74); it still moves with `panelId`. */ frame?: Frame; /** The board whose plane and coordinates `frame` is, when it is one (a dust flap under its lid, milestone 76). */ planeOf?: string; /** A closure's flap (a lid's lip, a side wall's dust flap) that stands open on the stage while this lid is shown open (milestone 160). */ opensWith?: string };
