@@ -298,7 +298,7 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **171** | Owner's picks I: plywood 5 and 8 mm, picture fixes, half box, keyholes, box words (closed, rim, grips) | ✅ (lid handle and base overhang moved to 173) |
 | **172** | Owner's picks II: shelf *Rack*, slanted shelf words, bin rack, wall rack | ✅ |
 | **173** | Face-glued joint; lids plug, brim, handle; base overhang | ✅ |
-| **174** | Tambour door; roll-top box | |
-| **175** | A wrap that opens, latch; flex-door box | |
+| **174** | Tambour door; roll-top box | ✅ (beta: one corner, two corners, bread box; 8 mm plywood refused) |
+| **175** | A wrap that opens, latch; flex-door box | ✅ in part (two doors, one door; FlexBox2, FlexBox4 and the book box wait) |
 | **176–185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
 | **182** | Layered things on the face-glued joint | in part: frame (photo, plaque, shadow box), spool; light box, twist-lid box and drill box wait |

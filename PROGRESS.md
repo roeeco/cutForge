@@ -2539,6 +2539,18 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - Record body `layers` (`layers`, `deep`, `disc`). `tests/plywood182.test.ts`.
 - Not built: the light box, the twist-lid box and the drill box (`DECISIONS.md` says why).
 
+## Milestone 174 (every doable boxes.py design in plywood) ✅ the tambour door; roll-top box
+
+- **E2, a strip on a path** (`src/model/tambour.ts`): boards joined by living-hinge bands along a path of straight runs and quarter turns, its straight boards slit as its bands are, built shut, half open or open. A strip's boards end at their bands' tangent points for contacts and seams (`src/model/stripTrim.ts`).
+- **Roll-top box** (plywood, new card, beta): one corner (ShutterBox), two corners, bread box (BreadBox); rails glued on the side walls make the groove where it is open, an inner shell with a band at its corner where the door goes when open. 8 mm plywood is refused (it does not bend round such a corner).
+- `tests/plywood174.test.ts`.
+
+## Milestone 175 (every doable boxes.py design in plywood) ✅ a wrap that opens, a latch; flex-door box
+
+- **E3**: a strip round two side plates whose ends are doors on their bands; pictures swing them open (`Pose.doors`). **E4**: a tab on each plate in a notch in the door's end.
+- **Flex-door box** (plywood, new card, beta): two doors (DoubleFlexDoorBox); variant one door (FlexBox). Record body `ring`.
+- Not built: FlexBox2, FlexBox4 and the book box (`DECISIONS.md` says why). `tests/plywood175.test.ts`.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
