@@ -307,6 +307,6 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **180** | Any footprint: inside corners fingered; chamfered, coffin, tetromino and star boxes | ✅ (taper and Feeder: spike failed) |
 | **181** | A band round any outline: U box, rounded polygon, rounded trapezoid, heart | ✅ (plywood 3 and 4 mm) |
 | **182** | Layered things on the face-glued joint | in part: frame (photo, plaque, shadow box), spool; light box, twist-lid box and drill box wait |
-| **183** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
+| **183** | Parts in the Shapes tool (gear, pulley, knob, hole pattern, fan grille, NEMA, digits, drill gauge, puzzle cut); gearbox, game board | ✅ (knob card, Planetary and Linkage not made) |
 | **184** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
 | **185** | See `BOXES_PLYWOOD_PLAN.md` §5 | |

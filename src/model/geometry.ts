@@ -10,6 +10,7 @@ import { normalizeNotches } from './seams';
 import './outline';
 import { edgeFeatures } from './edgeFeatures';
 import { stackPolys } from './stack';
+import { isPiece } from './parts';
 export { edgeFlapGeom, flapOn } from './edgeFeatures';
 import { memo } from './derived';
 import type { Polygon } from 'polygon-clipping';
@@ -269,8 +270,17 @@ function shapeContoursUpright(dt: Detail): Contour[] {
     if (!o) return [];
     return o.polys.map((p) => polygonContour(p.map((q) => ({ x: q.x + dt.cx, y: q.y + dt.cy }))));
   }
-  if ((dt.shape === 'path' || dt.shape === 'polygon') && dt.path) return dt.path.polys.map((p) => polygonContour(p.map((q) => ({ x: dt.cx + q.x * dt.w, y: dt.cy + q.y * dt.h }))));
+  if ((dt.shape === 'path' || dt.shape === 'polygon') && dt.path) return detailPolys(dt).map((p) => polygonContour(p.map((q) => ({ x: dt.cx + q.x * dt.w, y: dt.cy + q.y * dt.h }))));
   return [detailContour(dt)];
+}
+
+/**
+ * A path shape's outlines (unit box). Milestone 183: a piece (a gear, a pulley, a knob) cut or added on a board is its
+ * outline alone: its bore is a hole in the piece it makes as a board of its own, and is only drawn when engraved or scored.
+ */
+export function detailPolys(dt: Pick<Detail, 'path' | 'part' | 'op'>): P2[][] {
+  const polys = dt.path?.polys ?? [];
+  return dt.part && (dt.op === 'cut' || dt.op === 'add') && isPiece(dt.part.kind) ? polys.slice(0, 1) : polys;
 }
 
 export function detailContour(dt: Detail): Contour {

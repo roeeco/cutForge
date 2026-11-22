@@ -1,6 +1,7 @@
 // The authoritative, serializable design model. Everything else (3D meshes,
 // cut-plan drawings, validation, packing, export) is derived from this.
 // Units: millimetres. 3D world is y-up (ground plane = XZ).
+import type { PartSpec } from './parts';
 
 export type V3 = [number, number, number];
 
@@ -79,6 +80,13 @@ export type Detail = {
   rot?: number;
   /** Milestone 104: the shape's outline as an editable graph (its own frame, mm about its centre); `path` keeps the outline it flattens to. */
   sketch?: SketchGraph;
+  /**
+   * Milestone 183: a part (a gear, a knob, a hole pattern…, `model/parts.ts`): its sizes, from which `path`, `w` and
+   * `h` are drawn again whenever they change. Dropped when its outline is edited by hand or its box stretched.
+   */
+  part?: PartSpec;
+  /** Milestone 183: the part this text is the engraved size of (a drill gauge's), drawn again with it. */
+  labelOf?: string;
 };
 
 export type DetailArray = { nx: number; ny: number; dx: number; dy: number };
@@ -223,7 +231,7 @@ export type DividerRec = { at: P2; rot: number; reach: [number, number] };
 /** A line type (milestone 83): a slit, a fold or decorative score, a tear line, a fold for board a score barely marks, a reference never cut. */
 export type LineType = 'cut' | 'crease' | 'perf' | 'cutcrease' | 'guide';
 /** A drawn line on a board, in the board's local coordinates. `bulge` bows the segment that starts at a point into an arc (DXF's bulge: tan of a quarter of the turn). */
-export type BoardLine = { id: string; pts: (P2 & { bulge?: number })[]; type: LineType; group?: string };
+export type BoardLine = { id: string; pts: (P2 & { bulge?: number })[]; type: LineType; group?: string; /** Milestone 183: a cut that cuts the board into pieces on purpose (a puzzle's). */ pieces?: true };
 
 /** A size of a design (milestone 88): its box's width, depth and height, or a template's parameters. */
 export type BoxSize = { id: string; name: string; w?: number; d?: number; h?: number; params?: Record<string, number | string> };

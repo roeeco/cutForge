@@ -57,6 +57,7 @@ import { clampToRanges, EDGE_GAP_PX, EDGE_MIN_HIT_PX, edgeGaps, edgeHitRanges, p
 import { StagePreview, featureState, isGuided, keepsCuttable, shown, useFeature, useMode, type Mode } from '../easy/features';
 import { outlineWhy } from '../model/outlineWhy';
 import { boxFootprintGo, closeBoxGo, extrudeCancel, extrudeGo, placeSticker } from '../easy/actions';
+import { placePart, placePartBoard } from '../ui/partActions';
 import { closeChoice, closeChoices, heightMarks, wallClosesBox } from '../easy/lid';
 import { closeLabel } from '../ui/EdgeBar';
 import { isBoxBase, quickWallHeight } from '../easy/recipes';
@@ -442,6 +443,15 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
       placeSticker(p.id, l.x, l.y);
       return;
     }
+    if (tool === 'part') {
+      // milestone 183: a part on the board clicked, or (operator *Board*) a board of its own on the floor there
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      if (useStore.getState().shapeBoard) return placePartBoard(e.point.x, e.point.z);
+      const l = toLocal(p.frame, [e.point.x, e.point.y, e.point.z]);
+      placePart(p.id, l.x, l.y);
+      return;
+    }
     if (tool === 'panel') {
       const pt: V3 = [e.point.x, e.point.y, e.point.z];
       return panelDown(e, p.id, faceAt(design, p, pt), pt);
@@ -516,6 +526,10 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
     if (tool === 'polygon') return polyRef.current?.start(e, null);
     // a shape that works on a board, pressed on the floor: say so on the shape card (milestone 75)
     if ((tool === 'rect' || tool === 'circle' || tool === 'roundrect') && e.button === 0) return useStore.getState().set({ shapeNote: 'onBoard' });
+    if (tool === 'part' && e.button === 0) {
+      e.stopPropagation();
+      return useStore.getState().shapeBoard ? placePartBoard(e.point.x, e.point.z) : useStore.getState().set({ shapeNote: 'onBoard' });
+    }
     if (tool === 'box') {
       // Quick build's Box (milestone 38): drag the footprint on the floor
       if (e.button !== 0) return;
@@ -2980,7 +2994,9 @@ function Stage3D({ layer }: { layer?: ReactNode }) {
                       ? 'quick.dividerHelp'
                       : tool === 'sticker'
                         ? 'quick.stickerHelp'
-                        : 'tool.hint.shape';
+                        : tool === 'part'
+                          ? 'tool.partHelp'
+                          : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>

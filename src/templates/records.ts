@@ -140,6 +140,10 @@ export type PresetRecord = {
   pins?: boolean;
   /** Milestone 176: boards built up on a pin-hinged lid (a chest's crown of slats between two ends). */
   crown?: boolean;
+  /** Milestone 183: boards of their own with teeth round them (gears) inside a box: a gearbox. */
+  gears?: boolean;
+  /** Milestone 183: a board with a game's squares engraved on it (twelve or more of one size). */
+  game?: boolean;
 };
 
 /** Milestone 176: the boards of pin-hinged lids (the lid, its knuckles, a crown built on it) and the box's knuckles: the lid's, not boards in the box. */
@@ -385,6 +389,26 @@ function hasCarry(d: Design, t: Tray): boolean {
   return freeIn(d, t, (p) => Math.abs(p.frame.v[1]) > 0.98 && p.frame.o[1] + p.h > top + 20 && p.details.some((x) => x.op === 'cut')).length > 0;
 }
 
+/** Milestone 183: a board whose outline has teeth round it (a gear's or a pulley's: eight or more). */
+export function toothed(p: Design['panels'][string]): boolean {
+  const s = p.sketch;
+  if (s.kind !== 'poly' || s.pts.length < 48) return false;
+  const cx = s.pts.reduce((a, q) => a + q.x, 0) / s.pts.length, cy = s.pts.reduce((a, q) => a + q.y, 0) / s.pts.length;
+  const r = s.pts.map((q) => Math.hypot(q.x - cx, q.y - cy));
+  const hi = Math.max(...r), lo = Math.min(...r), mid = (hi + lo) / 2;
+  if (hi - lo < 1) return false;
+  let n = 0;
+  for (let i = 0; i < r.length; i++) if (r[i] > mid && r[(i + r.length - 1) % r.length] <= mid) n++;
+  return n >= 8;
+}
+
+/** Milestone 183: a game's squares engraved on a board: twelve or more engraved squares of one size, 10 mm or more. */
+const hasGame = (d: Design) =>
+  Object.values(d.panels).some((p) => {
+    const sq = p.details.filter((x) => x.op === 'engrave' && (x.shape === 'rect' || x.shape === 'roundrect') && Math.min(x.w, x.h) >= 10 && Math.abs(x.w - x.h) < 0.5);
+    return sq.length >= 12 && sq.filter((x) => Math.abs(x.w - sq[0].w) < 0.01).length >= 12;
+  });
+
 /** A box's walls left open (milestone 162): its open edges that are long enough to stand a wall on. */
 function openWalls(d: Design, t: Tray): number {
   const base = d.panels[t.baseId];
@@ -555,6 +579,9 @@ export function recordOf(d: Design): PresetRecord {
     if (!tube && hasCrenels(d, t)) rec.crenels = true;
     if (!tube && hasOpenings(d, t)) rec.openings = true;
     if (!tube && hasCarry(d, t)) rec.carry = true;
+    // milestone 183: gears inside the box (two or more toothed boards of their own); a game's squares engraved
+    if (!tube && freeIn(d, t, toothed).length >= 2) rec.gears = true;
+    if (hasGame(d)) rec.game = true;
     return rec;
   }
   const ids = d.order.filter((id) => d.panels[id]);
@@ -596,7 +623,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins', 'crown', 'tambour', 'doors'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins', 'crown', 'tambour', 'doors', 'gears', 'game'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

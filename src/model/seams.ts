@@ -10,7 +10,7 @@ import { closureCovers, closureGeom } from './closures';
 import './outline';
 import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, TabLock, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
-import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, type EdgeArg } from './edges';
+import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, withEdgeMemo, type EdgeArg } from './edges';
 import { matOf, minWeb, pairFilter, tOf } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
@@ -1189,14 +1189,29 @@ function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
  * candidates on the same edge, or touching in the same place, are one seam.
  */
 export function seamsBetween(d: Design, A0: Panel, B0: Panel): OpenSeam[] {
+  // milestone 183: each board's edges worked out once per search
+  return withEdgeMemo(() => seamsBetweenNow(d, A0, B0));
+}
+
+function seamsBetweenNow(d: Design, A0: Panel, B0: Panel): OpenSeam[] {
   // milestone 174: a strip's boards meet others only where their bands leave them material (stripTrim.ts)
   const A = stripTrimmed(d, A0), B = stripTrimmed(d, B0);
   const tA = tOf(d, A.id), tB = tOf(d, B.id);
   // a curve's flattened segments are never joined
   const ka = panelEdges(A).map((e) => e.key).filter((k) => !isCurveKey(k)), kb = panelEdges(B).map((e) => e.key).filter((k) => !isCurveKey(k));
   const cand: OpenSeam[] = [];
-  for (const ea of ka)
-    for (const eb of kb) {
+  // milestone 183: two edges meet at a corner only within a board's thickness or two of each other (each is moved
+  // to a face, then must lie on the other's line): pairs whose boxes stand further apart are not tried
+  const reach = tA + tB + 1;
+  const boxOf = (P: Panel, k: string) => {
+    const [p, q] = edgeWorld(P, k);
+    return [0, 1, 2].map((i) => [Math.min(p[i], q[i]) - reach / 2, Math.max(p[i], q[i]) + reach / 2]);
+  };
+  const ba = ka.map((k) => boxOf(A, k)), bb = kb.map((k) => boxOf(B, k));
+  for (let i = 0; i < ka.length; i++)
+    for (let j = 0; j < kb.length; j++) {
+      const ea = ka[i], eb = kb[j];
+      if (ba[i].some((r, x) => r[0] > bb[j][x][1] || bb[j][x][0] > r[1])) continue;
       const f = cornerFit(A, ea, B, eb, 1, undefined, { tA, tB });
       if (f) cand.push({ type: 'corner', a: { panelId: A.id, edge: ea }, b: { panelId: B.id, edge: eb }, overlapping: true, angle: cornerAngle(f) });
     }
@@ -1263,6 +1278,10 @@ function nearEachOther(d: Design, A: Panel, B: Panel): boolean {
  * (a grown connection) are joined by that connection alone.
  */
 export function findOpenSeams(d: Design, only?: string): OpenSeam[] {
+  return withEdgeMemo(() => findOpenSeamsNow(d, only));
+}
+
+function findOpenSeamsNow(d: Design, only?: string): OpenSeam[] {
   const out: OpenSeam[] = [];
   // construction guides are never joined (milestone 28)
   const guides = constructionSet(d);
