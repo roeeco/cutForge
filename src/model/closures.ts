@@ -8,6 +8,7 @@
 // between the lid and those walls. Pulled short, the lid stops sealing and
 // the joint goes; its settings stay, and come back with it.
 import { flatLidGeom } from './lid';
+import { pinLidCovers } from './pinHinge';
 import type { Closure, ClosureStyle, ConnGeom, Connection, Design, Flap3d, MaterialKind, P2, Panel } from './types';
 import { findEdge, segLength } from './edges';
 import { matDir, toLocal, toWorld } from './frame';
@@ -137,6 +138,8 @@ export function closureCovers(d: Design): Set<string> {
     }
     add(a.lid, a.front);
   }
+  // a lid hinged on pins (milestone 176) rests on every wall of its box, held by its knuckles
+  for (const [lid, w] of pinLidCovers(d)) add(lid, w);
   return out;
 }
 

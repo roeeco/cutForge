@@ -11,6 +11,7 @@ import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
 import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLayeredLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
+import { knucklesOf, pinLidBoards } from '../model/pinHinge';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { bendOf, matOf } from '../model/materials';
@@ -25,8 +26,8 @@ export type BoxLid =
   | { kind: 'none' }
   /** A lid of its own that lifts off: in milestone 73 the cap (a shallow tray over the box). */
   | { kind: 'liftoff'; style: LidStyle; tray?: string; top: string }
-  /** Folded off the back wall's top: a tuck or tab lid on card and corrugated, a living hinge on plywood. */
-  | { kind: 'hinged'; lid: string; living: boolean }
+  /** Folded off the back wall's top: a tuck or tab lid on card and corrugated, a living hinge on plywood; or (milestone 176) a plywood lid hinged on pins. */
+  | { kind: 'hinged'; lid: string; living: boolean; pins?: true }
   | { kind: 'arched'; lid: string; flap: string }
   /** A board grown across the top with a joint that does not fold: it closes the box for good. */
   | { kind: 'fixed'; lid: string }
@@ -80,6 +81,9 @@ export function boxLid(d: Design, trayId: string): BoxLid {
   if (cap && d.panels[cap.baseId]) return { kind: 'liftoff', style: 'cap', tray: cap.id, top: cap.baseId };
   const flat = flatLidsOf(d, trayId)[0];
   if (flat) return { kind: 'liftoff', style: flat.lidOf!.kind, top: flat.id };
+  // milestone 176: a lid hinged on pins
+  const pin = d.order.find((id) => d.panels[id]?.pinLid?.tray === trayId);
+  if (pin) return { kind: 'hinged', lid: pin, living: false, pins: true };
   if (t.top === 'tuck' && d.panels[topLidId(t)]) return { kind: 'hinged', lid: topLidId(t), living: matOf(d, topLidId(t)).kind === 'plywood' };
   if (t.top === 'seal') return { kind: 'flaps' };
   const ring = trayRing(d, t).map((r) => r.wall);
@@ -102,6 +106,8 @@ export function boxLid(d: Design, trayId: string): BoxLid {
 export function lidParts(d: Design, lid: BoxLid): string[] {
   if (lid.kind === 'none' || lid.kind === 'flaps') return [];
   if (lid.kind === 'liftoff') return [lid.top, ...grownOff(d, lid.top), ...placedOn(d, lid.top)];
+  // milestone 176: a pin-hinged lid and its hinges' knuckles, the lid's and the box's
+  if (lid.kind === 'hinged' && lid.pins) return [...new Set([...pinLidBoards(d, lid.lid), ...knucklesOf(d, lid.lid).map((p) => p.id), ...placedOn(d, lid.lid)])];
   return [lid.lid, ...grownOff(d, lid.lid)];
 }
 

@@ -117,7 +117,7 @@ export function insideOf(d: Parameters<TemplateDef['generate']>[0]): { xL: numbe
 }
 
 /** A board lying level across a box's inside at height `y` (its underside), joined to the walls round it. */
-function levelPlate(d: Parameters<TemplateDef['generate']>[0], y: number): string | null {
+export function levelPlate(d: Parameters<TemplateDef['generate']>[0], y: number): string | null {
   const ins = insideOf(d);
   if (!ins) return null;
   const { xL, xR, zB, zF } = ins;

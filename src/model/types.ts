@@ -185,10 +185,23 @@ export type Panel = {
    * joint's notch above a foot becomes a slot it closes. Absent: none.
    */
   stack?: PanelStack;
+  /**
+   * Milestone 176 (BOXES_PLYWOOD_PLAN.md E5): this board is a box's lid hinged on pins (src/model/pinHinge.ts). It
+   * lies on the walls' tops; knuckle boards on its top face and on the back wall's outer face interleave along the
+   * hinge line, a pin (a dowel or a wire, `pin` mm across) through them all. Its place and its knuckles' follow the
+   * box on every solve. Absent: none.
+   */
+  pinLid?: PinLid;
+  /** Milestone 176: a knuckle of a pin hinge: the lid it hinges, whether it stands on the lid or on the back wall, and which one it is (from the left). */
+  knuckle?: PanelKnuckle;
 };
 
 /** A board's stacking edges (milestone 177): see `Panel.stack`. */
 export type PanelStack = { h: number; w: number; inset: number; play: number };
+/** A lid hinged on pins (milestone 176): see `Panel.pinLid`. `knuckles` per hinge (odd: the outer ones on the wall), `play` between knuckles along the pin (mm), `open` the angle it rests at (degrees). */
+export type PinLid = { tray: string; pin: number; knuckles: number; play: number; open: number };
+/** A pin hinge's knuckle (milestone 176): see `Panel.knuckle`. */
+export type PanelKnuckle = { lid: string; on: 'lid' | 'wall'; k: number };
 
 /**
  * A divider as drawn, in its base's local coordinates: a point on its

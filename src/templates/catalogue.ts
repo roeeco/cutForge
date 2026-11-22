@@ -110,6 +110,8 @@ export const CATALOGUE: Card[] = [
     variants: [
       { id: 'hingedTray', structure: 'box', style: 'hingedTray', match: { body: 'cross', lid: 'hinged' } },
       { id: 'hexBox', structure: 'box', style: 'hexBox', match: { body: 'cross', lid: 'hinged', footprint: 'poly', sides: 6 } },
+      // milestone 176 (beta, plywood; boxes.py's IntegratedHingeBox): the lid on pin hinges, knuckles and a pin behind the back wall
+      { id: 'pinHinge', structure: 'box', style: 'pinHinge', match: { body: 'cross', lid: 'hinged', pins: true } },
     ],
   },
   {
@@ -271,6 +273,9 @@ export const CATALOGUE: Card[] = [
       { id: 'pegboardStand', structure: 'pegboard', style: 'pegboardStand', match: { body: 'slot', crossing: true, grid: true, pegs: true } },
     ],
   },
+  // milestone 176 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.6, E5): boxes whose lids are on pin hinges
+  { id: 'diceBox', title: 'card.diceBox', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'diceBox', structure: 'diceBox', match: { body: 'cross', lid: 'hinged', pins: true, plate: true } }] },
+  { id: 'chest', title: 'card.chest', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'chest', structure: 'chest', match: { body: 'cross', lid: 'hinged', pins: true, crown: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
