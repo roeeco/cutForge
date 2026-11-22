@@ -133,9 +133,9 @@ const SOLVE: Record<string, (d: Design) => Design> = {
     return d;
   },
   'game-insert': (d) => {
-    // four spaces across; a lid that lifts off; the deck and dice put in
+    // six spaces, three across and two front to back (a deck lies across in one); a lid that lifts off; the deck and dice put in
     const tray = mainTray(d)!;
-    addSpaces(d, tray, { spacesBy: 'count', nx: 4, ny: 1 });
+    addSpaces(d, tray, { spacesBy: 'count', nx: 3, ny: 2 });
     setBoxLid(d, tray, 'liftoff');
     solve(d);
     d.contents = placeContents(d, [{ object: 'deck', count: 1 }, { object: 'dice', count: 8 }]);
