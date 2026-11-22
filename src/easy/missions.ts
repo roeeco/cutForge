@@ -447,14 +447,13 @@ export const MISSIONS: Mission[] = [
     goals: [frontHoles(2), oneSheet, readyToCut, nameEngraved],
   },
   {
-    // EuroRackSkiff: 84 HP of 3U modules on two rails; larger than 600 × 400 allows
+    // EuroRackSkiff: 84 HP of 3U modules on two rails (wider than the box's words take on 600 × 400; its pieces lie on one)
     id: 'euro-skiff',
     version: 1,
     title: 'mission.euroSkiff',
     description: 'mission.euroSkiff.desc',
     materials: ['plywood'],
     levels: ['quick', 'workshop'],
-    sheet: BIG_SHEET,
     template: { id: 'box', params: { width: 84 * 5.08, depth: 130.5, height: 60, sizeAs: 'inside', rack: 'euro' } },
     contents: [],
     goals: [cableHole('back'), oneSheet, readyToCut, nameEngraved],

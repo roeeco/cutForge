@@ -80,8 +80,8 @@ const onLevel = (p: Panel, x: number, z: number): P2 => {
   return { x: q.x, y: q.y };
 };
 
-/** Room for corner blocks: the inside at least two legs and a gap wide each way, and tall enough for them under the top (mm). */
-export const blockRoom = (t: number, inside: { w: number; d: number; h: number }) => Math.min(inside.w, inside.d) >= 2 * blockLeg(t) + 10 && inside.h >= 5 * t + 10;
+/** Room for corner blocks: the inside at least two legs and a gap wide each way, and 15 mm under the blocks (mm). */
+export const blockRoom = (t: number, inside: { w: number; d: number; h: number }) => Math.min(inside.w, inside.d) >= 2 * blockLeg(t) + 10 && inside.h >= (t < 5 - 1e-9 ? 3 : 2) * t + 15;
 
 /**
  * A top screwed on corner blocks (boxes.py's ElectronicsBox). Each block is a right triangle level in a corner, its

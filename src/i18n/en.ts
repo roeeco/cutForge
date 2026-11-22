@@ -2880,7 +2880,7 @@ export const en = {
   "mission.rackBox": "19-inch rack box",
   "mission.rackBox.desc": "A box two rack units tall whose front panel screws into a 19-inch rack: cut holes in the front panel for a switch and a socket. It fits on one 787 × 488 sheet.",
   "mission.euroSkiff": "Eurorack case",
-  "mission.euroSkiff.desc": "An open case 84 HP wide with rails for 3U synthesizer modules: cut a hole in its back for the power cable and engrave a name. It fits on one 787 × 488 sheet.",
+  "mission.euroSkiff.desc": "An open case 84 HP wide with rails for 3U synthesizer modules: cut a hole in its back for the power cable and engrave a name.",
   "mission.ledMatrix": "LED matrix box",
   "mission.ledMatrix.desc": "A shallow box in front of an LED panel of 8 × 8 lights, 16 cm across: divide it into 64 cells, one for each light, and cut a hole in its back for the cable.",
   "mission.segmentClock": "Seven-segment clock",

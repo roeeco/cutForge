@@ -44,4 +44,10 @@ export const FAMILIES: { family: BoardFamily; builtIns: string[] }[] = [
 
 export const ALL_PROFILES: MaterialProfile[] = [...MATERIALS, ...BOARD_GRADES];
 /** A built-in material or a grade by its id. */
+/** Milestone 184 (owner, 21 November): the plywood sheets the school has, 600 × 400, and the largest its laser takes, 787 × 488 (mm). */
+export const PLY_SHEETS = [
+  { w: 600, h: 400 },
+  { w: 787, h: 488 },
+] as const;
+
 export const profileById = (id: string): MaterialProfile | undefined => ALL_PROFILES.find((m) => m.id === id);

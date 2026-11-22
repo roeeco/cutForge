@@ -1,10 +1,10 @@
 // Material & sheet drawer: the material, its calibration values and the sheet
 // settings. This is the only place these appear, so the inspector stays about
 // the thing that is selected.
-import { ALL_PROFILES, BOARD_GRADES, FAMILIES } from '../model/boards';
+import { ALL_PROFILES, BOARD_GRADES, FAMILIES, PLY_SHEETS } from '../model/boards';
 import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
-import { NumField } from './NumField';
+import { NumField, Segmented } from './NumField';
 import { bendOf, MATERIALS, materialsInUse, mixedMaterials } from '../model/materials';
 import { materialName } from './materialName';
 import { editMaterial, setMaterial, solve } from '../model/ops';
@@ -143,6 +143,22 @@ export function MaterialDrawer() {
         <MaterialsInUse />
         <div className="subsection" data-testid="drawer-sheet">
           <h4>{t('drawer.sheet')}</h4>
+          {m.kind === 'plywood' && (
+            // milestone 184: the school's two plywood sheets in one click (the fields below take any other)
+            <>
+              <Segmented
+                label={t('drawer.sheetSize')}
+                value={PLY_SHEETS.find((x) => x.w === m.sheetW && x.h === m.sheetH) ? `${m.sheetW}x${m.sheetH}` : ''}
+                options={PLY_SHEETS.map((x) => ({ value: `${x.w}x${x.h}`, label: `${fmtNum(x.w, 0)} × ${fmtNum(x.h, 0)}`, testId: `sheet-${x.w}x${x.h}`, disabled: ro }))}
+                onChange={(v) => {
+                  const x = PLY_SHEETS.find((q) => `${q.w}x${q.h}` === v);
+                  if (x) setM({ sheetW: x.w, sheetH: x.h });
+                }}
+                testId="drawer-sheet-size"
+              />
+              <p className="note">{t('drawer.sheetNote')}</p>
+            </>
+          )}
           <NumField label={t('mat.sheetW')} value={m.sheetW} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetW: v })} />
           <NumField label={t('mat.sheetH')} value={m.sheetH} decimals={0} unit={mm} min={50} max={3000} onCommit={(v) => setM({ sheetH: v })} />
           <NumField label={t('insp.margin')} value={d.sheetMargin} unit={mm} min={0} max={100} onCommit={(v) => apply((x) => void (x.sheetMargin = v))} />
