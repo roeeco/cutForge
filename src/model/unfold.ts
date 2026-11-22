@@ -66,6 +66,9 @@ export type Unfolding = {
   flapTaper: Record<EdgeKey, number>;
   /** How far it narrows at the edge's other end. */
   flapTaperB: Record<EdgeKey, number>;
+  /** How far in from each end it starts (milestone 191; absent: at the corner). */
+  flapInset: Record<EdgeKey, number>;
+  flapInsetB: Record<EdgeKey, number>;
   /** Where each face lies in its island's flat layout. */
   place: Record<FaceKey, Xform2>;
   issues: UnfoldIssue[];
@@ -242,7 +245,7 @@ function growTop(r: P2[], c: number): P2[] {
 
 /** A flap placed in an island's flat layout. */
 /** `uses`: what it overlaps beyond the usual 3t² (a face beside its own edge), so a pair of boards never adds up past the export check. */
-type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; taperB: number; ring: P2[]; uses?: { face: FaceKey; area: number }[] };
+type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; taperB: number; ring: P2[]; uses?: { face: FaceKey; area: number }[]; inset?: number; insetB?: number };
 type Island = { faces: FaceKey[]; xf: Map<FaceKey, X>; flaps: PlacedFlap[] };
 type Pass = { islands: Island[]; folds: Set<EdgeKey>; refusedFixed: EdgeKey[]; why: Set<'sheet' | 'overlap'> };
 
@@ -414,16 +417,19 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   const budget = clear * clear + 0.5;
   const used = (a: FaceKey, b: FaceKey) => I.flaps.reduce((s, f) => s + (f.uses ?? []).reduce((t, u) => t + ((f.on === a && u.face === b) || (f.on === b && u.face === a) ? u.area : 0), 0), 0);
   const all = boxes.reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
-  const tryOne = (on: FaceKey, depth: number, taper: number, taperB: number): PlacedFlap | null => {
-    const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper, taperB);
+  const tryOne = (on: FaceKey, depth: number, taper: number, taperB: number, inset = 0, insetB = 0, strict = false): PlacedFlap | null => {
+    const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper, taperB, inset, insetB);
     // tested deeper by the clearance, its far corners further along the edge; its base stays on the
     // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
-    const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear, taperB + clear), clear) : ring;
+    const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear, taperB + clear, inset, insetB), clear) : ring;
     const bb = bbox(tb);
     // with a clearance the area decides (one convex clip, no separating-axis test first)
     const uses: { face: FaceKey; area: number }[] = [];
     const hit = (r: P2[], i: number) => {
       if (!(clear > 0)) return ringsOverlap(r, tb, 0.05);
+      // a tooth set in from a corner touches nothing (with its clearance): touching the face beside it would close the
+      // wedge between them into a chip the laser cuts out, or join the two if it were not cut (milestone 191)
+      if (strict) return overlapArea(r, tb, cvx[i]) > 1e-3;
       if (overlapArea(r, tb, cvx[i]) <= 3 * clear * clear) return false;
       if (!(i < rings.length && near.has(I.faces[i]))) return true;
       const a = overlapArea(r, ring, cvx[i]);
@@ -436,7 +442,7 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
     const fb = bbox(ring);
     const w = Math.max(all.x1, fb.x1) - Math.min(all.x0, fb.x0), h = Math.max(all.y1, fb.y1) - Math.min(all.y0, fb.y0);
     if (!((w <= W + 1e-6 && h <= H + 1e-6) || (w <= H + 1e-6 && h <= W + 1e-6))) return null;
-    return { edge: e.key, on, depth, taper, taperB, ring, ...(uses.length ? { uses } : {}) };
+    return { edge: e.key, on, depth, taper, taperB, ring, ...(uses.length ? { uses } : {}), ...(inset > 0 ? { inset } : {}), ...(insetB > 0 ? { insetB } : {}) };
   };
   // deepest first, either side, as below
   const sized = sides.map((on) => [on, sizesFor(P, e, on, want, clear)] as const);
@@ -465,6 +471,23 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
         const f = tryOne(on, depth, ta, tb);
         if (f) return f;
       }
+    }
+  // last, a tooth set in from a corner (milestone 191): where a face hangs off the next one's edge the room at that
+  // corner is a wedge of a few degrees, and a flap that starts a fifth or a third of the edge in stands clear of it
+  // (it must still lie on the face it is glued to, as a flap reaching to the corner would)
+  const L = e.len;
+  for (const depth of [want, want * 0.6, want * 0.35, ...shallow.map((k) => want * k)])
+    for (const on of sides) {
+      const R = receiver(P, e, on, clear);
+      const t = flapTaperLen(L, depth);
+      for (const k of [0.2, 0.35])
+        for (const [ia, ib] of [[k * L, 0], [0, k * L], [k * L, k * L]]) {
+          // a base of at least a third of the edge and 3 mm, and room for both tapers
+          if (L - ia - ib < Math.max(L / 3, 3) || ia + ib + 2 * t > 0.95 * L) continue;
+          if (!R.inside(depth, ia + t, ib + t)) continue;
+          const f = tryOne(on, depth, t, t, ia, ib, true);
+          if (f) return f;
+        }
     }
   return null;
 }
@@ -584,7 +607,7 @@ export const flapTaperLen = (L: number, depth: number, taper = depth) => Math.ma
 
 
 /** The flap on edge e as placed on face `on` (a trapezoid outward from the edge, narrowing by `taper` and `taperB` at its ends, as given). */
-function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, taper = depth, taperB = taper): P2[] {
+function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, taper = depth, taperB = taper, inset = 0, insetB = 0): P2[] {
   const f = P.faces[on];
   const ref = on === e.a ? e.ea : e.eb;
   const ring = ringOf(f, ref.ring);
@@ -595,10 +618,11 @@ function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, ta
   const ox = dy, oy = -dx;
   const tp = Math.max(0, Math.min(taper, TAPER_MAX * L)), tq = Math.max(0, Math.min(taperB, TAPER_MAX * L));
   const q = (s: number, u: number): P2 => ap(xf, { x: a.x + dx * s + ox * u, y: a.y + dy * s + oy * u });
-  return [q(0, 0), q(tp, depth), q(L - tq, depth), q(L, 0)];
+  // inset from either end (milestone 191): its base starts and ends that far in, its tapers from there
+  return [q(inset, 0), q(inset + tp, depth), q(L - insetB - tq, depth), q(L - insetB, 0)];
 }
 
-type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; flapTaperB: Record<EdgeKey, number>; dropped: EdgeKey[] };
+type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; flapTaperB: Record<EdgeKey, number>; flapInset: Record<EdgeKey, number>; flapInsetB: Record<EdgeKey, number>; dropped: EdgeKey[] };
 
 /** Flaps on a pass's cut edges: those placed while joining, then the edges between islands (each on its own island's side). */
 function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number, clear = 0, rims: PEdge[] = []): Flaps {
@@ -608,6 +632,8 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
   const flapDepth: Record<EdgeKey, number> = {};
   const flapTaper: Record<EdgeKey, number> = {};
   const flapTaperB: Record<EdgeKey, number> = {};
+  const flapInset: Record<EdgeKey, number> = {};
+  const flapInsetB: Record<EdgeKey, number> = {};
   const dropped: EdgeKey[] = [];
   const carried = new Map<FaceKey, number>();
   const extra = new Map<Island, PlacedFlap[]>();
@@ -617,6 +643,8 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
       flapDepth[f.edge] = f.depth;
       flapTaper[f.edge] = f.taper;
       flapTaperB[f.edge] = f.taperB;
+      if (f.inset) flapInset[f.edge] = f.inset;
+      if (f.insetB) flapInsetB[f.edge] = f.insetB;
       carried.set(f.on, (carried.get(f.on) ?? 0) + 1);
     }
   const rings = new Map<Island, P2[][]>();
@@ -652,9 +680,11 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
     flapDepth[e.key] = got.depth;
     flapTaper[e.key] = got.taper;
     flapTaperB[e.key] = got.taperB;
+    if (got.inset) flapInset[e.key] = got.inset;
+    if (got.insetB) flapInsetB[e.key] = got.insetB;
     carried.set(got.on, (carried.get(got.on) ?? 0) + 1);
   }
-  return { flapOn, flapDepth, flapTaper, flapTaperB, dropped };
+  return { flapOn, flapDepth, flapTaper, flapTaperB, flapInset, flapInsetB, dropped };
 }
 
 /** Unfold a solid (see the file's head). */
@@ -766,10 +796,10 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
   const islands = b.islands.map((I) => I.faces.slice().sort()).sort((x, y) => y.length - x.length || (x[0] < y[0] ? -1 : 1));
   if (islands.length > 1) issues.push({ kind: 'split', n: islands.length, why: Object.values(fixed).includes('cut') && b.why.size === 0 ? 'fixed' : b.why.has('sheet') ? 'sheet' : 'overlap' });
   for (const k of b.flaps.dropped) issues.push({ kind: 'flapDropped', edge: k });
-  const { flapOn, flapDepth, flapTaper, flapTaperB } = b.flaps;
+  const { flapOn, flapDepth, flapTaper, flapTaperB, flapInset, flapInsetB } = b.flaps;
   const place: Record<FaceKey, Xform2> = {};
   for (const I of b.islands) for (const [k, t] of I.xf) place[k] = { tx: t.tx, ty: t.ty, rot: Math.atan2(t.s, t.c) };
-  return { folds: b.folds, islands, flapOn, flapDepth, flapTaper, flapTaperB, place, issues, restarts, firstPassMs };
+  return { folds: b.folds, islands, flapOn, flapDepth, flapTaper, flapTaperB, flapInset, flapInsetB, place, issues, restarts, firstPassMs };
 }
 
 /** The faces of each island in the order a net is walked: the island's first face, then by breadth along its folds. */

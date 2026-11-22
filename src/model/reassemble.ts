@@ -303,6 +303,8 @@ function layFold(d: Design, P: Polyhedron, spec: MakeSpec, u: Unfolding, mat: Ma
     flapDepth: u.flapDepth,
     flapTaper: u.flapTaper,
     flapTaperB: u.flapTaperB,
+    flapInset: u.flapInset,
+    flapInsetB: u.flapInsetB,
     open,
     order: islandOrder(P, u),
     seam: (e) => seamChoice(P, e, mat, last, spec.seams).kind,

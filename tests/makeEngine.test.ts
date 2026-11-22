@@ -268,3 +268,38 @@ describe('the unfolder: a merge pass and the fewest pieces there can be (milesto
     expect(u.restarts).toBe(0);
   });
 });
+
+describe('flaps set in from a corner (milestone 191)', () => {
+  it('a thin card cylinder (40 mm across) lies flat in one piece on every seed, its set-in teeth touching nothing (no chip cut)', async () => {
+    const { prepareExport } = await import('../src/export/prepare');
+    for (let s = 0; s < 6; s++) {
+      const d = createWaffleDesign(CARD);
+      d.id = `thin-${s}`;
+      addShape(d, P('cylinder', 40, 120, 40));
+      reassemble(d, shapePolyhedron(k, d.sculpt!, 12), { as: 'fold' });
+      expect(netGroups(d)).toHaveLength(1);
+      const set = Object.values(d.connections).filter((c) => c.flapInset || c.flapInsetB);
+      expect(set.every((c) => !c.broken && c.kind === 'glue')).toBe(true);
+      // one outline, no hole: a tooth touching the cap beside it would close the wedge into a chip
+      const cuts = prepareExport(d).sheets.flatMap((sh) => sh.contours).filter((c) => c.op === 'cut');
+      expect(cuts.map((c) => c.role)).toEqual(['outer']);
+      expect(problems(d)).toEqual([]);
+    }
+  }, 60000);
+  it('an inset survives a save and load, and is dropped when it is not a number', async () => {
+    const { parseProject, serializeProject } = await import('../src/model/serialize');
+    const d = createWaffleDesign(CARD);
+    d.id = 'thin-io';
+    addShape(d, P('cylinder', 40, 120, 40));
+    reassemble(d, shapePolyhedron(k, d.sculpt!, 12), { as: 'fold' });
+    const c = Object.values(d.connections).find((x) => x.flapInset || x.flapInsetB)!;
+    expect(c).toBeTruthy();
+    const back = parseProject(serializeProject(d));
+    expect(back.connections[c.id].flapInset).toBe(c.flapInset);
+    expect(back.connections[c.id].flapInsetB).toBe(c.flapInsetB);
+    const bad = JSON.parse(serializeProject(d));
+    const into = bad.design?.connections ?? bad.connections;
+    into[c.id].flapInset = 'x';
+    expect(parseProject(JSON.stringify(bad)).connections[c.id].flapInset).toBeUndefined();
+  });
+});

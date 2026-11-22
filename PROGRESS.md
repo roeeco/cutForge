@@ -2676,6 +2676,14 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - `tests/makeEngine.test.ts` (+2); `npm test` 2110 passed; typecheck clean. In the browser: the tall cylinder's cut plan, one piece, its tooth beside the cap 2.4 mm deep.
 - Left (§3.5): thin card cylinders and corrugated cylinders and cones at 2 pieces (needs flaps inset from a corner), the ring at about 4.
 
+## Milestone 191 (flaps set in from a corner, `MAKE_ENGINE_REVIEW.md` §3.5) ✅
+
+- `Connection.flapInset` / `flapInsetB` (`types.ts`, checked in `check.ts`): how far in from each end of its edge a seam flap starts. `seamGlue` and `rimGlue` draw and fold it; the seam net carries it with the tapers (swapped with them when the board runs its edge the other way); Make passes the unfolder's.
+- The unfolder (`fitFlap`) tries a tooth set a fifth or a third of the edge in, last, on the face it is glued to (`receiver`), touching nothing with its clearance. A tooth allowed to touch the cap beside it closed the wedge into a chip; filling chips in the export was tried and dropped (it joined the tooth to the cap).
+- Benchmark (`BENCH=1`): 249 → 224; two 40 mm card cylinders 5 → 2 pieces (one each, on every seed). Survey: no shape that was clean has a problem, no new hole in any cut.
+- `tests/makeEngine.test.ts` (+2: a thin cylinder in one piece with one outline on six seeds; an inset through a save and load, and dropped when not a number). `npm test` 2112 passed; typecheck clean; `make-fold`, `make-boards` pass. In the browser: the thin cylinder's net (the tooth beside each cap on the cap's edge, clear of the strip) and its fold.
+- Left: corrugated cylinders and cones at 2 pieces; a corrugated dent's net cuts chips under 2 mm² (old).
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

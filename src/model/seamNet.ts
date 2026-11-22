@@ -21,6 +21,9 @@ export type SeamPlan = {
   /** Its taper at the start of the carrying face's edge (as the face's ring runs), and at its end. */
   flapTaper?: Record<EdgeKey, number>;
   flapTaperB?: Record<EdgeKey, number>;
+  /** How far in from each end its flap starts (milestone 191), as its tapers. */
+  flapInset?: Record<EdgeKey, number>;
+  flapInsetB?: Record<EdgeKey, number>;
   /** The kind on a cut edge (default glue); 'butt' leaves it unjoined. */
   seam?: (e: PEdge) => ConnectionKind;
   /** Faces left out (openings). */
@@ -113,15 +116,21 @@ export function addSeamNet(d: Design, P: Polyhedron, plan: SeamPlan): Record<Fac
     if (plan.flapDepth?.[e.key] !== undefined) c.flap = Math.round(plan.flapDepth[e.key] * 1000) / 1000;
     const r3 = (x: number) => Math.round(x * 1000) / 1000;
     let ta = plan.flapTaper?.[e.key], tb = plan.flapTaperB?.[e.key] ?? ta;
+    let ia = plan.flapInset?.[e.key] ?? 0, ib = plan.flapInsetB?.[e.key] ?? 0;
     // a board runs its edge from either end (made boards are mirrored, material side up):
     // the taper fitted at the face's edge start goes to whichever end of the board's edge lies there
-    if (ta !== undefined && tb !== undefined && ta !== tb) {
+    if ((ta !== undefined && tb !== undefined && ta !== tb) || ia !== ib) {
       const face = onB ? e.b : e.a, ref = onB ? e.eb : e.ea;
       const ring = ringOf(P.faces[face], ref.ring);
       const start = faceWorld(P.faces[face], ring[ref.i]);
       const [w0, w1] = edgeWorld(d.panels[c.a.panelId], c.a.edge);
-      if (v3len(v3sub(w1, start)) < v3len(v3sub(w0, start))) [ta, tb] = [tb, ta];
+      if (v3len(v3sub(w1, start)) < v3len(v3sub(w0, start))) {
+        [ta, tb] = [tb, ta];
+        [ia, ib] = [ib, ia];
+      }
     }
+    if (ia > 0) c.flapInset = Math.round(ia * 1000) / 1000;
+    if (ib > 0) c.flapInsetB = Math.round(ib * 1000) / 1000;
     if (ta !== undefined) c.flapTaper = r3(ta);
     // both stored: the engine lays it as fitted (each end up to TAPER_MAX of the seam)
     if (tb !== undefined && plan.flapTaperB) c.flapTaperB = r3(tb);

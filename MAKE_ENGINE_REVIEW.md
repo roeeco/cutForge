@@ -120,12 +120,20 @@ Results: a tall card cylinder (60 × 150) 2–3 pieces → 1 on every seed; a ca
 crossed holes 3.75 → 3.1 (2 at best); the shapes at their least now stop at once. The 40-shape survey:
 nothing that was clean has a problem now.
 
+- **Flaps set in from a corner** (milestone 191): `Connection.flapInset` / `flapInsetB` (mm from each end
+  of the edge, carried by the seam net like the tapers, drawn by `seamGlue` and `rimGlue`). The unfolder
+  tries them last, a fifth or a third of the edge in, and such a tooth must touch nothing, with its
+  clearance: touching the face beside it closes the wedge into a chip the laser cuts out (filling that
+  chip instead was tried and taken out: it joined the tooth to the cap, so neither could fold). A thin
+  card cylinder (40 mm across, 10 mm facets) is one piece on every seed; benchmark total 249 → 224.
+
 Still open:
-- **Thin cylinders (40 mm across, card) and corrugated cylinders and cones stay at 2 pieces.** The flap
-  beside where a cap hangs off the strip sits in a wedge of 360°/N (30° at 12 faces), too shallow for
-  any flap at 10 mm facets, or with corrugated's clearance. *How:* flaps that start a little in from
-  the corner (an inset at either end, in `seamGlue`, the seam net and the unfolder's flap ring), so a
-  tooth stands clear of the wedge instead of narrowing into it. A day's work; no decision needed.
+- **Corrugated cylinders and cones stay at 2 pieces** (and 1.6 mm ones, which reached 1 while a set-in
+  tooth could touch the cap): with a 1.6–4 mm clearance no tooth fits the wedge beside a cap. Separate
+  caps are a fair net in corrugated; a flap on the cap's far side (folded the other way) would be next.
+- **Chips cut out of a few nets:** a corrugated dent's net has holes under 2 mm² where its faces meet
+  (old: not from the set-in flaps). Corner reliefs in corrugated (about 14–16 mm²) and the waste a
+  ring-shaped net encloses are meant.
 - **A ring** (144 faces) still averages 4 pieces of a possible 1: a ring needs its strips laid round
   the tube in turn, which a greedy search with restarts does not find. *How:* strip-first seeding (fold
   each ring of facets round the tube first, then join the rings), measured on the benchmark.

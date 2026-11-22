@@ -409,6 +409,13 @@ export type Connection = {
    * the seam instead of a third. Absent: `flapTaper`, a third at most (older designs keep their flaps).
    */
   flapTaperB?: number;
+  /**
+   * Milestone 191: how far in from each end of its edge a seam flap starts (mm; at `flapTaper`'s end and
+   * `flapTaperB`'s), so a tooth stands clear of a narrow wedge at a corner (a cap hanging off a strip of
+   * facets) instead of narrowing into it. Absent: 0, the flap starts at the corner.
+   */
+  flapInset?: number;
+  flapInsetB?: number;
   /** Milestone 125: why the chooser picked this joint (an i18n key), shown on the joint card. */
   why?: string;
   /** Milestone 125: the student picked this joint's kind; a change of material keeps it. */

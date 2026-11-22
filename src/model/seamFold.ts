@@ -93,10 +93,12 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
   const inw = edgeInwardLocal(O, c.a.edge);
   // owner-local: s along the edge, u outward from it
   const p = (s: number, u: number): P2 => ({ x: a.x + dir.x * s - inw.x * u, y: a.y + dir.y * s - inw.y * u });
-  const flat = [p(f.s0, 0), p(f.s0 + ta, fh), p(f.s1 - tb, fh), p(f.s1, 0)];
+  // inset from either end (milestone 191): the flap starts and ends that far in, its tapers from there
+  const ia = Math.max(0, c.flapInset ?? 0), ib = Math.max(0, c.flapInsetB ?? 0);
+  const flat = [p(f.s0 + ia, 0), p(f.s0 + ia + ta, fh), p(f.s1 - ib - tb, fh), p(f.s1 - ib, 0)];
   g.adds.push({ panelId: O.id, poly: flat });
   // a flap turns towards the solid's inside: folded away from the owner's outer face, so it is scored on the inside
-  g.scores.push({ panelId: O.id, a: p(f.s0, 0), b: p(f.s1, 0), toward: 1 });
+  g.scores.push({ panelId: O.id, a: p(f.s0 + ia, 0), b: p(f.s1 - ib, 0), toward: 1 });
   // on the receiver: along its edge (from where A's stretch maps), inwards, on its inside face
   const [ra, rb] = edgeLocal(R, c.b.edge);
   const lr = Math.hypot(rb.x - ra.x, rb.y - ra.y);
@@ -105,7 +107,7 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
   const m0 = f.mapB(f.s0), m1 = f.mapB(f.s1);
   const q = (m: number, u: number): P2 => ({ x: ra.x + rdir.x * m + rin.x * u, y: ra.y + rdir.y * m + rin.y * u });
   const sgn = m1 >= m0 ? 1 : -1;
-  const folded = [q(m0, 0), q(m0 + sgn * ta, fh), q(m1 - sgn * tb, fh), q(m1, 0)];
+  const folded = [q(m0 + sgn * ia, 0), q(m0 + sgn * (ia + ta), fh), q(m1 - sgn * (ib + tb), fh), q(m1 - sgn * ib, 0)];
   g.flaps3d.push(foldedFlap(t, O, flat, { panelId: R.id, poly: folded, z0: tR, z1: tR + t }, R));
   return g;
 }
@@ -135,9 +137,10 @@ export function rimGlue(d: Design, c: Connection): ConnGeom | null {
   const dir = { x: (b.x - a.x) / la, y: (b.y - a.y) / la };
   const inw = edgeInwardLocal(O, c.a.edge);
   const p = (s: number, u: number): P2 => ({ x: a.x + dir.x * s - inw.x * u, y: a.y + dir.y * s - inw.y * u });
-  const flat = [p(0, 0), p(ta, fh), p(L - tb, fh), p(L, 0)];
+  const ia = Math.max(0, c.flapInset ?? 0), ib = Math.max(0, c.flapInsetB ?? 0);
+  const flat = [p(ia, 0), p(ia + ta, fh), p(L - ib - tb, fh), p(L - ib, 0)];
   g.adds.push({ panelId: O.id, poly: flat });
-  g.scores.push({ panelId: O.id, a: p(0, 0), b: p(L, 0), toward: 1 });
+  g.scores.push({ panelId: O.id, a: p(ia, 0), b: p(L - ib, 0), toward: 1 });
   // on the receiver: along the rim from the wall edge's start, turned towards the wall's material
   const ra = toLocal(R.frame, w0), rb = toLocal(R.frame, w1);
   const rdir = { x: (rb.x - ra.x) / L, y: (rb.y - ra.y) / L };
@@ -145,7 +148,7 @@ export function rimGlue(d: Design, c: Connection): ConnGeom | null {
   const inW = v3add(v3mul(R.frame.u, rin.x), v3mul(R.frame.v, rin.y));
   if (v3dot(inW, matDir(O.frame)) < 0) rin = { x: -rin.x, y: -rin.y };
   const q = (m: number, u: number): P2 => ({ x: ra.x + rdir.x * m + rin.x * u, y: ra.y + rdir.y * m + rin.y * u });
-  const folded = [q(0, 0), q(ta, fh), q(L - tb, fh), q(L, 0)];
+  const folded = [q(ia, 0), q(ia + ta, fh), q(L - ib - tb, fh), q(L - ib, 0)];
   g.flaps3d.push(foldedFlap(t, O, flat, { panelId: R.id, poly: folded, z0: tR, z1: tR + t }, R));
   return g;
 }
