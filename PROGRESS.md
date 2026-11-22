@@ -2606,13 +2606,22 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood178b.test.ts`; `tests/missions.test.ts` has their reference solutions.
 - Not built: laser jigs, pizza peel, HobbyCase, TriangleLamp, OrganPipe, BeeQueenCage (`DECISIONS.md`).
 
+## Milestone 184 (every doable boxes.py design in plywood) ✅ bigger than 600 × 400; enclosures
+
+- **E9:** the limits the sheet bounds open up on 787 × 488 (box, tray, frame, flex-door box, U box, rounded trapezoid, wall rack, pegboard, bottle rack, hooks, can dispenser, jar rack); the rest end at the sentence's 300 mm first (owner). The drawer offers plywood's two sheets in one click (`PLY_SHEETS`); a challenge larger than 600 × 400 starts on 787 × 488 (`Mission.sheet`).
+- **Split with keys** (`src/model/keySplit.ts`, `Panel.keyed`): a plywood board too big for its sheet is cut across into pieces that fit, joined by dovetail keys, when the student picks *Split with keys* in the export check or the ready badge; worked out in the cut, clear of holes and shapes; a note says so (`val.keyed`).
+- **Box words (plywood):** lid *a top screwed on corner blocks*; *rack*: a front panel for a 19-inch or 10-inch rack, or rails for Eurorack modules (`structures/enclosure.ts`, `Panel.fitting`).
+- **Challenges:** *Electronics box*, *19-inch rack box* (787 × 488), *Seven-segment clock* (Workshop) on the lidded box; *Eurorack case*, *LED matrix box* on the open box.
+- `tests/plywood184.test.ts`; `tests/missions.test.ts` has the reference solutions.
+- Not built: HobbyCase, Arcade, AirPurifier, CarbonFilter, Rack19HalfWidth, the latched hatches (`DECISIONS.md`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
 - Packing is bounding-box based until *Nest* is pressed (true-shape raster nesting, milestone 69).
 - Bands (folds with a radius, rounded corners, round boxes) carry no shapes or text yet; a band is never cut to fit a sheet. (Milestone 65 planned shapes on a round box's wall; not done.)
 - Corrugated: the automatic bend pattern can choose Smooth for a bend that lies across the flutes on the sheet; the export check flags it and its Fix (per corner) perforates it.
-- Nesting and *Save material* run on the main thread; a board longer than its sheet is not split across.
+- Nesting and *Save material* run on the main thread. A plywood board longer than its sheet is split across with puzzle keys only when asked (*Split with keys*, milestone 184); card and corrugated boards, and boards folded in a net, are not.
 - Pattern spacings, slit factors and the snap-lock bottom's proportions are starting values until cut on the school's materials.
 - Multiple selection covers shapes, not whole panels; box selection is 2D-only.
 - Half-laps are detected for upright panels only. (A grown panel can now stand on part of an edge, milestone 19.)
