@@ -285,3 +285,40 @@ Plywood after 185: about 31 entries today → about 75 cards and variants, plus 
 | 2 | Test cuts | **Yes, the owner cuts test pieces.** The roll-top door, flex doors, latches and pin hinges are built beta and leave beta after their cut; the cut's result goes in `DECISIONS.md`. |
 | 3 | UniversalBox's options as words on the box, not a card of their own | **Yes.** |
 | 4 | *Bookend* becomes *Half box*, bookend its first variant | **Yes**; the word *a bookend* stays. |
+
+## 7. Test cuts (milestone 185): what to cut before a card leaves beta
+
+Every card and word from milestones 171–184 is beta until it is cut. Sizes below are each card's defaults unless named. Write each result in `DECISIONS.md` under its milestone; a card whose cut passes leaves beta (its `status`), one that fails gets its starting value changed and is cut again.
+
+**Start here (one sheet of 3 mm, the new joints first):**
+1. **Inside-corner fingers** (180): a *Tetromino box* L. Do the fingers at the inside corner seat as well as the outside ones? Then the same on 8 mm.
+2. **Pin hinge** (176): the *Pin-hinge box* (160 × 110 × 45 inside) with 3 mm pins (a skewer or wire). The pin slides through all three knuckles by hand and turns without wobble (tight: hole play 0.3 → 0.4 mm; loose: → 0.2); the knuckles do not rub (try 0.3 and 0.8 mm play); the lid opens past 100°, stays open on its stops at about 105°, and closes flat with no gap at the back.
+3. **Plug and brim lids** (173): does the plug lid's 0.3 mm play each side seat inside the walls; do the brim strips' tabs hold and the brim seat?
+4. **Stacking feet** (177): two *Crates* (200 × 150 × 100). Do the feet sit squarely on the walls below, the tongues slide between the feet with 0.5 mm play without binding or rocking, the base's fingers seat in the slots the feet close?
+5. **Keyholes and grips** (171): a *Wall shelf* hung on two screws (9 mm head hole, 4.5 mm slot); a box with *grips* (raised 24 mm, 13 mm hand hole).
+
+**Living hinges (3 mm; 4 mm only where a card allows it):**
+6. *Roll-top box* (174): a strip of the door's slit pattern bent at about 24 mm radius; the door sliding round the corner and into storage with 0.3 mm play in the glued rails; the handle as its stop.
+7. *Flex-door box* (175): the corner bands (about 22 mm inside radius) opening and closing; the tab-in-notch latch (12 mm, 0.2 mm fit) holding the doors shut.
+8. *U box*, *Heart box* (181), *Book cover* (178 part 2): the bands at their radii. *Rounded polygon box* on 4 mm.
+
+**Slots, slopes and lips (3 mm):**
+9. *Bin rack* (172): the 45° slopes held in the sides and uprights; *Wall rack* one shelf: the lips' skirts in their slots.
+10. *Divider tray* (178): do the half-depth notches let the dividers lift out cleanly? *Honeycomb rack*: square and stiff where slat ends are held by half-slots only?
+11. *Console* and *wedge* on 8 mm: the panel's angled tabs in the side walls.
+12. *Gridfinity base*: the 2.5 mm web between an opening and the plate's edge.
+13. *Can dispenser* with real cans: does a can roll at 15° and drop at the back? *Hopper*: the flow under its front.
+
+**Cleats, hooks and wall things (179):**
+14. A *Wall rack* on a cleat: does the hook drop in and hold; is the one-board gap a slide fit or too tight? A *J hook* under a bag's weight; the *pin row*'s pins.
+
+**Glued layers (173, 182):**
+15. A box with a *base plate*: does the glue hold the plate and the finger ends? *Photo frame*: does a photo with 2 mm glass slide into the 3 mm pocket, and does it stand on its feet at 15°? *Spool*: are the glued hub rings strong enough?
+
+**Parts and enclosures (183, 184):**
+16. *Gearbox* (module 2.5, 10 and 24 teeth, two stages, 6 mm dowels): do the stacks turn by hand without binding, is the backlash right? A gear and a knob cut as boards on 3 and 8 mm.
+17. *Electronics box* with M2.5 or M3 self-tapping screws about 8 mm long: do the corner blocks' tabs seat, the top sit flush, the screws bite through the 2 mm pilot (if the ply splits, try 2.5 mm)?
+18. *19-inch rack box* on a 787 × 488 sheet: do the ear holes meet a real rack's rails? *Eurorack case*: do modules' screws meet the rail holes?
+19. A board split *with keys* (184), e.g. 900 × 200 on 3 mm: the dovetail fit (the board's 0.1 mm clearance) and the glued joint lying flat.
+
+**Smaller checks:** the *Dice box*'s 6 mm magnets across the 3 mm gap; the *Chest*'s slats and the crown clearing the hinges; the *Clamping square*'s clamp holes; the *Showcase*'s coin press-fit; the *Game board*'s tokens in their holes; the *Flyer stand*'s single angled tab.
