@@ -154,10 +154,10 @@ export function rollLayout(roll: Roll, W: number, D: number, H: number, R: numbe
   const { Ld, shut, open } = found;
   // the shell's band and its straight boards
   if (shell.Ro - t < 2 || endRoom(shell, shellAt[0], shellAt[1]) < ENDMIN) return { why: 'sen.why.rollRadius' };
-  // half open: half way, moved on until both ends are on straight runs
-  let half = (shut + open) / 2;
-  for (let k = 0; k < 80 && !room(half, half + Ld); k++) half += (k % 2 ? -1 : 1) * (k + 1);
-  if (!room(half, half + Ld)) half = open;
+  // half open: the place between shut and open nearest half way with both ends on straight runs (else shut: the door shows)
+  const mid = (shut + open) / 2;
+  let half = shut;
+  for (let u = Math.min(shut, open); u <= Math.max(shut, open) + 1e-9; u += 0.5) if (room(u, u + Ld) && Math.abs(u - mid) < Math.abs(half - mid)) half = u;
   void sp;
   return {
     roll, W, D, H, R, t, play, path, shell, Ld,
