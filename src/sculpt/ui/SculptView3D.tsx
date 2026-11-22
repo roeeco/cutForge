@@ -171,9 +171,11 @@ function ShapeGhostBar({ d, id }: { d: Design; id: string }) {
     });
   };
   const ok = () => {
-    // remembered by kind (a sphere, half sphere and ring never store one)
-    const kind = s.kind as Primitive | 'extrude';
-    if (HEIGHT_KINDS.includes(kind)) st().setSculpt({ heights: { ...st().sculpt.heights, [kind]: H } });
+    // remembered by kind (a sphere, half sphere and ring never store one); read now, so a height just typed counts
+    const x = st().design.sculpt?.shapes[id];
+    if (!x || !st().pending) return;
+    const kind = x.kind as Primitive | 'extrude';
+    if (HEIGHT_KINDS.includes(kind)) st().setSculpt({ heights: { ...st().sculpt.heights, [kind]: x.size?.[1] ?? x.height ?? H } });
     st().confirmPending();
   };
   return (
@@ -186,7 +188,7 @@ function ShapeGhostBar({ d, id }: { d: Design; id: string }) {
         {revolveBlocked(s) && <span className="warn">{t('sketch.crossesAxis')}</span>}
         {s.size && (
           <span className="ghost-num" onKeyDown={(e) => e.stopPropagation()}>
-            <NumField label={t('sculpt.height')} value={H} unit={t('unit.mm')} min={1} onCommit={(v) => (setH(v), st().commit())} testId="ghost-height-field" />
+            <NumField label={t('sculpt.height')} value={H} unit={t('unit.mm')} min={1} onCommit={(v) => (setH(v), st().commit())} onEnter={() => !revolveBlocked(s) && ok()} testId="ghost-height-field" />
           </span>
         )}
       </ConfirmBar>

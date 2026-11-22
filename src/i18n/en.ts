@@ -2110,6 +2110,8 @@ export const en = {
   'make.p.splitFixed': "It lies flat in {n} pieces, where you cut it",
   'make.p.faceTooBig': "A face is bigger than the sheet",
   'make.fix.smaller': "Make it smaller",
+  'make.p.overlap': "The net still overlaps itself where it is folded",
+  'make.fix.cutThere': "Cut it there",
   'make.p.flap': "A seam has no room for its flap",
   'make.fix.tabs': "Tab and slot instead",
   'make.fix.cutNext': "Fold it here",

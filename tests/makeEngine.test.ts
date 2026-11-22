@@ -231,3 +231,20 @@ describe('faces around a curve from its size and the material (milestone 188)', 
     expect(facetsFor({ as: 'fold', facets: { card: 8 } }, CORR4).n).toBe(8);
   });
 });
+
+describe('joints onto a face past a corner joint (milestone 189)', () => {
+  it('twin spheres and a spherical dent in plywood: no broken joint (an edge on a face is glued, never a plain butt)', () => {
+    for (const [shapes] of [
+      [[P('sphere', 70, 70, 70), P('sphere', 70, 70, 70, {}, [40, 0, 0])]],
+      [[P('box', 100, 50, 100), { ...P('sphere', 60, 60, 60, {}, [0, 25, 0]), hole: true as const }]],
+    ] as const) {
+      const d = createWaffleDesign(MATERIALS[3]);
+      const ids = [...shapes].map((s) => addShape(d, s));
+      groupShapes(d, ids);
+      reassemble(d, shapePolyhedron(k, d.sculpt!, 8), { as: 'boards' });
+      autoConnect(d);
+      expect(Object.values(d.connections).filter((c) => c.broken)).toEqual([]);
+      expect(Object.values(d.connections).filter((c) => c.kind === 'butt' && (c.a.edge === 'face' || c.b.edge === 'face')).every((c) => c.seam && c.b.edge === 'face')).toBe(true);
+    }
+  }, 60000);
+});

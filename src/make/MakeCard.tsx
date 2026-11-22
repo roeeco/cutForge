@@ -43,6 +43,10 @@ function Problem({ issue, spec }: { issue: MakeIssue; spec: MakeSpec }) {
     text = t('make.p.noLast');
     fixes.push({ key: 'make.fix.fold', run: () => void makeNow('fold', {}) });
   } else if (issue.kind === 'holeWall') text = t('make.p.holeWall', { n: issue.n });
+  else if (issue.kind === 'overlap') {
+    text = t('make.p.overlap');
+    fixes.push({ key: 'make.fix.cutThere', run: () => redo({ edges: { ...(spec.edges ?? {}), ...Object.fromEntries(issue.edges.map((e) => [e, 'cut' as const])) } }) });
+  }
   else if (issue.kind === 'corner') {
     text = t('make.p.corner', { deg: Math.round(issue.dihedral) });
     if (d.material.kind === 'corrugated') fixes.push({ key: 'make.fix.glue', run: () => redo({ joints: { ...(spec.joints ?? {}), [issue.edge]: 'glue' } }) });

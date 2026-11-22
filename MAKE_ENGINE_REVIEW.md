@@ -63,9 +63,9 @@ for a long sliver at a corner, and it throws when two sides lie on one line (boa
 angles). The clash region is convex, so it is clipped with our own Sutherland–Hodgman and every
 subtraction is checked against our own area.
 
-Still open on boards: the torus (64 boards, 16 broken joints, 5 s), a bitten sphere and a hull
-(1–2 collisions each), twin spheres (11 broken tab-and-slot joints from the general joiner,
-as before), and hole walls still left out on boards (listed).
+Still open on boards (after milestone 188's facets): a bitten sphere and a hull (1–2 collisions
+each), twin spheres (11 broken tab-and-slot joints from the general joiner, as before), a dent (4
+broken joints), and hole walls still left out on boards (listed). The ring is clean since 188.
 
 ### 3.3 Faces around a curve — fixed in milestone 188
 Every curve had 12 faces a turn folded and 8 for boards, whatever its size: a ring of 4 mm
@@ -85,9 +85,26 @@ re-choose the joints of the old faces).
 Corrugated 4 mm folded: shapes with nothing to fix 32 → 34 of 40 (ring, twin spheres); plywood
 32 → 33 (the ring: 14 boards, clean, 0.2 s). Card unchanged.
 
-### 3.4 The unfolder still splits some curved and holed shapes
-Card: a tall cylinder 60 × 150 (2–3 pieces, by seed), corrugated cylinders (2), the T-pipe (5),
-three crossed holes (4, on 2 sheets: the rim flaps take room), the ring (6).
+### 3.4 Fixed in milestone 189
+- **Broken joints on boards** (twin spheres 11, a spherical dent 4) were the general joiner's own
+  edge-on-face contacts, turned into plain butts by Make where a corner takes no joint (an inside
+  corner of 222° or 250°, where the spheres meet): a plain butt has no geometry off the square. An
+  edge on a face that Make makes a butt is now the glued edge-to-face seam (it cuts nothing and
+  never breaks). Plywood shapes with nothing to fix 33 → 34 of 40; corrugated boards stay at 34.
+  (Reading an inside corner from its other side and giving it tabs was tried: the slots fall too
+  close to the board's edge on every L, notch and step. A glued butt is right there.)
+- A joinable edge the general search missed is joined from the face graph (it helps where the two
+  boards keep their edges' names; see 3.6).
+- **The Make card says when its repairs run out** with the net still overlapping (*The net still
+  overlaps itself where it is folded*), with *Cut it there*.
+- **Enter in a new shape's height box** sets the height and confirms the shape, as its hint says.
+- The flap a card sphere of 24 faces a turn sometimes drops (about one seed in ten) is the input's:
+  288 faces, past the 200 a made model takes, crowd into a dozen islands. The test that met it at
+  random now has a fixed seed; automatic facets give that sphere 12.
+
+### 3.5 Still open: the unfolder splits some curved and holed shapes
+Card: a tall cylinder 60 × 150 (2–3 pieces, by seed), the T-pipe (5), the ring (6), three crossed
+holes (4, on 2 sheets: the rim flaps take room); corrugated cylinders and cones (2).
 
 *How:* (a) **strip first** for a ruled face: fold all of one curve's facet-to-facet edges before
 anything else, then hang each cap from facets far apart along the strip; (b) the **merge pass**
@@ -95,23 +112,44 @@ planned in `SHAPES_TO_DIELINES_PLAN.md` §4.4 step 4 is not built: for two islan
 inside one of them and rejoin the smaller part elsewhere (re-rooting), smallest island first;
 (c) for holes, the rim flaps can only go on the wall (a hole has no edge to carry them), so the
 tube should be laid where its toothed ends have room: beside its board, not folded off it.
+A long piece of work (a new search in the unfolder, its tests and timing).
 
-### 3.5 Make says nothing when its repairs run out
-Make re-unfolds up to six times to cut folds the laid net overlaps on; after that an overlap is
-left and only the top bar's *things to fix* shows it. *How:* a Make problem *Two faces overlap in
-the net* naming them, with a *Cut here* fix (the fold `netProblems` would cut).
+### 3.6 Still open: boards trimmed too much where they meet at a shallow point
+Twin spheres (4 collisions) and the hull (1): two boards sharing an ordinary edge (108°, 138°) get no
+joint, because trims against *other* boards they meet only at a point cut their shared edge away
+(boards with 8–10 trimmed edges). The clash region (the other board seen along this one's normal, cut
+by a band) over-reaches when the two meet at a shallow angle. *How:* bound a point clash to the
+neighbourhood of the shared corner, or clip it by the other board's own outline instead of its hull.
 
-### 3.6 Boards are slow on many faces
-A plywood torus (64 boards) takes 5 s, twin spheres 1.6 s: `autoConnect` tries every pair of
-boards. *How:* for made boards, take the pairs from the face graph's edges (it knows which boards
-meet), and run the general search only for boards the student added.
+### 3.7 Still open: hole walls on boards
+*Build from boards* leaves a hole's walls out (listed): a hole is a cut-out, not an edge, so no corner
+joint can be cut round it. The glued edge-to-face seam of 187 would now let the walls stand on the
+board round the hole (glued), or tabs could go into slots round it. **A product decision first** (§4).
 
-### 3.7 Small things
-- Corrugated 1.6 mm folded: a box with a square hole through it (the "square donut") has 8
-  collisions, and a 5 mm-walled tray 5: thick board in thin walls, not a curve.
-- A 0.5 mm step between two boxes leaves 0.5 mm slivers (listed). The face graph could weld
-  faces that are flush within a thickness (`src/model/polyhedron.ts`, tidy).
-- Two boxes touching only along an edge make a solid that is not one piece (listed as unjoined).
-- Enter in the new shape's height box sets the height but does not confirm the shape, though the
-  hint says "✓ or Enter".
-- The new Hebrew line `joint.why.rim` needs the owner's check.
+### 3.8 Still open: boards are slow on many faces
+Twin spheres (56 boards) take about 2 s: `autoConnect` tries every pair of boards. *How:* for made
+boards, take the pairs from the face graph's edges, and run the general search only for boards the
+student added.
+
+### 3.9 Still open: small things
+- Thick board in thin walls: a 5 mm-walled tray in corrugated (collides, *too thin*); a box with a
+  square hole through it in corrugated 1.6 mm (8 collisions); a bitten sphere in corrugated 4 mm (the
+  hole's walls graze the sphere's boards, 15).
+- A 0.5 mm step between two boxes leaves 0.5 mm slivers (listed). The face graph could weld faces
+  flush within a thickness (`src/model/polyhedron.ts`, tidy); that changes the shape by up to t.
+- Two boxes touching only along an edge are not one solid (listed as unjoined or colliding).
+- *No board faces up* on a pyramid or a cone (listed, with *Fold it instead*).
+- Large boxes in corrugated: too big for the sheet along the flutes (listed).
+- Hebrew to check: `joint.why.rim`, `make.facetsAuto`, `make.facetsReset`, `make.p.overlap`,
+  `make.fix.cutThere`.
+
+## 4. To decide before the long pieces of work
+
+1. **Hole walls on boards (3.7):** line a hole with boards (glued on the board round it, or tabs in
+   slots round it), or keep a hole a plain cut-out with nothing round it?
+2. **The unfolder's next search (3.5):** worth a milestone now (fewer pieces for cylinders, pipes,
+   rings, holes), or later?
+3. **Welding near-flush faces (3.9):** may Make move a face by up to a board's thickness to drop a
+   sliver (a 0.5 mm step), or must the made model keep the shape exactly and only list it?
+4. **Thick board in thin walls (3.9):** only list it, or offer a thinner board (or *Fold it*) as the
+   fix, or warn already on the shape stage?

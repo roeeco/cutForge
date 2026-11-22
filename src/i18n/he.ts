@@ -2112,6 +2112,8 @@ export const he: Record<MsgKey, string> = {
   'make.p.splitFixed': "זה נפרס ל־{n} חלקים, איפה שחתכת",
   'make.p.faceTooBig': "פאה גדולה מהגיליון",
   'make.fix.smaller': "להקטין",
+  'make.p.overlap': 'הפריסה עדיין חופפת לעצמה במקום שהיא מקופלת',
+  'make.fix.cutThere': 'לחתוך שם',
   'make.p.flap': "לתפר אין מקום ללשונית שלו",
   'make.fix.tabs': "לשונית וחריץ במקום",
   'make.fix.cutNext': "לקפל כאן",

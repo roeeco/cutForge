@@ -2656,6 +2656,16 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - `tests/makeEngine.test.ts` (+2); `npm test` 2107 passed; typecheck clean; `make-fold`, `make-boards` app specs pass. In the browser: a card cylinder (*Automatic … 12*), 8 typed (an octagonal prism, one piece), *Automatic* back to 12, the material changed to corrugated 4 mm (made again with 10 faces).
 - Words `make.facetsAuto`, `make.facetsReset` in English and Hebrew (the Hebrew to be checked).
 
+## Milestone 189 (known issues of the shapes engine, `MAKE_ENGINE_REVIEW.md` §3.4) ✅
+
+- Boards: an edge on a face that Make makes a butt is the glued edge-to-face seam (`buildBoards`): the general joiner's edge-on-face contacts at inside corners past a joint's range (twin spheres' 222° and 250° waist) were plain butts with no geometry, broken. Twin spheres 11 broken → 0, a dent 4 → 0. (Giving inside corners tabs, read from their other side, was tried and dropped: slots too near the edge on every L, notch and step.)
+- Boards: a joinable face-graph edge the general search missed is joined from the face graph (`connectSeam`, kept only if not broken).
+- Make: repairs that run out with the net still overlapping are a Make problem (`overlap`, *The net still overlaps itself where it is folded*) with *Cut it there* (the folds `netProblems` names, fixed as cuts).
+- Shape stage: Enter in a new shape's height box sets the height and confirms the shape (`NumField` takes `onEnter`; the confirm reads the height from the store, so the typed one is remembered).
+- `tests/foldNet.test.ts`: the flaps test has a fixed seed (the 24-facet card sphere, 288 faces, drops a flap on about one random seed in ten, the same before 186). `tests/makeEngine.test.ts` (+1).
+- Plywood shapes with nothing to fix 33 → 34 of 40 (corrugated boards stay at 34); card and corrugated folds unchanged. `npm test` 2108 passed; typecheck clean. In the browser: a box dragged, 50 typed, Enter: confirmed at 85 × 50 × 26, one undo step.
+- `MAKE_ENGINE_REVIEW.md` §3 rewritten for what is still open, §4 the decisions before the long pieces of work.
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

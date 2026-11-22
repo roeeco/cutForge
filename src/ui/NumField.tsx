@@ -18,6 +18,8 @@ type NumProps = {
   max?: number;
   disabled?: boolean;
   testId?: string;
+  /** Enter (not leaving the field) also does this, after the value is committed: a ghost's height confirms its shape. */
+  onEnter?: () => void;
 };
 
 const clamp = (v: number, min?: number, max?: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));
@@ -60,6 +62,7 @@ function useNumInput(props: NumProps) {
         committed.current = el.value;
         commit(el.value);
         el.blur();
+        props.onEnter?.();
       }
       if (e.key === 'Escape') {
         setText(fmtNum(value, decimals));

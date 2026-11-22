@@ -7,7 +7,7 @@
 import type { Connection, ConnectionKind, Design, MakeSpec, MaterialProfile, Panel, V3 } from './types';
 import type { EdgeKey, FaceKey, PEdge, Polyhedron } from './polyhedron';
 import { polyIssues, type PolyIssue } from './polyhedron';
-import { addFreePanel, autoConnect, solve } from './ops';
+import { addFreePanel, autoConnect, connectSeam, solve } from './ops';
 import { addSeamNet, boardId, seamId } from './seamNet';
 import { islandOrder, unfold, type Unfolding, type UnfoldIssue, type UnfoldSpec } from './unfold';
 import { netGroups, netOverlaps } from './pieces';
@@ -20,7 +20,7 @@ import { tOf } from './materials';
 import { v3dot, v3len, v3norm, v3sub } from '../geom/v3';
 import type { MsgKey } from '../i18n';
 
-export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number };
+export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number } | { kind: 'overlap'; edges: EdgeKey[] };
 /** What a remake could not keep (milestone 129): hand-added work on faces and choices on edges that no longer exist. */
 export type Lost = { faces: FaceKey[]; edges: EdgeKey[] };
 export type MakeResult = { unfolding?: Unfolding; issues: MakeIssue[]; changed?: number; lost?: Lost };
@@ -275,6 +275,10 @@ function build(d: Design, P: Polyhedron, spec: MakeSpec, unfolding?: Unfolding):
       avoid.push(...bad);
       u = unfold(P, { ...base, flap: flapOf, avoid: [...avoid] });
     }
+    // repairs run out with the net still overlapping itself: said, with the folds to cut (milestone 189; only the
+    // export check said it before)
+    const left = netProblems(d);
+    if (left.length) issues.push({ kind: 'overlap', edges: left });
     // the pieces are the net as laid: a split is told by its real count
     const pieces = netGroups(d).filter((g) => d.panels[g[0].panelId]?.src).length;
     for (const issue of u.issues) {
@@ -358,7 +362,7 @@ function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProf
   const order = faces.filter((f) => !walls.includes(f.key)).map((f) => f.key).sort((a, b) => (a === last ? 1 : b === last ? -1 : Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1)));
   // boards that meet at a point, or at an edge too sharp or too flat for a joint: the smaller is trimmed where it
   // would run into the other (milestone 187); an edge that takes a joint is cut back by its joint
-  const relief = boardReliefs(P, order, mat.thickness, (e) => e.dihedral >= MIN_CORNER - 1e-6 && e.dihedral <= MAX_CORNER + 1e-6);
+  const relief = boardReliefs(P, order, mat.thickness, jointable);
   for (const k of order) {
     const f = P.faces[k];
     const r = relief[k];
@@ -389,15 +393,50 @@ function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProf
       const ea = x.a === A.src?.face ? x.ea : x.eb, eb = x.a === A.src?.face ? x.eb : x.ea;
       return `e${ea.i}` === (findEdge(A, c.a.edge)?.key ?? c.a.edge) || `e${eb.i}` === (findEdge(B, c.b.edge)?.key ?? c.b.edge);
     }) ?? es[0];
+    // an edge on a face at an angle no corner joint takes (the general joiner found where a trimmed board stands on
+    // the other): left to the glued butt below, never an ordinary joint, which would be broken there (milestone 189)
+    if ((c.a.edge === FACE || c.b.edge === FACE) && !jointable(e) && Object.values(relief).some((r) => r.butts.some((b) => b.edge === e.key))) {
+      delete d.connections[c.id];
+      continue;
+    }
     joined.add(e.key);
     c.src = e.key;
     const picked = spec.joints?.[e.key];
     const ch = chooseJoint(seamCtx(P, e, mat, 'corner', last));
     applyChoice(c, picked ?? ch.kind, picked ? {} : ch.params, ch.why);
     if (picked) c.picked = true;
+    // an edge glued on a face (an inside corner past a joint's range, twin spheres' waist): the glued edge-to-face
+    // seam, which cuts nothing and so never breaks; as a plain corner butt it had no geometry off the square
+    // (milestone 189)
+    if (c.kind === 'butt' && (c.a.edge === FACE || c.b.edge === FACE)) {
+      if (c.a.edge === FACE) [c.a, c.b] = [c.b, c.a];
+      c.seam = true;
+    }
     // the board that closes last carries the tabs, so it drops in from outside
     if (c.kind === 'tabslot' && last && ids[last] === c.b.panelId) [c.a, c.b] = [c.b, c.a];
     c.auto = false;
+  }
+  // an edge that takes a joint which the general search did not find (both its boards trimmed where they meet others,
+  // their edges no longer the same length): joined from the face graph, which knows it is a corner (milestone 189)
+  for (const e of Object.values(P.edges)) {
+    const pa = ids[e.a], pb = ids[e.b];
+    if (!pa || !pb || joined.has(e.key) || e.ea.ring || e.eb.ring || !jointable(e)) continue;
+    const ka = `e${e.ea.i}`, kb = `e${e.eb.i}`;
+    if (!findEdge(d.panels[pa], ka) || !findEdge(d.panels[pb], kb)) continue;
+    const cid = connectSeam(d, { type: 'corner', a: { panelId: pa, edge: ka }, b: { panelId: pb, edge: kb }, overlapping: false }, undefined, false);
+    const c = cid ? d.connections[cid] : undefined;
+    if (!c) continue;
+    if (c.broken) {
+      delete d.connections[c.id];
+      continue;
+    }
+    c.src = e.key;
+    const picked = spec.joints?.[e.key];
+    const ch = chooseJoint(seamCtx(P, e, mat, 'corner', last));
+    applyChoice(c, picked ?? ch.kind, picked ? {} : ch.params, ch.why);
+    if (picked) c.picked = true;
+    c.auto = false;
+    joined.add(e.key);
   }
   // an edge too sharp or too flat for a joint, where one board was trimmed to stand on the other's inside face: glued
   // there edge to face (milestone 187)
@@ -417,6 +456,12 @@ function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProf
   solve(d);
   return { issues };
 }
+
+/** Does a board corner along e take a joint (30–150°; an inside corner, past 180°, read from its other side): its boards are not trimmed. */
+const jointable = (e: PEdge) => {
+  const a = e.dihedral > 180 ? 360 - e.dihedral : e.dihedral;
+  return a >= MIN_CORNER - 1e-6 && a <= MAX_CORNER + 1e-6;
+};
 
 /** The edge of trimmed board A that stands on board B's inside face along face-graph edge e (its longest such), or null. */
 function buttEdge(A: Panel, B: Panel, e: PEdge, tB: number): string | null {
