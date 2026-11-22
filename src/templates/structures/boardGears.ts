@@ -151,7 +151,9 @@ function generateGameBoard(d: Design, p: Params, role: Role) {
   const S = Number(p.square), H = Number(p.height), t = d.material.thickness;
   const tr = boardBoxRect(d, 8 * S + 2 * t, 3 * S + 2 * t, H);
   if (!tr) return;
-  setBoxLid(d, tr, 'liftoff');
+  // plywood only, as the card (`fallback` elsewhere): on board-built corrugated walls, a cap lid's own walls stand in
+  // the spot beside the box it looks for, so it moved further away on every build
+  if (d.material.kind === 'plywood') setBoxLid(d, tr, 'liftoff');
   solve(d);
   // the board on the lid's top: each square engraved a little inside its cell, a rosette a ring in its square
   const lid = boxLid(d, mainTray(d)!);
