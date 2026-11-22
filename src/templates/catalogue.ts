@@ -311,8 +311,8 @@ export const CATALOGUE: Card[] = [
     ],
   },
   // milestone 178, part 2 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.2): boxes.py's CoinDisplay, StevensonScreenBox, CanStorage, Folder, Clock
-  { id: 'showcase', title: 'card.showcase', group: 'boxes', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'showcase', structure: 'showcase', match: { body: 'cross', lid: 'none', partitions: true, coin: true } }] },
-  { id: 'louvreBox', title: 'card.louvreBox', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'louvreBox', structure: 'louvreBox', match: { body: 'cross', lid: 'none', open: 2, baffles: true, plate: true } }] },
+  { id: 'showcase', title: 'card.showcase', group: 'boxes', status: 'beta', challenges: [], variants: [{ id: 'showcase', structure: 'showcase', match: { body: 'cross', lid: 'none', slope: true, partitions: true, coin: true } }] },
+  { id: 'louvreBox', title: 'card.louvreBox', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'louvreBox', structure: 'louvreBox', match: { body: 'cross', lid: 'none', open: 2, baffles: true, plate: true } }] },
   { id: 'canDispenser', title: 'card.canDispenser', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'canDispenser', structure: 'canDispenser', match: { body: 'slot', shelves: true, slant: true, tiers: true } }] },
   { id: 'bookCover', title: 'card.bookCover', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'bookCover', structure: 'bookCover', match: { body: 'folded', strip: true, spine: true } }] },
   { id: 'clockFace', title: 'card.clockFace', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'clockFace', structure: 'clockFace', match: { body: 'slot', crossing: true, grid: true, disc: true } }] },

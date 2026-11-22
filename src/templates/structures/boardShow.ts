@@ -16,12 +16,12 @@
 import type { Design, P2, V3 } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
-import { addDetail, addFreePanel, addPathShape, addRootPanel, connectSeams, deletePanel, growPanel, solve } from '../../model/ops';
+import { addDetail, addFreePanel, addPathShape, addRootPanel, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, setWallCorner, solve } from '../../model/ops';
 import { bendOf, minWeb } from '../../model/materials';
 import { setBoxSize } from '../../model/boxSize';
 import { boardBoxRect, plywoodOnly } from './boards';
 import { cleanAll, mainTray } from './box';
-import { nameAll, sheetLimits, wallsOf } from './shaped';
+import { nameAll, reseam, sheetLimits, wallsOf } from './shaped';
 import { insideOf } from './boardBoxes';
 
 type Role = (name: string, id: string) => void;
@@ -86,7 +86,19 @@ function generateShowcase(d: Design, p: Params, role: Role) {
   const t = d.material.thickness, web = webOf(d);
   const s = coinStand(coin, lean, t, web);
   const W = Math.max(Number(p.width), s.L + 2 * t + 2 * Math.max(web, 6) + 8), D = Math.max(Number(p.depth), s.depth + 8), H = Number(p.height);
-  if (!insideBox(d, W, D, H)) return;
+  const tr = insideBox(d, W, D, H);
+  if (!tr) return;
+  // the front low and the sides sloping down to it, so the coin is seen from the front (a display case's open face)
+  const w = wallsOf(d), Hw = d.trays[tr].height, low = Math.max(12, 4 * d.material.thickness + 4, Hw * 0.35);
+  if (w.e0) {
+    setCustomHeight(d, w.e0, true);
+    setPanelSize(d, w.e0, undefined, low);
+  }
+  for (const e of ['e1', 'e3'] as const) {
+    const P = w[e] && d.panels[w[e]];
+    if (P) setWallCorner(d, P.id, P.frame.u[2] > 0 ? 'tr' : 'tl', { dx: 0, dy: -(Hw - low) });
+  }
+  reseam(d, d.trays[tr].cornerKind);
   const ins = insideOf(d);
   if (!ins) return;
   // the plate's rear face from its foot (a little over the base, the stand centred front to back) up and back
@@ -122,7 +134,8 @@ export const showcase: TemplateDef = {
     num('coin', 'sen.coinSize', 15, 60, 30),
     num('width', 'sen.width', 40, 150, 80),
     num('depth', 'sen.depth', 40, 150, 60),
-    num('height', 'sen.height', 20, 100, 30),
+    // its back's height: the sides slope down to a low front (from a 45 mm box it was a box)
+    num('height', 'sen.height', 30, 120, 50),
     { key: 'lean', label: 'sen.leanBack', type: 'choice', options: ([20, 30, 35] as const).map((x) => ({ value: x, label: `sen.tilt${x}` as MsgKey })), default: 30 },
   ],
   generate: generateShowcase,
