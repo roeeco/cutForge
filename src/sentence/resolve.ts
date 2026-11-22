@@ -96,8 +96,18 @@ function check(def: TemplateDef, p: ParamDef, params: Params, m: MaterialProfile
     const to = fb !== undefined && opts.includes(fb) ? fb : opts[0];
     return { key: p.key, from: cur, to, why: p.why?.(cur, params, m) ?? 'sen.why.notHere' };
   }
-  const r = rangeNow(def, p, params, m);
   const v = Number(cur);
+  // milestone 185: a size inside its own range that still builds clean is inside its limit too (the limit's `holds`):
+  // one build, where working out the limit is a bisection of several (a list of seventy structures took 20 s)
+  const own = p as Extract<ParamDef, { min: number }>;
+  const l = def.limits?.(m, params)[p.key];
+  if (l?.holds && v >= own.min - 1e-9 && v <= own.max + 1e-9 && (l.min === undefined || v >= l.min - 1e-9) && l.holds(v)) return null;
+  // and a size under its least rises to it, whatever the largest is (a box's 45 mm taken to a frame of 60 mm or more)
+  if (l?.holds) {
+    const least = Math.max(own.min, l.min ?? -Infinity);
+    if (v < least - 1e-9) return { key: p.key, from: cur, to: p.type === 'int' ? Math.ceil(least) : least, why: 'sen.why.range' };
+  }
+  const r = rangeNow(def, p, params, m);
   if (v >= r.min - 1e-9 && v <= r.max + 1e-9) return null;
   const to = p.type === 'int' ? Math.round(Math.min(Math.max(v, r.min), r.max)) : Math.min(Math.max(v, r.min), r.max);
   return { key: p.key, from: cur, to, why: r.why ?? 'sen.why.range' };

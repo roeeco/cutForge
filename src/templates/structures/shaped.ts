@@ -74,9 +74,21 @@ export function sheetLimits(def: TemplateDef, lows: Record<string, number>): Non
         enumerable: true,
         get: () => {
           const own = def.params.find((x) => x.key === key) as Extract<ParamDef, { max: number }>;
-          const ck = JSON.stringify([def.id, m, { ...p, [key]: null }, key]);
-          const v = largestOk(ck, Math.max(own.min, lows[key]), own.max, (x) => cleanWith(def, m, { ...p, [key]: x }, key, x), 9, 0.5);
-          return { max: Math.max(own.min, v), why: 'sen.why.sheet' as MsgKey };
+          const ok = (x: number) => cleanWith(def, m, { ...p, [key]: x }, key, x);
+          // milestone 185: the largest is only worked out (a bisection of up to nine builds) when it is asked for; the
+          // sentence first asks whether the size it has holds (one build), which is all opening a list needs
+          let max: number | undefined;
+          return {
+            get max() {
+              if (max === undefined) {
+                const ck = JSON.stringify([def.id, m, { ...p, [key]: null }, key]);
+                max = Math.max(own.min, largestOk(ck, Math.max(own.min, lows[key]), own.max, ok, 9, 0.5));
+              }
+              return max;
+            },
+            why: 'sen.why.sheet' as MsgKey,
+            holds: ok,
+          };
         },
       });
     return out;

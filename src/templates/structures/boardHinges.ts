@@ -58,7 +58,9 @@ function hingeLimits(def: TemplateDef, lows: Record<string, number>): NonNullabl
         enumerable: true,
         get: () => {
           const least = key === 'width' ? r.width - (inside ? 2 * m.thickness : 0) : key === 'height' ? r.height - (inside ? m.thickness : 0) : 0;
-          return { ...out[key], min: Math.max(lows[key], Math.ceil(least)) };
+          // milestone 185: the sheet's largest stays lazy (copying it with a spread worked it out on every read)
+          const sh = out[key];
+          return { get max() { return sh.max; }, why: sh.why, holds: sh.holds, min: Math.max(lows[key], Math.ceil(least)) };
         },
       });
     return res;

@@ -35,7 +35,17 @@ export type ParamDef = ParamRules &
   );
 
 /** A number's range now, and why it ends there. */
-export type Limit = { min?: number; max?: number; why?: MsgKey };
+export type Limit = {
+  min?: number;
+  max?: number;
+  why?: MsgKey;
+  /**
+   * Milestone 185: whether a value is within the limit, without working out the limit itself (one build, where `max`
+   * takes a bisection of several). Only for limits that are monotone (every value under the largest that builds clean
+   * builds clean too, as `largestOk` assumes): a value that holds is at most `max`.
+   */
+  holds?: (v: number) => boolean;
+};
 
 /**
  * The sizes a box, tray, carton or drawer is said in, and how many spaces each way (the owner, 20 November:

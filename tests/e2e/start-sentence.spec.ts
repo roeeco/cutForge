@@ -22,9 +22,11 @@ test('Blank design still gives an empty design in each material', async ({ page 
   }
 });
 
-test('every structure the sentence lists starts, in every material that lists it', async ({ page }) => {
-  test.setTimeout(600_000);
-  for (const m of MATS) {
+// milestone 185: one test per board (about seventy structures since milestones 171–184, each started on a fresh page)
+for (const m of MATS)
+test(`every structure the sentence lists starts, in every material that lists it (${m})`, async ({ page }) => {
+  test.setTimeout(1_200_000);
+  {
     await fresh(page);
     await page.getByTestId(`mat-${m}`).click();
     await page.getByTestId('sen-structure').click();
