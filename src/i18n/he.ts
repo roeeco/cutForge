@@ -2703,8 +2703,8 @@ export const he: Record<MsgKey, string> = {
   "mission.gameInsert.desc": "תוספת לקופסת משחק לוח: ארבעה תאים או יותר לקלפים ולקוביות, ומכסה.",
   "goal.hangs": "נתלה על הקיר",
   "goal.window": "חלון להציץ פנימה",
-  "goal.lights": "{n} אורות עגולים",
-  "goal.mounts": "{n} חורי ברגים במדף",
+  "goal.lights": "אורות עגולים: {n}",
+  "goal.mounts": "חורי ברגים במדף: {n}",
   "goal.decksIn": "{n} תאים, חפיסת קלפים בכל אחד",
   // --- end of milestones 178 (part 2) and 179
 };

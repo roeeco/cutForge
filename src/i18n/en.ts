@@ -2701,9 +2701,9 @@ export const en = {
   "mission.gameInsert.desc": "An insert for a board game's box: four spaces or more for its cards and dice, and a lid.",
   "goal.hangs": "It hangs on a wall",
   "goal.window": "A window to look inside",
-  "goal.lights": "{n} round lights",
-  "goal.mounts": "{n} screw holes in a shelf",
-  "goal.decksIn": "{n} spaces, a deck of cards in each",
+  "goal.lights": "Round lights: {n}",
+  "goal.mounts": "Screw holes in a shelf: {n}",
+  "goal.decksIn": "{n} {n|space|spaces}, a deck of cards in each",
   // --- end of milestones 178 (part 2) and 179
 } as const;
 
