@@ -107,7 +107,8 @@ describe('the catalogue (milestone 146)', () => {
     }
     // a free design has none
     expect(cardOfDesign({})).toBeNull();
-  }, 120_000);
+    // milestones 171–183 added about sixty structures and styles: every one built on four boards takes minutes on a busy machine
+  }, 300_000);
 
   it('a variant picked from another of its card starts at its own sizes, with a note; from another card it keeps them', () => {
     const m = BASE[3];
