@@ -65,6 +65,8 @@ export const STYLES: StyleDef[] = [
   // milestone 174 (boxes.py's ShutterBox, double, and BreadBox; plywood): the roll-top box over two corners, and the bread box
   { id: 'rollTopTwo', structure: 'rollTop', words: { roll: 'two' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   { id: 'breadBox', structure: 'rollTop', words: { roll: 'bread' }, group: 'boxes', uses: ['food'], status: 'beta' },
+  // milestone 175 (boxes.py's FlexBox; plywood): the flex-door box with one door
+  { id: 'flexBox', structure: 'flexDoor', words: { doors: 'one' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },

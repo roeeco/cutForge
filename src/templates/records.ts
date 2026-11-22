@@ -9,9 +9,9 @@ import { boxLid, capRimOf } from '../easy/lid';
 import { dividersOn } from '../model/dividers';
 import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
-import { isStripBand } from '../model/stripTrim';
+import { flexDoors, isStripBand } from '../model/stripTrim';
 
-export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers';
+export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers' | 'ring';
 
 export type PresetRecord = {
   /** What the blank is (§2 of the analysis): a tube (walls in a ring, no base), a cross (a base with walls on its edges), one flat board, boards folded off each other with no box, a stand (boards leaning on a base), a ready shape, or anything else. */
@@ -85,6 +85,8 @@ export type PresetRecord = {
   disc?: boolean;
   /** Milestone 174: a door of living hinge that slides in grooves round the box's rounded top corners (a roll-top box): how many corners are rounded. */
   tambour?: number;
+  /** Milestone 175: a ring's doors (body `ring`: a wall of living hinge round side plates, its doors swinging on its bands). */
+  doors?: number;
   /** Milestone 157: a folded piece that is a wrap (boards grown off a board's ends and glued to the boards beside them: a mailer). */
   wrap?: boolean;
   /** A flat piece's shaped flaps by shape, sorted (`dust,dust,glue,tuck`). */
@@ -360,6 +362,9 @@ export function recordOf(d: Design): PresetRecord {
   const flaps = ids.flatMap((id) => (d.panels[id].edgeFlaps ?? []).map((f) => f.shape ?? 'plain')).sort().join(',');
   if (ids.length === 1) return { body: 'flat', ...(flaps ? { flaps } : {}), ...(slits ? { slits } : {}) };
   const grown = Object.values(d.connections).filter((c) => c.grown);
+  // milestone 175: a wall of living hinge round side plates whose ends are doors (a flex-door box)
+  const doors = flexDoors(d);
+  if (doors.length) return { body: 'ring', doors: doors.length };
   // milestone 165: boards of their own held together by slots and tabs, nothing grown off another (BOXES_PRESETS_PLAN.md)
   const slot = slotOf(d, ids);
   if (slot) return slot;
@@ -388,7 +393,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'tambour'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'tambour', 'doors'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {

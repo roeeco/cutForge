@@ -206,6 +206,14 @@ export const CATALOGUE: Card[] = [
       { id: 'breadBox', structure: 'rollTop', style: 'breadBox', match: { body: 'cross', lid: 'none', tambour: 1, open: 1 } },
     ],
   },
+  // milestone 175 (beta, plywood; boxes.py's DoubleFlexDoorBox and FlexBox): a wall of living hinge round two side plates, its top split into doors
+  {
+    id: 'flexDoor', title: 'card.flexDoor', word: 'card.flexDoor.word', group: 'boxes', status: 'beta', challenges: [], view: { dir: 'high' },
+    variants: [
+      { id: 'flexDoor', structure: 'flexDoor', match: { body: 'ring', doors: 2 } },
+      { id: 'flexBox', structure: 'flexDoor', style: 'flexBox', match: { body: 'ring', doors: 1 } },
+    ],
+  },
   // milestone 156: inserts, one strip folded on parallel creases (the strip builder)
   {
     id: 'insert', title: 'card.insert', word: 'card.insert.word', group: 'more', status: 'stable', challenges: [],
