@@ -2666,6 +2666,16 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - Plywood shapes with nothing to fix 33 → 34 of 40 (corrugated boards stay at 34); card and corrugated folds unchanged. `npm test` 2108 passed; typecheck clean. In the browser: a box dragged, 50 typed, Enter: confirmed at 85 × 50 × 26, one undo step.
 - `MAKE_ENGINE_REVIEW.md` §3 rewritten for what is still open, §4 the decisions before the long pieces of work.
 
+## Milestone 190 (the unfolder's search, `MAKE_ENGINE_REVIEW.md` §3.5) ✅ first part
+
+- `components` (`src/model/unfold.ts`): the fewest islands a solid can lie in (faces joined only by a hole's rim never fold together); the search stops there.
+- A merge pass: on each new best net, the smallest island not yet tried is dissolved and its faces grown onto the islands left (`pass` takes starting islands and folds); kept when it leaves fewer pieces. Dissolving pairs was tried and dropped (no gain, slower).
+- A last flap size, a quarter of the depth asked (never under 2 mm or 1.5 thicknesses): the tooth beside a cap hanging off narrow facets.
+- `tests/unfoldBench.test.ts` (opt-in `BENCH=1`): 14 shapes × 8 seeds, pieces against the least, time. Total 270 → 249; a 60 × 150 card cylinder 2–3 → 1 on every seed; a card ring 5.4 → 4.3; three crossed holes 3.75 → 3.1; a box with a hole 20 → 11 ms. The probe's "teepipe" was two separate cylinders: renamed `twocyl`.
+- Survey (40 shapes, card and corrugated folded): no shape that was clean has a problem; card ring 6 → 5 pieces.
+- `tests/makeEngine.test.ts` (+2); `npm test` 2110 passed; typecheck clean. In the browser: the tall cylinder's cut plan, one piece, its tooth beside the cap 2.4 mm deep.
+- Left (§3.5): thin card cylinders and corrugated cylinders and cones at 2 pieces (needs flaps inset from a corner), the ring at about 4.
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

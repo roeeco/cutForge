@@ -440,7 +440,10 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   };
   // deepest first, either side, as below
   const sized = sides.map((on) => [on, sizesFor(P, e, on, want, clear)] as const);
-  for (const level of [1, 0.6, 0.35])
+  // a quarter of the depth asked as a last resort (milestone 190: a narrow tooth beside a cap hanging off a strip of
+  // facets 16 mm wide), never under 2 mm or 1.5 thicknesses, below which nothing is glued
+  const shallow = want * 0.25 >= Math.max(2, 1.5 * clear) ? [0.25] : [];
+  for (const level of [1, 0.6, 0.35, ...shallow])
     for (const [on, sizes] of sized)
       for (const [depth, ta, tb] of sizes?.(level) ?? []) {
         const f = tryOne(on, depth, ta, tb);
@@ -455,7 +458,7 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
     }
   // then leaning away at one end only (see `sizesFor`)
   const steep = TAPER_MAX * e.len;
-  for (const depth of [want * 0.6, want * 0.35])
+  for (const depth of [want * 0.6, want * 0.35, ...shallow.map((k) => want * k)])
     for (const on of sides) {
       const t = flapTaperLen(e.len, depth);
       for (const [ta, tb] of [[steep, t], [t, steep]]) {
@@ -466,10 +469,22 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
   return null;
 }
 
-function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[], clear = 0, fa = 0): Pass {
+/** An island copied, so a pass that starts from it changes the copy only. */
+const copyIsland = (I: Island): Island => ({ faces: I.faces.slice(), xf: new Map(I.xf), flaps: I.flaps.slice() });
+
+/**
+ * One greedy pass: every face its own island (or `init`'s islands as they stand, and its
+ * folds), then the edges of `order` joined where the joined island fits the sheet and does
+ * not overlap itself, flaps included.
+ */
+function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: number, fixedFolds: PEdge[], flap: (e: PEdge) => number, live: PEdge[], clear = 0, fa = 0, init?: { islands: Island[]; folds: Set<EdgeKey> }): Pass {
   const of = new Map<FaceKey, Island>();
-  for (const k of faces) of.set(k, { faces: [k], xf: new Map([[k, ID]]), flaps: [] });
-  const folds = new Set<EdgeKey>();
+  for (const I of init?.islands ?? []) {
+    const J = copyIsland(I);
+    for (const k of J.faces) of.set(k, J);
+  }
+  for (const k of faces) if (!of.has(k)) of.set(k, { faces: [k], xf: new Map([[k, ID]]), flaps: [] });
+  const folds = new Set<EdgeKey>(init?.folds ?? []);
   const refusedFixed: EdgeKey[] = [];
   const why = new Set<'sheet' | 'overlap'>();
   const byFace = new Map<FaceKey, PEdge[]>();
@@ -478,6 +493,7 @@ function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: num
     byFace.set(e.b, [...(byFace.get(e.b) ?? []), e]);
   }
   const carried = new Map<FaceKey, number>();
+  for (const I of new Set(of.values())) for (const f of I.flaps) carried.set(f.on, (carried.get(f.on) ?? 0) + 1);
   const tryJoin = (e: PEdge, fixedFold: boolean): boolean => {
     const IA = of.get(e.a), IB = of.get(e.b);
     if (!IA || !IB || IA === IB) return false;
@@ -542,6 +558,19 @@ function pass(P: Polyhedron, faces: FaceKey[], order: PEdge[], W: number, H: num
   for (const e of fixedFolds) if (!tryJoin(e, true)) refusedFixed.push(e.key);
   for (const e of order) tryJoin(e, false);
   return { islands: [...new Set(of.values())], folds, refusedFixed, why };
+}
+
+/** How many groups `faces` fall into, joined by `edges` (union-find). */
+function components(faces: FaceKey[], edges: PEdge[]): number {
+  const parent = new Map(faces.map((k) => [k, k]));
+  const find = (k: FaceKey): FaceKey => {
+    let r = k;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    parent.set(k, r);
+    return r;
+  };
+  for (const e of edges) if (parent.has(e.a) && parent.has(e.b)) parent.set(find(e.a), find(e.b));
+  return new Set(faces.map(find)).size;
 }
 
 /** A face's area over its perimeter: the smaller carries the flap (it is the easier one to glue onto the other). */
@@ -653,11 +682,58 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
     const bend = Math.abs(180 - e.dihedral) / 180;
     return (e.dihedral < 180 ? 0.5 : 1) * bend - lenW * (e.len / (avg || 1)) + j;
   };
+  // the fewest islands there can be: faces joined only by a hole's rim (a tube through a box) never fold together
+  const least = components(faces, [...free, ...fixedFolds]);
   const rand = rng(spec.seed);
   const maxRestarts = spec.restarts ?? 40;
   const cap = spec.capMs ?? 2000;
   type Scored = Pass & { cut: number; flaps: Flaps; score: number };
   let best: Scored | null = null;
+  const scoreOf = (r: Pass): Scored => {
+    const cut = live.filter((e) => !r.folds.has(e.key)).reduce((s, e) => s + e.len, 0);
+    const flaps = placeFlaps(P, r, live, spec.flap, W, H, spec.clearance ?? 0, rims);
+    return { ...r, cut, flaps, score: r.islands.length + flaps.dropped.length };
+  };
+  const better = (a: Scored, b: Scored) => a.score < b.score - 1e-9 || (Math.abs(a.score - b.score) < 1e-9 && a.cut < b.cut - 1e-9);
+  /**
+   * The merge pass: the smallest island not yet tried is dissolved into loose faces, which then
+   * join the islands that are left (and each other) edge by edge, in the order of weight; kept
+   * when it leaves fewer pieces. Repeated until no island can be dissolved to advantage. A
+   * greedy pass builds islands early, before the large ones exist to take their faces; here
+   * the large ones stand, and a cap or a strip's last facets find the room left round them.
+   */
+  const merge = (from: Scored): Scored | null => {
+    let cur = from, gained = false;
+    const tried = new Set<string>();
+    for (let round = 0; round < 12 && cur.islands.length > least && now() - t0 < cap; round++) {
+      const sorted = cur.islands.slice().sort((x, y) => x.faces.length - y.faces.length || (x.faces[0] < y.faces[0] ? -1 : 1));
+      // each island alone, smallest first (dissolving pairs was tried: no fewer pieces, a sixth slower on a ring)
+      const sets: Island[][] = sorted.map((I) => [I]);
+      let improved = false;
+      for (const set of sets) {
+        const S = { faces: set.flatMap((I) => I.faces) };
+        const sig = S.faces.slice().sort().join(',');
+        if (tried.has(sig) || S.faces.length === faces.length) continue;
+        tried.add(sig);
+        const inS = new Set(S.faces);
+        // its own folds the student fixed stay (they are made again first); the rest of its folds come undone
+        const keep = new Set([...cur.folds].filter((k) => !(inS.has(P.edges[k].a) && inS.has(P.edges[k].b))));
+        const touch = free.filter((e) => !keep.has(e.key) && (inS.has(e.a) || inS.has(e.b)));
+        const order = touch.map((e) => ({ e, w: weight(e, 0) })).sort((a, b) => a.w - b.w || (a.e.key < b.e.key ? -1 : 1)).map((x) => x.e);
+        const others = cur.islands.filter((I) => !set.includes(I));
+        const r = pass(P, faces, order, W, H, fixedFolds.filter((e) => inS.has(e.a) && inS.has(e.b)), spec.flap, live, spec.clearance ?? 0, spec.foldAllowance ?? 0, { islands: others, folds: keep });
+        if (r.refusedFixed.length) continue;
+        const sc = scoreOf({ ...r, refusedFixed: cur.refusedFixed, why: new Set([...cur.why, ...r.why]) });
+        if (better(sc, cur)) {
+          cur = sc;
+          gained = improved = true;
+          break;
+        }
+      }
+      if (!improved) break;
+    }
+    return gained ? cur : null;
+  };
   let restarts = 0, firstPassMs = 0;
   for (;;) {
     const jitter = restarts === 0 ? 0 : 0.35;
@@ -669,9 +745,20 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
     if (restarts === 0) firstPassMs = now() - t0;
     // a dropped flap costs a piece: a seam that cannot be glued is as bad as another piece to glue on
     const score = r.islands.length + flaps.dropped.length;
+    const was: Scored | null = best;
     if (!best || score < best.score - 1e-9 || (Math.abs(score - best.score) < 1e-9 && cut < best.cut - 1e-9)) best = { ...r, cut, flaps, score };
-    if ((best.islands.length <= 1 && !best.flaps.dropped.length) || restarts >= maxRestarts || now() - t0 > cap) break;
+    if ((best.islands.length <= least && !best.flaps.dropped.length) || restarts >= maxRestarts || now() - t0 > cap) break;
+    // the merge pass (milestone 190) on each new best: its small islands dissolved and grown onto the others
+    if (best !== was && best.islands.length > least) {
+      const m = merge(best);
+      if (m) best = m;
+      if (best.islands.length <= least && !best.flaps.dropped.length) break;
+    }
     restarts++;
+  }
+  if (best && best.islands.length > least) {
+    const m = merge(best);
+    if (m) best = m;
   }
   const b = best!;
   for (const k of b.refusedFixed) issues.push({ kind: 'fixedFoldRefused', edge: k });

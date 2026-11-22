@@ -248,3 +248,23 @@ describe('joints onto a face past a corner joint (milestone 189)', () => {
     }
   }, 60000);
 });
+
+describe('the unfolder: a merge pass and the fewest pieces there can be (milestone 190)', () => {
+  const unfoldOf = (shapes: S[], seed: string, group = false, m = CARD) => {
+    const d = createWaffleDesign(m);
+    d.id = seed;
+    const ids = shapes.map((s) => addShape(d, s));
+    if (group) groupShapes(d, ids);
+    const poly = shapePolyhedron(k, d.sculpt!, 12);
+    const flaps = unfoldFlaps(poly, m, { as: 'fold' });
+    return unfold(poly, { ...unfoldSpecOf(d, m, { as: 'fold' }), flap: (e) => flaps[e.key] ?? 0 });
+  };
+  it('a tall card cylinder (60 × 150) lies flat in one piece, whatever the seed (it was two)', () => {
+    for (let s = 0; s < 8; s++) expect(unfoldOf([P('cylinder', 60, 150, 60)], `tall-${s}`).islands).toHaveLength(1);
+  });
+  it('a box with a hole through it stops at two pieces at once (its tube meets the box only at the rims)', () => {
+    const u = unfoldOf([P('box', 100, 60, 100), { ...P('cylinder', 40, 60, 40), hole: true }], 'hole', true);
+    expect(u.islands).toHaveLength(2);
+    expect(u.restarts).toBe(0);
+  });
+});

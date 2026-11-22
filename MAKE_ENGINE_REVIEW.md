@@ -102,17 +102,34 @@ Corrugated 4 mm folded: shapes with nothing to fix 32 → 34 of 40 (ring, twin s
   288 faces, past the 200 a made model takes, crowd into a dozen islands. The test that met it at
   random now has a fixed seed; automatic facets give that sphere 12.
 
-### 3.5 Still open: the unfolder splits some curved and holed shapes
-Card: a tall cylinder 60 × 150 (2–3 pieces, by seed), the T-pipe (5), the ring (6), three crossed
-holes (4, on 2 sheets: the rim flaps take room); corrugated cylinders and cones (2).
+### 3.5 The unfolder's search — milestone 190, part done
+Measured by `tests/unfoldBench.test.ts` (opt-in, `BENCH=1`): 14 shapes, eight seeds each, through
+Make's own reassembly with automatic faces, with the fewest pieces each can be. Total pieces 270 → 249.
 
-*How:* (a) **strip first** for a ruled face: fold all of one curve's facet-to-facet edges before
-anything else, then hang each cap from facets far apart along the strip; (b) the **merge pass**
-planned in `SHAPES_TO_DIELINES_PLAN.md` §4.4 step 4 is not built: for two islands, cut one fold
-inside one of them and rejoin the smaller part elsewhere (re-rooting), smallest island first;
-(c) for holes, the rim flaps can only go on the wall (a hole has no edge to carry them), so the
-tube should be laid where its toothed ends have room: beside its board, not folded off it.
-A long piece of work (a new search in the unfolder, its tests and timing).
+Built:
+- **The fewest pieces there can be** (`components` in `unfold.ts`): faces joined only by a hole's rim
+  never fold together (a tube through a box, a tray, a dent), so the search stops there instead of
+  running its 40 restarts (a box with a hole: 20 → 11 ms, a tray 9 → 5 ms).
+- **A merge pass:** on each new best net, the smallest island is dissolved into loose faces, which join
+  the islands left, edge by edge; kept when it leaves fewer pieces, repeated. (Dissolving pairs of
+  islands was tried: no fewer pieces, a sixth slower on a ring; taken out.)
+- **A last, shallow flap size** (a quarter of the depth asked, never under 2 mm or 1.5 thicknesses):
+  the tooth beside a cap hanging off a strip of narrow facets.
+
+Results: a tall card cylinder (60 × 150) 2–3 pieces → 1 on every seed; a card ring 5.4 → 4.3; three
+crossed holes 3.75 → 3.1 (2 at best); the shapes at their least now stop at once. The 40-shape survey:
+nothing that was clean has a problem now.
+
+Still open:
+- **Thin cylinders (40 mm across, card) and corrugated cylinders and cones stay at 2 pieces.** The flap
+  beside where a cap hangs off the strip sits in a wedge of 360°/N (30° at 12 faces), too shallow for
+  any flap at 10 mm facets, or with corrugated's clearance. *How:* flaps that start a little in from
+  the corner (an inset at either end, in `seamGlue`, the seam net and the unfolder's flap ring), so a
+  tooth stands clear of the wedge instead of narrowing into it. A day's work; no decision needed.
+- **A ring** (144 faces) still averages 4 pieces of a possible 1: a ring needs its strips laid round
+  the tube in turn, which a greedy search with restarts does not find. *How:* strip-first seeding (fold
+  each ring of facets round the tube first, then join the rings), measured on the benchmark.
+- **A diamond with a hole** is 1 or 2 pieces by seed.
 
 ### 3.6 Still open: boards trimmed too much where they meet at a shallow point
 Twin spheres (4 collisions) and the hull (1): two boards sharing an ordinary edge (108°, 138°) get no
@@ -147,8 +164,7 @@ student added.
 
 1. **Hole walls on boards (3.7):** line a hole with boards (glued on the board round it, or tabs in
    slots round it), or keep a hole a plain cut-out with nothing round it?
-2. **The unfolder's next search (3.5):** worth a milestone now (fewer pieces for cylinders, pipes,
-   rings, holes), or later?
+2. ~~The unfolder's next search~~ — chosen; done in part (3.5). Its next steps need no decision.
 3. **Welding near-flush faces (3.9):** may Make move a face by up to a board's thickness to drop a
    sliver (a 0.5 mm step), or must the made model keep the shape exactly and only list it?
 4. **Thick board in thin walls (3.9):** only list it, or offer a thinner board (or *Fold it*) as the
