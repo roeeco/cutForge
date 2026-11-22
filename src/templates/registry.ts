@@ -24,6 +24,7 @@ import { dividerTray, scoopOrganiser } from './structures/boardTrays';
 import { caddy, castle, consoleBox, dispenser, gridfinityBase } from './structures/boardCases';
 import { flyerStand, honeycombRack, motorBracket, pegboard, recordRack } from './structures/boardMounts';
 import { drillStand, hopper, pinRow, pliersHolder, rollHolder, toolHolder, wallHooks, wallSteps } from './structures/boardWall';
+import { bookCover, bottleStack, canDispenser, clockFace, jarRack, louvreBox, showcase } from './structures/boardShow';
 import { applyJointChoices, createDesign, setMaterial, solve } from '../model/ops';
 import { normalizeJoints } from '../model/jointDefaults';
 import { chooseMaterial } from '../sentence/resolve';
@@ -31,7 +32,7 @@ import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model
 
 // the card stand in the sentence (milestone 98): a change the engine would not cut clean (a stand bigger than a sheet) is refused
 stand.accepts = (m, p) => (cleanAll(stand, m, p) ? null : 'sen.why.engineSize');
-export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder, insert, magazineFile, diceTower, mailer, frontOpen, penHolder, scoopTray, birdHouse, laptopStand, gridInsert, shelf, bottleRack, deskSign, slantedShelf, bookend, slideBox, binRack, wallRack, frame, spool, stackBin, sieveStack, chamferBox, coffinBox, tetrominoBox, starBox, uBox, roundPolyBox, roundTrapBox, heartBox, dividerTray, scoopOrganiser, consoleBox, dispenser, castle, gridfinityBase, caddy, recordRack, flyerStand, motorBracket, pegboard, honeycombRack, toolHolder, pliersHolder, wallHooks, pinRow, rollHolder, hopper, wallSteps, drillStand];
+export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder, insert, magazineFile, diceTower, mailer, frontOpen, penHolder, scoopTray, birdHouse, laptopStand, gridInsert, shelf, bottleRack, deskSign, slantedShelf, bookend, slideBox, binRack, wallRack, frame, spool, stackBin, sieveStack, chamferBox, coffinBox, tetrominoBox, starBox, uBox, roundPolyBox, roundTrapBox, heartBox, dividerTray, scoopOrganiser, consoleBox, dispenser, castle, gridfinityBase, caddy, recordRack, flyerStand, motorBracket, pegboard, honeycombRack, toolHolder, pliersHolder, wallHooks, pinRow, rollHolder, hopper, wallSteps, drillStand, showcase, louvreBox, canDispenser, bottleStack, jarRack, bookCover, clockFace];
 /** The sentence's structures (milestone 95): templates with a word of their own, never `planned` ones. */
 export const STRUCTURES = (): TemplateDef[] => TEMPLATES.filter((t) => t.word && t.status !== 'planned');
 /** The preset cards of the welcome screen's older grid: templates that are not sentence structures. */

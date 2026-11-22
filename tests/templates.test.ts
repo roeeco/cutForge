@@ -19,8 +19,8 @@ describe('template registry', () => {
         const d = generate(t, m, defaults(t));
         // (milestone C5's flat pieces are one board with flaps, or two or four boards; milestone 156's insert two to nine;
         // milestones 165–166: a laptop stand is two wedges, a grid insert three boards, a desk sign three, a bookend three;
-        // milestone 178: a flyer stand two, a pegboard one; milestone 179: a roll holder three)
-        expect(d.order.length, `${t.id} ${m.id}`).toBeGreaterThan(['envelope', 'cardHolder', 'folder', 'insert', 'laptopStand', 'gridInsert', 'deskSign', 'bookend', 'flyerStand', 'pegboard', 'rollHolder'].includes(t.id) ? 0 : 3);
+        // milestone 178: a flyer stand two, a pegboard one; milestone 179: a roll holder three; a book cover and a clock three)
+        expect(d.order.length, `${t.id} ${m.id}`).toBeGreaterThan(['envelope', 'cardHolder', 'folder', 'insert', 'laptopStand', 'gridInsert', 'deskSign', 'bookend', 'flyerStand', 'pegboard', 'rollHolder', 'bookCover', 'clockFace'].includes(t.id) ? 0 : 3);
         expect(d.order.every((id) => id.startsWith('t:')), `${t.id} ${m.id}`).toBe(true);
         expect(Object.values(d.connections).some((c) => c.broken), `${t.id} ${m.id}`).toBe(false);
         expect(validate(d).map((i) => i.key), `${t.id} ${m.id}`).toEqual([]);
