@@ -12,6 +12,7 @@ import { pointInPolygon, segDistPoint } from '../geom/vec';
 import { v3dot, v3len, v3sub } from '../geom/v3';
 import { tOf } from './materials';
 import { constructionSet } from './place';
+import { stripTrimmed } from './stripTrim';
 
 /** Samples within this distance of the other slab count as touching (mm). */
 export const TOUCH_EPS = 0.05;
@@ -166,13 +167,14 @@ export function panelContacts(d: Design, all = false): Contact[] {
     [...joined].sort(),
     d.material.thickness,
     ids.map((id) => {
-      const p = d.panels[id];
+      // milestone 174: a strip's board as its bands leave it (stripTrim.ts); any other board as it is
+      const p = stripTrimmed(d, d.panels[id]);
       return [id, tOf(d, id), p.frame, p.w, p.h, p.sketch, p.ext, p.details.filter((x) => x.op === 'add' || x.op === 'cut').map((x) => [x.id, x.op, x.shape, x.cx, x.cy, x.w, x.h, x.r, x.path, x.array, x.through])];
     }),
   ]);
   const hit = cache.get(sig);
   if (hit) return hit;
-  const slabs = ids.filter((id) => !removedByCut(d, id)).map((id) => slab(d, d.panels[id]));
+  const slabs = ids.filter((id) => !removedByCut(d, id)).map((id) => slab(d, stripTrimmed(d, d.panels[id])));
   const out: Contact[] = [];
   for (let i = 0; i < slabs.length; i++)
     for (let j = i + 1; j < slabs.length; j++) {

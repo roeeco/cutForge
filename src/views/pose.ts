@@ -17,6 +17,8 @@ import { edgeFeatures } from '../model/edgeFeatures';
 import { edgeWorld, matDir, toWorld } from '../model/frame';
 import { frameMatrix } from './three-geom';
 import { stacks } from '../model/stack';
+import { flexDoors } from '../model/stripTrim';
+import { bandChildMove, bandOf } from '../model/bands';
 
 export type PoseProp = 'pencils' | 'dice' | 'sweets' | 'soap' | 'letter' | 'cup' | 'product' | 'paper' | 'goods';
 
@@ -39,7 +41,12 @@ export type Pose = {
   lidOpen?: number;
   /** Milestone 177: how many like it are drawn stacked on their feet, it the lowest (a box with stacking edges: 2). */
   stack?: number;
+  /** Milestone 175: a ring's doors (a flex-door box) swung open this many degrees on their bands. */
+  doors?: number;
 };
+
+/** How far a flex-door box's doors stand open in its pictures (degrees). */
+export const DOORS_OPEN = 55;
 
 /** The trays that are boxes (not a lid of their own). */
 const trays = (d: Design) => Object.values(d.trays ?? {}).filter((t) => !t.lidOf);
@@ -81,6 +88,7 @@ export function autoPose(d: Design): Pose {
   if (wrapLid(d)) pose.lidOpen = 115;
   // milestone 177: a box that stacks shows one like it standing on it
   if (stacks(d)) pose.stack = 2;
+  if (flexDoors(d).length) pose.doors = DOORS_OPEN;
   // boards at a slant inside a box (a dice tower's baffles): the walls in front of them drawn as a ghost
   const near = slantWalls(d);
   if (near.length) pose.ghost = near;
@@ -296,8 +304,25 @@ export function posedDisplay(d: Design, pose: Pose = autoPose(d)): Posed {
   }
   if (pose.drawer !== undefined) assembleDrawer(d, shown, pose.drawer);
   if (pose.lidOpen !== undefined) openWrapLid(d, shown, pose.lidOpen);
+  if (pose.doors !== undefined) openDoors(d, shown, pose.doors);
   if (pose.lay) layDown(d, shown);
   return shown;
+}
+
+/**
+ * A ring's doors swung open (milestone 175, view only): each door's band unbends by the angle, as the fold view
+ * unbends a band (its turn less, its outer face's length kept), and the door rides on its end.
+ */
+function openDoors(d: Design, shown: Posed, deg: number) {
+  for (const c of flexDoors(d)) {
+    const b = bandOf(d, c);
+    const entry = shown.bands.find((x) => x.band.id === c.id);
+    if (!b || !entry || b.phi < 1e-6) continue;
+    const k = Math.max(0, 1 - (deg * Math.PI) / 180 / b.phi);
+    entry.k = k;
+    const M = (shown.xf.get(b.parent) ?? new THREE.Matrix4()).clone().multiply(new THREE.Matrix4().fromArray(bandChildMove(b, k)));
+    shown.xf.set(b.child, M);
+  }
 }
 
 /** Everything turned a quarter about the level x axis, so an upright tube lies front to back (its open end towards the viewer), on the floor. */

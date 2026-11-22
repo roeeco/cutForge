@@ -18,6 +18,7 @@ import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
 import { seamFit, seamGlue } from './seamFold';
 import { laminateFit, laminateGeom } from './laminate';
+import { isStripBand, stripTrimmed } from './stripTrim';
 
 const TOL = 0.02; // mm, for "meets" tests
 const PERP = 0.02; // |cos| below this counts as perpendicular
@@ -420,6 +421,13 @@ export function connectionGeom(d: Design, c: Connection): ConnGeom | null {
     if (!x.grown || x.kind !== 'fold' || !((x.radius ?? 0) > 0) || (x.a.panelId !== c.a.panelId && x.a.panelId !== c.b.panelId)) continue;
     const b = bandOf(d, x);
     if (b) out = clipToBand(d, out, b.parent, b.edge, b.trimP, b.span);
+  }
+  // milestone 174: a strip's band cuts its child back too (stripTrim.ts): what lies on the cut part goes
+  for (const x of Object.values(d.connections)) {
+    if (!x.grown || x.kind !== 'fold' || (x.b.panelId !== c.a.panelId && x.b.panelId !== c.b.panelId) || !isStripBand(d, x)) continue;
+    const b = bandOf(d, x);
+    const e0 = b && findEdge(d.panels[b.child], 'e0');
+    if (b && e0) out = clipToBand(d, out, b.child, 'e0', b.trimC, [0, segLength(e0)]);
   }
   return out;
 }
@@ -1180,7 +1188,9 @@ function sameContact(x: [V3, V3], y: [V3, V3], reach: number): boolean {
  * an edge up to t inside the other's slab), then crossing panels. Two
  * candidates on the same edge, or touching in the same place, are one seam.
  */
-export function seamsBetween(d: Design, A: Panel, B: Panel): OpenSeam[] {
+export function seamsBetween(d: Design, A0: Panel, B0: Panel): OpenSeam[] {
+  // milestone 174: a strip's boards meet others only where their bands leave them material (stripTrim.ts)
+  const A = stripTrimmed(d, A0), B = stripTrimmed(d, B0);
   const tA = tOf(d, A.id), tB = tOf(d, B.id);
   // a curve's flattened segments are never joined
   const ka = panelEdges(A).map((e) => e.key).filter((k) => !isCurveKey(k)), kb = panelEdges(B).map((e) => e.key).filter((k) => !isCurveKey(k));

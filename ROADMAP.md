@@ -298,8 +298,8 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **171** | Owner's picks I: plywood 5 and 8 mm, picture fixes, half box, keyholes, box words (closed, rim, grips) | ✅ (lid handle and base overhang moved to 173) |
 | **172** | Owner's picks II: shelf *Rack*, slanted shelf words, bin rack, wall rack | ✅ |
 | **173** | Face-glued joint; lids plug, brim, handle; base overhang | ✅ |
-| **174** | Tambour door; roll-top box | |
-| **175** | A wrap that opens, latch; flex-door box | |
+| **174** | Tambour door; roll-top box | ✅ (beta: one corner, two corners, bread box; 8 mm plywood refused) |
+| **175** | A wrap that opens, latch; flex-door box | ✅ in part (two doors, one door; FlexBox2, FlexBox4 and the book box wait) |
 | **176** | Pin hinges | ✅ beta until cut: knuckle hinge (dowel or wire pin, a stop at 105°); box lid *pins*, *Pin-hinge box*, dice box, chest |
 | **177** | Stacking feet (E6): crate, stacking notes box, stacking rack, stacking bin, sieve stack | ✅ |
 | **178** | The rest of §3.2 on today's engine | part 1 ✅: nineteen entries (eleven cards, eight variants and words); showcase, louvred box, can dispenser, bottle stack, jars, book cover, clock, jigs, peel and the challenges left |

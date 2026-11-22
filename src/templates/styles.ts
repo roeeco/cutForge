@@ -69,6 +69,11 @@ export const STYLES: StyleDef[] = [
   { id: 'stackRack', structure: 'shelf', words: { rails: 'rails', stack: 'feet' }, sizes: { shelves: 4 }, group: 'boxes', uses: ['stationery'], status: 'beta' },
   // milestone 176 (E5, plywood; boxes.py's IntegratedHingeBox, UniversalBox's hinge edges): a lid on pin hinges
   { id: 'pinHinge', structure: 'box', words: { lid: 'pins' }, group: 'boxes', uses: ['gift'], status: 'beta' },
+  // milestone 174 (boxes.py's ShutterBox, double, and BreadBox; plywood): the roll-top box over two corners, and the bread box
+  { id: 'rollTopTwo', structure: 'rollTop', words: { roll: 'two' }, group: 'boxes', uses: ['stationery'], status: 'beta' },
+  { id: 'breadBox', structure: 'rollTop', words: { roll: 'bread' }, group: 'boxes', uses: ['food'], status: 'beta' },
+  // milestone 175 (boxes.py's FlexBox; plywood): the flex-door box with one door
+  { id: 'flexBox', structure: 'flexDoor', words: { doors: 'one' }, group: 'boxes', uses: ['gift'], status: 'beta' },
   { id: 'phoneStand', structure: 'stand', words: { slots: 1 }, sizes: { cardWidth: 80, cardThickness: 11 }, group: 'flat', uses: ['retail'], status: 'stable' },
   // cartons
   { id: 'ste', structure: 'carton', words: { top: 'tuck', bottom: 'tuck', tuckFrom: 'same' }, group: 'cartons', uses: ['cards', 'cosmetics'], code: 'ECMA A50', status: 'stable' },
