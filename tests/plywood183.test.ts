@@ -13,6 +13,14 @@ import { prepareExport } from '../src/export/prepare';
 import { flattenContour } from '../src/geom/vec';
 import { crossesItself } from '../src/model/geometry';
 import { loadFonts } from './fuzz/gen';
+import { defaults, generate, templateById } from '../src/templates/registry';
+import { MATERIALS } from '../src/model/materials';
+import { recognise } from '../src/templates/catalogue';
+import { recordOf, toothed } from '../src/templates/records';
+import { censusBreaks } from '../src/templates/structures/boards';
+import { gearboxSizes, MESH_PLAY, TOKENS, UR_SQUARES } from '../src/templates/structures/boardGears';
+import { gearCentres } from '../src/model/parts';
+import { makes, type Params } from '../src/templates/types';
 
 /** No two edges of a closed outline cross or touch (but neighbours at their shared corner). */
 function isSimplePolygon(q: P2[]): boolean {
@@ -214,5 +222,70 @@ describe('parts (milestone 183): on a board, as a board, saved and exported', ()
       expect(roundTrip(d).panels[b].lines).toEqual(d.panels[b].lines);
       expect(exportsClean(d), m.id).toEqual([]);
     }
+  });
+});
+
+const onlyResting = (d: Design) =>
+  d.order.filter((id) => {
+    const cs = Object.values(d.connections).filter((c) => c.a.panelId === id || c.b.panelId === id);
+    return cs.length === 0 || cs.every((c) => c.kind === 'slide');
+  });
+
+describe('cards on parts (milestone 183): the gearbox and the game board', () => {
+  const CASES: [string, string, Params][] = [
+    ['gearbox', 'gearbox', {}],
+    ['gearbox, one stage', 'gearbox', { stages: 1 }],
+    ['gearbox, three stages, fine teeth', 'gearbox', { stages: 3, module: 1.5, pinion: 12, gear: 30 }],
+    ['game board', 'gameBoard', {}],
+    ['game board, large squares', 'gameBoard', { square: 45, height: 60 }],
+  ];
+
+  it('each builds clean on plywood 3 and 8 mm, is recognised as itself, and every board is held', () => {
+    loadFonts();
+    for (const m of [P3, P8])
+      for (const [name, id, w] of CASES) {
+        const t = templateById(id)!;
+        const d = generate(t, m, { ...defaults(t), ...w });
+        expect(problems(d), `${name} ${m.id}`).toEqual([]);
+        expect(recognise(d)?.v.id, `${name} ${m.id}`).toBe(id);
+        expect(onlyResting(d), `${name} ${m.id}`).toEqual([]);
+        expect(censusBreaks(d), `${name} ${m.id}`).toEqual([]);
+        expect(t.accepts!(m, { ...defaults(t), ...w }), `${name} ${m.id}`).toBeNull();
+      }
+  }, 240_000);
+
+  it('a gearbox’s stages: a pinion and a gear on each, glued through a ring to the next stage on its axle, meshing on the line between the axles', () => {
+    const t = templateById('gearbox')!;
+    for (const n of [1, 2, 3]) {
+      const p = { ...defaults(t), stages: n };
+      const d = generate(t, P3, p);
+      const gears = d.order.filter((id) => toothed(d.panels[id]));
+      expect(gears, `${n}`).toHaveLength(2 * n);
+      // glued face to face: the input pinion to its ring, each gear to its ring and that ring to the next pinion
+      expect(Object.values(d.connections).filter((c) => c.kind === 'laminate' && !c.broken), `${n}`).toHaveLength(2 * n);
+      const s = gearboxSizes(p, P3.thickness);
+      expect(s.a).toBeCloseTo(gearCentres(s.m, s.z1, s.z2) + MESH_PLAY, 9);
+      // two axle holes through the front and the back
+      const w = Object.values(d.panels).filter((x) => x.details.some((q) => q.shape === 'circle' && Math.abs(q.w - s.shaft) < 1e-9));
+      expect(w, `${n}`).toHaveLength(2);
+      expect(recordOf(d).gears).toBe(true);
+    }
+    expect(t.accepts!(P3, { ...defaults(t), pinion: 20, gear: 20 })).toBe('sen.why.gearSmall');
+  }, 120_000);
+
+  it('a game board has the Royal Game of Ur’s twenty squares on its lid and a tray of fourteen token holes glued on its base', () => {
+    const t = templateById('gameBoard')!;
+    const d = generate(t, P3, defaults(t));
+    const squares = Object.values(d.panels).flatMap((p) => p.details.filter((x) => x.op === 'engrave' && x.shape === 'rect'));
+    expect(squares).toHaveLength(UR_SQUARES.length);
+    expect(UR_SQUARES).toHaveLength(20);
+    const tray = Object.values(d.panels).find((p) => p.details.filter((x) => x.op === 'cut' && x.shape === 'circle').length === TOKENS);
+    expect(tray).toBeTruthy();
+    expect(Object.values(d.connections).some((c) => c.kind === 'laminate' && [c.a.panelId, c.b.panelId].includes(tray!.id))).toBe(true);
+    expect(recordOf(d).game).toBe(true);
+  });
+
+  it('the cards are plywood only', () => {
+    for (const m of MATERIALS.filter((x) => x.kind !== 'plywood')) for (const id of ['gearbox', 'gameBoard']) expect(makes(templateById(id)!, m), m.id).toBe(false);
   });
 });

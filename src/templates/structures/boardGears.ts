@@ -17,7 +17,7 @@ import { boxLid, setBoxLid } from '../../easy/lid';
 import { circlePoly, gearCentres, gearCircles, gearOutline } from '../../model/parts';
 import { boardBoxRect, plywoodOnly } from './boards';
 import { cleanAll, mainTray } from './box';
-import { nameAll, wallsOf } from './shaped';
+import { nameAll, sheetLimits, wallsOf } from './shaped';
 import { insideOf } from './boardBoxes';
 
 type Role = (name: string, id: string) => void;
@@ -130,6 +130,12 @@ export const gearbox: TemplateDef = {
   generate: generateGearbox,
   sentence: { main: 'sen.s.gearbox' },
 };
+gearbox.limits = (m, p) => {
+  const out = sheetLimits(gearbox, { gear: 16, module: 1.5 })(m, p);
+  // the pinion smaller than the gear
+  Object.defineProperty(out, 'pinion', { enumerable: true, value: { max: Math.max(10, Math.min(20, Math.round(Number(p.gear)) - 1)), why: 'sen.why.gearSmall' as MsgKey } });
+  return out;
+};
 gearbox.accepts = (m, p) => gearboxWhy(p, m.thickness) ?? (cleanAll(gearbox, m, p) ? null : 'sen.why.engineSize');
 
 // --- the game board ---
@@ -193,4 +199,5 @@ export const gameBoard: TemplateDef = {
   generate: generateGameBoard,
   sentence: { main: 'sen.s.gameBoard' },
 };
+gameBoard.limits = sheetLimits(gameBoard, { square: 25, height: 35 });
 gameBoard.accepts = (m, p) => (cleanAll(gameBoard, m, p) ? null : 'sen.why.engineSize');
