@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { FONTS } from '../src/text/fonts';
 import { registerFont } from '../src/text/registerFont';
-import { addDetail, setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
+import { addPartShape, addDetail, setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { boxLid, setBoxLid } from '../src/easy/lid';
 import { MISSIONS, missionById, missionState, placeContents, startMission } from '../src/easy/missions';
@@ -17,6 +17,7 @@ import { stickerRecipe } from '../src/easy/recipes';
 import { STICKERS } from '../src/easy/stickers';
 import { fitShape } from '../src/easy/guard';
 import type { Design } from '../src/model/types';
+import { partParams } from '../src/model/parts';
 
 beforeAll(() => {
   const buf = (f: string) => {
@@ -141,6 +142,54 @@ const SOLVE: Record<string, (d: Design) => Design> = {
     d.contents = placeContents(d, [{ object: 'deck', count: 1 }, { object: 'dice', count: 8 }]);
     return d;
   },
+  // milestone 184: enclosures
+  'electronics-box': (d) => {
+    // an Arduino Uno's standoffs (M3, 2.7 mm), a USB cable through the back wall, a name on the front
+    const tray = mainTray(d)!;
+    const base = d.trays[tray].baseId, B = d.panels[base];
+    for (const [dx, dy] of [[-26, -20], [26, -20], [-26, 20], [26, 20]]) addDetail(d, base, 'circle', 'cut', B.w / 2 + dx, B.h / 2 + dy, 2.7, 2.7);
+    const back = wall(d, base, 'e2');
+    addDetail(d, back, 'circle', 'cut', d.panels[back].w / 2, d.panels[back].h * 0.4, 12, 12);
+    engrave(d, frontWall(d, tray)!, 'Amit');
+    solve(d);
+    return d;
+  },
+  'rack-box': (d) => {
+    // a switch and a socket in the front panel, the name between them
+    const f = d.order.find((id) => d.panels[id].fitting === 'front')!;
+    const F = d.panels[f];
+    for (const x of [60, F.w - 60]) addDetail(d, f, 'circle', 'cut', x, F.h / 2, 12, 12);
+    engrave(d, f, 'Studio');
+    solve(d);
+    return d;
+  },
+  'euro-skiff': (d) => {
+    const tray = mainTray(d)!;
+    const back = wall(d, d.trays[tray].baseId, 'e2');
+    addDetail(d, back, 'circle', 'cut', d.panels[back].w * 0.8, d.panels[back].h * 0.45, 16, 16);
+    engrave(d, frontWall(d, tray)!, 'Synth');
+    solve(d);
+    return d;
+  },
+  'led-matrix': (d) => {
+    // eight spaces each way, a cable hole under one of the middle cells
+    const r = regenerate(d, { ...d.template!.params, spacesBy: 'count', nx: 8, ny: 8 }).design;
+    const base = r.trays[mainTray(r)!].baseId;
+    const t = r.material.thickness, cell = (160 - 7 * t) / 8;
+    const c = t + 3 * (cell + t) + cell / 2;
+    addDetail(r, base, 'circle', 'cut', c, c, 8, 8);
+    solve(r);
+    return r;
+  },
+  'segment-clock': (d) => {
+    const tray = mainTray(d)!;
+    const front = frontWall(d, tray)!, F = d.panels[front];
+    addPartShape(d, front, { kind: 'digits', p: partParams({ kind: 'digits', p: { count: 4, height: 60 } }) }, F.w / 2, F.h / 2, 'cut');
+    const back = wall(d, d.trays[tray].baseId, 'e2');
+    addDetail(d, back, 'circle', 'cut', d.panels[back].w * 0.8, d.panels[back].h * 0.3, 10, 10);
+    solve(d);
+    return d;
+  },
 };
 
 describe('missions', () => {
@@ -187,7 +236,7 @@ describe('missions', () => {
 
   it('the registry has the four first missions and the Escape box', () => {
     // milestones 178 (part 2) and 179: boxes.py's challenges after them
-    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box', 'wall-tray', 'card-box', 'display-case', 'traffic-light', 'sbc-rack', 'game-insert']);
+    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box', 'wall-tray', 'card-box', 'display-case', 'traffic-light', 'sbc-rack', 'game-insert', 'electronics-box', 'rack-box', 'euro-skiff', 'led-matrix', 'segment-clock']);
     expect(missionById('pencil-box')?.goals.length).toBeGreaterThan(2);
   });
 });

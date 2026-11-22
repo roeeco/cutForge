@@ -36,6 +36,8 @@ export type Mission = {
   levels?: Mode[];
   /** What goes inside at the start: an object and how many. */
   contents: { object: string; count: number }[];
+  /** Milestone 184 (E9): the sheet it needs at least (mm): it starts on the material with a sheet this large (787 × 488, the largest). */
+  sheet?: { w: number; h: number };
   goals: Goal[];
 };
 
@@ -215,6 +217,68 @@ function wallTray(d: Design, inside: { w: number; d: number; h: number }) {
   hangByKeyholes(d, back, undefined, Math.max(d.panels[back].w / 8, 2 * d.material.thickness + 10));
 }
 
+// milestone 184 (BOXES_PLYWOOD_PLAN.md §3.8): enclosures' goals
+
+/** The walls of the main box (by base edge), or all of them. */
+function boxWalls(d: Design, edge?: string): string[] {
+  const b = mainBox(d);
+  return Object.values(d.connections).filter((c) => c.grown && c.a.panelId === b && (!edge || c.a.edge.split('#')[0] === edge)).map((c) => c.b.panelId);
+}
+
+/** A round hole cut in a board, `min` to `max` mm across. */
+const roundHoles = (d: Design, id: string, min: number, max: number) => (d.panels[id]?.details ?? []).filter((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= min - 1e-6 && x.w <= max + 1e-6).length;
+
+/** `n` screw holes or more (2 to 4.5 mm) in the main box's base: a circuit board's standoffs. */
+function baseHoles(n: number): Goal {
+  return { id: 'base-holes', group: 0, label: 'goal.baseHoles', vars: { n }, check: (d) => ({ ok: !!mainBox(d) && roundHoles(d, mainBox(d), 2, 4.5) >= n, target: mainBox(d) }) };
+}
+
+/** A hole for a cable (round, 5 to 25 mm) in a wall of the main box, its back wall, or its base. */
+function cableHole(where: 'wall' | 'back' | 'base'): Goal {
+  return {
+    id: 'cable',
+    group: 0,
+    label: 'goal.cableHole',
+    check: (d) => {
+      const ids = where === 'base' ? [mainBox(d)].filter(Boolean) : boxWalls(d, where === 'back' ? 'e2' : undefined);
+      const hit = ids.find((id) => roundHoles(d, id, 5, 25) > 0);
+      return { ok: !!hit, target: hit ?? ids[0] ?? mainBox(d) };
+    },
+  };
+}
+
+/** `n` round holes or more (5 to 30 mm) in a rack box's front panel: a switch, a socket. */
+function frontHoles(n: number): Goal {
+  return {
+    id: 'front-holes',
+    group: 0,
+    label: 'goal.frontHoles',
+    vars: { n },
+    check: (d) => {
+      const f = d.order.find((id) => d.panels[id]?.fitting === 'front');
+      return { ok: !!f && roundHoles(d, f, 5, 30) >= n, target: f ?? mainBox(d) };
+    },
+  };
+}
+
+/** `n` seven-segment digits or more cut in the main box's front wall (Shapes, Parts: milestone 183). */
+function digitsIn(n: number): Goal {
+  return {
+    id: 'digits',
+    group: 0,
+    label: 'goal.digits',
+    vars: { n },
+    check: (d) => {
+      const f = boxWalls(d, 'e0')[0];
+      const k = (d.panels[f]?.details ?? []).filter((x) => x.op === 'cut' && x.part?.kind === 'digits').reduce((s, x) => s + Number(x.part!.p.count ?? 1), 0);
+      return { ok: k >= n, target: f ?? mainBox(d) };
+    },
+  };
+}
+
+/** The largest sheet (owner, 21 November): the challenges larger than 600 × 400 start on it. */
+const BIG_SHEET = { w: 787, h: 488 };
+
 // ---------- the missions ----------
 
 /** A rectangular open box of this inside size (sizes stated as inside), split into equal spaces `nx` across and `ny` front to back. */
@@ -356,12 +420,78 @@ export const MISSIONS: Mission[] = [
     contents: [{ object: 'deck', count: 1 }, { object: 'dice', count: 8 }],
     goals: [compartmentsAtLeast(4), contentsFit('goal.deckIn', 'deck', 1), contentsFit('goal.dice', 'dice', 8), hasLid, oneSheet, readyToCut],
   },
+  // milestone 184 (BOXES_PLYWOOD_PLAN.md §3.8): enclosures in plywood, Quick build and Workshop
+  {
+    // ElectronicsBox: a closed box whose top is screwed on corner blocks; the board's standoffs and its cable
+    id: 'electronics-box',
+    version: 1,
+    title: 'mission.electronicsBox',
+    description: 'mission.electronicsBox.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'box', params: { width: 120, depth: 80, height: 45, sizeAs: 'inside', lid: 'screwed' } },
+    contents: [],
+    goals: [baseHoles(4), cableHole('wall'), oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // Rack19Box: two rack units, its front panel's ears screwed into a 19-inch rack; larger than 600 × 400 allows
+    id: 'rack-box',
+    version: 1,
+    title: 'mission.rackBox',
+    description: 'mission.rackBox.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    sheet: BIG_SHEET,
+    template: { id: 'box', params: { width: 448, depth: 100, height: 88.11, sizeAs: 'outside', lid: 'screwed', rack: '19' } },
+    contents: [],
+    goals: [frontHoles(2), oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // EuroRackSkiff: 84 HP of 3U modules on two rails; larger than 600 × 400 allows
+    id: 'euro-skiff',
+    version: 1,
+    title: 'mission.euroSkiff',
+    description: 'mission.euroSkiff.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    sheet: BIG_SHEET,
+    template: { id: 'box', params: { width: 84 * 5.08, depth: 130.5, height: 60, sizeAs: 'inside', rack: 'euro' } },
+    contents: [],
+    goals: [cableHole('back'), oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // Matrix: a grid of cells in front of an LED panel, a light in each; the panel behind its base
+    id: 'led-matrix',
+    version: 1,
+    title: 'mission.ledMatrix',
+    description: 'mission.ledMatrix.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'box', params: { width: 160, depth: 160, height: 25, sizeAs: 'inside' } },
+    contents: [],
+    goals: [compartmentsAtLeast(64), cableHole('base'), oneSheet, readyToCut],
+  },
+  {
+    // SevenSegmentClock: four big digits cut in a box's front, an LED strip behind them; the digits are a part of
+    // Shapes (milestone 183), which is Workshop's
+    id: 'segment-clock',
+    version: 1,
+    title: 'mission.segmentClock',
+    description: 'mission.segmentClock.desc',
+    materials: ['plywood'],
+    levels: ['workshop'],
+    template: { id: 'box', params: { width: 240, depth: 80, height: 100, sizeAs: 'inside', lid: 'screwed' } },
+    contents: [],
+    goals: [digitsIn(4), cableHole('back'), oneSheet, readyToCut],
+  },
 ];
 export const missionById = (id: string) => MISSIONS.find((m) => m.id === id);
 
 /** A mission's starting design in a material: its template or recipe, the mission named, its objects placed. */
 export function startMission(m: Mission, mat: MaterialProfile): Design {
   let d: Design;
+  // milestone 184: a challenge larger than the sheet starts on one large enough (a sheet changed is the material's own, as the drawer makes it)
+  if (m.sheet && (mat.sheetW < m.sheet.w || mat.sheetH < m.sheet.h)) mat = { ...mat, id: mat.id.endsWith('-custom') ? mat.id : `${mat.id}-custom`, sheetW: Math.max(mat.sheetW, m.sheet.w), sheetH: Math.max(mat.sheetH, m.sheet.h) };
   const tp = m.template && templateById(m.template.id);
   if (tp) d = generate(tp, mat, { ...defaults(tp), ...m.template!.params });
   else {

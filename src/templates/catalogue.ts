@@ -63,7 +63,8 @@ const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
 export const CATALOGUE: Card[] = [
   // boxes and trays
   {
-    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: [],
+    // milestone 184: the Eurorack case and the LED matrix box (open boxes)
+    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: ['euro-skiff', 'led-matrix'],
     variants: [
       { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
@@ -93,7 +94,7 @@ export const CATALOGUE: Card[] = [
     { id: 'dividerTray', structure: 'dividerTray', match: { body: 'cross', lid: 'none', loose: true } },
   ] },
   {
-    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: ['card-box', 'display-case', 'traffic-light'],
+    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: ['card-box', 'display-case', 'traffic-light', 'electronics-box', 'rack-box', 'segment-clock'],
     variants: [
       { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
       { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
