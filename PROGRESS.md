@@ -2565,6 +2565,22 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood178.test.ts`; `tests/templates.test.ts` lists the flyer stand and pegboard among the designs of fewer than four boards.
 - Left for a later part: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, laser jigs, pizza peel, and the challenges (`DECISIONS.md`).
 
+## Milestone 179 (every doable boxes.py design in plywood) ✅: wall-mounted
+
+- **Hang by keyholes or a cleat** on every wall card (wall rack, bin rack, half box, pegboard and the new ones): the cleat is two layers glued face to face on the back and the same two on the wall, the hook dropping behind the wall cleat's front layer (`hangByCleat`, `Panel.cleat`).
+- **New cards** (plywood, beta): *Tool holder* (slotted, round holes, *Wrench holder*, *Pliers holder*), *Hooks* (hooks, *Key board*, *Pin row*), *Roll holder*, *Hopper*, *Wall steps* (steps, *Drill stand*, *Wall drill box*); the *Wall tray* challenge on the organiser.
+- Records: `notches`, `wells`, `hooks`, `bar`, `steps`, `stepped`, `cleat`; `crenels` go down and back up.
+- `tests/plywood179.test.ts`; `tests/templates.test.ts` lists the roll holder among the designs of fewer than four boards.
+- Not built: caliper and plane holders, WallConsole, WallStackableBin (`DECISIONS.md`).
+
+## Milestone 178 (every doable boxes.py design in plywood) ✅ part 2
+
+- **New cards** (plywood, beta): *Showcase*, *Louvred box*, *Can dispenser*, *Book cover* (3 mm), *Clock face*; on the bottle rack card *Bottle stack* and *Jar rack*.
+- **Challenges**: *Card box*, *Display case*, *Traffic light* (lidded box), *Computer board rack* (shelf), *Game box insert* (organiser).
+- Records: `coin`, `cradles`, `spine`; `disc` on a slot body.
+- `tests/plywood178b.test.ts`; `tests/missions.test.ts` has their reference solutions.
+- Not built: laser jigs, pizza peel, HobbyCase, TriangleLamp, OrganPipe, BeeQueenCage (`DECISIONS.md`).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).
