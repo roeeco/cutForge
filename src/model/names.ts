@@ -4,7 +4,7 @@
 // the wall grown from its front edge, a divider, a leaning panel). The model
 // keeps the stored name; only the display changes, so switching language
 // renames parts and old projects get role names too.
-import type { Design } from './types';
+import type { Design, Panel } from './types';
 import { defaultOffset } from './ops';
 import { reachFor, sealFor } from './closures';
 import { isCurveKey, isRectSketch, panelEdges, rectEdgeIndex, segLength } from './edges';
@@ -87,10 +87,19 @@ export function panelLabel(d: Design, id: string, t: T): string {
   if (parentIsRoot && side === null && Math.abs(parentC.angle - 90) < 1e-6) {
     // counted among the straight edges: the facets of a rounded corner or a round base's arcs are not
     // walls (they made "Wall 24", "Wall 47" on a rounded tray)
-    const n = panelEdges(d.panels[parentC.a.panelId]).filter((e) => !isCurveKey(e.key)).findIndex((e) => e.key === parentC.a.edge);
+    const n = ownEdgeIndex(d.panels[parentC.a.panelId], parentC.a.edge);
     if (n >= 0) return t('part.wallN', { n: n + 1 });
   }
   return t('part.panel', { n: d.order.indexOf(id) + 1 });
+}
+
+/**
+ * An edge's place among the board's own straight edges, for *Wall 3*, *Lid rim 3*: the facets of a curve and the edges
+ * of shapes added to the board's outline (`<shape>.<edge>`) are not counted (exploratory test report, finding 18: rims
+ * numbered 1, 2, then 41–46).
+ */
+function ownEdgeIndex(p: Panel, key: string): number {
+  return panelEdges(p).filter((e) => !isCurveKey(e.key) && !e.key.includes('.')).findIndex((e) => e.key === key);
 }
 
 /** A board's name as part of a box's lid, or null. */
@@ -107,7 +116,7 @@ function lidRole(d: Design, id: string, t: T): string | null {
     const base = d.panels[tray.baseId];
     const side = base && isRectSketch(base) ? rectEdgeIndex(c.a.edge) : null;
     if (side !== null) return t('part.lidRimSide', { side: t(SIDE[side]) });
-    const n = base ? panelEdges(base).filter((e) => !isCurveKey(e.key)).findIndex((e) => e.key === c.a.edge) : -1;
+    const n = base ? ownEdgeIndex(base, c.a.edge) : -1;
     return t('part.lidRimN', { n: n + 1 });
   }
   // folded off a box wall's top edge, across the box: a lid (a tuck top, a living hinge, an arched lid)

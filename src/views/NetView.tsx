@@ -1,7 +1,8 @@
 // The Net view (milestone 113, DIELINE_DNA_PLAN.md D1): the cut plan's nets
 // one beside another, picked edge by edge, with the folded model beside them.
 // The preview orbits and folds and edits nothing; it can be turned off (per
-// browser), and under 900 px wide it is shown in place of the net on request.
+// browser), and under 1200 px wide it is shown in place of the net on request (900 until the exploratory test
+// report: the card now floats over the nets beside the preview, and below 1200 it left the nets too little room).
 import { useEffect, useState } from 'react';
 import { useStore, useT } from '../store/store';
 import { Plan2D } from './Plan2D';
@@ -22,7 +23,7 @@ function useWide(px: number): boolean {
 export function NetView() {
   const t = useT();
   const want = useStore((s) => s.viewPrefs.netPreview !== false);
-  const wide = useWide(900);
+  const wide = useWide(1200);
   // narrow: the preview in place of the net, on request
   const [swap, setSwap] = useState(false);
   const toggle = wide ? (

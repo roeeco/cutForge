@@ -2,7 +2,7 @@
 // (`t:<role>`), so user-added shapes stay attached to their panels when a
 // parameter changes; edits that cannot be kept are listed.
 import { pieceRoot, placementPiece } from '../model/keys';
-import type { Design, MaterialProfile } from '../model/types';
+import type { Design, Detail, MaterialProfile } from '../model/types';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
@@ -119,6 +119,8 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   if (old.mission) d.mission = { ...old.mission };
   if (old.contents) d.contents = old.contents.filter((c) => d.panels[c.baseId]).map((c) => ({ ...c }));
   const lost: Lost[] = [];
+  // what the template made last time, to tell its own shapes from the student's
+  const fresh = generate(t, old.material, old.template!.params);
   // keep where root panels were moved to
   for (const id of d.order) {
     const o = old.panels[id];
@@ -132,13 +134,16 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
     if (id.startsWith(PREFIX)) {
       const n = d.panels[id];
       if (n) {
-        n.details = JSON.parse(JSON.stringify(o.details));
+        n.details = keepDetails(o.details, fresh.panels[id]?.details ?? [], n.details);
         n.name = o.name;
         // a board's own material stays (its sizes are worked out in the working material)
         if (o.material && o.material !== material.id) n.material = o.material;
         // milestone 184: a board the student asked to split with keys stays asked
         if (o.keyed) n.keyed = true;
-      } else if (o.details.length) lost.push({ panel: o.name, shapes: o.details.length });
+      } else {
+        const mine = studentDetails(o.details, fresh.panels[id]?.details ?? []).mine;
+        if (mine.length) lost.push({ panel: o.name, shapes: mine.length });
+      }
     } else {
       // a panel the student added: keep it (and its connections below)
       d.panels[id] = JSON.parse(JSON.stringify(o));
@@ -160,9 +165,48 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
     normalizeJoints(d);
     applyJointChoices(d);
   }
-  keepDividerPlaces(old, d, t);
+  keepDividerPlaces(old, d, fresh);
   solve(d);
   return { design: d, lost };
+}
+
+/** A shape's content without its id (ids are new each time a template is generated). */
+const shapeSig = (x: Detail) => JSON.stringify({ ...x, id: undefined }, (_k, v) => (typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v));
+
+/**
+ * Split a template board's shapes into the ones its template made and the student left alone (`was`, the template's
+ * shapes last time, matched by content) and the student's own: added, or a template shape the student changed.
+ * `gone` are the template's shapes the student changed or deleted.
+ */
+function studentDetails(old: Detail[], was: Detail[]): { mine: Detail[]; gone: Detail[] } {
+  const left = [...was];
+  const mine: Detail[] = [];
+  for (const x of old) {
+    const k = left.findIndex((w) => shapeSig(w) === shapeSig(x));
+    if (k >= 0) left.splice(k, 1);
+    else mine.push(x);
+  }
+  return { mine, gone: left };
+}
+
+/**
+ * A template board's shapes after its template is generated again (exploratory test report, finding 1): the shapes
+ * the template makes now (`now`: a window, a finger notch, handle slots, at the new sizes), and the student's own.
+ * A template shape the student changed stays as the student left it, and one the student deleted stays deleted: in
+ * both cases the new shape of the same kind nearest to it is not added.
+ */
+function keepDetails(old: Detail[], was: Detail[], now: Detail[]): Detail[] {
+  const { mine, gone } = studentDetails(old, was);
+  const out = [...now];
+  for (const g of gone) {
+    let best = -1, bd = Infinity;
+    out.forEach((x, k) => {
+      const dd = Math.hypot(x.cx - g.cx, x.cy - g.cy);
+      if (x.shape === g.shape && x.op === g.op && dd < bd) (best = k), (bd = dd);
+    });
+    if (best >= 0) out.splice(best, 1);
+  }
+  return [...out, ...JSON.parse(JSON.stringify(mine))];
 }
 
 /**
@@ -174,8 +218,7 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
  * one moved keeps the template's even spacing. If any space would end smaller
  * than `MIN_COMPARTMENT`, the row keeps the template's places.
  */
-function keepDividerPlaces(old: Design, d: Design, t: TemplateDef) {
-  const fresh = old.template ? generate(t, old.material, old.template.params) : null;
+function keepDividerPlaces(old: Design, d: Design, fresh: Design) {
   const centre = (x: Design, id: string) => {
     const r = dividerRow(x, id);
     return r && { c: r.pos + r.t / 2, lo: r.lo, hi: r.hi, t: r.t };

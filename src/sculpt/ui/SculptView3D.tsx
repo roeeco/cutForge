@@ -22,6 +22,7 @@ import { SketchLayer } from './SketchLayer';
 import { SketchMode, stageCamera } from './SketchCard';
 import { revolveBlocked } from '../sketch';
 import { outcomeOf, outcomeUi } from '../outcomes';
+import { leaveGroup } from './commands';
 import { upTo } from '../workplane';
 import { protractorReading } from '../protractor';
 
@@ -40,7 +41,13 @@ export function visibleShapes(d: Design, focus: string | null): { id: string; di
   return [...sc.order.filter((id) => id !== top).map((id) => ({ id, dim: true })), ...(sc.shapes[focus].children ?? []).map((id) => ({ id, dim: false }))];
 }
 
-function ShapeMesh({ d, id, index, dim, selected, ghost, onDown, onDouble }: { d: Design; id: string; index: number; dim: boolean; selected: boolean; ghost: boolean; onDown: (e: ThreeEvent<PointerEvent>) => void; onDouble: (e: ThreeEvent<MouseEvent>) => void }) {
+const NO_RAYCAST = () => null;
+
+/**
+ * `pickable` false: a shape dimmed outside the group being worked inside. It is not clicked and does not stand in front
+ * of the group's own shapes (exploratory test report, finding 9).
+ */
+function ShapeMesh({ d, id, index, dim, pickable = true, selected, ghost, onDown, onDouble }: { d: Design; id: string; index: number; dim: boolean; pickable?: boolean; selected: boolean; ghost: boolean; onDown: (e: ThreeEvent<PointerEvent>) => void; onDouble: (e: ThreeEvent<MouseEvent>) => void }) {
   const sc = d.sculpt!;
   const s = sc.shapes[id];
   const k = kernelNow()!;
@@ -54,7 +61,7 @@ function ShapeMesh({ d, id, index, dim, selected, ghost, onDown, onDouble }: { d
   const color = selected ? STAGE.selected : s.color ?? shapeColor(index);
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
-      <mesh geometry={geo} onPointerDown={onDown} onDoubleClick={onDouble} userData={{ shapeId: id }} renderOrder={hole ? 5 : 0}>
+      <mesh geometry={geo} raycast={pickable ? THREE.Mesh.prototype.raycast : NO_RAYCAST} onPointerDown={onDown} onDoubleClick={onDouble} userData={{ shapeId: id }} renderOrder={hole ? 5 : 0}>
         {mat ? <primitive object={mat} attach="material" /> : <meshStandardMaterial key={dim || ghost ? 'see-through' : 'solid'} color={color} roughness={0.75} transparent={dim || ghost} opacity={ghost ? 0.6 : dim ? 0.25 : 1} depthWrite={!dim} emissive={selected ? '#0b4f4a' : '#000000'} emissiveIntensity={selected ? 0.25 : 0} />}
       </mesh>
       {(selected || ghost) && (
@@ -366,8 +373,21 @@ function SculptScene() {
     setDraw({ y, a: p, b: p.clone(), moved: false, px: { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }, into: useStore.getState().sculpt.focus });
   };
 
+  /**
+   * The mesh a click picks: the nearest; but inside a group, a hole the ray passes through. A hole is drawn see-through
+   * and often lies inside the solid it cuts, whose surface is nearer: it could not be clicked (exploratory test report,
+   * finding 9).
+   */
+  const pickedOf = (e: ThreeEvent<PointerEvent>) => {
+    const sc = useStore.getState().design.sculpt;
+    if (tool === 'select' && !useStore.getState().sculpt.protractor && !useStore.getState().sculpt.picking && useStore.getState().sculpt.focus && sc) {
+      const hole = e.intersections.find((h) => sc.shapes[h.object.userData?.shapeId as string]?.hole);
+      if (hole) return hole.object;
+    }
+    return e.intersections[0]?.object;
+  };
   const onShapeDown = (id: string, dim: boolean) => (e: ThreeEvent<PointerEvent>) => {
-    if (e.button !== 0 || e.intersections[0]?.object !== e.object) return;
+    if (e.button !== 0 || pickedOf(e) !== e.object) return;
     const st = useStore.getState();
     // the protractor (milestone 132): two faces, then the angle between them and its joint
     const pr = st.sculpt.protractor;
@@ -429,7 +449,7 @@ function SculptScene() {
       </mesh>
       {shown.map(({ id, dim }, i) =>
         sc.shapes[id] ? (
-          <ShapeMesh key={id} d={d} id={id} index={sc.order.indexOf(id) >= 0 ? sc.order.indexOf(id) : i} dim={dim || ui.stage === 'make'} selected={ids.includes(id) && !ghostIds.includes(id)} ghost={ghostIds.includes(id)} onDown={onShapeDown(id, dim)} onDouble={onShapeDouble(id)} />
+          <ShapeMesh key={id} d={d} id={id} index={sc.order.indexOf(id) >= 0 ? sc.order.indexOf(id) : i} dim={dim || ui.stage === 'make'} pickable={!dim} selected={ids.includes(id) && !ghostIds.includes(id)} ghost={ghostIds.includes(id)} onDown={onShapeDown(id, dim)} onDouble={onShapeDouble(id)} />
         ) : null,
       )}
       {footBox && (
@@ -628,7 +648,7 @@ export function SculptView3D() {
       {focus && focusName && (
         <div className="sculpt-focus" dir="auto" data-testid="sculpt-focus">
           {t('sculpt.inGroup', { name: t('sculpt.kind.group') })}
-          <button className="link" onClick={() => useStore.getState().setSculpt({ focus: null })} data-testid="leave-group">
+          <button className="link" onClick={leaveGroup} data-testid="leave-group">
             {t('sculpt.leaveGroup')}
           </button>
         </div>

@@ -102,11 +102,22 @@ input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-bright); box-shadow: var(--focus); }
 :focus-visible { outline: none; box-shadow: var(--focus); }
 input[type='checkbox'] { min-height: 0; accent-color: var(--accent); }
+/* a radio button is not a text field: no field padding or height, so it lines up with its label (exploratory test report, 20) */
+input[type='radio'] { min-height: 0; padding: 0; accent-color: var(--accent); }
 input[type='range'] { accent-color: var(--accent); min-height: 0; padding: 0; border: none; background: none; box-shadow: none; }
 svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.loading { height: 100%; }
+.loading { height: 100%; display: grid; place-items: center; }
+/* a part that takes a moment to load shows it is coming (exploratory test report, finding 11): after 400 ms, so a
+   quick load does not flash a spinner */
+.loading::after {
+  content: ''; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line, #ddd); border-top-color: var(--accent, #2f7d62);
+  opacity: 0; animation: loading-in 0.2s 0.4s forwards, loading-turn 0.9s linear infinite;
+}
+@keyframes loading-in { to { opacity: 1; } }
+@keyframes loading-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading::after { animation: loading-in 0.2s 0.4s forwards; } }
 .app { display: flex; flex-direction: column; height: 100%; }
 
 /* ---------- top bar ---------- */
@@ -121,7 +132,10 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .topbar .sep { width: 1px; align-self: stretch; margin: 14px 4px; background: var(--line); }
 .topbar .spacer { flex: 1; min-width: 8px; }
 .proj { display: flex; align-items: center; gap: 2px; position: relative; }
+/* the name gives way (down to 56 px) before anything at the bar's end is pushed off it (exploratory test report, 12) */
+.proj { min-width: 0; flex-shrink: 1; }
 .design-name {
+  min-width: 56px; flex-shrink: 1;
   width: 190px; border-color: transparent; background: transparent; font-weight: 500; font-size: 15px; padding-inline: 8px;
 }
 .design-name:hover { border-color: var(--line); background: var(--surface); }
@@ -365,6 +379,14 @@ textarea { width: 100%; resize: vertical; }
   width: max-content; max-width: max(280px, min(640px, calc(100% - 720px)));
 }
 .stage-bottom > .view-hint, .stage-bottom > .fold-bar { position: static; transform: none; max-width: 100%; }
+/* the cut plan's bottom centre: the legend stacked above the hint (exploratory test report, 20; its own class: the 3D
+   stage's free area counts `.stage-bottom`, and the nets' folded preview is a 3D stage beside this one) */
+.plan-bottom {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;
+  width: max-content; max-width: max(300px, min(640px, calc(100% - 720px)));
+}
+.plan-bottom > .view-hint, .plan-bottom > .plan-legend { position: static; transform: none; max-width: 100%; }
 .stage-bottom > .fold-bar { pointer-events: auto; }
 .dim-label {
   background: var(--rail-bg); color: white; padding: 3px 8px; border-radius: 6px;
@@ -926,6 +948,8 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .lib-open { all: unset; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 10px; }
 .lib-open:hover { background: var(--surface-sunk); }
 .lib-open .art { width: 44px; height: 44px; flex: none; display: grid; place-items: center; }
+.lib-open .lib-thumb { width: 44px; height: 44px; display: grid; place-items: center; }
+.lib-open .lib-thumb img { width: 44px; height: 44px; object-fit: contain; }
 .lib-open .cap { display: flex; flex-direction: column; min-width: 0; }
 .lib-open .cap strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lib-open .cap small { color: var(--ink-muted); }
@@ -936,7 +960,7 @@ section[data-folded='true'] .settings-fold .kicker { margin: 0; }
 .start .lib-back { display: inline-flex; align-items: center; width: auto; margin: 0 0 14px; padding: 6px 12px; }
 
 /* milestone 89: the cut plan's legend and annotations */
-.plan-legend { position: absolute; bottom: 64px; inset-inline-start: 96px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); font-size: 12px; color: var(--ink-muted); box-shadow: var(--shadow-soft); pointer-events: none; }
+.plan-legend { position: absolute; bottom: 64px; inset-inline-start: 96px; z-index: 5; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 12px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); font-size: 12px; color: var(--ink-muted); box-shadow: var(--shadow-soft); pointer-events: none; }
 .plan-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .plan-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
 .plan-legend i.dashed { height: 0; border-top: 2px dashed; background: none !important; }
@@ -1138,6 +1162,9 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .net-view .net-plan { flex: 1 1 60%; min-width: 0; position: relative; }
 .net-view .net-preview { flex: 0 0 40%; min-width: 320px; position: relative; border-inline-start: 1px solid var(--line); }
 .net-view .net-preview.full { flex: 1 1 100%; border: none; }
+/* the card floats over the nets beside the preview, not over the preview (exploratory test report, finding 7);
+   the nets' framing already leaves the card's width free at the plan's inline end */
+.main:has(.net-view > .net-preview:not(.full)) .card-dock { inset-inline-end: calc(max(40%, 320px) + 16px); }
 .net-view .net-swap { position: absolute; bottom: 16px; inset-inline-start: 50%; transform: translateX(-50%); }
 .net-picks .edge-hit { cursor: pointer; }
 .net-picks .edge-hit.free:hover { stroke: rgba(31, 184, 172, 0.35); }
@@ -1156,8 +1183,8 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 /* milestone 116: the drawer's board grades */
 .drawer-grades .grade-family h4 { margin: 8px 0 4px; }
 .drawer-grades .mats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-/* in the Net view the card sits over the folded preview, not the plan: the dock may use the plan's width */
-.net-view .net-plan .plan-dock { max-width: calc(100% - 100px); }
+/* (in the Net view the card now floats over the nets, beside the preview: the dock wraps before it, as on the sheets;
+   it used the plan's whole width while the card sat over the preview, and the card then covered its last buttons) */
 
 
 /* ---- the shape stage (milestone 120, from claude/guided-mode) ---- */
@@ -1171,8 +1198,23 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
   .topbar:has(.stage-seg) .sep { display: none; }
   .topbar:has(.stage-seg) .design-name { width: 96px; }
 }
+/* the shape stage's second stage carries the stepper, the level, both view tabs and the Ready badge: the badge shows
+   its mark and number, and the view tabs their short words, so the end of the bar (undo, Download, ⋯) stays on screen
+   (exploratory test report, finding 12) */
+@media (max-width: 1480px) {
+  .topbar:has(.stage-seg):has(.ready-wrap) .ready-badge { font-size: 0; padding-inline: 10px; }
+  .topbar:has(.stage-seg):has(.ready-wrap) .ready-badge.ok::after { content: '✓'; font-size: 15px; }
+  .topbar:has(.stage-seg):has(.ready-wrap) .ready-badge.warn::after { content: '! ' attr(data-n); font-size: 13px; font-weight: 600; }
+  .topbar:has(.stage-seg):has(.ready-wrap) .view-seg button { padding-inline: 12px; }
+  .topbar:has(.stage-seg):has(.ready-wrap) .view-seg .full { display: none; }
+  .topbar:has(.stage-seg):has(.ready-wrap) .view-seg .short { display: inline; }
+}
 @media (max-width: 1100px) {
   .topbar:has(.stage-seg) .brand { display: none; }
+  /* the view tabs' short words: 3D, Plan (exploratory test report, 12: Workshop's stage 2 ran 28 px past a 946 px window) */
+  .topbar:has(.stage-seg) .view-seg button { padding-inline: 12px; }
+  .topbar:has(.stage-seg) .view-seg .full { display: none; }
+  .topbar:has(.stage-seg) .view-seg .short { display: inline; }
   .topbar:has(.stage-seg) .mat-pill > svg { display: none; }
 }
 .stage-seg button { white-space: nowrap; }
@@ -1305,11 +1347,14 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .cs .start-head { gap: 16px; }
 .cs .cs-head-link { font-size: 15px; font-weight: 500; }
 .start.cs h1 { font-size: clamp(26px, 2.6vw, 34px); text-align: start; margin: 4px 0 -2px; letter-spacing: -0.015em; }
-.keep-strip { display: flex; align-items: center; gap: 16px; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-soft); padding: 10px 14px 10px 10px; }
+.keep-strip { display: flex; align-items: center; gap: 16px; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-soft); padding-block: 10px; padding-inline: 10px 14px; }
 .keep-strip .art { width: 112px; height: 64px; flex: none; border-radius: var(--r-md); background: var(--stage-bg); overflow: hidden; display: grid; place-items: center; }
 .keep-strip .art img { width: 100%; height: 100%; object-fit: contain; }
 .keep-strip .cap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.keep-strip .cap strong { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the name on the page's side, whatever its own letters: a Latin name in Hebrew sat at the far side, away from its date
+   (exploratory test report, 23) */
+.keep-strip .cap strong { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+html[dir='rtl'] .keep-strip .cap strong { text-align: right; }
 .keep-strip .cap small { color: var(--ink-muted); font-size: 13px; }
 .keep-strip .primary { min-height: 42px; padding: 0 24px; border-radius: 12px; font-size: 15px; }
 .composer { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow-float); padding: 20px; display: flex; flex-direction: column; }

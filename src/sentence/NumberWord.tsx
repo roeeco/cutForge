@@ -41,6 +41,10 @@ export function NumberWord(props: {
   const wrap = useRef<HTMLSpanElement>(null);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => setText(fmtNum(props.value, props.int ? 0 : 1)), [props.value, props.int]);
+  // a refused number's range is about this word as it stands: another value, or another word in this place (the
+  // sentence's words are kept by place, so a new structure's word can take this one's field), and it is not shown
+  // (exploratory test report, finding 13)
+  useEffect(() => setRefused(null), [props.value, props.testId]);
   useEffect(() => {
     if (!open) return;
     setRange(props.quick);
@@ -101,7 +105,7 @@ export function NumberWord(props: {
           inputMode="decimal"
           size={5}
           value={text}
-          aria-label={t('sen.numName', { name: props.name })}
+          aria-label={props.int ? props.name : t('sen.numName', { name: props.name })}
           aria-describedby={why ? `${props.testId}-why` : undefined}
           onChange={(e) => {
             fresh.current = false;

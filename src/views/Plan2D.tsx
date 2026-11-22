@@ -1,7 +1,7 @@
 // The 2D editor, used for the cut plan (every piece flat on its sheets) and
 // for the solo panel view (one panel face-on). Both edit the same panels as
 // the 3D workspace, with the same tools, selection and history.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { foldChips, ghostInNet, netEdges, type NetEdge } from './netPick';
 import type { Selection as StoreSelection } from '../store/store';
 import { Handles, Marquee, RotRing, useViewBox, type Box, type VB } from './canvas2d';
@@ -721,13 +721,7 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
                 <rect x={k.ox} y={0} width={W} height={H} rx={2} className="sheet" fill={MATERIAL_COLORS[pm.kind].sheet} />
                 {pm.kind === 'corrugated' && <rect x={k.ox} y={0} width={W} height={H} fill={pm.grain === 'x' ? 'url(#flutes-x)' : 'url(#flutes)'} pointerEvents="none" />}
                 <rect x={k.ox + d.sheetMargin} y={d.sheetMargin} width={W - 2 * d.sheetMargin} height={H - 2 * d.sheetMargin} className="sheet-margin" strokeWidth={px} />
-                <g className="sheet-chip" transform={`translate(${k.ox}, ${-fs * 2.1})`}>
-                  <rect x={0} y={0} width={chip.length * fs * 0.52 + fs * 1.6} height={fs * 1.7} rx={fs * 0.85} strokeWidth={px} />
-                  <circle cx={fs * 0.85} cy={fs * 0.85} r={fs * 0.35} fill={MATERIAL_COLORS[pm.kind].face} />
-                  <text x={fs * 1.5} y={fs * 1.18} fontSize={fs} direction={textDir} textAnchor={textDir === 'rtl' ? 'end' : 'start'} dx={textDir === 'rtl' ? chip.length * fs * 0.52 : 0}>
-                    {chip}
-                  </text>
-                </g>
+                <SheetChip x={k.ox} fs={fs} px={px} text={chip} dir={textDir} swatch={MATERIAL_COLORS[pm.kind].face} />
                 {heading && (
                   <text className="mat-heading" x={k.ox} y={-fs * 3.2} fontSize={fs * 1.3} fontWeight={600} direction={textDir} data-testid={`mat-heading-${k.mat}`}>
                     {heading}
@@ -829,9 +823,25 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
                   if (!panel || solo) return null;
                   const c = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h / 2 });
                   const q = quantityOf(d, pieceRoot(pl.copy.pieceKey));
+                  const name = panelLabel(d, n.panelId, t);
+                  const fs = Math.max(6, px * 12);
+                  // a name wider than its board, on a board longer than it is wide (a net's side wall): written along
+                  // the board, so it stays on it, clear of the fold badges on its edges (exploratory test report, 19)
+                  const across = toSvg(pl, n.panelId, { x: panel.w, y: panel.h / 2 }), along = toSvg(pl, n.panelId, { x: panel.w / 2, y: panel.h });
+                  const wMm = 2 * Math.hypot(across.x - c.x, across.y - c.y), hMm = 2 * Math.hypot(along.x - c.x, along.y - c.y);
+                  const ax = Math.abs(across.x - c.x) >= Math.abs(along.x - c.x) ? across : along;
+                  const flatW = ax === across ? wMm : hMm, upH = ax === across ? hMm : wMm;
+                  let turn = 0;
+                  // (and room for a fold badge, which reaches 20 px into the board from its edge)
+                  if (name.length * fs * 0.55 + px * 24 > flatW && upH > flatW) {
+                    const v = ax === across ? along : across;
+                    turn = (Math.atan2(v.y - c.y, v.x - c.x) * 180) / Math.PI;
+                    if (turn > 90) turn -= 180;
+                    else if (turn < -90) turn += 180;
+                  }
                   return (
-                    <text key={n.panelId} x={c.x} y={c.y} className="piece-label" fontSize={Math.max(6, px * 12)} textAnchor="middle" direction={textDir} pointerEvents="none">
-                      {panelLabel(d, n.panelId, t)}
+                    <text key={n.panelId} x={c.x} y={c.y} transform={turn ? `rotate(${turn} ${c.x} ${c.y})` : undefined} className="piece-label" fontSize={fs} textAnchor="middle" direction={textDir} pointerEvents="none">
+                      {name}
                       {pl.copy.frag ? ` (${pl.copy.frag.i}/${pl.copy.frag.n})` : ''}
                       {q > 1 && n.panelId === pl.copy.pieceKey ? ` ${t('view.copies', { n: q })}` : ''}
                     </text>
@@ -1104,6 +1114,9 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
         {dockExtra}
         {!solo && !net && <YieldBar />}
       </div>
+      {/* the legend above the hint, in one stack: two floating pills crossed when the hint wrapped (exploratory test
+          report, 20) */}
+      {(fLegend || fHint) && <div className="plan-bottom">
       {/* milestone 89: what each colour and dash means, always (Guided names no layers, milestone 108) */}
       {fLegend && <div className="plan-legend" dir={uiDir()} data-testid="plan-legend">
         {(['cut', 'score', 'engrave', 'guide'] as const).map((op) => (
@@ -1120,10 +1133,40 @@ export function Plan2D({ soloPanel, mode: planMode = 'sheets', dockExtra }: { so
       {fHint && <div className="view-hint" dir={uiDir()}>
         {d.order.length === 0 ? t('view.empty2d') : tool === 'text' ? t('tool.hint.text') : shapeTool ? t('tool.hint.shape2d') : solo ? t('tool.hint.select2d') : net ? t(netGhost ? 'net.buildHint' : 'net.hint') : t('pack.hint')}
       </div>}
+      </div>}
     </div>
   );
 }
 
+
+/**
+ * A sheet's name pill: its material's swatch, then *Sheet 1 · Plywood 3 mm · 600 × 400 mm*. The pill is as wide as the
+ * words drawn (measured once drawn; guessed from their length until then): a guess from the length left Hebrew's
+ * narrower letters a wide gap, the pill reaching over what lay beside it (exploratory test report, 23).
+ */
+function SheetChip({ x, fs, px, text, dir, swatch }: { x: number; fs: number; px: number; text: string; dir: 'ltr' | 'rtl'; swatch: string }) {
+  const ref = useRef<SVGTextElement>(null);
+  const [len, setLen] = useState<{ text: string; em: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !el.getComputedTextLength) return;
+    const w = el.getComputedTextLength();
+    // kept per font size unit, so a zoom (a new font size) needs no new measure
+    if (w > 0) setLen({ text, em: w / fs });
+  }, [text, fs, dir]);
+  const w = len && len.text === text ? len.em * fs : text.length * fs * 0.52;
+  return (
+    <g className="sheet-chip" transform={`translate(${x}, ${-fs * 2.1})`}>
+      <rect x={0} y={0} width={w + fs * 2.1} height={fs * 1.7} rx={fs * 0.85} strokeWidth={px} />
+      <circle cx={fs * 0.85} cy={fs * 0.85} r={fs * 0.35} fill={swatch} />
+      {/* (right to left, the text's end is its left edge: anchored there, it runs on to the right inside the pill; it
+          used to be anchored a whole text's width further on, and was drawn past the pill's end) */}
+      <text ref={ref} x={fs * 1.5} y={fs * 1.18} fontSize={fs} direction={dir} textAnchor={dir === 'rtl' ? 'end' : 'start'}>
+        {text}
+      </text>
+    </g>
+  );
+}
 
 /**
  * The W and H pills of a selected shape's frame (milestone 103): click one to
@@ -1148,7 +1191,9 @@ function FramePills({ box, circle, id, toSvg, px }: { box: FrameBox; circle: boo
       useStore.getState().apply((d) => void updateDetail(d, id, { w: r.w, h: r.h }));
     };
     return (
-      <foreignObject key={dir} x={x} y={y} width={w} height={h} className="frame-pill-fo">
+      // drawn at 64 × 22 and scaled to the zoom: the HTML inside a foreignObject is laid out in the SVG's mm, so
+      // sized in mm its 11px text grew with the zoom (exploratory test report, finding 8)
+      <foreignObject key={dir} x={0} y={0} width={64} height={22} transform={`translate(${x} ${y}) scale(${px})`} className="frame-pill-fo">
         {edit === dir ? (
           <input
             className="frame-pill"

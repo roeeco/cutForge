@@ -3,7 +3,7 @@ import { useStore, useT } from '../../store/store';
 import type { Design, Shape3 } from '../../model/types';
 import { NumField, Segmented, Stepper } from '../../ui/NumField';
 import { Icon } from '../../ui/icons';
-import { facingPlane, revolveBlocked, setSketchMode } from '../sketch';
+import { facingPlane, revolveBlocked, roundable, setSketchMode } from '../sketch';
 import { selectedShapeIds } from '../../store/store';
 import { worldBox, unionBox } from './geom';
 import { startHeight } from '../ops';
@@ -64,6 +64,14 @@ export function SketchToolCard() {
 export function RadiusToolCard() {
   const t = useT();
   const r = useStore((s) => s.sculptRadius);
+  // nothing at this level has a corner to round, but a group does inside (exploratory test report, 20)
+  const inGroups = useStore((x) => {
+    const sc = x.design.sculpt;
+    const f = x.sculpt.focus;
+    const ids = (f ? sc?.shapes[f]?.children : sc?.order) ?? [];
+    const here = ids.map((id) => sc!.shapes[id]).filter(Boolean);
+    return !here.some((s) => roundable(s).length) && here.some((s) => s.kind === 'group');
+  });
   return (
     <section data-testid="radius-card">
       <div className="card-head">
@@ -74,6 +82,11 @@ export function RadiusToolCard() {
         {t('radius.sharp')}
       </button>
       <p className="note">{t('radius.hint')}</p>
+      {inGroups && (
+        <p className="note" data-testid="radius-in-group">
+          {t('radius.inGroup')}
+        </p>
+      )}
     </section>
   );
 }
@@ -102,7 +115,7 @@ export function SketchShapeFields({ s }: { s: Shape3 }) {
   return (
     <div className="subsection" data-testid="sketch-plane-section">
       <SketchMode s={s} />
-      {s.kind === 'extrude' && <NumField label={t('sculpt.height')} value={s.height ?? 20} unit={t('unit.mm')} onCommit={(v) => edit((d) => void (d.sculpt!.shapes[s.id].height = Math.abs(v) < 1 ? 1 : v))} testId="extrude-height-field" />}
+      {s.kind === 'extrude' && <NumField label={t('sketch.extrudeBy')} value={s.height ?? 20} unit={t('unit.mm')} onCommit={(v) => edit((d) => void (d.sculpt!.shapes[s.id].height = Math.abs(v) < 1 ? 1 : v))} testId="extrude-height-field" />}
       {s.kind === 'revolve' && (
         <>
           <Stepper label={t('sketch.angle')} value={s.angle ?? 360} min={30} max={360} step={30} onCommit={(v) => edit((d) => void (d.sculpt!.shapes[s.id].angle = Math.max(30, Math.min(360, Math.round(v / 30) * 30))))} testId="revolve-angle" />

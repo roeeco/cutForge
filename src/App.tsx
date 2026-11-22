@@ -1,6 +1,7 @@
 import { openFromLibrary } from './ui/Library';
 import { saveLocal } from './store/persist';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { preloadable } from './ui/preloadable';
 import { useStore, useT } from './store/store';
 import { useAutosave, useKeyboard } from './store/hooks';
 import { TopBar } from './ui/TopBar';
@@ -24,17 +25,17 @@ registerOutcomeLoader(() => import('./make/register'));
 
 // Loaded when first used (code splitting, 20 November): the cut plan and face-on view with the 2D editing, the
 // download dialog with the export and print code, the teacher's view, and the sentence's development page.
-const Plan2D = lazy(() => import('./views/Plan2D').then((m) => ({ default: m.Plan2D })));
+const Plan2D = preloadable(() => import('./views/Plan2D').then((m) => m.Plan2D));
 // milestone 113: the Net view (the cut plan's nets with a folded preview)
-const NetView = lazy(() => import('./views/NetView').then((m) => ({ default: m.NetView })));
-const ExportDialog = lazy(() => import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog })));
+const NetView = preloadable(() => import('./views/NetView').then((m) => m.NetView));
+const ExportDialog = preloadable(() => import('./ui/ExportDialog').then((m) => m.ExportDialog));
 const TeacherApp = lazy(() => import('./teacher/TeacherApp').then((m) => ({ default: m.TeacherApp })));
 // Guided's shell (milestone 105): its own chunk
-const GuidedApp = lazy(() => import('./guided/GuidedApp').then((m) => ({ default: m.GuidedApp })));
+const GuidedApp = preloadable(() => import('./guided/GuidedApp').then((m) => m.GuidedApp));
 const SentenceDev = lazy(() => import('./sentence/SentenceDev').then((m) => ({ default: m.SentenceDev })));
 const IllustrateDev = lazy(() => import('./dev/IllustrateDev').then((m) => ({ default: m.IllustrateDev })));
 const PresetsDev = lazy(() => import('./dev/PresetsDev').then((m) => ({ default: m.PresetsDev })));
-/** What shows while a part loads: the same quiet placeholder as the app's own first load. */
+/** What shows while a part loads: the same quiet placeholder as the app's own first load, a spinner if it takes long. */
 const Loading = () => <div className="loading" aria-busy="true" />;
 import { EditorBoundary } from './ui/ErrorBoundary';
 import { AppDialog } from './ui/AppDialog';
@@ -83,10 +84,8 @@ export function App() {
   useEffect(() => {
     if (!loaded) return;
     const h = setTimeout(() => {
-      void import('./views/Plan2D');
-      void import('./views/NetView');
-      void import('./ui/ExportDialog');
-      void import('./guided/GuidedApp');
+      // (fetched through the parts themselves, so the first switch to each renders at once, not a blank screen)
+      for (const part of [Plan2D, NetView, ExportDialog, GuidedApp]) part.preload().catch(() => {});
     }, 0);
     return () => clearTimeout(h);
   }, [loaded]);

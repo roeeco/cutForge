@@ -103,6 +103,21 @@ export function nudgeSelected(dx: number, dz: number, dy = 0) {
   if (ids.length) st().apply((d) => moveShapes(d as Design, ids, [dx, dy, dz]));
 }
 
+/** Leave the group being worked inside, the group selected: the card and the gizmo show it, not the member last picked (exploratory test report, finding 10). */
+export function leaveGroup() {
+  const g = st().sculpt.focus;
+  st().setSculpt({ focus: null });
+  if (g && st().design.sculpt?.shapes[g]) st().select(shapeSel([g]));
+}
+
+/** Select every shape at this level: the top level, or the members of the group being worked inside. */
+export function selectAllShapes() {
+  const sc = st().design.sculpt;
+  const f = st().sculpt.focus;
+  const ids = (f ? sc?.shapes[f]?.children : sc?.order) ?? [];
+  if (ids.length) st().select(shapeSel(ids));
+}
+
 /** The waffle design's keys (they belong to the design type: no clash with the box rail's). Returns true when handled. */
 export function sculptKey(e: KeyboardEvent): boolean {
   const s = st();
@@ -117,6 +132,12 @@ export function sculptKey(e: KeyboardEvent): boolean {
   if (mod && key === 'd') {
     e.preventDefault();
     duplicateSelected();
+    return true;
+  }
+  // every shape, not the page's text (exploratory test report, 24)
+  if (mod && key === 'a' && s.sculpt.stage === 'shape') {
+    e.preventDefault();
+    selectAllShapes();
     return true;
   }
   if (mod) return false;
@@ -144,7 +165,7 @@ export function sculptKey(e: KeyboardEvent): boolean {
     if (s.steps !== null) return void useStore.setState({ steps: null }), true;
     if (s.tool !== 'select') s.setTool('select');
     else if (s.selection) s.select(null);
-    else if (s.sculpt.focus) s.setSculpt({ focus: null });
+    else if (s.sculpt.focus) leaveGroup();
     return true;
   }
   if (e.key.startsWith('Arrow') && s.selection?.kind === 'shape') {

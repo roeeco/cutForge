@@ -63,7 +63,7 @@ export function TemplateSection({ bare = false }: { bare?: boolean }) {
   const optText = (key: string, v: number | string) => {
     const p = tpl.params.find((x) => x.key === key);
     const o = p?.type === 'choice' ? p.options.find((x) => x.value === v) : undefined;
-    return o ? t(o.label) : String(v);
+    return o ? t(o.card ?? o.label) : String(v);
   };
   const mm = t('unit.mm');
   // milestone 151: the other ways of the same thing (the card's variants), as pictures, the one it is picked
@@ -113,7 +113,7 @@ export function TemplateSection({ bare = false }: { bare?: boolean }) {
               >
                 {p.options.filter((o) => (lists[p.key] ?? []).includes(o.value) || o.value === params[p.key]).map((o) => (
                   <option key={String(o.value)} value={String(o.value)}>
-                    {t(o.label)}
+                    {t(o.card ?? o.label)}
                   </option>
                 ))}
               </select>

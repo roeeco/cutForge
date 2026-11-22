@@ -106,6 +106,14 @@ export function DividerSection({ panelId }: { panelId: string }) {
           ))}
         </div>
       )}
+      {/* a divider meets upright walls only: an end that stops at the base's edge beside a slanted wall says why
+          (exploratory test report, finding 14) */}
+      {ends?.some((e) => !e.board) &&
+        Object.values(d.connections).some((c) => c.grown && c.a.panelId === p.place?.host && c.dir === 'up' && Math.abs(c.angle - 90) > 1e-6 && !d.panels[c.b.panelId]?.divider) && (
+          <p className="note warn" data-testid="div-slanted">
+            {t('div.slanted')}
+          </p>
+        )}
       <p className="note">{t('div.note')}</p>
     </div>
   );

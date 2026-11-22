@@ -213,7 +213,7 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
   out.push(
     {
       key: 'spacesBy', label: 'sen.spacesBy', type: 'choice', default: 'none', addon: { off: 'none' },
-      options: [{ value: 'none', label: 'sen.spacesBy.none' }, { value: 'count', label: 'sen.spacesBy.count' }, { value: 'size', label: 'sen.spacesBy.size' }],
+      options: [{ value: 'none', label: 'sen.spacesBy.none' }, { value: 'count', label: 'sen.spacesBy.count', card: 'sen.spacesBy.countCard' }, { value: 'size', label: 'sen.spacesBy.size', card: 'sen.spacesBy.sizeCard' }],
       // equal steps give spaces of different sizes in a round or many-sided box: a count only
       allowed: (v, p, m) => (v !== 'size' || p.shape === 'rect' || p.shape === 'rounded') && engine('spacesBy')(v, p, m),
       why: (v, p) => (v === 'size' && p.shape !== 'rect' && p.shape !== 'rounded' ? 'sen.why.sizeOnRect' : 'sen.why.engine'),

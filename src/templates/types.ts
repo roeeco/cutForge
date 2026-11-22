@@ -31,7 +31,15 @@ export type ParamDef = ParamRules &
   (
     | { key: string; label: MsgKey; type: 'number'; unit: 'mm'; min: number; max: number; default: number; only?: MaterialKind[] }
     | { key: string; label: MsgKey; type: 'int'; min: number; max: number; default: number; only?: MaterialKind[] }
-    | { key: string; label: MsgKey; type: 'choice'; options: { value: string | number; label: MsgKey }[]; default: string | number; only?: MaterialKind[] }
+    | {
+        key: string;
+        label: MsgKey;
+        type: 'choice';
+        /** `card`: the option's name on the card, where the sentence's own word does not read alone (*into* → *By count*). */
+        options: { value: string | number; label: MsgKey; card?: MsgKey }[];
+        default: string | number;
+        only?: MaterialKind[];
+      }
   );
 
 /** A number's range now, and why it ends there. */

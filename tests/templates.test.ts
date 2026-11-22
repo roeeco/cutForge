@@ -129,3 +129,35 @@ describe('card / tile stand', () => {
     expect(validate(d).map((i) => i.key)).toContain('val.standDepth');
   });
 });
+
+describe('a template’s own shapes follow its settings (exploratory test report, finding 1)', () => {
+  const box = templateById('box')!;
+  const count = (d: Design) => Object.values(d.panels).reduce((n, p) => n + p.details.length, 0);
+  it('a window turned on appears, turned off goes, and moves with a new size', () => {
+    const d = generate(box, PLY, defaults(box));
+    const base = count(d);
+    const on = regenerate(d, { ...d.template!.params, window: 'circle' }).design;
+    expect(count(on)).toBe(base + 1);
+    expect(count(on)).toBe(count(generate(box, PLY, { ...defaults(box), window: 'circle' })));
+    const off = regenerate(on, { ...on.template!.params, window: 'none' }).design;
+    expect(count(off)).toBe(base);
+    const big = regenerate(on, { ...on.template!.params, width: Number(on.template!.params.width) + 40 }).design;
+    const fresh = generate(box, PLY, { ...on.template!.params, width: Number(on.template!.params.width) + 40 });
+    expect(JSON.stringify(Object.values(big.panels).flatMap((p) => p.details.map((x) => [x.shape, x.cx.toFixed(3), x.w.toFixed(3)])))).toBe(
+      JSON.stringify(Object.values(fresh.panels).flatMap((p) => p.details.map((x) => [x.shape, x.cx.toFixed(3), x.w.toFixed(3)]))),
+    );
+  });
+  it('a template shape the student moved stays moved, and one deleted stays deleted', () => {
+    const d = generate(box, PLY, { ...defaults(box), window: 'circle' });
+    const wall = Object.values(d.panels).find((p) => p.details.some((x) => x.shape === 'circle'))!;
+    const win = wall.details.find((x) => x.shape === 'circle')!;
+    win.cx += 7;
+    const r = regenerate(d, { ...d.template!.params, height: Number(d.template!.params.height) + 10 }).design;
+    const circles = r.panels[wall.id].details.filter((x) => x.shape === 'circle');
+    expect(circles).toHaveLength(1);
+    expect(circles[0].cx).toBeCloseTo(win.cx, 9);
+    wall.details = wall.details.filter((x) => x !== win);
+    const r2 = regenerate(d, { ...d.template!.params, height: Number(d.template!.params.height) + 10 }).design;
+    expect(r2.panels[wall.id].details.filter((x) => x.shape === 'circle')).toHaveLength(0);
+  });
+});

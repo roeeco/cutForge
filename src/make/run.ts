@@ -17,7 +17,11 @@ import { playAssembly } from '../easy/assemble';
 
 /** What the last Make left for the card: its issues, and whether it is still working. */
 /** `changedFor`: the design the material note is about; the next edit makes it old, and it is not shown (milestone 137). */
-export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null; changedFor?: unknown; lost: Lost | null }>(() => ({ issues: [], busy: false, changed: null, lost: null }));
+/**
+ * `issuesFor`: the Make (`design.make`) the issues and the lost faces are about. An undo or redo to another Make, or
+ * a Make of the other kind, leaves them unshown (exploratory test report, finding 3: board problems in the Fold it card).
+ */
+export const useMake = create<{ issues: MakeIssue[]; busy: boolean; changed: number | null; changedFor?: unknown; lost: Lost | null; issuesFor?: unknown }>(() => ({ issues: [], busy: false, changed: null, lost: null }));
 
 /** The shapes changed since they were made: *Update from shape* (milestone 129). */
 export const shapesChanged = (d: Design) => !!d.make && !!d.sculpt && d.make.shapeKey !== undefined && d.make.shapeKey !== solidKey(d.sculpt);
@@ -120,8 +124,11 @@ function playFold() {
 export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {}, opts: { play?: boolean } = {}): Promise<boolean> {
   // a shape just placed, its height still open (✓ not pressed): the click on Make takes it as it stands, so the
   // shape is kept (it used to be made, then thrown away with the ghost, leaving a model of a shape that was gone)
+  // one Make at a time: a click while one is still working is not started over it (exploratory test report, finding 5)
+  if (useMake.getState().busy) return false;
   if (useStore.getState().pending) useStore.getState().confirmPending();
   const st = useStore.getState();
+  const view0 = st.view;
   const d0 = st.design;
   if (!d0.sculpt?.order.length || !kernelNow()) return false;
   const prev = d0.make?.as === as ? d0.make : undefined;
@@ -138,6 +145,8 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   if (!P || !Object.keys(P.faces).length) return false;
   useMake.setState({ busy: true });
   const u = await unfoldFor(d1, P, spec);
+  // another design opened while it worked: this Make is not for it
+  if (useStore.getState().design.id !== d0.id) return (useMake.setState({ busy: false }), false);
   let issues: MakeIssue[] = [];
   let lost: Lost | undefined;
   st.apply((d) => {
@@ -148,9 +157,10 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   });
   useMake.setState({ lost: lost && (lost.faces.length || lost.edges.length) ? lost : null });
   madeWith.set(useStore.getState().design.id, matKey(useStore.getState().design));
-  useMake.setState({ busy: false, issues, changed: null });
+  useMake.setState({ busy: false, issues, changed: null, issuesFor: useStore.getState().design.make });
   useStore.getState().setSculpt({ stage: 'make' });
-  useStore.getState().setView('3d');
+  // the made model on the 3D stage, unless the student went to another view while it worked
+  if (useStore.getState().view === view0) useStore.getState().setView('3d');
   useStore.getState().select(null);
   // folds fold up; boards come in one after another, the one that closes last last (milestone 40's animation)
   if (opts.play !== false) as === 'fold' ? playFold() : playAssembly();

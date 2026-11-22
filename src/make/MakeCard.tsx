@@ -109,7 +109,12 @@ export function MakeCard() {
   const t = useT();
   const d = useStore((s) => s.design);
   const spec = d.make;
-  const { issues, busy, changed, changedFor, lost } = useMake();
+  const made = useMake();
+  const { busy, changed, changedFor } = made;
+  // the last Make's issues, only while the design shows that Make
+  const mine = !!spec && made.issuesFor === spec;
+  const issues = mine ? made.issues : [];
+  const lost = mine ? made.lost : null;
   const changedShape = shapesChanged(d);
   const matName = useMatName();
   // a change of material re-chooses every joint not set by hand (R6)

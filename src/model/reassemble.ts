@@ -17,6 +17,7 @@ import { boardReliefs } from './boardRelief';
 import { FACE, findEdge, panelEdges } from './edges';
 import { edgeWorld, matDir } from './frame';
 import { tOf } from './materials';
+import { pieceRoot, placementPiece } from './keys';
 import { v3dot, v3len, v3norm, v3sub } from '../geom/v3';
 import type { MsgKey } from '../i18n';
 
@@ -162,6 +163,9 @@ export function clearMade(d: Design) {
     delete d.panels[id];
     delete d.pieces[id];
   }
+  // and where they were laid on the sheets: the next Make's boards take the same ids (one per face), but not their
+  // sizes, so a place kept from before laid a new board over others (exploratory test report, finding 2)
+  for (const k of Object.keys(d.placements)) if (made.has(pieceRoot(placementPiece(k)))) delete d.placements[k];
   d.order = d.order.filter((id) => !made.has(id));
 }
 

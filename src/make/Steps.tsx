@@ -32,7 +32,7 @@ export function StepsSection() {
           {t('make.stepLine', { n: cur.n, kind: t(KIND[cur.kind] ?? 'make.step.glue'), a: panelLabel(d, cur.a, t), b: panelLabel(d, cur.b, t) })}
         </p>
       ) : (
-        <p className="note">{t('make.stepsHelp')}</p>
+        <p className="note">{t(d.make?.as === 'boards' ? 'make.stepsHelpBoards' : 'make.stepsHelp')}</p>
       )}
       <div className="row-buttons">
         <button disabled={at === null || at <= 0} onClick={() => show((at ?? 1) - 1)} data-testid="make-step-back">

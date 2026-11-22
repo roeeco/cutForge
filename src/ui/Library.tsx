@@ -2,7 +2,8 @@
 // the start screen, newest first, from the cards alone (no design is loaded
 // to list it). Open, Duplicate, Rename, Delete; Recently deleted for 30 days.
 import { profileById } from '../model/boards';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { designPicture } from '../views/picture';
 import { useStore, useT } from '../store/store';
 import { listDesigns, listProjects, loadDesign, projectNamed, renameDesign, setDeleted, setProject, storeDesign, type DesignMeta, type ProjectMeta } from '../store/persist';
 import { migrateDesign } from '../model/serialize';
@@ -10,6 +11,46 @@ import { duplicateDesign } from '../model/ops';
 import { MaterialArt } from './MaterialArt';
 import { Icon } from './icons';
 import { askText } from './AppDialog';
+
+/** Pictures drawn for the cards, by design and the time it was saved. */
+const drawn = new Map<string, string | null>();
+
+/**
+ * A card's picture: the design itself, as on the Continue strip, not its material's swatch (exploratory test report,
+ * 24). Autosave stores no picture, so a card draws its design once it is in view, the swatch until then.
+ */
+function LibThumb({ m, fallback }: { m: DesignMeta; fallback: ReactNode }) {
+  const key = `${m.id}@${m.updatedAt}`;
+  const [src, setSrc] = useState<string | null>(m.thumb ?? drawn.get(key) ?? null);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (src || drawn.get(key) === null) return;
+    const el = ref.current;
+    let live = true;
+    const draw = () =>
+      loadDesign(m.id)
+        .then((raw) => {
+          if (!raw) return drawn.set(key, null);
+          const pic = designPicture(migrateDesign(raw), 88, 88);
+          drawn.set(key, pic);
+          if (live) setSrc(pic);
+        })
+        .catch(() => drawn.set(key, null));
+    if (!el || typeof IntersectionObserver === 'undefined') return void draw();
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) {
+        io.disconnect();
+        void draw();
+      }
+    });
+    io.observe(el);
+    return () => {
+      live = false;
+      io.disconnect();
+    };
+  }, [key]);
+  return <span ref={ref} className="lib-thumb">{src ? <img src={src} alt="" /> : fallback}</span>;
+}
 
 /** Open a design from the library in the editor (the one open now is saved already). */
 export async function openFromLibrary(id: string) {
@@ -41,7 +82,9 @@ export function Library() {
     return (
       <div className="lib-card" key={m.id} data-testid={`lib-card-${i}`} data-id={m.id}>
         <button className="lib-open" aria-label={t('lib.openNamed', { name: m.name || t('top.untitled') })} onClick={() => void openFromLibrary(m.id)} data-testid={`lib-open-${i}`}>
-          <span className="art">{mat && <MaterialArt kind={mat.kind} thickness={mat.thickness} />}</span>
+          <span className="art">
+            <LibThumb m={m} fallback={mat ? <MaterialArt kind={mat.kind} thickness={mat.thickness} /> : null} />
+          </span>
           <span className="cap">
             <strong dir="auto">{m.name || t('top.untitled')}</strong>
             <small>

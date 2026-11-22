@@ -6,12 +6,12 @@ import type { Design, Shape3, V3 } from '../../model/types';
 import { NumField, Segmented, Stepper } from '../../ui/NumField';
 import { Icon } from '../../ui/icons';
 import { clampSides } from '../build';
-import { onKernel } from '../kernel';
+import { kernelNow, onKernel } from '../kernel';
 import { PRIMITIVES, freeSpot, moveShapes, parentOf, resetTurn, setHole, shapeNumber, updateShape, worldPose, type Primitive } from '../ops';
 import { canStretch } from '../scale';
 import { scaleSelection, selectionFrame } from './ScaleFrame';
 import { placePrimitive } from './SculptView3D';
-import { shapeColor } from './geom';
+import { shapeColor, worldBox } from './geom';
 import { shapeTile } from './tiles';
 import { canGroup, canUngroup, deleteSelected, duplicateSelected, groupSelected, hullSelected, ungroupSelected } from './commands';
 import { RadiusToolCard, SketchShapeFields, SketchToolCard, stageCamera } from './SketchCard';
@@ -303,6 +303,12 @@ function ShapeCard({ id }: { id: string }) {
       {s.kind === 'group' && (
         <div className="subsection" data-testid="sculpt-combine-section">
           <p className="note">{t('sculpt.members', { n: s.children?.length ?? 0 })}</p>
+          {/* its holes take all of it: nothing would be made (exploratory test report, finding 10) */}
+          {kernelNow() && !worldBox(d.sculpt!, id) && (
+            <p className="note warn" data-testid="group-empty">
+              {t('sculpt.groupEmpty')}
+            </p>
+          )}
           <div className="row-buttons">
             <button onClick={() => (st().setSculpt({ focus: id }), st().select(null))} data-testid="group-enter">
               {t('sculpt.enterGroup')}
