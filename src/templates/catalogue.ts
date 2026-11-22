@@ -271,6 +271,9 @@ export const CATALOGUE: Card[] = [
       { id: 'pegboardStand', structure: 'pegboard', style: 'pegboardStand', match: { body: 'slot', crossing: true, grid: true, pegs: true } },
     ],
   },
+  // milestone 183 (beta, plywood; BOXES_PLYWOOD_PLAN.md E10): cards built on parts (gears, a game's board)
+  { id: 'gearbox', title: 'card.gearbox', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'gearbox', structure: 'gearbox', match: { body: 'cross', lid: 'none', gears: true } }] },
+  { id: 'gameBoard', title: 'card.gameBoard', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gameBoard', structure: 'gameBoard', match: { body: 'cross', lid: 'liftoff', game: true } }] },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },

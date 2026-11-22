@@ -2644,6 +2644,22 @@ export const en = {
   'part.step': "Step",
   'insp.partNote': "Its sizes draw it: change them here. Stretching its box makes it a plain shape.",
   'insp.partArray': "Make it a live array",
+  'card.gearbox': "Gearbox",
+  'sen.gearbox': "a gearbox",
+  'sen.gearbox.desc': "An open box with two axles through it and stages of gears on them: each gear glued to the next pinion, so the last turns slower than the first",
+  'sen.s.gearbox': "I'd like to make {structure} of {stages} stages, each a pinion of {pinion} teeth turning a gear of {gear} teeth, module {module}, on axles {shaft} mm across",
+  'sen.stages': "Stages",
+  'sen.pinionTeeth': "Pinion teeth",
+  'sen.gearTeeth': "Gear teeth",
+  'sen.gearModule': "Module",
+  'sen.shaft': "Axle",
+  'sen.why.gearSmall': "The gear needs more teeth than the pinion",
+  'sen.why.pinionBore': "The pinion is too small for the axle and its spacer",
+  'card.gameBoard': "Game board",
+  'sen.gameBoard': "a game board",
+  'sen.gameBoard.desc': "The Royal Game of Ur engraved on the lid of a box, and a tray of fourteen tokens inside it: the tokens are the discs cut out of the tray",
+  'sen.s.gameBoard': "I'd like to make {structure} with squares {square} mm across, its box {height} mm tall",
+  'sen.square': "Square",
 } as const;
 
 export type MsgKey = keyof typeof en;

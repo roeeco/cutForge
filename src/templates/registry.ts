@@ -17,6 +17,7 @@ import { bottleRack, gridInsert, laptopStand, shelf } from './structures/boardSl
 import { deskSign, slantedShelf } from './structures/boardStands';
 import { binRack, wallRack } from './structures/boardRacks';
 import { frame, spool } from './structures/boardLayers';
+import { gameBoard, gearbox } from './structures/boardGears';
 import { sieveStack, stackBin } from './structures/boardStacks';
 import { chamferBox, coffinBox, starBox, tetrominoBox } from './structures/boardOutlines';
 import { heartBox, roundPolyBox, roundTrapBox, uBox } from './structures/boardBends';
@@ -30,7 +31,7 @@ import { dividerRow, dividersOn, MIN_COMPARTMENT, setDividerPos } from '../model
 
 // the card stand in the sentence (milestone 98): a change the engine would not cut clean (a stand bigger than a sheet) is refused
 stand.accepts = (m, p) => (cleanAll(stand, m, p) ? null : 'sen.why.engineSize');
-export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder, insert, magazineFile, diceTower, mailer, frontOpen, penHolder, scoopTray, birdHouse, laptopStand, gridInsert, shelf, bottleRack, deskSign, slantedShelf, bookend, slideBox, binRack, wallRack, frame, spool, stackBin, sieveStack, chamferBox, coffinBox, tetrominoBox, starBox, uBox, roundPolyBox, roundTrapBox, heartBox, dividerTray, scoopOrganiser, consoleBox, dispenser, castle, gridfinityBase, caddy, recordRack, flyerStand, motorBracket, pegboard, honeycombRack];
+export const TEMPLATES: TemplateDef[] = [organiser, stand, box, tray, carton, sleeve, drawer, envelope, folder, cardHolder, insert, magazineFile, diceTower, mailer, frontOpen, penHolder, scoopTray, birdHouse, laptopStand, gridInsert, shelf, bottleRack, deskSign, slantedShelf, bookend, slideBox, binRack, wallRack, frame, spool, stackBin, sieveStack, chamferBox, coffinBox, tetrominoBox, starBox, uBox, roundPolyBox, roundTrapBox, heartBox, dividerTray, scoopOrganiser, consoleBox, dispenser, castle, gridfinityBase, caddy, recordRack, flyerStand, motorBracket, pegboard, honeycombRack, gearbox, gameBoard];
 /** The sentence's structures (milestone 95): templates with a word of their own, never `planned` ones. */
 export const STRUCTURES = (): TemplateDef[] => TEMPLATES.filter((t) => t.word && t.status !== 'planned');
 /** The preset cards of the welcome screen's older grid: templates that are not sentence structures. */
