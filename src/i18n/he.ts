@@ -2099,6 +2099,7 @@ export const he: Record<MsgKey, string> = {
   'joint.why.corrGlue': "לשונית הדבקה",
   'joint.why.fingers': "חיבור אצבעות, לפי עובי הלוח",
   'joint.why.angledTabs': "לשוניות וחריצים: אצבעות מתאימות לפינות בין 60° ל־120°",
+  'joint.why.rim': 'לשונית הדבקה: דופן החור מודבקת מתחת ללוח שסביבו',
   'joint.why.asked': "כפי שנבחר בכרטיס ההכנה",
   // milestones 126, 127: the Make card
   'make.p.empty': "כל הפאות נשארו פתוחות: אין מה להכין",

@@ -61,14 +61,15 @@ export function fillets(pts: SculptPt[]): (Fillet | null)[] {
 }
 
 /** An arc from t1 to t2 about c (the short way round), flattened within ROUND_TOL; every point lies on the circle. */
-export function arcPoints(f: Pick<Fillet, 't1' | 't2' | 'c' | 'r'>): P2[] {
+/** An arc's points: within 0.02 mm, or with `facets` (faces per full turn) as so many flat pieces (milestone 186: a rounded corner made into a fold or boards). */
+export function arcPoints(f: Pick<Fillet, 't1' | 't2' | 'c' | 'r'>, facets?: number): P2[] {
   const a1 = Math.atan2(f.t1.y - f.c.y, f.t1.x - f.c.x), a2 = Math.atan2(f.t2.y - f.c.y, f.t2.x - f.c.x);
   let da = a2 - a1;
   while (da > Math.PI) da -= 2 * Math.PI;
   while (da <= -Math.PI) da += 2 * Math.PI;
   const step = 2 * Math.acos(Math.max(-1, 1 - ROUND_TOL / Math.max(f.r, ROUND_TOL)));
   // an even count puts a point at the arc's middle
-  const k = 2 * Math.max(1, Math.min(256, Math.ceil(Math.abs(da) / step / 2)));
+  const k = facets ? Math.max(1, Math.round((Math.abs(da) * facets) / (2 * Math.PI))) : 2 * Math.max(1, Math.min(256, Math.ceil(Math.abs(da) / step / 2)));
   const out: P2[] = [];
   for (let j = 1; j < k; j++) out.push({ x: f.c.x + f.r * Math.cos(a1 + (da * j) / k), y: f.c.y + f.r * Math.sin(a1 + (da * j) / k) });
   return [f.t1, ...out, f.t2];
@@ -82,7 +83,7 @@ type Run = { pts: P2[]; from: number; curve: boolean };
  * the circle), then the straight edges next to Curve points become smooth cubics
  * as main's base outlines do (`src/model/edges.ts` curveRing). CCW or CW as given.
  */
-export function flattenSketch(pts: SculptPt[]): P2[] {
+export function flattenSketch(pts: SculptPt[], facets?: number): P2[] {
   const n = pts.length;
   if (n < 3) return pts.map((p) => ({ x: p.x, y: p.y }));
   const fs = fillets(pts);
@@ -93,7 +94,7 @@ export function flattenSketch(pts: SculptPt[]): P2[] {
     const j = (i + 1) % n;
     const a = fs[i]?.t2 ?? { x: pts[i].x, y: pts[i].y }, b = fs[j]?.t1 ?? { x: pts[j].x, y: pts[j].y };
     edges.push({ a, b, sa: !fs[i] && pts[i].curve === 'auto', sb: !fs[j] && pts[j].curve === 'auto' });
-    arcs.push(fs[j] ? arcPoints(fs[j]!).slice(1, -1) : []);
+    arcs.push(fs[j] ? arcPoints(fs[j]!, facets).slice(1, -1) : []);
   }
   const runs: Run[] = [];
   for (let i = 0; i < n; i++) {

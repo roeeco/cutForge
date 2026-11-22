@@ -16,7 +16,7 @@ import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { constructionSet, flatOnHost } from './place';
-import { seamFit, seamGlue } from './seamFold';
+import { rimGlue, seamFit, seamGlue } from './seamFold';
 import { laminateFit, laminateGeom } from './laminate';
 import { isStripBand, stripTrimmed } from './stripTrim';
 
@@ -1101,6 +1101,8 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
 function seamGeom(d: Design, c: Connection): ConnGeom | null {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
+  // a hole's wall glued round its rim (milestone 186)
+  if (c.b.edge === FACE) return c.kind === 'glue' ? rimGlue(d, c) : null;
   const f = seamFit(A, c.a.edge, B, c.b.edge);
   if (!f) return null;
   if (c.kind === 'glue') return seamGlue(d, c, f);
@@ -1298,6 +1300,10 @@ function findOpenSeamsNow(d: Design, only?: string): OpenSeam[] {
       if (covered.has(A.id < B.id ? `${A.id}|${B.id}` : `${B.id}|${A.id}`)) continue;
       // a flat panel placed on a face is a separate part, not joined to it
       if (flatOnHost(d, A.id, B.id)) continue;
+      // two boards of a folded made model: the face graph chose every fold and seam between them; a contact found
+      // here (an edge on a face at an inside corner, a wall along a hole's rim) is one of those seams seen another
+      // way, and a second joint on it lays a flap over the net
+      if (d.make?.as === 'fold' && A.src && B.src) continue;
       if (!nearEachOther(d, A, B)) continue;
       const found = seamsBetween(d, A, B);
       if (!found.length) continue;

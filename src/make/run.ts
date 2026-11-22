@@ -102,6 +102,9 @@ function playFold() {
  * kernel is not ready or there is nothing to make.
  */
 export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {}, opts: { play?: boolean } = {}): Promise<boolean> {
+  // a shape just placed, its height still open (✓ not pressed): the click on Make takes it as it stands, so the
+  // shape is kept (it used to be made, then thrown away with the ghost, leaving a model of a shape that was gone)
+  if (useStore.getState().pending) useStore.getState().confirmPending();
   const st = useStore.getState();
   const d0 = st.design;
   if (!d0.sculpt?.order.length || !kernelNow()) return false;
@@ -121,7 +124,6 @@ export async function makeNow(as: 'fold' | 'boards', over: Partial<MakeSpec> = {
   const u = await unfoldFor(d1, P, spec);
   let issues: MakeIssue[] = [];
   let lost: Lost | undefined;
-  st.cancelPending();
   st.apply((d) => {
     if (swap) setMaterial(d as Design, swap);
     const r = reassemble(d as Design, P, spec, u);

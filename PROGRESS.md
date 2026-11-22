@@ -2626,6 +2626,19 @@ The owner's report during the fix round: Quick build lists many errors after fol
   - failing before milestone 171 too (checked on 4efeed9, after the presets-from-boards merge): `sentence.spec:13` (en, he: the keyboard walk), `topbar.spec:61` (Quick build 1280 × 800 and Hebrew 1024 × 768: the bar is 1 px too wide);
   - `start-sentence.spec:25` was this lane's (the slow list): fixed, passes per board.
 
+## Milestone 186 (the shapes engine tested as a student, `MAKE_ENGINE_REVIEW.md`) ✅ fold fixes
+
+Forty shapes, simple and awkward booleans, made in one click in card and corrugated 4 mm (*Fold it*) and plywood 3 mm (*Build from boards*), each cut plan read back (`src/dev/makeProbe.ts`).
+
+- **Fold it after a new shape's height** (✓ not pressed) no longer throws the shape away: the ghost is confirmed first (`src/make/run.ts`).
+- **Inside corners and holes:** the joiner that runs after every edit no longer adds a second, automatic joint between two boards of a folded made model (`findOpenSeams`); its flap lay over the net on every L, notch, U-channel, step, chopped corner and hole.
+- **A hole's walls are glued round its rim:** a rim seam (`a` the wall's edge, `b` the holed board's `'face'`), its flap fitted by the unfolder on the wall and laid by `rimGlue` on the holed board's inside face (`src/model/unfold.ts`, `seamNet.ts`, `seamFold.ts`, `seams.ts`; reason `joint.why.rim`).
+- **Flaps beside a hanging face:** a flap may lean away at one end only, and may overlap a face meeting its edge's corner by what the export check allows, counted per pair of boards: a 12-sided cylinder or cone is one piece (was two).
+- **Rounded corners** of boxes and prisms follow *Faces around a curve* (`arcPoints`, `flattenSketch`, `facetedCopy`): 3 faces a corner on card, was 16.
+- **Speed:** an exact convex clip for convex pairs, area-first flap tests, the sheet fit from one box, flap sizes kept per edge: crossed holes 3.2 → 0.25 s, torus 2.5 → 0.5 s, cylinder 1 → 0.03 s.
+- On card, shapes with export problems: 14 of 40 → 2 (a 0.5 mm step's slivers; two boxes touching along an edge only). Plywood is unchanged: boards meeting only at a corner still collide, listed with the rest in `MAKE_ENGINE_REVIEW.md` §3.
+- `tests/makeEngine.test.ts` (7); `npm test` 2102 passed (7 skipped); typecheck clean; `make-fold`, `make-boards` app specs pass. Looked at in the browser: the box flow, the cut plans of the L, the hole, the cylinder and the cone.
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

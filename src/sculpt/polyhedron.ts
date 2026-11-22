@@ -24,6 +24,8 @@ export function facetedCopy(sc: Sculpt, facets: number, byShape: Record<string, 
   for (const [id, s] of Object.entries(sc.shapes)) {
     const n = byShape[id] ?? s.facets ?? facets;
     if (CURVED.has(s.kind)) shapes[id] = { ...s, facets: n };
+    // a box's or prism's rounded corners: faces per full turn, as a cylinder's (a quarter corner of 12 is 3)
+    else if ((s.kind === 'box' || s.kind === 'prism') && s.corners?.some((r) => r > 0)) shapes[id] = { ...s, facets: n };
     // an extrusion's arcs and curves: its count is per quarter turn
     else if (s.kind === 'extrude' && curvedSketch(s)) shapes[id] = { ...s, facets: byShape[id] ? Math.max(3, Math.round(byShape[id] / 4)) : (s.facets ?? Math.max(3, Math.round(facets / 4))) };
     else shapes[id] = s;

@@ -6,7 +6,7 @@
 // closed with a glue flap or a slit lock on one board, folded onto the other's
 // inside face.
 import type { ConnGeom, Connection, Design, Flap3d, P2, Panel, V3 } from './types';
-import { edgeInwardLocal, edgeLocal, edgeWorld, matDir, toWorld } from './frame';
+import { edgeInwardLocal, edgeLocal, edgeWorld, matDir, toLocal, toWorld } from './frame';
 import { findEdge, type EdgeArg } from './edges';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import { matOf, tOf } from './materials';
@@ -106,6 +106,46 @@ export function seamGlue(d: Design, c: Connection, f: SeamFit): ConnGeom {
   const q = (m: number, u: number): P2 => ({ x: ra.x + rdir.x * m + rin.x * u, y: ra.y + rdir.y * m + rin.y * u });
   const sgn = m1 >= m0 ? 1 : -1;
   const folded = [q(m0, 0), q(m0 + sgn * ta, fh), q(m1 - sgn * tb, fh), q(m1, 0)];
+  g.flaps3d.push(foldedFlap(t, O, flat, { panelId: R.id, poly: folded, z0: tR, z1: tR + t }, R));
+  return g;
+}
+
+/**
+ * A glue flap from a hole's wall onto the board the hole goes through (milestone 186): the
+ * wall's edge `a` runs along the hole's rim, which is no edge of the receiver (its hole is a
+ * cut-out), so the seam's `b` is the receiver's face. The flap folds onto the receiver's
+ * inside face, away from the hole (towards the wall's material side, the solid's inside).
+ */
+export function rimGlue(d: Design, c: Connection): ConnGeom | null {
+  const O = d.panels[c.a.panelId], R = d.panels[c.b.panelId];
+  if (!O || !R || !findEdge(O, c.a.edge)) return null;
+  const [w0, w1] = edgeWorld(O, c.a.edge);
+  const L = v3len(v3sub(w1, w0));
+  if (L < 1e-6) return null;
+  // the rim lies in the receiver's plane (its face is the shape's face)
+  const nR = v3cross(R.frame.u, R.frame.v);
+  if (Math.abs(v3dot(v3sub(w0, R.frame.o), nR)) > 0.05 || Math.abs(v3dot(v3sub(w1, R.frame.o), nR)) > 0.05) return null;
+  const g: ConnGeom = { edges: [], holes: [], adds: [], scores: [], flaps3d: [] };
+  const t = matOf(d, O.id).thickness, tR = tOf(d, R.id);
+  const fh = Math.max(1, c.flap ?? seamFlapDepth(t, L));
+  const cap = c.flapTaperB !== undefined ? TAPER_MAX * L : L / 3;
+  const ta = Math.max(0, Math.min(c.flapTaper ?? fh, cap)), tb = Math.max(0, Math.min(c.flapTaperB ?? c.flapTaper ?? fh, cap));
+  const [a, b] = edgeLocal(O, c.a.edge);
+  const la = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const dir = { x: (b.x - a.x) / la, y: (b.y - a.y) / la };
+  const inw = edgeInwardLocal(O, c.a.edge);
+  const p = (s: number, u: number): P2 => ({ x: a.x + dir.x * s - inw.x * u, y: a.y + dir.y * s - inw.y * u });
+  const flat = [p(0, 0), p(ta, fh), p(L - tb, fh), p(L, 0)];
+  g.adds.push({ panelId: O.id, poly: flat });
+  g.scores.push({ panelId: O.id, a: p(0, 0), b: p(L, 0), toward: 1 });
+  // on the receiver: along the rim from the wall edge's start, turned towards the wall's material
+  const ra = toLocal(R.frame, w0), rb = toLocal(R.frame, w1);
+  const rdir = { x: (rb.x - ra.x) / L, y: (rb.y - ra.y) / L };
+  let rin = { x: -rdir.y, y: rdir.x };
+  const inW = v3add(v3mul(R.frame.u, rin.x), v3mul(R.frame.v, rin.y));
+  if (v3dot(inW, matDir(O.frame)) < 0) rin = { x: -rin.x, y: -rin.y };
+  const q = (m: number, u: number): P2 => ({ x: ra.x + rdir.x * m + rin.x * u, y: ra.y + rdir.y * m + rin.y * u });
+  const folded = [q(0, 0), q(ta, fh), q(L - tb, fh), q(L, 0)];
   g.flaps3d.push(foldedFlap(t, O, flat, { panelId: R.id, poly: folded, z0: tR, z1: tR + t }, R));
   return g;
 }

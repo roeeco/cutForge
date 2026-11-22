@@ -13,7 +13,7 @@ import { islandOrder, unfold, type Unfolding, type UnfoldIssue, type UnfoldSpec 
 import { netGroups, netOverlaps } from './pieces';
 import { chooseJoint, closingFace, type SeamCtx, type SeamRole } from './jointChoice';
 import { cornerFit } from './seams';
-import { findEdge } from './edges';
+import { FACE, findEdge } from './edges';
 import type { MsgKey } from '../i18n';
 
 export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number };
@@ -302,6 +302,11 @@ function layFold(d: Design, P: Polyhedron, spec: MakeSpec, u: Unfolding, mat: Ma
   for (const e of Object.values(P.edges)) {
     const c = d.connections[seamId(e.key)];
     if (!c) continue;
+    // a hole's wall glued round its rim: a glue flap, as the unfolder fitted it (milestone 186)
+    if (c.b.edge === FACE) {
+      applyChoice(c, 'glue', {}, 'joint.why.rim');
+      continue;
+    }
     const role: SeamRole = c.kind === 'fold' ? 'fold' : 'seam';
     const ch = role === 'fold' ? chooseJoint(seamCtx(P, e, mat, role, last)) : seamChoice(P, e, mat, last, spec.seams);
     // the unfolder's flap size (it fitted the net with it) wins over the chooser's; a lock's less its tongue
@@ -401,7 +406,8 @@ export function rechooseJoints(d: Design, P: Polyhedron): number {
   const last = closingFace(Object.values(P.faces).filter((f) => !open.has(f.key)).map((f) => ({ key: f.key, n: f.n, area: f.area })));
   let changed = 0;
   for (const c of Object.values(d.connections)) {
-    if (!c.src || c.picked) continue;
+    // a hole's wall stays glued round its rim
+    if (!c.src || c.picked || c.b.edge === FACE) continue;
     const e = P.edges[c.src];
     if (!e) continue;
     const role: SeamRole = d.make.as === 'boards' ? 'corner' : c.kind === 'fold' && c.seam ? 'fold' : 'seam';

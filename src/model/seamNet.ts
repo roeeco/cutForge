@@ -9,6 +9,7 @@ import { addFreePanel } from './ops';
 import { edgeWorld } from './frame';
 import { faceWorld, ringOf } from './polyhedron';
 import { v3len, v3sub } from '../geom/v3';
+import { FACE } from './edges';
 
 export type SeamPlan = {
   /** Edges kept folded. */
@@ -100,9 +101,13 @@ export function addSeamNet(d: Design, P: Polyhedron, plan: SeamPlan): Record<Fac
   // every other edge between two boards: cut, closed by a flap (or left as it is)
   for (const e of Object.values(P.edges)) {
     if (d.connections[seamId(e.key)]) continue;
-    const ra = edgeRef(e.a, e.ea), rb = edgeRef(e.b, e.eb);
+    let ra = edgeRef(e.a, e.ea), rb = edgeRef(e.b, e.eb);
+    // a wall along a hole's rim with a flap fitted (milestone 186): glued onto the holed board's face
+    const rim = !ra !== !rb && (e.ea.ring === 0) !== (e.eb.ring === 0) && plan.flapOn?.[e.key] !== undefined;
+    if (rim && !ra && ids[e.a]) ra = { panelId: ids[e.a], edge: FACE };
+    if (rim && !rb && ids[e.b]) rb = { panelId: ids[e.b], edge: FACE };
     if (!ra || !rb) continue;
-    const kind = plan.seam?.(e) ?? 'glue';
+    const kind = rim ? 'glue' : (plan.seam?.(e) ?? 'glue');
     const onB = plan.flapOn?.[e.key] === e.b;
     const c = conn(seamId(e.key), kind, onB ? rb : ra, onB ? ra : rb, e);
     if (plan.flapDepth?.[e.key] !== undefined) c.flap = Math.round(plan.flapDepth[e.key] * 1000) / 1000;

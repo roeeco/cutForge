@@ -2097,6 +2097,7 @@ export const en = {
   'joint.why.corrGlue': "Glue flap",
   'joint.why.fingers': "Finger joint, sized to the board's thickness",
   'joint.why.angledTabs': "Tabs and slots: fingers fit corners between 60° and 120°",
+  'joint.why.rim': "Glue flap: the hole's wall is glued under the board round it",
   'joint.why.asked': "As set on the Make card",
   // milestones 126, 127: the Make card
   'make.p.empty': "Every face is left open: there is nothing to make",

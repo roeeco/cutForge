@@ -163,8 +163,41 @@ export function ringsOverlap(a: P2[], b: P2[], tol = 1e-3): boolean {
   return true;
 }
 
-/** The area two outlines share (0 when polygon-clipping cannot tell: the caller has found them overlapping by then). */
-export function overlapArea(a: P2[], b: P2[]): number {
+/** The part of `subject` inside the convex ring `clip` (Sutherland–Hodgman), its area: exact for any simple subject. */
+function convexClipArea(subject: P2[], clip: P2[]): number {
+  let sgn = 0;
+  for (let i = 0; i < clip.length; i++) sgn += clip[i].x * clip[(i + 1) % clip.length].y - clip[(i + 1) % clip.length].x * clip[i].y;
+  const s = sgn >= 0 ? 1 : -1;
+  let out = subject;
+  for (let i = 0; i < clip.length && out.length; i++) {
+    const p = clip[i], q = clip[(i + 1) % clip.length];
+    const side = (x: P2) => s * ((q.x - p.x) * (x.y - p.y) - (q.y - p.y) * (x.x - p.x));
+    const next: P2[] = [];
+    for (let k = 0; k < out.length; k++) {
+      const a = out[k], b = out[(k + 1) % out.length];
+      const sa = side(a), sb = side(b);
+      if (sa >= 0) next.push(a);
+      if ((sa >= 0) !== (sb >= 0)) {
+        const t = sa / (sa - sb);
+        next.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      }
+    }
+    out = next;
+  }
+  let a2 = 0;
+  for (let i = 0; i < out.length; i++) a2 += out[i].x * out[(i + 1) % out.length].y - out[(i + 1) % out.length].x * out[i].y;
+  return Math.abs(a2) / 2;
+}
+
+/** The area two outlines share (Infinity when polygon-clipping cannot tell: the caller has found them overlapping by then). */
+export function overlapArea(a: P2[], b: P2[], aConvex?: boolean): number {
+  // a flap is always convex, and most faces are: no sweep needed
+  if (convex(b)) return convexClipArea(a, b);
+  if (aConvex === false) return sweepArea(a, b);
+  if (aConvex ?? convex(a)) return convexClipArea(b, a);
+  return sweepArea(a, b);
+}
+function sweepArea(a: P2[], b: P2[]): number {
   const ring = (r: P2[]) => [...r.map((p) => [p.x, p.y] as [number, number]), [r[0].x, r[0].y] as [number, number]];
   try {
     return mpArea(polygonClipping.intersection([ring(a)], [ring(b)]));
@@ -208,7 +241,8 @@ function growTop(r: P2[], c: number): P2[] {
 }
 
 /** A flap placed in an island's flat layout. */
-type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; taperB: number; ring: P2[] };
+/** `uses`: what it overlaps beyond the usual 3t² (a face beside its own edge), so a pair of boards never adds up past the export check. */
+type PlacedFlap = { edge: EdgeKey; on: FaceKey; depth: number; taper: number; taperB: number; ring: P2[]; uses?: { face: FaceKey; area: number }[] };
 type Island = { faces: FaceKey[]; xf: Map<FaceKey, X>; flaps: PlacedFlap[] };
 type Pass = { islands: Island[]; folds: Set<EdgeKey>; refusedFixed: EdgeKey[]; why: Set<'sheet' | 'overlap'> };
 
@@ -285,7 +319,20 @@ const faceWorldPt = (f: PFace, p: P2): [number, number, number] => [f.frame.o[0]
  * the sizes to try at a fraction of that depth: the ends at the receiver's corners' angles,
  * then narrowing more steeply. Null when no useful flap fits there.
  */
+/** `sizesFor`'s answers, per face graph: they depend on the edge, its side, the depth asked and the clearance only, so every join and restart asks once. */
+const sizesMemo = new WeakMap<Polyhedron, Map<string, ((level: number) => [number, number, number][]) | null>>();
 function sizesFor(P: Polyhedron, e: PEdge, on: FaceKey, want: number, clear: number): ((level: number) => [number, number, number][]) | null {
+  let m = sizesMemo.get(P);
+  if (!m) sizesMemo.set(P, (m = new Map()));
+  const key = `${e.key}|${on}|${want}|${clear}`;
+  if (m.has(key)) return m.get(key)!;
+  const f = sizesNow(P, e, on, want, clear);
+  const byLevel = new Map<number, [number, number, number][]>();
+  const g = f && ((level: number) => byLevel.get(level) ?? (byLevel.set(level, f(level)), byLevel.get(level)!));
+  m.set(key, g);
+  return g;
+}
+function sizesNow(P: Polyhedron, e: PEdge, on: FaceKey, want: number, clear: number): ((level: number) => [number, number, number][]) | null {
   const R = receiver(P, e, on, clear);
   const { L, thA, thB } = R;
   if (thA <= 1e-3 || thB <= 1e-3) return null;
@@ -319,6 +366,12 @@ function sizesFor(P: Polyhedron, e: PEdge, on: FaceKey, want: number, clear: num
       const ta = taper(k, d, tA(d)), tb = taper(k, d, tB(d));
       if (ta + tb <= 0.9 * L && R.inside(d, ta, tb)) out.push([d, ta, tb]);
     }
+    // one end narrowing as steeply as a flap may (TAPER_MAX of the edge), the other as little as its corner
+    // allows: a flap in the narrow wedge where a face hangs off its neighbour's edge (a cylinder's cap beside
+    // its strip) fits by leaning away from that face only
+    const a1 = taper(1, d, tA(d)), b1 = taper(1, d, tB(d));
+    for (const [ta, tb] of [[mt, b1], [a1, mt]] as const)
+      if (ta >= tA(d) && tb >= tB(d) && ta + tb <= 0.9 * L + 1e-9 && R.inside(d, ta, tb)) out.push([d, ta, tb]);
     return out;
   };
 }
@@ -329,23 +382,61 @@ function sizesFor(P: Polyhedron, e: PEdge, on: FaceKey, want: number, clear: num
  * for the face it is glued to (`sizesFor`) on either side; failing that, as before, full depth
  * at 45°, then narrowing more steeply at its ends, then shallower; or null.
  */
-function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][], W: number, H: number, carried: Map<FaceKey, number>, clear = 0): PlacedFlap | null {
+/** The faces that meet edge e at one of its ends (its own two among them). */
+const cornerMemo = new WeakMap<Polyhedron, Map<EdgeKey, Set<FaceKey>>>();
+function cornerFaces(P: Polyhedron, e: PEdge): Set<FaceKey> {
+  let m = cornerMemo.get(P);
+  if (!m) cornerMemo.set(P, (m = new Map()));
+  let out = m.get(e.key);
+  if (out) return out;
+  out = new Set();
+  const at = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 1e-6;
+  for (const x of Object.values(P.edges))
+    if ([x.p, x.q].some((v) => at(v, e.p) || at(v, e.q))) for (const f of [x.a, x.b]) out.add(f);
+  m.set(e.key, out);
+  return out;
+}
+
+function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][], W: number, H: number, carried: Map<FaceKey, number>, clear = 0, only?: FaceKey): PlacedFlap | null {
   const ra = ratio(P.faces[e.a]), rb = ratio(P.faces[e.b]);
   const ca = carried.get(e.a) ?? 0, cb = carried.get(e.b) ?? 0;
   const first = Math.abs(ra - rb) < 0.05 * Math.max(ra, rb) ? (ca <= cb ? e.a : e.b) : ra <= rb ? e.a : e.b;
-  const sides = [first, first === e.a ? e.b : e.a].filter((k) => I.xf.has(k));
+  const sides = (only ? [only] : [first, first === e.a ? e.b : e.a]).filter((k) => I.xf.has(k));
   const others = [...rings, ...I.flaps.map((f) => f.ring)];
   const boxes = others.map(bbox);
+  const cvx = others.map(convex);
+  // a flap may meet a face or flap at a corner by 3t² (as faces may), tested with its clearance. A face that shares a
+  // corner with the flap's own edge (the face it is glued to among them) may take more: where a face hangs off the
+  // next one's edge the creases shift the two by about a thickness (a cylinder's cap beside its strip). There the flap
+  // as cut may overlap it by what the export check leaves (`netOverlaps`: 4t², and under 0.5 mm² is no overlap) once a
+  // 3t² corner sliver is counted: t² + 0.5 for each pair of boards, all their flaps together (the check adds them up).
+  const near = cornerFaces(P, e);
+  const budget = clear * clear + 0.5;
+  const used = (a: FaceKey, b: FaceKey) => I.flaps.reduce((s, f) => s + (f.uses ?? []).reduce((t, u) => t + ((f.on === a && u.face === b) || (f.on === b && u.face === a) ? u.area : 0), 0), 0);
+  const all = boxes.reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
   const tryOne = (on: FaceKey, depth: number, taper: number, taperB: number): PlacedFlap | null => {
     const ring = flapRing(P, e, on, depth, I.xf.get(on)!, taper, taperB);
     // tested deeper by the clearance, its far corners further along the edge; its base stays on the
     // edge's ends (past them is the corner its neighbours share, where the creases meet anyway)
     const tb = clear > 0 ? growTop(flapRing(P, e, on, depth + clear, I.xf.get(on)!, taper + clear, taperB + clear), clear) : ring;
     const bb = bbox(tb);
-    // as faces, a flap may meet another at a corner by up to a thickness (the export check allows 4t² there)
-    if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && ringsOverlap(r, tb, 0.05) && !(clear > 0 && overlapArea(r, tb) <= 3 * clear * clear))) return null;
-    if (!fitsSheet([...others, ring], W, H, 2)) return null;
-    return { edge: e.key, on, depth, taper, taperB, ring };
+    // with a clearance the area decides (one convex clip, no separating-axis test first)
+    const uses: { face: FaceKey; area: number }[] = [];
+    const hit = (r: P2[], i: number) => {
+      if (!(clear > 0)) return ringsOverlap(r, tb, 0.05);
+      if (overlapArea(r, tb, cvx[i]) <= 3 * clear * clear) return false;
+      if (!(i < rings.length && near.has(I.faces[i]))) return true;
+      const a = overlapArea(r, ring, cvx[i]);
+      if (a + used(on, I.faces[i]) + uses.filter((u) => u.face === I.faces[i]).reduce((t, u) => t + u.area, 0) > budget) return true;
+      uses.push({ face: I.faces[i], area: a });
+      return false;
+    };
+    if (others.some((r, i) => !boxApart(boxes[i], bb, 0.05) && hit(r, i))) return null;
+    // the sheet, square to the piece (as `fitsSheet` with 2 turns): the island's box with the flap's
+    const fb = bbox(ring);
+    const w = Math.max(all.x1, fb.x1) - Math.min(all.x0, fb.x0), h = Math.max(all.y1, fb.y1) - Math.min(all.y0, fb.y0);
+    if (!((w <= W + 1e-6 && h <= H + 1e-6) || (w <= H + 1e-6 && h <= W + 1e-6))) return null;
+    return { edge: e.key, on, depth, taper, taperB, ring, ...(uses.length ? { uses } : {}) };
   };
   // deepest first, either side, as below
   const sized = sides.map((on) => [on, sizesFor(P, e, on, want, clear)] as const);
@@ -361,6 +452,16 @@ function fitFlap(P: Polyhedron, e: PEdge, want: number, I: Island, rings: P2[][]
       const t = flapTaperLen(e.len, depth, taper);
       const f = tryOne(on, depth, t, t);
       if (f) return f;
+    }
+  // then leaning away at one end only (see `sizesFor`)
+  const steep = TAPER_MAX * e.len;
+  for (const depth of [want * 0.6, want * 0.35])
+    for (const on of sides) {
+      const t = flapTaperLen(e.len, depth);
+      for (const [ta, tb] of [[steep, t], [t, steep]]) {
+        const f = tryOne(on, depth, ta, tb);
+        if (f) return f;
+      }
     }
   return null;
 }
@@ -471,7 +572,7 @@ function flapRing(P: Polyhedron, e: PEdge, on: FaceKey, depth: number, xf: X, ta
 type Flaps = { flapOn: Record<EdgeKey, FaceKey>; flapDepth: Record<EdgeKey, number>; flapTaper: Record<EdgeKey, number>; flapTaperB: Record<EdgeKey, number>; dropped: EdgeKey[] };
 
 /** Flaps on a pass's cut edges: those placed while joining, then the edges between islands (each on its own island's side). */
-function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number, clear = 0): Flaps {
+function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => number, W: number, H: number, clear = 0, rims: PEdge[] = []): Flaps {
   const islandOf = new Map<FaceKey, Island>();
   for (const I of b.islands) for (const k of I.faces) islandOf.set(k, I);
   const flapOn: Record<EdgeKey, FaceKey> = {};
@@ -496,15 +597,18 @@ function placeFlaps(P: Polyhedron, b: Pass, live: PEdge[], flap: (e: PEdge) => n
     return r;
   };
   const cuts = live.filter((e) => !b.folds.has(e.key) && !(e.key in flapOn)).sort((x, y) => y.len - x.len || (x.key < y.key ? -1 : 1));
-  for (const e of cuts) {
+  // a hole's rim (milestone 186): the flap goes on the wall, the face whose outline runs along it
+  const rimWall = new Map(rims.map((e) => [e.key, e.ea.ring === 0 ? e.a : e.b]));
+  for (const e of [...cuts, ...rims.slice().sort((x, y) => y.len - x.len || (x.key < y.key ? -1 : 1))]) {
     const want = flap(e);
     if (!(want > 0)) continue;
     let got: PlacedFlap | null = null;
+    const wall = rimWall.get(e.key);
     // between two islands: try each island with its own face
-    for (const side of [islandOf.get(e.a)!, islandOf.get(e.b)!]) {
+    for (const side of wall ? [islandOf.get(wall)!] : [islandOf.get(e.a)!, islandOf.get(e.b)!]) {
       const view: Island = { ...side, flaps: [...side.flaps, ...(extra.get(side) ?? [])] };
       const only: PEdge = { ...e };
-      const f = fitFlap(P, only, want, view, ringsOf(side), W, H, carried, clear);
+      const f = fitFlap(P, only, want, view, ringsOf(side), W, H, carried, clear, wall);
       if (f) {
         extra.set(side, [...(extra.get(side) ?? []), f]);
         got = f;
@@ -531,6 +635,8 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
   const open = new Set(spec.open ?? []);
   const faces = Object.keys(P.faces).filter((k) => !open.has(k));
   const live = Object.values(P.edges).filter((e) => !open.has(e.a) && !open.has(e.b) && e.ea.ring === 0 && e.eb.ring === 0);
+  // a wall along a hole's rim: never folded (a hole is a cut-out, no board edge), glued by a flap on the wall
+  const rims = Object.values(P.edges).filter((e) => !open.has(e.a) && !open.has(e.b) && (e.ea.ring === 0) !== (e.eb.ring === 0));
   const fixed = spec.fixed ?? {};
   const avoid = new Set(spec.avoid ?? []);
   // what the engine can lay as a fold (a fixed fold it cannot is refused, as one that would overlap)
@@ -559,7 +665,7 @@ export function unfold(P: Polyhedron, spec: UnfoldSpec): Unfolding {
     const order = free.map((e) => ({ e, w: weight(e, (rand() - 0.5) * jitter) })).sort((a, b) => a.w - b.w || (a.e.key < b.e.key ? -1 : 1)).map((x) => x.e);
     const r = pass(P, faces, order, W, H, fixedFolds, spec.flap, live, spec.clearance ?? 0, spec.foldAllowance ?? 0);
     const cut = live.filter((e) => !r.folds.has(e.key)).reduce((s, e) => s + e.len, 0);
-    const flaps = placeFlaps(P, r, live, spec.flap, W, H, spec.clearance ?? 0);
+    const flaps = placeFlaps(P, r, live, spec.flap, W, H, spec.clearance ?? 0, rims);
     if (restarts === 0) firstPassMs = now() - t0;
     // a dropped flap costs a piece: a seam that cannot be glued is as bad as another piece to glue on
     const score = r.islands.length + flaps.dropped.length;

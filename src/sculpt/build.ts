@@ -57,8 +57,8 @@ export function footprint(s: Shape3): SculptPt[] {
 export const clampSides = (n?: number) => Math.max(3, Math.min(12, Math.round(n ?? 6)));
 
 /** A footprint outline as a CrossSection (curves and rounded corners flattened within 0.02 mm). */
-export function footprintSection(k: Kernel, pts: SculptPt[]): CrossSection {
-  return k.CrossSection.ofPolygons([vec2(ccw(flattenSketch(pts)))], 'NonZero');
+export function footprintSection(k: Kernel, pts: SculptPt[], facets?: number): CrossSection {
+  return k.CrossSection.ofPolygons([vec2(ccw(flattenSketch(pts, facets)))], 'NonZero');
 }
 
 /** The rings of the area a sketch fills (outer rings counter-clockwise, holes clockwise). */
@@ -144,7 +144,7 @@ function leafBody(k: Kernel, s: Shape3): Manifold {
       const top = s.kind === 'pyramid' ? Math.max(0, Math.min(1, s.top ?? 0)) : 1;
       // a box or prism tapered to a frustum (milestone 121): its top scaled in width and depth
       const tp: [number, number] = s.kind !== 'pyramid' && s.taper ? [Math.max(0, s.taper[0]), Math.max(0, s.taper[1])] : [top, top];
-      let body = footprintSection(k, footprint(s)).extrude(h, 0, 0, tp);
+      let body = footprintSection(k, footprint(s), fc).extrude(h, 0, 0, tp);
       // chamfered edges (milestone 132): each cut off by a plane through the two lines d in from the edge
       if (s.kind !== 'pyramid' && !s.taper && s.chamfers?.length) for (const pl of chamferPlanes(s)) body = body.trimByPlane(pl.n as never, pl.off);
       return body;
