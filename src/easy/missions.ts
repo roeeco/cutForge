@@ -14,6 +14,10 @@ import { boxBases, bestCell, capacity, compartments, contentFit, objectById, siz
 import { boxRecipe } from './recipes';
 import { setBoxSize } from '../model/boxSize';
 import { addSpaces, mainTray } from '../templates/structures/box';
+import { recordOf } from '../templates/records';
+import { wallsOf } from '../templates/structures/shaped';
+import { hangByKeyholes } from '../templates/structures/boards';
+import { setCustomHeight, setPanelSize } from '../model/ops';
 import type { Mode } from './features';
 import { translate, type Lang } from '../i18n';
 
@@ -160,6 +164,57 @@ const clueInside: Goal = {
   },
 };
 
+// milestone 178 (part 2) and 179: goals read from what the design is (its record) or what is cut in it
+
+/** It hangs on a wall: keyholes or a cleat (milestone 179). */
+const hangsOnWall: Goal = { id: 'hangs', group: 0, label: 'goal.hangs', check: (d) => ({ ok: !!recordOf(d).hang, target: mainBox(d) }) };
+
+/** A window cut in one of its walls (a rectangle or circle 12 mm or more in its lower part). */
+const windowIn: Goal = { id: 'window', group: 0, label: 'goal.window', check: (d) => ({ ok: !!recordOf(d).window, target: mainBox(d) }) };
+
+/** `n` round holes or more of `min` to `max` mm in one board (the lights of a traffic light, a board's screw holes). */
+function holesIn(id: string, label: MsgKey, n: number, min: number, max: number, level = false): Goal {
+  return {
+    id,
+    group: 0,
+    label,
+    vars: { n },
+    check: (d) => {
+      for (const pid of d.order) {
+        const p = d.panels[pid];
+        if (level && Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]) < 0.98) continue;
+        if (p.details.filter((x) => x.op === 'cut' && x.shape === 'circle' && x.w >= min - 1e-6 && x.w <= max + 1e-6).length >= n) return { ok: true, target: pid };
+      }
+      return { ok: false, target: mainBox(d) };
+    },
+  };
+}
+
+/** `n` spaces or more in the main box, each holding one `object` (a deck in each of a card box's spaces). */
+function eachHolds(id: string, label: MsgKey, object: string, n: number): Goal {
+  return {
+    id,
+    group: 0,
+    label,
+    vars: { n },
+    check: (d) => {
+      const b = mainBox(d);
+      const one = b ? compartments(d, b).filter((k) => capacity(d, k, sizeOf({ id: '', object, baseId: b, x: 0, y: 0 })) >= 1).length : 0;
+      return { ok: one >= n, target: b };
+    },
+  };
+}
+
+/** A box with spaces and a back wall raised over the others with two keyholes in it: it hangs (WallTypeTray). */
+function wallTray(d: Design, inside: { w: number; d: number; h: number }) {
+  boxWithSpaces(d, inside, 1, 1);
+  const back = wallsOf(d).e2;
+  if (!back) return;
+  setCustomHeight(d, back, true);
+  setPanelSize(d, back, undefined, d.panels[back].h + 45);
+  hangByKeyholes(d, back, undefined, Math.max(d.panels[back].w / 8, 2 * d.material.thickness + 10));
+}
+
 // ---------- the missions ----------
 
 /** A rectangular open box of this inside size (sizes stated as inside), split into equal spaces `nx` across and `ny` front to back. */
@@ -226,6 +281,80 @@ export const MISSIONS: Mission[] = [
     start: (d) => void boxRecipe(d, { kind: 'rect', x0: -70, z0: -50, x1: 70, z1: 50 }, 70),
     contents: [],
     goals: [lidOpens, takesPadlock, oneSheet, readyToCut, clueInside],
+  },
+  // milestones 178 (part 2) and 179 (BOXES_PLYWOOD_PLAN.md §3.2, §3.3): boxes.py's challenges in plywood, offered in
+  // Quick build and Workshop (Guided's gallery keeps its order)
+  {
+    // WallTypeTray: a type tray on the wall, its back raised with keyholes; split it into spaces for small parts
+    id: 'wall-tray',
+    version: 1,
+    title: 'mission.wallTray',
+    description: 'mission.wallTray.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    start: (d) => wallTray(d, { w: 180, d: 60, h: 40 }),
+    contents: [{ object: 'dice', count: 3 }],
+    goals: [contentsFit('goal.dice', 'dice', 3), compartmentsAtLeast(6), hangsOnWall, oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // CardBox: a lidded box for two decks of cards, a space for each
+    id: 'card-box',
+    version: 1,
+    title: 'mission.cardBox',
+    description: 'mission.cardBox.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'box', params: { width: 140, depth: 95, height: 35, sizeAs: 'inside', lid: 'liftoff' } },
+    contents: [{ object: 'deck', count: 1 }],
+    goals: [eachHolds('decks', 'goal.decksIn', 'deck', 2), lidOpens, oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // DisplayCase: a closed box on a base plate wider than it; cut a window to see what is inside
+    id: 'display-case',
+    version: 1,
+    title: 'mission.displayCase',
+    description: 'mission.displayCase.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'box', params: { width: 150, depth: 100, height: 100, sizeAs: 'inside', lid: 'closed', overhang: 'plate' } },
+    contents: [],
+    goals: [windowIn, oneSheet, readyToCut, nameEngraved],
+  },
+  {
+    // TrafficLight: a tall closed box; three round lights down its front
+    id: 'traffic-light',
+    version: 1,
+    title: 'mission.trafficLight',
+    description: 'mission.trafficLight.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'box', params: { width: 70, depth: 60, height: 180, sizeAs: 'inside', lid: 'closed' } },
+    contents: [],
+    goals: [holesIn('lights', 'goal.lights', 3, 20, 50), oneSheet, readyToCut, sticker],
+  },
+  {
+    // SBCMicroRack: a shelf for small computer boards; screw holes in a shelf for their standoffs
+    id: 'sbc-rack',
+    version: 1,
+    title: 'mission.sbcRack',
+    description: 'mission.sbcRack.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    template: { id: 'shelf', params: { width: 100, depth: 90, height: 160, shelves: 4 } },
+    contents: [],
+    goals: [holesIn('mounts', 'goal.mounts', 4, 2, 4.5, true), oneSheet, readyToCut],
+  },
+  {
+    // AgricolaInsert: an insert for a board game's box: spaces for its cards, dice and tokens, and a lid
+    id: 'game-insert',
+    version: 1,
+    title: 'mission.gameInsert',
+    description: 'mission.gameInsert.desc',
+    materials: ['plywood'],
+    levels: ['quick', 'workshop'],
+    start: (d) => boxWithSpaces(d, { w: 280, d: 150, h: 40 }, 1, 1),
+    contents: [{ object: 'deck', count: 1 }, { object: 'dice', count: 8 }],
+    goals: [compartmentsAtLeast(4), contentsFit('goal.deckIn', 'deck', 1), contentsFit('goal.dice', 'dice', 8), hasLid, oneSheet, readyToCut],
   },
 ];
 export const missionById = (id: string) => MISSIONS.find((m) => m.id === id);

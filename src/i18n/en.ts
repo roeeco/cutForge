@@ -2687,6 +2687,23 @@ export const en = {
   "sen.s.clockFace": "I'd like to make {structure} {size} mm across, with a {spindle} mm hole for the movement",
   "sen.clockSize": "Clock size",
   "sen.spindle": "Movement hole",
+  "mission.wallTray": "Wall tray",
+  "mission.wallTray.desc": "A tray that hangs on a wall by its raised back: split it into six spaces or more for small parts.",
+  "mission.cardBox": "Card box",
+  "mission.cardBox.desc": "A box with a lid for two decks of cards, each in a space of its own.",
+  "mission.displayCase": "Display case",
+  "mission.displayCase.desc": "A closed box on a base plate: cut a window in it to show what is inside.",
+  "mission.trafficLight": "Traffic light",
+  "mission.trafficLight.desc": "A tall closed box with three round lights down its front, and a sticker.",
+  "mission.sbcRack": "Computer board rack",
+  "mission.sbcRack.desc": "A shelf for small computer boards: cut the screw holes for a board's standoffs in one of its shelves.",
+  "mission.gameInsert": "Game box insert",
+  "mission.gameInsert.desc": "An insert for a board game's box: four spaces or more for its cards and dice, and a lid.",
+  "goal.hangs": "It hangs on a wall",
+  "goal.window": "A window to look inside",
+  "goal.lights": "{n} round lights",
+  "goal.mounts": "{n} screw holes in a shelf",
+  "goal.decksIn": "{n} spaces, a deck of cards in each",
   // --- end of milestones 178 (part 2) and 179
 } as const;
 

@@ -87,13 +87,13 @@ export const CATALOGUE: Card[] = [
     // milestone 178 (boxes.py's CompartmentBox): partitions under the lid
     { id: 'compartmentBox', structure: 'slideBox', style: 'compartmentBox', match: { body: 'cross', lid: 'none', rails: true, partitions: true } },
   ] },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser'], variants: [
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser', 'wall-tray', 'game-insert'], variants: [
     { id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } },
     // milestone 178 (beta, plywood; boxes.py's DividerTray): loose dividers resting in notches in the side walls' tops
     { id: 'dividerTray', structure: 'dividerTray', match: { body: 'cross', lid: 'none', loose: true } },
   ] },
   {
-    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: [],
+    id: 'liddedBox', title: 'card.liddedBox', word: 'card.liddedBox.word', group: 'boxes', status: 'stable', challenges: ['card-box', 'display-case', 'traffic-light'],
     variants: [
       { id: 'trayLid', structure: 'box', style: 'trayLid', match: { body: 'cross', lid: 'liftoff' }, guided: { id: 'box-lid', title: 'g.thing.boxLid', blurb: 'g.thing.boxLid.blurb', words: { ...BOX_G, lid: 'liftoff' } } },
       { id: 'hexLid', structure: 'box', style: 'hexLid', match: { body: 'cross', lid: 'liftoff', footprint: 'poly', sides: 6 } },
@@ -181,7 +181,7 @@ export const CATALOGUE: Card[] = [
   { id: 'laptopStand', title: 'card.laptopStand', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'laptopStand', structure: 'laptopStand', match: { body: 'slot', crossing: true } }] },
   { id: 'gridInsert', title: 'card.gridInsert', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [], variants: [{ id: 'gridInsert', structure: 'gridInsert', match: { body: 'slot', crossing: true, grid: true } }] },
   {
-    id: 'shelf', title: 'card.shelf', word: 'card.shelf.word', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: [],
+    id: 'shelf', title: 'card.shelf', word: 'card.shelf.word', group: 'more', status: 'beta', view: { dir: 'high', prop: 'goods' }, challenges: ['sbc-rack'],
     variants: [
       { id: 'shelf', structure: 'shelf', match: { body: 'slot', shelves: true } },
       // milestone 172 (boxes.py's StorageRack): rails instead of shelves between the lowest and the highest

@@ -4,12 +4,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { FONTS } from '../src/text/fonts';
 import { registerFont } from '../src/text/registerFont';
-import { setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
+import { addDetail, setLidHasps, addText, autoConnect, createDesign, parentConnection, setMaterial, solve, setPanelSize, addRootPanel, growPanel, setDividerOffset } from '../src/model/ops';
 import { MATERIALS } from '../src/model/materials';
 import { boxLid, setBoxLid } from '../src/easy/lid';
 import { MISSIONS, missionById, missionState, placeContents, startMission } from '../src/easy/missions';
 import { defaults, generate, regenerate, templateById } from '../src/templates/registry';
-import { frontWall, mainTray } from '../src/templates/structures/box';
+import { addSpaces, frontWall, mainTray } from '../src/templates/structures/box';
 import { dividerLine } from '../src/easy/recipes';
 import { dividersOn } from '../src/model/dividers';
 import { capacity, compartments, contentFit } from '../src/easy/objects';
@@ -87,6 +87,60 @@ const SOLVE: Record<string, (d: Design) => Design> = {
     engrave(d, wall(d, d.trays[tray].baseId, 'e0'), 'Look under');
     return d;
   },
+  // milestones 178 (part 2) and 179: boxes.py's challenges
+  'wall-tray': (d) => {
+    // six spaces, three across and two front to back; the dice into one of them
+    const tray = mainTray(d)!;
+    addSpaces(d, tray, { spacesBy: 'count', nx: 3, ny: 2 });
+    solve(d);
+    d.contents = placeContents(d, [{ object: 'dice', count: 3 }]);
+    engrave(d, frontWall(d, tray)!, 'Ori');
+    return d;
+  },
+  'card-box': (d) => {
+    const tray = mainTray(d)!;
+    addSpaces(d, tray, { spacesBy: 'count', nx: 2, ny: 1 });
+    solve(d);
+    d.contents = placeContents(d, [{ object: 'deck', count: 1 }]);
+    engrave(d, frontWall(d, tray)!, 'Noa');
+    return d;
+  },
+  'display-case': (d) => {
+    const tray = mainTray(d)!;
+    const front = frontWall(d, tray)!;
+    const p = d.panels[front];
+    addDetail(d, front, 'rect', 'cut', p.w / 2, p.h * 0.45, p.w * 0.5, p.h * 0.4);
+    engrave(d, wall(d, d.trays[tray].baseId, 'e1'), 'Dan');
+    solve(d);
+    return d;
+  },
+  'traffic-light': (d) => {
+    const tray = mainTray(d)!;
+    const front = frontWall(d, tray)!;
+    const p = d.panels[front];
+    for (const k of [0.25, 0.5, 0.75]) addDetail(d, front, 'circle', 'cut', p.w / 2, p.h * k, 36, 36);
+    const w = wall(d, d.trays[tray].baseId, 'e1');
+    const id = stickerRecipe(d, w, STICKERS[0].polys, d.panels[w].w / 2, d.panels[w].h / 2, 12)!;
+    fitShape(d, id);
+    solve(d);
+    return d;
+  },
+  'sbc-rack': (d) => {
+    // a Raspberry Pi's four holes (58 × 49 mm apart, M2.5) in the second shelf
+    const s = d.panels['t:shelf-2'];
+    for (const [dx, dy] of [[-29, -24.5], [29, -24.5], [-29, 24.5], [29, 24.5]]) addDetail(d, s.id, 'circle', 'cut', s.w / 2 + dx, s.h / 2 + dy, 2.7, 2.7);
+    solve(d);
+    return d;
+  },
+  'game-insert': (d) => {
+    // four spaces across; a lid that lifts off; the deck and dice put in
+    const tray = mainTray(d)!;
+    addSpaces(d, tray, { spacesBy: 'count', nx: 4, ny: 1 });
+    setBoxLid(d, tray, 'liftoff');
+    solve(d);
+    d.contents = placeContents(d, [{ object: 'deck', count: 1 }, { object: 'dice', count: 8 }]);
+    return d;
+  },
 };
 
 describe('missions', () => {
@@ -132,7 +186,8 @@ describe('missions', () => {
   });
 
   it('the registry has the four first missions and the Escape box', () => {
-    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box']);
+    // milestones 178 (part 2) and 179: boxes.py's challenges after them
+    expect(MISSIONS.map((m) => m.id)).toEqual(['pencil-box', 'dice-tray', 'card-stand', 'game-organiser', 'escape-box', 'wall-tray', 'card-box', 'display-case', 'traffic-light', 'sbc-rack', 'game-insert']);
     expect(missionById('pencil-box')?.goals.length).toBeGreaterThan(2);
   });
 });
