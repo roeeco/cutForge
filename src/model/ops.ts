@@ -2957,6 +2957,8 @@ export type FreePanelSpec = {
   side: 1 | -1;
   /** The outline in (u, v), edge i from point i to point i + 1; either winding. */
   outer: P2[];
+  /** Each outline edge's name (default `e<i>`): a made board trimmed where it meets another keeps its face's edge names (milestone 187). */
+  edgeIds?: string[];
   /** Holes through it, each made a cut-out shape. */
   holes?: P2[][];
   /** The face of a shape it was made from. */
@@ -2981,11 +2983,12 @@ export function addFreePanel(d: Design, spec: FreePanelSpec): string | null {
     v = [-v[0], -v[1], -v[2]];
   }
   // counter-clockwise, each edge keeping its name (edge i runs from point i to point i + 1 as given)
-  let edgeIds = pts.map((_, i) => `e${i}`);
+  const names = spec.edgeIds?.length === pts.length ? spec.edgeIds : pts.map((_, i) => `e${i}`);
+  let edgeIds = names.slice();
   if (polygonArea(pts) < 0) {
     const n = pts.length;
     pts = pts.map((_, j) => pts[(n - j) % n]);
-    edgeIds = pts.map((_, j) => `e${(2 * n - j - 1) % n}`);
+    edgeIds = pts.map((_, j) => names[(2 * n - j - 1) % n]);
   }
   const side = 1 as const;
   const id = spec.id && !d.panels[spec.id] ? spec.id : newId('p');

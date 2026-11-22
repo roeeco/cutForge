@@ -140,3 +140,56 @@ describe('overlap areas (milestone 186: convex pairs without a sweep)', () => {
     }
   });
 });
+
+describe('boards that meet at a point or past a joint, in plywood (milestone 187)', () => {
+  const PLY = MATERIALS[3];
+  const boards = (shapes: S[], group = false) => {
+    const d = createWaffleDesign(PLY);
+    d.id = 'boards-test';
+    const ids = shapes.map((s) => addShape(d, s));
+    if (group) groupShapes(d, ids);
+    const P = shapePolyhedron(k, d.sculpt!, 8);
+    const r = reassemble(d, P, { as: 'boards' });
+    autoConnect(d);
+    return { d, P, r };
+  };
+  const clashes = (d: Design) => validate(d).map((i) => i.key).filter((x) => x === 'val.collide' || x.startsWith('val.notJoined') || x === 'val.broken');
+
+  it('a pyramid, a cone, a loft, an obelisk, a diamond, a wedge and a sphere: no board runs into another, none lost', () => {
+    for (const [shapes, group] of [
+      [[P('pyramid', 80, 80, 80)], false],
+      [[P('cone', 80, 100, 80)], false],
+      [[P('loft', 80, 80, 80)], false],
+      [[P('box', 50, 120, 50), P('pyramid', 50, 30, 50, {}, [0, 120, 0])], true],
+      [[P('gem', 80, 60, 80)], false],
+      [[P('wedge', 80, 50, 100)], false],
+      [[P('sphere', 100, 100, 100)], false],
+    ] as const) {
+      const { d, P: poly, r } = boards([...shapes], group);
+      expect(d.order).toHaveLength(Object.keys(poly.faces).length);
+      expect(clashes(d)).toEqual([]);
+      expect(r.issues.filter((i) => i.kind === 'corner')).toEqual([]);
+    }
+  });
+
+  it("a trimmed board stays inside its face and keeps its face's edge names", () => {
+    const { d, P: poly } = boards([P('cone', 80, 100, 80)]);
+    const trimmed = d.order.map((id) => d.panels[id]).filter((p) => p.sketch.kind === 'poly' && p.sketch.edgeIds.some((x) => x.startsWith('r')));
+    expect(trimmed.length).toBeGreaterThan(0);
+    for (const p of trimmed) {
+      const f = poly.faces[p.src!.face];
+      if (p.sketch.kind !== 'poly') continue;
+      // each face edge that is left keeps its name; the trim's own edges are r0, r1…
+      expect(p.sketch.edgeIds.filter((x) => x.startsWith('e')).every((x) => Number(x.slice(1)) < f.outer.length)).toBe(true);
+      expect(new Set(p.sketch.edgeIds).size).toBe(p.sketch.edgeIds.length);
+    }
+  });
+
+  it('a wedge in plywood: its sharp edge is glued, the smaller board standing on the slope', () => {
+    const { d, P: poly } = boards([P('wedge', 80, 50, 100)]);
+    const butt = Object.values(d.connections).find((c) => c.kind === 'butt' && c.b.edge === 'face');
+    expect(butt).toBeTruthy();
+    expect(poly.edges[butt!.src!].dihedral).toBeLessThan(30);
+    expect(d.panels[butt!.b.panelId].src!.face).toMatch(/slope$/);
+  });
+});

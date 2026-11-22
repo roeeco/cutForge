@@ -1101,8 +1101,9 @@ function grownGlue(d: Design, c: Connection, P: Panel, C: Panel): ConnGeom {
 function seamGeom(d: Design, c: Connection): ConnGeom | null {
   const A = d.panels[c.a.panelId], B = d.panels[c.b.panelId];
   if (!A || !B) return null;
-  // a hole's wall glued round its rim (milestone 186)
-  if (c.b.edge === FACE) return c.kind === 'glue' ? rimGlue(d, c) : null;
+  // a hole's wall glued round its rim (milestone 186); a trimmed board glued edge to face where a corner takes no
+  // joint (milestone 187): nothing is cut
+  if (c.b.edge === FACE) return c.kind === 'glue' ? rimGlue(d, c) : c.kind === 'butt' ? empty() : null;
   const f = seamFit(A, c.a.edge, B, c.b.edge);
   if (!f) return null;
   if (c.kind === 'glue') return seamGlue(d, c, f);

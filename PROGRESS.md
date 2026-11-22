@@ -2639,6 +2639,14 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - On card, shapes with export problems: 14 of 40 → 2 (a 0.5 mm step's slivers; two boxes touching along an edge only). Plywood is unchanged: boards meeting only at a corner still collide, listed with the rest in `MAKE_ENGINE_REVIEW.md` §3.
 - `tests/makeEngine.test.ts` (7); `npm test` 2102 passed (7 skipped); typecheck clean; `make-fold`, `make-boards` app specs pass. Looked at in the browser: the box flow, the cut plans of the L, the hole, the cylinder and the cone.
 
+## Milestone 187 (boards that meet at a point or past a joint, `MAKE_ENGINE_REVIEW.md` §3.1–3.2) ✅
+
+- *Build from boards* trims the smaller of two boards that meet at a single point, or along an edge too sharp or too flat for a joint (under 30°, over 150°): the part of it in the other board's slab is cut off its outline (`src/model/boardRelief.ts`, called from `buildBoards`). At a point it keeps 0.3 mm clear; along an edge it stands on the other's inside face, glued there edge to face (a butt seam onto `'face'`, `joint.why.outsideAngle`; `seamGeom` draws nothing for it).
+- A trimmed board keeps its face's edge names (`addFreePanel` takes `edgeIds`; the trim's own edges are `r0`, `r1`…), so the joints still match the face graph; a trimmed outline the board refuses falls back to the face, never a lost board.
+- `polygon-clipping` fails on these shapes in three ways (a corner cut returned as a touching hole, "nothing left" for a long sliver, a throw on collinear sides): the convex clash is clipped by our own Sutherland–Hodgman and each subtraction checked against our own area, retried a hair wider.
+- Plywood 3 mm, shapes with export problems 18 of 40 → 8 (sphere 144 collisions → 0, diamond 44 → 0, cone 20 → 0, obelisk 10 → 0, loft 8 → 0; wedge, half sphere, rounded box clean). Corrugated boards likewise. Card folds unchanged.
+- `tests/reassemble.test.ts`: the diamond's sharp corners are now glued edge to face, not listed; `tests/makeEngine.test.ts` (+3). `npm test` 2105 passed (7 skipped); typecheck clean; `make-boards`, `make-fold` app specs pass. Looked at in the browser: the plywood pyramid's cut plan and 3D model.
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

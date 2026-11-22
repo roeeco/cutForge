@@ -4,7 +4,7 @@
 // chooser's flap or lock. *Build from boards*: a board on each face, material inward (the
 // shape is the outside), corners found as for any box and given the chooser's joint.
 // Pure and deterministic: ids come from keys, the unfolder's seed is the design's id.
-import type { Connection, ConnectionKind, Design, MakeSpec, MaterialProfile, Panel } from './types';
+import type { Connection, ConnectionKind, Design, MakeSpec, MaterialProfile, Panel, V3 } from './types';
 import type { EdgeKey, FaceKey, PEdge, Polyhedron } from './polyhedron';
 import { polyIssues, type PolyIssue } from './polyhedron';
 import { addFreePanel, autoConnect, solve } from './ops';
@@ -12,8 +12,12 @@ import { addSeamNet, boardId, seamId } from './seamNet';
 import { islandOrder, unfold, type Unfolding, type UnfoldIssue, type UnfoldSpec } from './unfold';
 import { netGroups, netOverlaps } from './pieces';
 import { chooseJoint, closingFace, type SeamCtx, type SeamRole } from './jointChoice';
-import { cornerFit } from './seams';
-import { FACE, findEdge } from './edges';
+import { cornerFit, MAX_CORNER, MIN_CORNER } from './seams';
+import { boardReliefs } from './boardRelief';
+import { FACE, findEdge, panelEdges } from './edges';
+import { edgeWorld, matDir } from './frame';
+import { tOf } from './materials';
+import { v3dot, v3len, v3norm, v3sub } from '../geom/v3';
 import type { MsgKey } from '../i18n';
 
 export type MakeIssue = { kind: 'poly'; issue: PolyIssue } | { kind: 'unfold'; issue: UnfoldIssue } | { kind: 'corner'; edge: EdgeKey; dihedral: number } | { kind: 'empty' } | { kind: 'noLast' } | { kind: 'holeWall'; n: number };
@@ -352,9 +356,15 @@ function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProf
   if (!last) issues.push({ kind: 'noLast' });
   const ids: Record<FaceKey, string> = {};
   const order = faces.filter((f) => !walls.includes(f.key)).map((f) => f.key).sort((a, b) => (a === last ? 1 : b === last ? -1 : Math.abs(P.faces[b].area) - Math.abs(P.faces[a].area) || (a < b ? -1 : 1)));
+  // boards that meet at a point, or at an edge too sharp or too flat for a joint: the smaller is trimmed where it
+  // would run into the other (milestone 187); an edge that takes a joint is cut back by its joint
+  const relief = boardReliefs(P, order, mat.thickness, (e) => e.dihedral >= MIN_CORNER - 1e-6 && e.dihedral <= MAX_CORNER + 1e-6);
   for (const k of order) {
     const f = P.faces[k];
-    const id = addFreePanel(d, { id: boardId(k), name: `${d.order.length + 1}`, frame: f.frame, side: -1, outer: f.outer, holes: f.holes, src: k });
+    const r = relief[k];
+    const base = { id: boardId(k), name: `${d.order.length + 1}`, frame: f.frame, side: -1 as const, holes: f.holes, src: k };
+    // a trimmed outline the board refuses (not simple): the face as it is, never a lost board
+    const id = (r && addFreePanel(d, { ...base, outer: r.outer, edgeIds: r.edgeIds })) || addFreePanel(d, { ...base, outer: f.outer });
     if (id) ids[k] = id;
   }
   solve(d);
@@ -389,10 +399,39 @@ function buildBoards(d: Design, P: Polyhedron, spec: MakeSpec, mat: MaterialProf
     if (c.kind === 'tabslot' && last && ids[last] === c.b.panelId) [c.a, c.b] = [c.b, c.a];
     c.auto = false;
   }
+  // an edge too sharp or too flat for a joint, where one board was trimmed to stand on the other's inside face: glued
+  // there edge to face (milestone 187)
+  for (const [k, r] of Object.entries(relief))
+    for (const b of r.butts) {
+      const e = P.edges[b.edge];
+      const A = d.panels[ids[k]], B = d.panels[ids[b.on]];
+      if (!e || !A || !B || joined.has(e.key)) continue;
+      const edge = buttEdge(A, B, e, tOf(d, B.id));
+      if (!edge) continue;
+      const id = `s:${e.key}`;
+      d.connections[id] = { id, kind: 'butt', pref: 'butt', a: { panelId: A.id, edge }, b: { panelId: B.id, edge: FACE }, grown: false, angle: e.dihedral, dir: 'up', offset: 0, fingers: null, tabs: null, flap: null, foldDir: 'valley', auto: false, seam: true, src: e.key, why: 'joint.why.outsideAngle' };
+      joined.add(e.key);
+    }
   for (const e of Object.values(P.edges))
     if (ids[e.a] && ids[e.b] && !joined.has(e.key) && e.ea.ring === 0 && e.eb.ring === 0) issues.push({ kind: 'corner', edge: e.key, dihedral: e.dihedral });
   solve(d);
   return { issues };
+}
+
+/** The edge of trimmed board A that stands on board B's inside face along face-graph edge e (its longest such), or null. */
+function buttEdge(A: Panel, B: Panel, e: PEdge, tB: number): string | null {
+  const m = matDir(B.frame);
+  const dir = v3norm(v3sub(e.q, e.p));
+  let best: string | null = null, bl = 1;
+  for (const x of panelEdges(A)) {
+    const [w0, w1] = edgeWorld(A, x.key);
+    const L = v3len(v3sub(w1, w0));
+    if (L <= bl || Math.abs(v3dot(v3sub(w1, w0), dir)) / L < 0.99) continue;
+    // its outer corners lie within B's thickness of B's inside face (the trim stops it there, at any angle)
+    const depth = (w: V3) => v3dot(v3sub(w, B.frame.o), m);
+    if ([w0, w1].every((w) => depth(w) > -0.05 && depth(w) < 2 * tB + 0.05)) (best = x.key), (bl = L);
+  }
+  return best;
 }
 
 /**

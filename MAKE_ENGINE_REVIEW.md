@@ -41,28 +41,31 @@ app specs pass.
 
 ## 3. Still open, most useful first
 
-### 3.1 Plywood: boards collide where they meet only at a corner
-*Build from boards* on a pyramid (2), cone (20), loft (8), obelisk (10), diamond (44), sphere (144):
-every one is two boards that share **one point** of the shape (an apex, the corner of a loft).
-Boards stand inside the faces, so near a point where several meet at angles other than 90°,
-their thickness runs into each other. The engine cuts boards back along shared **edges**
-(`cornerDepths`) but never at **vertices**.
+### 3.1–3.2 Boards meeting at a point, and corners outside 30–150° — fixed in milestone 187
+*Build from boards* stood a board inside every face, but only edges that take a joint were cut
+back. Boards meeting at a single point (a pyramid's apex, a cone's tip, a loft's corners, the
+obelisk's shoulders) ran into each other, and edges sharper than 30° or flatter than 150° (a
+wedge's tip, a diamond's crown, a sphere's facets, rounded corners) were left unjoined and
+colliding.
 
-*How:* after the corners are joined (`buildBoards`), for each vertex of the face graph where
-three or more boards meet: for each board, the part of its slab (its outline × thickness) that
-lies inside a neighbour's slab, projected onto the board, is cut off its outline (a small notch or
-bevel-free chamfer at that corner, `polygon-clipping` difference in the board's own plane). Pure,
-in `src/model/reassemble.ts` or a new `vertexRelief.ts`; tests on the pyramid and the loft.
+Now (`src/model/boardRelief.ts`, used by `buildBoards`): of each such pair the smaller board
+gives way. The part of it that would lie in the other board's slab is cut off its outline, the
+face's edges keeping their names so the joints still match the face graph. At a point it keeps
+0.3 mm clear; along an edge it stands on the other board's inside face and is glued there
+edge to face (a butt seam onto `'face'`, reason *Glued edge to edge…*). Plywood 3 mm, shapes
+with export problems 18 of 40 → 8; the sphere (144 collisions, 24 unjoinable corners), the
+diamond, the cone, the loft, the obelisk, the wedge, the half sphere and the rounded box are
+clean. Corrugated boards the same (sphere, diamond, wedge, rounded box, half sphere clean).
 
-### 3.2 Plywood: corners outside 30–150° get no joint
-Sphere (24), half sphere (12), diamond crown (8), wedge tip, rounded corners (8), a torus (32):
-listed as *corner* problems, the boards just touch (and the torus's are broken).
+Two things learnt about `polygon-clipping` on the way, for whoever touches this next: it returns
+a region touching an outline's corner as a hole rather than a cut, it can answer "nothing left"
+for a long sliver at a corner, and it throws when two sides lie on one line (boards at right
+angles). The clash region is convex, so it is clipped with our own Sutherland–Hodgman and every
+subtraction is checked against our own area.
 
-*How:* two kinds. (a) **Near flat** (over 150°, facets of a curve): fewer, larger boards: choose the
-facet count for boards so neighbouring facets meet at 150° or less (8 a turn does, 12 does not),
-or glue a backing strip (a cleat cut from the same board) behind the seam. (b) **Sharp** (under 30°,
-a wedge's edge): blunt the tip, cut both boards back to where they are a thickness apart and butt
-them on that flat; or offer the living hinge once it is no longer parked.
+Still open on boards: the torus (64 boards, 16 broken joints, 5 s), a bitten sphere and a hull
+(1–2 collisions each), twin spheres (11 broken tab-and-slot joints from the general joiner,
+as before), and hole walls still left out on boards (listed).
 
 ### 3.3 Faces around a curve ignore the size and the material
 Every curved shape gets 12 faces a turn on card and 8 on boards, whatever its size. A 20 mm

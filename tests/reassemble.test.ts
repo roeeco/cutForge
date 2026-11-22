@@ -90,10 +90,16 @@ describe('Build from boards (engine)', () => {
     expect(buildPieces(d)).toHaveLength(6);
   });
 
-  it('corners outside 30–150° are listed (a diamond in plywood)', () => {
+  it('corners outside 30–150° are glued edge to face, one board trimmed to stand on the other (a diamond in plywood, milestone 187)', () => {
     const d = createDesign(PLY);
-    const r = reassemble(d, diamondSolid(8, 45, 15, 40), { as: 'boards' });
-    expect(r.issues.some((i) => i.kind === 'corner' && (i.dihedral < 30 || i.dihedral > 150))).toBe(true);
+    const P = diamondSolid(8, 45, 15, 40);
+    expect(Object.values(P.edges).some((e) => e.dihedral < 30 || e.dihedral > 150)).toBe(true);
+    const r = reassemble(d, P, { as: 'boards' });
+    expect(r.issues.filter((i) => i.kind === 'corner')).toEqual([]);
+    const butts = Object.values(d.connections).filter((c) => c.kind === 'butt' && c.b.edge === 'face');
+    expect(butts.length).toBeGreaterThan(0);
+    expect(butts.every((c) => !c.broken && c.why === 'joint.why.outsideAngle' && P.edges[c.src!] && (P.edges[c.src!].dihedral < 30 || P.edges[c.src!].dihedral > 150))).toBe(true);
+    expect(validate(d).map((i) => i.key).filter((k) => k === 'val.collide' || k.startsWith('val.notJoined'))).toEqual([]);
   });
 
   it('a corrugated 4 mm house: tabs where the corners allow, glue past 150°', () => {
