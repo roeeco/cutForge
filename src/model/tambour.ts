@@ -169,38 +169,57 @@ export type StripBoard = { id: string; leg: number; y0: number; y1: number };
 
 /**
  * A strip of boards `width` wide (centred on the plane, across it) on a path from u0 to u1 along its neutral line,
- * each corner a band of the path's radius: the first board a free board, each next one grown off the one before.
- * Its boards in order, or null when an end lies in a band (or too near one).
+ * each corner a band of the path's radius: one board a free board (the first, or the one on leg `rootLeg`: milestone
+ * 175, so both ends of a wrap are boards grown off others and can swing), each other grown off its neighbour towards
+ * the root. Its boards in path order, or null when an end lies in a band (or too near one).
  */
-export function addFlexStrip(d: Design, pl: FlexPlane, p: FlexPath, width: number, u0: number, u1: number): StripBoard[] | null {
+export function addFlexStrip(d: Design, pl: FlexPlane, p: FlexPath, width: number, u0: number, u1: number, rootLeg?: number): StripBoard[] | null {
   const a = legAt(p, u0), b = legAt(p, u1);
   if (!a || !b || endRoom(p, u0, u1) < 2) return null;
   const sp = legSpans(p);
   const t = p.t;
-  const out: StripBoard[] = [];
-  // the first board: from u0 to the end of its leg's outer face (a sharp corner), or to u1
-  const ax = legAxes(p, a.leg);
+  const r = rootLeg !== undefined && rootLeg >= a.leg && rootLeg <= b.leg ? rootLeg : a.leg;
+  // the root: on its leg from u0 (or the leg's start corner) to u1 (or its end corner), sharp corners as a fold keeps them
+  const ax = legAxes(p, r);
   const dir = d3(pl, ax.dir), nIn = d3(pl, ax.n);
   const u = v3cross(dir, nIn);
-  const L0 = (a.leg === b.leg ? b.x : legAxes(p, a.leg).L) - a.x;
-  const start = v3sub(w3(pl, { x: p.pts[a.leg].x + ax.dir.x * a.x, y: p.pts[a.leg].y + ax.dir.y * a.x }), v3mul(u, width / 2));
+  const x0 = r === a.leg ? a.x : 0, x1 = r === b.leg ? b.x : ax.L;
+  const L0 = x1 - x0;
+  const start = v3sub(w3(pl, { x: p.pts[r].x + ax.dir.x * x0, y: p.pts[r].y + ax.dir.y * x0 }), v3mul(u, width / 2));
   const root = addFreePanel(d, { frame: { o: start, u, v: dir }, side: 1, outer: [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: L0 }, { x: 0, y: L0 }] });
   if (!root) return null;
   solve(d);
-  out.push({ id: root, leg: a.leg, y0: 0, y1: a.leg === b.leg ? L0 : sp[a.leg].hi - a.x });
-  let prev = root;
-  for (let i = a.leg + 1; i <= b.leg; i++) {
-    const last = i === b.leg;
-    const h = (last ? b.x : legAxes(p, i).L) - t;
-    const g = growPanel(d, prev, 'e2', { height: h, angle: 90, dir: 'up', kind: 'fold' });
+  const rootBoard: StripBoard = { id: root, leg: r, y0: (r === a.leg ? a.x : sp[r].lo) - x0, y1: (r === b.leg ? b.x : sp[r].hi) - x0 };
+  const grow = (from: string, edge: 'e0' | 'e2', h: number): string | null => {
+    const g = growPanel(d, from, edge, { height: h, angle: 90, dir: 'up', kind: 'fold' });
     if (!g) return null;
     d.connections[g.connectionId].radius = p.Ro - t;
     solve(d);
-    out.push({ id: g.panelId, leg: i, y0: p.Ro - t, y1: (last ? b.x : sp[i].hi) - t });
-    prev = g.panelId;
+    return g.panelId;
+  };
+  // forward: each board from its leg's start corner, its own y from t past it
+  const after: StripBoard[] = [];
+  let prev = root;
+  for (let i = r + 1; i <= b.leg; i++) {
+    const last = i === b.leg;
+    const id = grow(prev, 'e2', (last ? b.x : legAxes(p, i).L) - t);
+    if (!id) return null;
+    after.push({ id, leg: i, y0: p.Ro - t, y1: (last ? b.x : sp[i].hi) - t });
+    prev = id;
+  }
+  // backward (milestone 175): each board from its leg's end corner back along it, off the root's start edge
+  const before: StripBoard[] = [];
+  prev = root;
+  for (let i = r - 1; i >= a.leg; i--) {
+    const last = i === a.leg;
+    const L = legAxes(p, i).L;
+    const id = grow(prev, i === r - 1 ? 'e0' : 'e2', L - (last ? a.x : 0) - t);
+    if (!id) return null;
+    before.push({ id, leg: i, y0: p.Ro - t, y1: L - (last ? a.x : sp[i].lo) - t });
+    prev = id;
   }
   solve(d);
-  return out;
+  return [...before.reverse(), rootBoard, ...after];
 }
 
 /** The spacing of a strip's bands' slits (the closest), and their columns, in order along it; null when it has none. */

@@ -56,3 +56,31 @@ export function stripTrimmed(d: Design, p: Panel): Panel {
   if (pts.some((q) => !q)) return p;
   return { ...p, sketch: { kind: 'poly', pts: pts as { x: number; y: number }[], edgeIds: lines.map((l) => l.key) } };
 }
+
+/**
+ * The doors of a wrap that opens (milestone 175, E3): a strip's boards that hang on one band and are joined to nothing
+ * else, at the ends of a strip held by other boards (two or more: a wrap round side plates). A sliding door (a strip
+ * held by its handle alone) is not one. Each door's band (its connection), in design order.
+ */
+export function flexDoors(d: Design): Connection[] {
+  const cs = Object.values(d.connections);
+  const bands = cs.filter((c) => c.grown && c.kind === 'fold' && isStripBand(d, c));
+  if (!bands.length) return [];
+  // the strips: boards linked by bands
+  const up = new Map<string, string>();
+  const root = (x: string): string => (up.has(x) && up.get(x) !== x ? root(up.get(x)!) : x);
+  for (const c of bands) {
+    const a = root(c.a.panelId), b = root(c.b.panelId);
+    if (a !== b) up.set(b, a);
+  }
+  const of = (id: string) => cs.filter((c) => c.a.panelId === id || c.b.panelId === id);
+  const out: Connection[] = [];
+  for (const c of bands) {
+    const door = c.b.panelId;
+    if (of(door).length !== 1) continue;
+    const strip = new Set(bands.flatMap((x) => [x.a.panelId, x.b.panelId]).filter((id) => root(id) === root(door)));
+    const held = new Set(cs.filter((x) => strip.has(x.a.panelId) !== strip.has(x.b.panelId)).map((x) => (strip.has(x.a.panelId) ? x.b.panelId : x.a.panelId)));
+    if (held.size >= 2) out.push(c);
+  }
+  return out;
+}

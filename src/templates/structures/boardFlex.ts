@@ -10,9 +10,10 @@ import type { Design, MaterialProfile, P2, V3 } from '../../model/types';
 import type { MsgKey } from '../../i18n';
 import type { ParamDef, Params, TemplateDef } from '../types';
 import { SIZE_MAX } from '../types';
-import { laminateBoards, placeBoardOn, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, setWallCorner, addWallInsert, solve } from '../../model/ops';
+import { addDetail, addFreePanel, laminateBoards, placeBoardOn, connectSeams, deletePanel, growPanel, setCustomHeight, setPanelSize, setWallCorner, addWallInsert, solve } from '../../model/ops';
 import { straightRing, segInward, segLength } from '../../model/edges';
 import { minWeb } from '../../model/materials';
+import { toLocal, toWorld } from '../../model/frame';
 import { addFlexStrip, addStripHandle, endRoom, endRooms, insetPath, legAt, legSpans, pathBand, pathLength, slitStrip, stripReach, uAt, type FlexPath, type FlexPlane, type StripBoard } from '../../model/tambour';
 import { boardBoxRect, plywoodOnly } from './boards';
 import { slidePlay } from './boardBoxes';
@@ -421,6 +422,200 @@ export function minRadius(m: MaterialProfile, W: number): number {
 
 /** Can this plywood's living hinge make a roll-top box at all: the tightest corner it bends round fits the largest box. */
 export const bendsAtAll = (m: MaterialProfile, W: number) => minRadius(m, W) <= maxRadius('one', SIZE_MAX, SIZE_MAX);
+
+// --- the flex-door box (milestone 175) ---
+//   a flex-door box  a box lying on its side: two side plates (rounded rectangles) inside one wrap-around wall whose
+//                    four rounded corners are living-hinge bands; the wall's top is split, into two doors in the middle
+//                    (doubleflexdoorbox) or one door near an end (flexbox), each swinging open on the band at its
+//                    corner. The plates are held by tabs in slots in the wall's straight boards; under a door the
+//                    plate stands a little lower, so the door is free, and a tab rising from it sits in a slot near
+//                    the door's end: the latch, holding the door shut by its fit (boxes.py's latch, a test cut decides).
+
+export type Doors = 'two' | 'one';
+
+/** Where a flex-door box's parts are (the plates' plane: s along the box's length from its left end, y up), or why it cannot be made. */
+export type FlexLayout = {
+  doors: Doors;
+  W: number;
+  H: number;
+  D: number;
+  R: number;
+  t: number;
+  /** The wall's outer face's path (round the box from the split, leftwards over the top), and its root's leg (the bottom). */
+  path: FlexPath;
+  /** The plates' inset from the wall's edges, how much lower they stand under a door, the fit round a latch's tab. */
+  inset: number;
+  drop: number;
+  fit: number;
+  /** Where the top is split (s), the gap there, and how long a latch's tab is, how far from the door's end. */
+  split: number;
+  gap: number;
+  tab: { len: number; from: number };
+};
+
+/** The latch's tab: how long along the door (mm), for board `t`. */
+const latchLen = (t: number) => Math.max(10, 4 * t);
+/** How far a latch tab stands proud of its door (mm). */
+export const TAB_PROUD = 0.5;
+
+export function flexLayout(doors: Doors, W: number, H: number, D: number, R: number, t: number, clearance: number): FlexLayout | { why: MsgKey } {
+  const fit = Math.max(clearance, 0.2);
+  const inset = Math.max(3, t) + 1;
+  const drop = 1;
+  const gap = 1;
+  const len = latchLen(t), from = fit;
+  // one door: split near the right-hand corner, leaving a fixed piece of top to hold the plates there
+  const fixed = Math.max(20, 4 * t);
+  const split = doors === 'two' ? W / 2 : W - R - fixed;
+  if (R - t < 2 || W < 2 * R + 2 * (len + from + 3) || H < 2 * R + 10) return { why: 'sen.why.flexRoom' };
+  // each door's straight part takes its latch; the plates' straight sides their tabs
+  if (split - gap / 2 - R < len + from + 3) return { why: 'sen.why.flexRoom' };
+  const path: FlexPath = { pts: [{ x: split - gap / 2, y: H }, { x: 0, y: H }, { x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: split + gap / 2, y: H }], Ro: R, t, k: 0.5, turn: 1 };
+  if (D < 2 * inset + 2 * t + 10) return { why: 'sen.why.flexRoom' };
+  return { doors, W, H, D, R, t, path, inset, drop, fit, split, gap, tab: { len, from } };
+}
+
+/** An arc's points about (cx, cy), radius r, from angle a0 to a1 (degrees), every 7.5° or less. */
+const arcPts = (cx: number, cy: number, r: number, a0: number, a1: number): P2[] => {
+  const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 7.5));
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const a = ((a0 + ((a1 - a0) * i) / n) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  });
+};
+
+/**
+ * A side plate's outline (s, y): the wall's inside, its corners round the bands' inner faces; under a door its top a
+ * little lower, and a latch's tab rising from it near each door's end.
+ */
+export function plateOutline(L: FlexLayout): P2[] {
+  const { W, H, R, t, drop } = L;
+  const ri = R - t;
+  const top = H - t - drop;
+  // through the door, standing half a millimetre proud of it (an edge inside a board, or in its face, would be joined to it)
+  const tab = (x0: number, x1: number): P2[] => [{ x: x1, y: top }, { x: x1, y: H + TAB_PROUD }, { x: x0, y: H + TAB_PROUD }, { x: x0, y: top }];
+  // the latch's tab under a door's free end: the door's end at `end`, the door running away from it by `sgn`
+  const latch = (end: number, sgn: 1 | -1) => {
+    const a = end + sgn * L.tab.from, b = a + sgn * L.tab.len;
+    return sgn < 0 ? tab(b, a) : tab(a, b);
+  };
+  const pts: P2[] = [];
+  // bottom left, bottom right
+  pts.push(...arcPts(R, R, ri, 180, 270), ...arcPts(W - R, R, ri, 270, 360));
+  if (L.doors === 'two') {
+    // both top corners under doors: lower, their corners round the band's inside less the drop
+    pts.push(...arcPts(W - R + drop, H - R, ri - drop, 0, 90));
+    pts.push(...latch(L.split + L.gap / 2, 1));
+    pts.push(...latch(L.split - L.gap / 2, -1));
+  } else {
+    // the fixed piece's corner as the band's inside; the top steps down at the split, under the door
+    pts.push(...arcPts(W - R, H - R, ri, 0, 90), { x: L.split, y: H - t }, { x: L.split, y: top });
+    pts.push(...latch(L.split - L.gap / 2, -1));
+  }
+  pts.push(...arcPts(R - drop, H - R, ri - drop, 90, 180));
+  return pts;
+}
+
+/** The plane of the plates: s along x from the box's left end, y up; the wall's width across z. */
+const plateFrame = (W: number): FlexPlane => ({ O: [-W / 2, 0, 0] as V3, S: [1, 0, 0] as V3, Y: [0, 1, 0] as V3 });
+
+function generateFlexDoor(d: Design, p: Params, role: Role) {
+  const doors = (p.doors === 'one' ? 'one' : 'two') as Doors;
+  const W = Number(p.width), H = Number(p.height), D = Number(p.depth), R = Number(p.radius);
+  const t = d.material.thickness;
+  const L = flexLayout(doors, W, H, D, R, t, d.material.clearance);
+  if ('why' in L) return;
+  const pl = plateFrame(W);
+  // the wall: one strip round the plates from one side of the split to the other, held at its bottom
+  const wall = addFlexStrip(d, pl, L.path, D, 0, pathLength(L.path), 2);
+  if (!wall) return;
+  // the plates, inside the wall, each `inset` in from its edge (their tabs' slots have a web outside them)
+  const outline = plateOutline(L);
+  const plates: string[] = [];
+  for (const sgn of [1, -1] as const) {
+    const z = sgn * (D / 2 - L.inset);
+    const id = addFreePanel(d, { frame: { o: [-W / 2, 0, z], u: [1, 0, 0], v: [0, 1, 0] }, side: sgn > 0 ? -1 : 1, outer: outline });
+    if (id) plates.push(id);
+  }
+  solve(d);
+  // each door: a slot for each plate's latch tab near its end (the fit all round), and a finger notch in its end
+  const doorBoards = [wall[0], wall[wall.length - 1]].slice(0, doors === 'two' ? 2 : 1);
+  for (const b of doorBoards) {
+    const B = d.panels[b.id];
+    const first = b === wall[0];
+    // the door's end along its own y: the first board's end is its far one (it was grown back from the left end)
+    const yEnd = B.h;
+    for (const sgn of [1, -1] as const) {
+      const z = sgn * (D / 2 - L.inset) - (sgn * t) / 2;
+      // a notch from the door's end, the tab's fit all round it (and a millimetre past the end, so it is cut open)
+      const along = yEnd - (L.tab.len + 2 * L.fit) / 2 + 0.5;
+      // across the door: its local x from the world z
+      const at = toLocal(B.frame, toWorld(B.frame, 0, along, 0).map((c, i) => (i === 2 ? z : c)) as V3);
+      addDetail(d, b.id, 'rect', 'cut', at.x, along, t + 2 * L.fit, L.tab.len + 2 * L.fit + 1);
+    }
+    // a finger notch in the door's end, to lift it by
+    const notch = Math.min(16, D / 3);
+    addDetail(d, b.id, 'circle', 'cut', B.w / 2, yEnd, notch, notch);
+    void first;
+  }
+  solve(d);
+  for (const id of [...plates, ...wall.map((b) => b.id)]) connectSeams(d, id);
+  solve(d);
+  const first: Record<string, string> = {};
+  plates.forEach((id, i) => (first[`plate-${i + 1}`] = id));
+  wall.forEach((b, i) => (first[`wall-${i + 1}`] = b.id));
+  nameAll(d, role, first);
+}
+
+/** The tightest corner a flex-door box's wall bends round in this plywood, `D` wide (the outline's radius, mm). */
+export function flexMinRadius(m: MaterialProfile, D: number): number {
+  return Math.ceil(stripReach({ material: m } as unknown as Design, D) + m.thickness);
+}
+
+export const flexDoor: TemplateDef = {
+  id: 'flexDoor',
+  version: 1,
+  status: 'beta',
+  name: 'sen.flexDoor',
+  description: 'sen.flexDoor.desc',
+  word: 'sen.flexDoor',
+  materials: ['plywood'],
+  canMake: plywoodOnly,
+  fallback: () => 'box',
+  params: [
+    num('width', 'sen.flexLength', 100, 300, 140),
+    num('height', 'sen.height', 60, 300, 70),
+    num('depth', 'sen.depth', 40, 300, 60),
+    num('radius', 'sen.rollRadius', 15, 100, 25),
+    {
+      key: 'doors', label: 'sen.doors', type: 'choice', default: 'two',
+      options: (['two', 'one'] as const).map((v) => ({ value: v, label: `sen.doors.${v}` as MsgKey })),
+      allowed: (v, p, m) => cleanWith(flexDoor, m, p, 'doors', v),
+      why: () => 'sen.why.flexRoom',
+    },
+  ],
+  generate: generateFlexDoor,
+  sentence: { main: 'sen.s.flexDoor' },
+};
+flexDoor.limits = (m, p) => {
+  const out = sheetLimits(flexDoor, { width: 100, height: 60, depth: 40 })(m, p);
+  Object.defineProperty(out, 'radius', {
+    enumerable: true,
+    get: () => {
+      const hi = Math.max(15, Math.floor(Math.min((Number(p.height) - 10) / 2, (Number(p.width) - 60) / 2)));
+      return { min: Math.min(hi, flexMinRadius(m, Number(p.depth))), max: hi, why: 'sen.why.rollRadius' as MsgKey };
+    },
+  });
+  return out;
+};
+flexDoor.accepts = (m, p) => {
+  const D = Number(p.depth), R = Number(p.radius);
+  if (flexMinRadius(m, D) > 140) return 'sen.why.flexThick';
+  if (R < flexMinRadius(m, D) - 1e-6) return 'sen.why.rollRadius';
+  const L = flexLayout(p.doors === 'one' ? 'one' : 'two', Number(p.width), Number(p.height), D, R, m.thickness, m.clearance);
+  if ('why' in L) return L.why;
+  return cleanAll(flexDoor, m, p) ? null : 'sen.why.engineSize';
+};
 
 void legAt;
 export type { StripBoard };

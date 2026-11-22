@@ -2387,6 +2387,19 @@ export const en = {
   'style.breadBox': "Bread box",
   'style.breadBox.word': "a bread box",
   'style.breadBox.desc': "The door runs from the open front up over the top and away under the back's fixed top",
+  'card.flexDoor': "Flex-door box",
+  'card.flexDoor.word': "a flex-door box",
+  'sen.flexDoor': "a flex-door box",
+  'sen.flexDoor.desc': "A box on its side: a wall of living hinge round two side plates, its top split into doors that swing open on the rounded corners",
+  'sen.s.flexDoor': "I'd like to make {structure} {width} long, {height} tall and {depth} deep, its corners rounded {radius}, {doors}",
+  'sen.flexLength': "Length",
+  'sen.doors': "Doors",
+  'sen.doors.two': "its top two doors that meet in the middle",
+  'sen.doors.one': "its top one door, latched near the end",
+  'sen.why.flexRoom': "The doors and their latches need more room: make the box longer, taller or deeper, or the corners less round",
+  'style.flexBox': "Flex box, one door",
+  'style.flexBox.word': "a flex box with one door",
+  'style.flexBox.desc': "One door over the top, swinging open on a rounded corner, latched near the other",
 } as const;
 
 export type MsgKey = keyof typeof en;
