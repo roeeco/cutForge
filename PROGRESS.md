@@ -2615,6 +2615,17 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood184.test.ts`; `tests/missions.test.ts` has the reference solutions.
 - Not built: HobbyCase, Arcade, AirPurifier, CarbonFilter, Rack19HalfWidth, the latched hatches (`DECISIONS.md`).
 
+## Milestone 185 (every doable boxes.py design in plywood) ✅ verification
+
+- **The lane in numbers:** 74 cards and 123 variants over 73 structures (66 make plywood), 16 challenges; the sentence's first word lists 62 cards on plywood 3 mm (about 31 before milestone 171). Every card and word of milestones 171–184 is beta until cut (`BOXES_PLYWOOD_PLAN.md` §7, the test-cut list).
+- `npm run typecheck` clean; `npm run build` passes; `npm test`: 2078 passed (7 skipped), goldens byte-identical.
+- Look-alikes (`preset-sheet.spec`): none new in any board; contact sheets regenerated (`docs/preset-shots/sheet-*.png`).
+- **Found and fixed:** the first-word list on plywood took 22 s to work out (each of about 97 entries settling its sizes by bisecting the largest that lies on the sheet). A size is now checked by one build (`Limit.holds`), one under its least rises to it without the bisection, and the sheet limits stay lazy: 6 s. `start-sentence.spec` (every structure starts in every board) is one test per board.
+- **Every app spec** (`pw-app.config.ts`, 280): 192 passed, 62 skipped, 26 failed on the first run. None is caused by this lane once the list is quick:
+  - failing at milestone 160 as well: `quick.spec:13`, `sentence-card.spec:7`, `quick-revised.spec:92` (en, he), `gizmo.spec:50/252/376`, `refine.spec:25/341`, `through.spec:16`, `crash.spec:16`, `maintenance.spec:104`, `overhaul.spec:10`, `round.spec:27`, `topbar.spec:75`; `classroom.spec` (5) needs the Worker; `maintenance.spec:185` passes on its own;
+  - failing before milestone 171 too (checked on 4efeed9, after the presets-from-boards merge): `sentence.spec:13` (en, he: the keyboard walk), `topbar.spec:61` (Quick build 1280 × 800 and Hebrew 1024 × 768: the bar is 1 px too wide);
+  - `start-sentence.spec:25` was this lane's (the slow list): fixed, passes per board.
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

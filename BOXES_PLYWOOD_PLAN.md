@@ -22,6 +22,8 @@ Source: [florianfesti/boxes](https://github.com/florianfesti/boxes): 187 generat
 - **179 ✅** (22 November): the word *hang by* on every wall card (keyholes, or a stepped *cleat* glued face to face); ★ *Tool holder* (slotted, round holes, wrench, pliers), ★ *Hooks* (hook, key board, pin row), ★ *Roll holder*, ★ *Hopper*, ★ *Wall steps* (steps, drill stand, wall drill box); ⚑ *Wall tray* on the organiser. Not built: the caliper and plane holders (look-alikes of hooks and the one-shelf wall rack), WallStackableBin.
 - **184 ✅** (22 November): E9: on 787 × 488 the limits the sheet bounds open up (the rest end at the sentence's 300 mm); the drawer's one click for plywood's two sheets; a challenge larger than 600 × 400 starts on 787 × 488; *Split with keys*, a board larger than its sheet cut across into pieces joined by dovetail keys when the student asks. Enclosures: box lid *screwed* (corner blocks), *rack* (19-inch and 10-inch front panels, Eurorack rails); ⚑ *Electronics box*, ⚑ *19-inch rack box*, ⚑ *Seven-segment clock* (lidded box), ⚑ *Eurorack case* (open box), ⚑ *LED matrix box* (organiser). Not built: HobbyCase, Arcade, AirPurifier, CarbonFilter, latched hatches (175's latch does not serve). Details in `DECISIONS.md`.
 
+- **185 ✅**: verified (typecheck, build, 2078 unit tests, look-alikes, every app spec checked: none failing because of this lane); the first-word list sped up from 22 s to 6 s on plywood; the test cuts are §7.
+
 ## 0. In short
 
 - **Plywood only** (owner, 21 November). Every new card or variant here has `canMake: plywoodOnly`. The cards 161–169 made for 4 mm board keep it; nothing new is added for card or corrugated.
