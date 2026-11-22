@@ -39,11 +39,12 @@ export function pinSizes(t: number, pin: number) {
   // the wood round the hole: never under 2.5 mm, more on thick board
   const R = hole / 2 + Math.max(2.5, 0.8 * t);
   const e = R + SWING;
-  // a knuckle's leaf, where it stands on the lid or the wall: room for its tab and a web either side of its slot
-  const leaf = Math.max(12, 4 * t);
+  // a knuckle's leaf, where it stands on the lid or the wall: room for its tab (the middle third) and a web either side
+  // of its slot; the wall's shorter, so a low box (a dice box) takes the hinge
+  const leaf = Math.max(12, 3 * t), wallLeaf = Math.max(10, 2.5 * t);
   // the stop's face, which the open lid's top lands on
   const stop = t + 2;
-  return { hole, R, e, leaf, stop };
+  return { hole, R, e, leaf, wallLeaf, stop };
 }
 
 /** How wide one hinge is along the pin (mm). */
@@ -52,7 +53,7 @@ export const hingeWidth = (t: number, n = KNUCKLES, play = KNUCKLE_PLAY) => n * 
 /** The least width (mm) a box takes for two hinges, and the least height for the box's knuckles' leaves. */
 export function pinRoom(t: number, pin = pinFor(t)): { width: number; height: number } {
   const s = pinSizes(t, pin);
-  return { width: Math.ceil(4 * hingeWidth(t) + 4 * (t + 4)), height: Math.ceil(SWING + s.leaf + 2 + 2 * t) };
+  return { width: Math.ceil(3 * hingeWidth(t) + 2 * (t + 4)), height: Math.ceil(SWING + s.wallLeaf + 2 + t) };
 }
 
 type Rect = { x0: number; y0: number; x1: number; y1: number };
@@ -118,7 +119,7 @@ export function pinLayout(d: Design, trayId: string, h: Pick<PinLid, 'pin' | 'kn
   // a web of board (one hinge lets the lid twist: a box too narrow for two takes none)
   const gw = hingeWidth(t, h.knuckles, h.play);
   const margin = t + 4;
-  if (W < 4 * gw + 4 * margin || H - SWING - s.leaf < 2 * t + 2) return null;
+  if (W < 3 * gw + 2 * margin - 1e-9 || H - SWING - s.wallLeaf < t + 2 - 1e-9) return null;
   const centres = [W * 0.2, W * 0.8].map((c) => Math.min(Math.max(c, margin + gw / 2), W - margin - gw / 2));
   // in the knuckle's plane: x behind the back wall's outer face, y the world's height
   const e = s.e, R = s.R, ax = e, ay = Va;
@@ -129,7 +130,7 @@ export function pinLayout(d: Design, trayId: string, h: Pick<PinLid, 'pin' | 'kn
   const dir = { x: Math.cos(Math.PI - op), y: Math.sin(Math.PI - op) }, nrm = { x: Math.cos(Math.PI / 2 - op), y: Math.sin(Math.PI / 2 - op) };
   const q0 = { x: ax + e * dir.x + (t / 2) * nrm.x, y: ay + e * dir.y + (t / 2) * nrm.y };
   const q1 = { x: ax + (e + s.stop) * dir.x + (t / 2) * nrm.x, y: ay + (e + s.stop) * dir.y + (t / 2) * nrm.y };
-  const top = H - SWING, bottom = top - s.leaf;
+  const top = H - SWING, bottom = top - s.wallLeaf;
   const backX = Math.max(ax + R, q1.x + Math.max(3, t));
   const a0 = (Math.atan2(q0.y - ay, q0.x - ax) * 180) / Math.PI;
   // the round's front, down to the leaf's top
@@ -247,6 +248,20 @@ export function holeAt(K: Panel): V3 | null {
 
 /** Where a world point is on a knuckle (its local coordinates). */
 export const onKnuckle = (K: Panel, p: V3) => toLocal(K.frame, p);
+
+/**
+ * The boards that turn with a pin-hinged lid: it, and every board joined to it and on (its knuckles, a chest's crown
+ * built on it). The pin is no joint, so this never reaches the box.
+ */
+export function pinLidBoards(d: Design, lidId: string): string[] {
+  const out = [lidId];
+  for (let i = 0; i < out.length; i++)
+    for (const c of Object.values(d.connections)) {
+      const o = c.a.panelId === out[i] ? c.b.panelId : c.b.panelId === out[i] ? c.a.panelId : null;
+      if (o && d.panels[o] && !out.includes(o) && d.panels[o].knuckle?.on !== 'wall') out.push(o);
+    }
+  return out;
+}
 
 /** The box's walls a pin-hinged lid rests on: it covers them, and is held by its knuckles, not joined to them. */
 export function pinLidCovers(d: Design): [string, string][] {

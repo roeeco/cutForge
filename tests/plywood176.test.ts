@@ -17,7 +17,7 @@ import { boxLid, lidParts } from '../src/easy/lid';
 import { mainTray } from '../src/templates/structures/box';
 import { panelContacts, TOUCH_EPS } from '../src/model/contact';
 import { toLocal, toWorld } from '../src/model/frame';
-import { holeAt, knucklesOf, lidFront, PIN_PLAY, pinAxis, pinFor, pinHole, turnAbout, turnedFrame } from '../src/model/pinHinge';
+import { holeAt, knucklesOf, lidFront, PIN_PLAY, pinAxis, pinFor, pinHole, pinLidBoards, turnAbout, turnedFrame } from '../src/model/pinHinge';
 import { foldDisplay } from '../src/views/foldView';
 import { applyLidPoses } from '../src/views/lidPose';
 import { parseProject, serializeProject } from '../src/model/serialize';
@@ -43,6 +43,10 @@ export const CASES: [string, string, Params, string][] = [
   ['pin-hinge box', 'box', words('pinHinge'), 'pinHinge'],
   ['pin-hinge box, 4 mm pins, tall', 'box', { ...words('pinHinge'), pin: 4, height: 80 }, 'pinHinge'],
   ['pin-hinge box with spaces', 'box', { ...words('pinHinge'), spacesBy: 'count' }, 'pinHinge'],
+  ['dice box', 'diceBox', {}, 'diceBox'],
+  ['dice box, no magnets, outside', 'diceBox', { magnet: 'none', sizeAs: 'outside', width: 120, depth: 100, height: 40 }, 'diceBox'],
+  ['chest', 'chest', {}, 'chest'],
+  ['chest of three slats', 'chest', { slats: 3 }, 'chest'],
 ];
 
 /** A board's outline in another board's plane (local coordinates there), moved by `turn` first. */
@@ -141,8 +145,9 @@ describe('pin hinges (milestone 176, E5)', () => {
         for (const deg of [30, 60, 90, ax.open - 1]) {
           const turn = turnAbout(ax, lidFront(L), deg);
           const e = structuredClone(d) as Design;
-          for (const id of [L.id, ...lidKs.map((p) => p.id)]) e.panels[id].frame = turnedFrame(e.panels[id].frame, turn);
-          const moving = new Set([L.id, ...lidKs.map((p) => p.id)]);
+          // the lid and everything joined to it (its knuckles, a chest's crown)
+          const moving = new Set(pinLidBoards(d, L.id));
+          for (const id of moving) e.panels[id].frame = turnedFrame(e.panels[id].frame, turn);
           const hits = panelContacts(e, true).filter((c) => moving.has(c.a) !== moving.has(c.b) && c.depth > TOUCH_EPS);
           expect(hits, `${name} ${m.id} ${deg}°`).toEqual([]);
         }
@@ -199,8 +204,8 @@ describe('pin hinges (milestone 176, E5)', () => {
     expect(lid.allowed!('pins', defaults(box), P3)).toBe(true);
     expect(lid.allowed!('pins', { ...defaults(box), shape: 'poly' }, P3)).toBe(false);
     expect(lid.why!('pins', { ...defaults(box), shape: 'poly' }, P3)).toBe('sen.why.pinShape');
-    expect(lid.allowed!('pins', { ...defaults(box), width: 40 }, P3)).toBe(false);
-    expect(lid.why!('pins', { ...defaults(box), width: 40 }, P3)).toBe('sen.why.pinRoom');
+    expect(lid.allowed!('pins', { ...defaults(box), width: 30 }, P3)).toBe(false);
+    expect(lid.why!('pins', { ...defaults(box), width: 30 }, P3)).toBe('sen.why.pinRoom');
     // a hinged lid on plywood is still the living hinge, and is not a pin-hinge box
     const h = build('box', P3, words('hingedTray'));
     const l = boxLid(h, mainTray(h)!);

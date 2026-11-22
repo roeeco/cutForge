@@ -11,7 +11,7 @@ import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
 import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLayeredLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
-import { knucklesOf } from '../model/pinHinge';
+import { knucklesOf, pinLidBoards } from '../model/pinHinge';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
 import { topLidId, trayRing } from '../model/cartons';
 import { bendOf, matOf } from '../model/materials';
@@ -107,7 +107,7 @@ export function lidParts(d: Design, lid: BoxLid): string[] {
   if (lid.kind === 'none' || lid.kind === 'flaps') return [];
   if (lid.kind === 'liftoff') return [lid.top, ...grownOff(d, lid.top), ...placedOn(d, lid.top)];
   // milestone 176: a pin-hinged lid and its hinges' knuckles, the lid's and the box's
-  if (lid.kind === 'hinged' && lid.pins) return [lid.lid, ...knucklesOf(d, lid.lid).map((p) => p.id), ...placedOn(d, lid.lid)];
+  if (lid.kind === 'hinged' && lid.pins) return [...new Set([...pinLidBoards(d, lid.lid), ...knucklesOf(d, lid.lid).map((p) => p.id), ...placedOn(d, lid.lid)])];
   return [lid.lid, ...grownOff(d, lid.lid)];
 }
 

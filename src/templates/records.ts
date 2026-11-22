@@ -11,6 +11,7 @@ import { findEdge, segLength } from '../model/edges';
 import { MIN_EDGE } from '../model/trays';
 import { stacks } from '../model/stack';
 import { hasBand } from '../model/bands';
+import { knucklesOf, pinLidBoards, pinLids } from '../model/pinHinge';
 
 export type Body = 'tube' | 'cross' | 'flat' | 'folded' | 'stand' | 'slot' | 'solid' | 'free' | 'layers';
 
@@ -132,7 +133,12 @@ export type PresetRecord = {
   sieve?: boolean;
   /** Milestone 176: a box's lid hinged on pins (knuckles and a pin), not on a living hinge. */
   pins?: boolean;
+  /** Milestone 176: boards built up on a pin-hinged lid (a chest's crown of slats between two ends). */
+  crown?: boolean;
 };
+
+/** Milestone 176: the boards of pin-hinged lids (the lid, its knuckles, a crown built on it) and the box's knuckles: the lid's, not boards in the box. */
+const pinSide = (d: Design): Set<string> => new Set(pinLids(d).flatMap((L) => [...pinLidBoards(d, L.id), ...knucklesOf(d, L.id).map((p) => p.id)]));
 
 const boxTrays = (d: Design): Tray[] => Object.values(d.trays ?? {}).filter((t) => !t.lidOf);
 
@@ -232,8 +238,9 @@ function hasBaffles(d: Design, t: Tray, onBase = false): boolean {
   const onIt = (id: string) => Object.values(d.connections).some((c) => !c.grown && ((c.a.panelId === id && c.b.panelId === t.baseId) || (c.b.panelId === id && c.a.panelId === t.baseId)));
   // a board grown off another (a roof off a wall) is not one: baffles and ramps are boards of their own
   const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
+  const lid = pinSide(d);
   return Object.values(d.panels).some((p) => {
-    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id)) return false;
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id) || lid.has(p.id)) return false;
     if (onIt(p.id) !== onBase) return false;
     // how level it lies: its normal's upward part
     const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
@@ -261,9 +268,10 @@ function hasPlate(d: Design, t: Tray, strips = false): boolean {
   const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
   const base = d.panels[t.baseId];
   const room = base ? base.w * base.h : 0;
+  const lid = pinSide(d);
   return Object.values(d.panels).some((p) => {
     // milestone 173: a board laid on another (a base plate, a lid's plug) is a layer of it, not a plate
-    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id) || p.place?.host) return false;
+    if (walls.has(p.id) || p.id === t.baseId || p.lidOf || grown.has(p.id) || p.place?.host || lid.has(p.id)) return false;
     // milestone 169: a plate spans most of the inside; a strip (a rail) is narrow
     if ((sketchArea(p) < room * 0.25) !== strips) return false;
     const n = Math.abs(p.frame.u[2] * p.frame.v[0] - p.frame.u[0] * p.frame.v[2]);
@@ -306,7 +314,8 @@ function freeIn(d: Design, t: Tray, test: (p: Design['panels'][string]) => boole
   const walls = new Set(trayRing(d, t).map((r) => r.wall));
   const grown = new Set(Object.values(d.connections).filter((c) => c.grown).map((c) => c.b.panelId));
   // milestone 176: a pin hinge's lid and knuckles are the lid's, not boards in the box
-  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !p.pinLid && !p.knuckle && !p.divider && !p.place && !grown.has(p.id) && test(p));
+  const lid = pinSide(d);
+  return Object.values(d.panels).filter((p) => !walls.has(p.id) && p.id !== t.baseId && !p.lidOf && !lid.has(p.id) && !p.divider && !p.place && !grown.has(p.id) && test(p));
 }
 
 /** Milestone 178: a board of its own crossing one of a box's walls in a half-slot. */
@@ -474,6 +483,7 @@ export function recordOf(d: Design): PresetRecord {
       rec.lid = lid.kind;
       if (lid.kind === 'liftoff' && (lid.style === 'plug' || lid.style === 'brim')) rec[lid.style] = true;
       if (lid.kind === 'hinged' && lid.pins) rec.pins = true;
+      if (lid.kind === 'hinged' && lid.pins && pinLidBoards(d, lid.lid).some((id) => id !== lid.lid && !d.panels[id]?.knuckle)) rec.crown = true;
       const rim = rec.lid === 'liftoff' ? capRimOf(d, t.id) : null;
       if (rim === 'half' || rim === 'full') rec.rim = rim;
       rec.corner = t.cornerKind;
@@ -542,7 +552,7 @@ export function recordOf(d: Design): PresetRecord {
 }
 
 /** Pattern keys that, left out of a pattern, mean the record must not have them (a drawer is not a plain box). */
-const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins'];
+const FLAGS: (keyof PresetRecord)[] = ['relation', 'lean', 'slope', 'baffles', 'wrap', 'open', 'plate', 'ramp', 'roof', 'crossing', 'grid', 'shelves', 'holes', 'slant', 'tiers', 'rails', 'hang', 'jig', 'plug', 'brim', 'deep', 'disc', 'stack', 'sieve', 'loose', 'partitions', 'bothEnds', 'uneven', 'chute', 'crenels', 'openings', 'carry', 'combs', 'motor', 'pegs', 'foot', 'pins', 'crown'];
 
 /** Does a record fit a pattern (every key it names equal; the flags it leaves out false)? */
 export function fits(r: PresetRecord, pattern: Partial<PresetRecord>): boolean {
