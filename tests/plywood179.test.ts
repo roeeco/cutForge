@@ -34,6 +34,29 @@ const CLEATED: [string, string, Params, string][] = [
   ['pegboard', 'pegboard', { mount: 'cleat' }, 'pegboard'],
 ];
 
+/** The new cards and their variants: [name, structure, words, variant]. */
+const CASES: [string, string, Params, string][] = [
+  ['tool holder', 'toolHolder', {}, 'toolHolder'],
+  ['tool holder, 2 wide slots', 'toolHolder', { tools: 2, size: 30 }, 'toolHolder'],
+  ['tool holder, holes', 'toolHolder', words('toolHoles'), 'toolHoles'],
+  ['wrench holder', 'toolHolder', words('wrenchHolder'), 'wrenchHolder'],
+  ['pliers holder', 'pliersHolder', {}, 'pliersHolder'],
+  ['pliers holder, one bay', 'pliersHolder', { bays: 1 }, 'pliersHolder'],
+  ['hooks', 'wallHooks', {}, 'wallHooks'],
+  ['one big hook', 'wallHooks', { hooks: 1, mouth: 60 }, 'wallHooks'],
+  ['key board', 'wallHooks', words('keyBoard'), 'keyBoard'],
+  ['pin row', 'pinRow', {}, 'pinRow'],
+  ['pin row, 30°, 2 pins', 'pinRow', { angle: 30, pins: 2 }, 'pinRow'],
+  ['roll holder', 'rollHolder', {}, 'rollHolder'],
+  ['hopper', 'hopper', {}, 'hopper'],
+  ['wall steps', 'wallSteps', {}, 'wallSteps'],
+  ['wall steps, 2 with no holes', 'wallSteps', { steps: 2, hole: 0 }, 'wallSteps'],
+  ['drill stand', 'drillStand', {}, 'drillStand'],
+  ['drill stand, 2 rows of 1', 'drillStand', { rows: 2, columns: 1 }, 'drillStand'],
+  ['wall drill box', 'drillStand', words('wallDrillBox'), 'wallDrillBox'],
+];
+const NEW_CARDS = ['toolHolder', 'pliersHolder', 'wallHooks', 'pinRow', 'rollHolder', 'hopper', 'wallSteps', 'drillStand'];
+
 const check = (name: string, id: string, w: Params, v: string, ms = [P3, P8]) => {
   for (const m of ms) {
     const t = templateById(id)!;
@@ -44,6 +67,32 @@ const check = (name: string, id: string, w: Params, v: string, ms = [P3, P8]) =>
     expect(unjoined(d), `${name} ${m.id}`).toEqual([]);
   }
 };
+
+describe('the wall cards (milestone 179)', () => {
+  it('each builds clean on plywood 3 and 8 mm, is recognised as itself, and no board only rests', () => {
+    for (const [name, id, w, v] of CASES) check(name, id, w, v);
+  }, 240_000);
+
+  it('each hangs on a cleat as well, and is still itself', () => {
+    for (const [name, id, w, v] of CASES) {
+      if (id === 'drillStand' && v === 'drillStand') continue;
+      for (const m of [P3, P8]) {
+        const t = templateById(id)!, def = t.params.find((x) => x.key === 'hang') as ParamDef;
+        const p = { ...defaults(t), ...w };
+        // a back too low for a cleat at these sizes says so (a drill stand on 8 mm plywood)
+        if (!def.allowed!('cleat', p, m)) {
+          expect(def.why!('cleat', p, m), `${name} ${m.id}`).toBe('sen.why.cleatRoom');
+          continue;
+        }
+        check(`${name} on a cleat`, id, { ...w, hang: 'cleat' }, v === 'drillStand' ? 'wallDrillBox' : v, [m]);
+      }
+    }
+  }, 240_000);
+
+  it('the new cards are plywood only', () => {
+    for (const m of MATERIALS.filter((x) => x.kind !== 'plywood')) for (const id of NEW_CARDS) expect(makes(templateById(id)!, m), `${id} ${m.id}`).toBe(false);
+  });
+});
 
 describe('hang by screws or on a cleat (milestone 179)', () => {
   it('each wall card hangs on a cleat clean on plywood 3 and 8 mm, and is still itself', () => {

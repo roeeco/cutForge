@@ -87,7 +87,7 @@ export function keyholeShape(head = 9, shank = 4.5, rise = 10): { polys: { x: nu
  * Two keyholes near a board's top edge (or `below` it, mm), an eighth of its width in from each end (milestone 171), each marked as a
  * hole to hang by (`mount`), so the record knows the thing hangs. Its slot points up the board (+y).
  */
-export function hangByKeyholes(d: Design, panelId: string, below?: number): string[] {
+export function hangByKeyholes(d: Design, panelId: string, below?: number, inset?: number): string[] {
   const p = d.panels[panelId];
   if (!p) return [];
   const t = d.material.thickness;
@@ -95,7 +95,8 @@ export function hangByKeyholes(d: Design, panelId: string, below?: number): stri
   // the slot's top clear of the board's top edge by a web of two boards (never under 6 mm), or as far as asked
   const cy = p.h - (below ?? Math.max(6, 2 * t)) - k.h / 2;
   const out: string[] = [];
-  for (const x of [p.w * 0.125, p.w * 0.875]) {
+  // (milestone 179: or `inset` mm in from each end, clear of a box corner's fingers)
+  for (const x of inset === undefined ? [p.w * 0.125, p.w * 0.875] : [inset, p.w - inset]) {
     const id = addPathShape(d, panelId, k.polys, x, cy, k.w, k.h, 'cut');
     if (!id) continue;
     const dt = p.details.find((z) => z.id === id)!;
@@ -112,7 +113,13 @@ export function hangByKeyholes(d: Design, panelId: string, below?: number): stri
  * A stepped cleat's sizes on board `t` thick (mm): the glue band each layer shares with the next (`band`), how far the
  * hook drops behind the wall cleat's front layer (`drop`), and the play round it (`play`).
  */
-export const cleatSizes = (t: number) => ({ band: Math.max(20, 4 * t), drop: Math.max(12, 3 * t), play: Math.max(0.5, t / 6) });
+export const cleatSizes = (t: number) => ({ band: Math.max(20, 3 * t), drop: Math.max(12, 2.5 * t), play: Math.max(0.5, t / 6) });
+
+/** The least height a back needs for a cleat (its band, `below` its top) and a stand-off `foot` high at its foot (mm). */
+export const cleatHeight = (t: number, below: number, foot: number) => {
+  const c = cleatSizes(t);
+  return below + 2 * c.band + 3 * c.drop + 4 * c.play + foot + 4;
+};
 
 /** Where a cleat goes on a back, in mm from its edges (the caller keeps them clear of the back's slots). */
 export type CleatAt = {
@@ -210,8 +217,8 @@ export function cleatFits(def: TemplateDef, m: MaterialProfile, p: Params, key =
 }
 
 /** Hang a thing's back the way its words say: keyholes `below` its top, or a cleat placed as `at` says. Returns the cleat's boards. */
-export function hangThing(d: Design, p: Params, back: string, below?: number, at: CleatAt = {}): { name: string; id: string }[] {
+export function hangThing(d: Design, p: Params, back: string, below?: number, at: CleatAt = {}, inset?: number): { name: string; id: string }[] {
   if (hangBy(p.hang) === 'cleat') return hangByCleat(d, back, at);
-  hangByKeyholes(d, back, below);
+  hangByKeyholes(d, back, below, inset);
   return [];
 }

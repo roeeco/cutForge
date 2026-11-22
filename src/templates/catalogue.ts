@@ -271,6 +271,37 @@ export const CATALOGUE: Card[] = [
       { id: 'pegboardStand', structure: 'pegboard', style: 'pegboardStand', match: { body: 'slot', crossing: true, grid: true, pegs: true } },
     ],
   },
+  // milestone 179 (beta, plywood; BOXES_PLYWOOD_PLAN.md §3.3): things that hang on a wall, by keyholes or on a cleat
+  {
+    // boxes.py's WallSlottedHolder, WallChiselHolder, WallWrenchHolder and WallPliersHolder
+    id: 'toolHolder', title: 'card.toolHolder', word: 'card.toolHolder.word', group: 'more', status: 'beta', view: { dir: 'high' }, challenges: [],
+    variants: [
+      { id: 'toolHolder', structure: 'toolHolder', match: { body: 'slot', shelves: true, hang: true, notches: 'square' } },
+      { id: 'toolHoles', structure: 'toolHolder', style: 'toolHoles', match: { body: 'slot', shelves: true, hang: true, wells: true } },
+      { id: 'wrenchHolder', structure: 'toolHolder', style: 'wrenchHolder', match: { body: 'slot', shelves: true, hang: true, notches: 'angled' } },
+      { id: 'pliersHolder', structure: 'pliersHolder', match: { body: 'slot', hang: true, bar: true } },
+    ],
+  },
+  {
+    // boxes.py's WallHook, KeyHolder and WallPinRow
+    id: 'wallHooks', title: 'card.wallHooks', word: 'card.wallHooks.word', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [],
+    variants: [
+      { id: 'wallHooks', structure: 'wallHooks', match: { body: 'slot', hang: true, hooks: true } },
+      { id: 'keyBoard', structure: 'wallHooks', style: 'keyBoard', match: { body: 'slot', hang: true, hooks: true, shelves: true } },
+      { id: 'pinRow', structure: 'pinRow', match: { body: 'slot', hang: true, slant: true } },
+    ],
+  },
+  { id: 'rollHolder', title: 'card.rollHolder', group: 'more', status: 'beta', challenges: [], variants: [{ id: 'rollHolder', structure: 'rollHolder', match: { body: 'slot', hang: true, holes: true } }] },
+  { id: 'hopper', title: 'card.hopper', group: 'boxes', status: 'beta', view: { dir: 'side34' }, challenges: [], variants: [{ id: 'hopper', structure: 'hopper', match: { body: 'cross', lid: 'none', chute: true, slope: true, stepped: true, hang: true } }] },
+  {
+    // boxes.py's WallStairs, DrillStand and WallDrillBox
+    id: 'wallSteps', title: 'card.wallSteps', word: 'card.wallSteps.word', group: 'more', status: 'beta', view: { dir: 'side34' }, challenges: [],
+    variants: [
+      { id: 'wallSteps', structure: 'wallSteps', match: { body: 'slot', shelves: true, hang: true, steps: true } },
+      { id: 'drillStand', structure: 'drillStand', match: { body: 'cross', lid: 'none', partitions: true, slope: true, stepped: true } },
+      { id: 'wallDrillBox', structure: 'drillStand', style: 'wallDrillBox', match: { body: 'cross', lid: 'none', partitions: true, slope: true, stepped: true, hang: true } },
+    ],
+  },
   // ready shapes (Guided; the Shapes way in makes its own)
   { id: 'pyramid', title: 'card.pyramid', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'pyramid', solid: 'pyramid', match: { body: 'solid', solid: 'pyramid' }, guided: { id: 'pyramid', title: 'g.thing.pyramid', blurb: 'g.thing.pyramid.blurb', words: {} } }] },
   { id: 'diamond', title: 'card.diamond', group: 'shapes', status: 'stable', challenges: [], variants: [{ id: 'diamond', solid: 'diamond', match: { body: 'solid', solid: 'diamond' }, guided: { id: 'diamond', title: 'g.thing.diamond', blurb: 'g.thing.diamond.blurb', words: {} } }] },
