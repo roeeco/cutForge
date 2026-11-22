@@ -459,14 +459,15 @@ export const MISSIONS: Mission[] = [
     goals: [cableHole('back'), oneSheet, readyToCut, nameEngraved],
   },
   {
-    // Matrix: a grid of cells in front of an LED panel, a light in each; the panel behind its base
+    // Matrix: a grid of cells in front of an LED panel, a light in each; the panel behind its base. On the organiser's
+    // card, starting in 4 × 4 spaces (a plain box would be the escape box's record)
     id: 'led-matrix',
     version: 1,
     title: 'mission.ledMatrix',
     description: 'mission.ledMatrix.desc',
     materials: ['plywood'],
     levels: ['quick', 'workshop'],
-    template: { id: 'box', params: { width: 160, depth: 160, height: 25, sizeAs: 'inside' } },
+    template: { id: 'box', params: { width: 160, depth: 160, height: 25, sizeAs: 'inside', spacesBy: 'count', nx: 4, ny: 4 } },
     contents: [],
     goals: [compartmentsAtLeast(64), cableHole('base'), oneSheet, readyToCut],
   },

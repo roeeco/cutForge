@@ -2611,7 +2611,7 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - **E9:** the limits the sheet bounds open up on 787 × 488 (box, tray, frame, flex-door box, U box, rounded trapezoid, wall rack, pegboard, bottle rack, hooks, can dispenser, jar rack); the rest end at the sentence's 300 mm first (owner). The drawer offers plywood's two sheets in one click (`PLY_SHEETS`); a challenge larger than 600 × 400 starts on 787 × 488 (`Mission.sheet`).
 - **Split with keys** (`src/model/keySplit.ts`, `Panel.keyed`): a plywood board too big for its sheet is cut across into pieces that fit, joined by dovetail keys, when the student picks *Split with keys* in the export check or the ready badge; worked out in the cut, clear of holes and shapes; a note says so (`val.keyed`).
 - **Box words (plywood):** lid *a top screwed on corner blocks*; *rack*: a front panel for a 19-inch or 10-inch rack, or rails for Eurorack modules (`structures/enclosure.ts`, `Panel.fitting`).
-- **Challenges:** *Electronics box*, *19-inch rack box* (787 × 488), *Seven-segment clock* (Workshop) on the lidded box; *Eurorack case*, *LED matrix box* on the open box.
+- **Challenges:** *Electronics box*, *19-inch rack box* (787 × 488), *Seven-segment clock* (Workshop) on the lidded box; *Eurorack case* on the open box; *LED matrix box* on the organiser.
 - `tests/plywood184.test.ts`; `tests/missions.test.ts` has the reference solutions.
 - Not built: HobbyCase, Arcade, AirPurifier, CarbonFilter, Rack19HalfWidth, the latched hatches (`DECISIONS.md`).
 

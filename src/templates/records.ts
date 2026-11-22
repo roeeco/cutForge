@@ -138,6 +138,8 @@ export type PresetRecord = {
   sieve?: boolean;
   /** Milestone 176: a box's lid hinged on pins (knuckles and a pin), not on a living hinge. */
   pins?: boolean;
+  /** Milestone 184: an enclosure's fittings (`Panel.fitting`: corner blocks, a rack's front, rails), sorted (`block,front`); not a flag, so a pattern that does not name it still fits. */
+  fittings?: string;
   /** Milestone 176: boards built up on a pin-hinged lid (a chest's crown of slats between two ends). */
   crown?: boolean;
   /** Milestone 183: boards of their own with teeth round them (gears) inside a box: a gearbox. */
@@ -707,15 +709,16 @@ export function recordOf(d: Design): PresetRecord {
       hungBy = was;
     }
   }
-  // milestone 184: an enclosure is its box (read without its corner blocks, rack front and rails)
+  // milestone 184: an enclosure is its box (read without its corner blocks, rack front and rails), and says its fittings
   if (d.order.some((id) => d.panels[id]?.fitting)) {
     const keep = (id: string) => !!d.panels[id] && !d.panels[id].fitting;
-    return recordOf({
+    const fittings = [...new Set(d.order.map((id) => d.panels[id]?.fitting).filter((x): x is NonNullable<typeof x> => !!x))].sort().join(',');
+    return { ...recordOf({
       ...d,
       panels: Object.fromEntries(Object.entries(d.panels).filter(([id]) => keep(id))),
       order: d.order.filter(keep),
       connections: Object.fromEntries(Object.entries(d.connections).filter(([, c]) => keep(c.a.panelId) && keep(c.b.panelId))),
-    });
+    }), fittings };
   }
   const t = mainOf(d);
   const slits = Object.values(d.panels).some((p) => (p.lines ?? []).some((l) => l.type === 'cut'));

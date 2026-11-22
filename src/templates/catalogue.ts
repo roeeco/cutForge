@@ -63,8 +63,8 @@ const BOX_G = { width: 120, depth: 80, height: 45, sizeAs: 'inside' };
 export const CATALOGUE: Card[] = [
   // boxes and trays
   {
-    // milestone 184: the Eurorack case and the LED matrix box (open boxes)
-    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: ['euro-skiff', 'led-matrix'],
+    // milestone 184: the Eurorack case (an open box with rails)
+    id: 'openBox', title: 'card.openBox', word: 'card.openBox.word', group: 'boxes', status: 'stable', challenges: ['euro-skiff'],
     variants: [
       { id: 'box', structure: 'box', own: { height: 45 }, match: { body: 'cross', lid: 'none' }, guided: { id: 'box', title: 'g.thing.box', blurb: 'g.thing.box.blurb', words: BOX_G } },
       { id: 'tray', structure: 'tray', own: { height: 30 }, match: { body: 'cross', lid: 'none' } },
@@ -88,7 +88,7 @@ export const CATALOGUE: Card[] = [
     // milestone 178 (boxes.py's CompartmentBox): partitions under the lid
     { id: 'compartmentBox', structure: 'slideBox', style: 'compartmentBox', match: { body: 'cross', lid: 'none', rails: true, partitions: true } },
   ] },
-  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser', 'wall-tray', 'game-insert'], variants: [
+  { id: 'organiser', title: 'card.organiser', group: 'boxes', status: 'stable', view: { dir: 'high' }, challenges: ['pencil-box', 'game-organiser', 'wall-tray', 'game-insert', 'led-matrix'], variants: [
     { id: 'organiser', structure: 'organiser', sentence: false, match: { body: 'cross', lid: 'none', spaces: true } },
     // milestone 178 (beta, plywood; boxes.py's DividerTray): loose dividers resting in notches in the side walls' tops
     { id: 'dividerTray', structure: 'dividerTray', match: { body: 'cross', lid: 'none', loose: true } },
