@@ -2565,6 +2565,14 @@ The owner's report during the fix round: Quick build lists many errors after fol
 - `tests/plywood178.test.ts`; `tests/templates.test.ts` lists the flyer stand and pegboard among the designs of fewer than four boards.
 - Left for a later part: showcase, louvred box, can dispenser, bottle stack, jar rack, book cover, clock face, laser jigs, pizza peel, and the challenges (`DECISIONS.md`).
 
+## Milestone 176 (every doable boxes.py design in plywood) ✅ pin hinges (E5), beta until cut
+
+- **E5, the pin hinge** (`src/model/pinHinge.ts`): a lid on the walls' tops, two hinges behind the back wall, knuckle boards on the back wall and on the lid in turn along the hinge line, a hole for a dowel or wire through each; the box's knuckles carry a stop the lid rests on at 105°. `Panel.pinLid`, `Panel.knuckle`, `addPinLid` in ops; `reconcilePinLids` on every solve; the lid opens about the hinge line on the stage and in pictures.
+- **Box words** (plywood): lid *pins* (*a lid on pin hinges*) and `pin` (the pin's size, 2 to 6 mm). Hinged box variant *Pin-hinge box* (IntegratedHingeBox).
+- **Dice box** (DiceBox) and **Chest** (PirateChest), new plywood cards (`boardHinges.ts`).
+- Records `pins`, `crown`. `tests/plywood176.test.ts`: knuckles interleave a play apart on one line; the lid sweeps to its stop touching nothing; stage and picture poses; saving.
+- Not built: the chest hinge and an all-wood pin, side-pivot hinged box, coin safe, picture theatre (`DECISIONS.md` says why, and what to test-cut).
+
 ## Remaining limitations (whole project)
 - LightBurn colour/layer mapping follows LightBurn's documented palette but was not imported into LightBurn itself here; please check on the classroom machine. Fit claims also need a calibration test cut on scrap.
 - Text is single-line without kerning; cut-through text has no stencil bridges (flagged instead).

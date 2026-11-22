@@ -100,7 +100,7 @@ If time is short, the core is 74–79, 82 on flat and cap lids, 83–84, 86 and 
 | **Artwork guide** (face templates, preview textures) | packaging-and-learning 54 | Belongs with `IMAGES_ON_BOARDS.md`. |
 | **Closures as `Panel.flaps`, tube nets as a second unfolding** | packaging-and-learning 46–47 | Built as milestones 67–68 on another model. Dropped, not deferred. |
 | A sleeve, sliding lids, ledges, corrugated hasps, fold along a drawn line, tear strip in one action, a game-parts generator, starter designs from the teacher, library sync | lids plan §15 | As that plan says. |
-| **The pin hinge** (milestone 81) | lids plan §3.3 | Its sizes are set by cutting three plywood boxes (80 × 60 × 40, 150 × 100 × 60, 250 × 180 × 80 mm) until each opens past 100°, stays open and closes flat. Not possible without a laser and plywood. |
+| **The pin hinge** (milestone 81) | lids plan §3.3 | **Built as milestone 176** (beta): knuckle boards on the back wall and the lid with a dowel or wire pin, a stop at 105° (`DECISIONS.md` milestone 176 says why not the plan's tongues in the side walls). Its starting sizes leave beta once the owner's test cut opens past 100°, stays open and closes flat (the list of what to cut is there). |
 | **Hasps on a cap or a hinged lid** | lids plan §3.4 | A cap's rim joint has to be split round each tongue, and the spike must show whether a lid locked at the front tilts off at the back. Flat lids have them (milestone 82). |
 | **The Inset lid** | lids plan §3.2 | Needs tray walls standing in from their base's edge by more than the tab-and-slot offset, with finger joints (the plan's risk 2). Cap, Flat and Drop-in cover the need meanwhile (milestones 79–80). |
 | **Boxes built from boards** (no tray) closing with a grown lid | cleanup Part 5.3 | Needs one answer to "what is a box" shared with the lid generator. |
@@ -300,7 +300,7 @@ Plywood only (3 to 8 mm, sheets 600 × 400, at most 787 × 488); the owner's ten
 | **173** | Face-glued joint; lids plug, brim, handle; base overhang | ✅ |
 | **174** | Tambour door; roll-top box | |
 | **175** | A wrap that opens, latch; flex-door box | |
-| **176** | Pin hinges | |
+| **176** | Pin hinges | ✅ beta until cut: knuckle hinge (dowel or wire pin, a stop at 105°); box lid *pins*, *Pin-hinge box*, dice box, chest |
 | **177** | Stacking feet (E6): crate, stacking notes box, stacking rack, stacking bin, sieve stack | ✅ |
 | **178** | The rest of §3.2 on today's engine | part 1 ✅: nineteen entries (eleven cards, eight variants and words); showcase, louvred box, can dispenser, bottle stack, jars, book cover, clock, jigs, peel and the challenges left |
 | **179** | See `BOXES_PLYWOOD_PLAN.md` §5 | |
