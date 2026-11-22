@@ -6,7 +6,7 @@ import { issueVars } from '../model/names';
 import { issueSelection, useStore, useT } from '../store/store';
 import { validate, type Issue } from '../model/validate';
 import { sheetUse } from './sheet';
-import { blocking, canFix, fixIssue } from './fix';
+import { blocking, canFix, canKeySplit, fixIssue, keySplit } from './fix';
 import { setMode } from './mode';
 
 /**
@@ -57,6 +57,12 @@ export function ReadyBadge({ problemsOnly = false }: { problemsOnly?: boolean } 
                   <button className="link" onClick={() => show(i)}>
                     {t('ready.show')}
                   </button>
+                  {canKeySplit(d, i) && (
+                    // milestone 184: a plywood board too big for its sheet, cut into pieces joined by puzzle keys
+                    <button onClick={() => useStore.getState().apply((x) => void keySplit(x, i))} title={t('ready.keySplitHelp')} data-testid="ready-key-split">
+                      {t('ready.keySplit')}
+                    </button>
+                  )}
                   {canFix(i) ? (
                     <button className="primary" onClick={() => fix(i)} data-testid="ready-fix">
                       {t('ready.fix')}

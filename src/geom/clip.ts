@@ -60,3 +60,13 @@ export function safeDifference(base: MultiPolygon, cuts: Polygon[]): MultiPolygo
     return acc;
   }
 }
+
+/** Milestone 184: the part of `base` inside `clip` (retried on a coarser grid as the others are; nothing when it cannot be worked out). */
+export function safeIntersection(base: MultiPolygon, clip: MultiPolygon): MultiPolygon {
+  if (!base.length || !clip.length) return [];
+  try {
+    return retry((g) => (g ? polygonClipping.intersection(base.map((q) => snapPoly(q, g)), clip.map((q) => snapPoly(q, g))) : polygonClipping.intersection(base, clip)));
+  } catch {
+    return [];
+  }
+}

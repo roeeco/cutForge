@@ -13,7 +13,7 @@ import { validate } from '../model/validate';
 import { pieceCopies } from '../model/pack';
 import { issueVars, panelLabel } from '../model/names';
 import { annotationContours, annotations } from '../export/annotate';
-import { canFix, fixIssue } from '../easy/fix';
+import { canFix, canKeySplit, fixIssue, keySplit } from '../easy/fix';
 import { shown, useFeature } from '../easy/features';
 import { downloadText, safeName } from './download';
 import { fmtNum } from '../i18n';
@@ -245,6 +245,12 @@ export function ExportDialog() {
                     // the same one-click fixes as Quick build's badge (milestone 39)
                     <button className="fix-btn" onClick={() => useStore.getState().apply((x) => void fixIssue(x, i))} data-testid="export-fix">
                       {t('ready.fix')}
+                    </button>
+                  )}
+                  {canKeySplit(d, i) && (
+                    // milestone 184: or cut it into pieces that fit, joined by puzzle keys
+                    <button className="fix-btn" title={t('ready.keySplitHelp')} onClick={() => useStore.getState().apply((x) => void keySplit(x, i))} data-testid="export-key-split">
+                      {t('ready.keySplit')}
                     </button>
                   )}
                 </li>

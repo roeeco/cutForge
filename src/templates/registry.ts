@@ -136,6 +136,8 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
         n.name = o.name;
         // a board's own material stays (its sizes are worked out in the working material)
         if (o.material && o.material !== material.id) n.material = o.material;
+        // milestone 184: a board the student asked to split with keys stays asked
+        if (o.keyed) n.keyed = true;
       } else if (o.details.length) lost.push({ panel: o.name, shapes: o.details.length });
     } else {
       // a panel the student added: keep it (and its connections below)

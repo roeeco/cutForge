@@ -102,6 +102,29 @@ export const blocking = (i: Issue) => !NOTE_KEYS.has(i.key);
 const FIXABLE = new Set(['val.holeOutside', 'val.tooThin', 'val.shapesOverlap', 'val.stencil', 'val.stencilShape', 'val.tooBig', 'val.tooBigGrain', 'val.offSheet', 'val.piecesOverlap', 'val.bendTight', 'val.bendStyle', 'val.bendRoom', 'val.fluteBend', 'val.flapNarrow']);
 export const canFix = (i: Issue) => FIXABLE.has(i.key);
 
+/**
+ * Milestone 184 (E9): a plywood board too big for its sheet can instead be cut across into pieces that fit, joined by
+ * puzzle keys (`Panel.keyed`, keySplit.ts). Offered beside *Fix* (which shrinks it) when that cut can be made: the board
+ * is its own piece and a clear place for each cut is found.
+ */
+export function canKeySplit(d: Design, i: Issue): boolean {
+  if ((i.key !== 'val.tooBig' && i.key !== 'val.tooBigGrain') || i.target.kind !== 'panel') return false;
+  const p = d.panels[i.target.id];
+  if (!p || p.keyed || matOf(d, p.id).kind !== 'plywood') return false;
+  const work = JSON.parse(JSON.stringify(d)) as Design;
+  return keySplit(work, i);
+}
+
+/** Split the issue's board with keys (in place); false, and the design as it was, when it still does not fit. */
+export function keySplit(d: Design, i: Issue): boolean {
+  const p = i.target.kind === 'panel' ? d.panels[i.target.id] : undefined;
+  if (!p) return false;
+  p.keyed = true;
+  const still = validate(d).some((x) => (x.key === 'val.tooBig' || x.key === 'val.tooBigGrain') && x.target.id === p.id);
+  if (still) delete p.keyed;
+  return !still;
+}
+
 /** Apply the fix for an issue to the design (in place); false when there is none or it did not work. */
 export function fixIssue(d: Design, i: Issue): boolean {
   switch (i.key) {

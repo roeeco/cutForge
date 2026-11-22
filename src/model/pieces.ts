@@ -21,6 +21,8 @@ import { matIdOf, matOf, tOf } from './materials';
 import { constructionSet } from './place';
 import { bandOf, type Band } from './bands';
 import { wingLength, wingStrip } from './wings';
+import { applyKeySplit, planKeySplit, type KeyPlan } from './keySplit';
+import { profileOf } from './materials';
 
 export type NetPanel = { panelId: string; xf: Xform2 };
 /**
@@ -436,6 +438,11 @@ function groupPieces(d: Design, group: NetPanel[]): Piece[] {
       for (const k of throughRegions(d, panelId)) cutPolys.push([toRing(k.map((q) => applyX(xf, q)))]);
     }
     if (cutPolys.length) merged = safeDifference(merged, cutPolys);
+    // milestone 184 (E9): a board the student asked to split with keys, cut across into pieces that fit its sheet
+    if (group.length === 1 && d.panels[group[0].panelId]?.keyed) {
+      const parts = keyedParts(d, group[0].panelId, merged, contours);
+      if (parts) merged = parts.flat();
+    }
     const ringContours = (poly: Polygon): TaggedContour[] => {
       const out: TaggedContour[] = [];
       poly.forEach((ring, ri) => {
@@ -566,4 +573,20 @@ export function netOverlaps(d: Design, min = 0.5, only?: (g: NetPanel[]) => bool
       }
   }
   return out;
+}
+
+/** Milestone 184: where a keyed board is cut (null when it fits its sheet, or no clear place is found). */
+export function keyPlanOf(d: Design, panelId: string, merged: MultiPolygon, contours: TaggedContour[]): KeyPlan | null {
+  const m = matOf(d, panelId), prof = profileOf(d, matIdOf(d, panelId));
+  if (m.kind !== 'plywood') return null;
+  const W = prof.sheetW - 2 * d.sheetMargin, H = prof.sheetH - 2 * d.sheetMargin;
+  return planKeySplit(merged, contours, m, W, H, prof.grain === 'none' || !!d.allowRotate);
+}
+
+/** A keyed board's outline in its pieces, or null when it is not cut. */
+function keyedParts(d: Design, panelId: string, merged: MultiPolygon, contours: TaggedContour[]): MultiPolygon[] | null {
+  const plan = keyPlanOf(d, panelId, merged, contours);
+  if (!plan) return null;
+  const parts = applyKeySplit(merged, plan);
+  return parts.length > 1 ? parts : null;
 }

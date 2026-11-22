@@ -479,6 +479,14 @@ function sheetIssues(d: Design): Issue[] {
     named.add(root);
     out.push({ key: fits90 ? 'val.tooBigGrain' : 'val.tooBig', vars: { panel: name(root) }, target: { kind: 'panel', id: root } });
   }
+  // milestone 184: a board split with keys is said, once (a note: it cuts as it is)
+  const keyed = new Set<string>();
+  for (const c of copies) {
+    const root = pieceRoot(c.pieceKey);
+    if (c.copy || !c.frag || !d.panels[root]?.keyed || keyed.has(root)) continue;
+    keyed.add(root);
+    out.push({ key: 'val.keyed', vars: { panel: name(root), n: c.frag.n }, target: { kind: 'panel', id: root } });
+  }
   // a piece outside its sheet or in its margin (BUGFIX_PLAN B16); one too big for the sheet is reported as that instead
   const M = d.sheetMargin;
   for (const a of placed)
