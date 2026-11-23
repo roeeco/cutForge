@@ -12,7 +12,7 @@ import { chooseMaterial, type Change } from '../sentence/resolve';
 import type { SentenceValue } from '../sentence/model';
 import { DEFAULT_MATERIAL, MATERIALS } from '../model/materials';
 import { createDesign, setMaterial } from '../model/ops';
-import { createWaffleDesign } from '../sculpt/ops';
+import { createWaffleDesign, isSculpture } from '../sculpt/ops';
 import { Library, openFromLibrary } from './Library';
 import { MyPresets } from './PresetEditor';
 import type { MaterialProfile } from '../model/types';
@@ -123,8 +123,10 @@ export function StartScreen() {
     if (what === 'shapes') s.replaceDesign(createWaffleDesign(mat), false);
     else if (ms) s.replaceDesign(startMission(ms, mat), false);
     else if (tp) s.replaceDesign(generate(tp, mat, sentence.params), false);
-    else if (s.design.order.length) {
-      // a design is open: a new blank one beside it (the open one is saved)
+    else if (s.design.order.length || isSculpture(s.design)) {
+      // a design is open: a new blank one beside it (the open one is saved). A sculpture has no boards before Make,
+      // and Start blank is a box of boards, never the shapes workbench it was opened from
+      // (the logo and *Designs* open this screen over the design)
       s.replaceDesign(createDesign(mat), false);
     } else {
       s.apply((d) => setMaterial(d, mat));
