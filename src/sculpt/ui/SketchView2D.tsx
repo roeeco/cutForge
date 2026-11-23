@@ -10,6 +10,7 @@ import { sketchRegion, openEnds } from '../../sketch/regions';
 import { allCuts, cutPieces, segPoints, trimmedSegPoints } from '../../sketch/flatten';
 import { bounds, selPts } from '../../sketch/model';
 import { underlay } from '../underlay';
+import { boardUnderlay } from '../../sketch/boardSketch';
 import { kernelNow } from '../kernel';
 import { SketchRail } from './sketch2d/SketchRail';
 import { SketchOverlay, sketchViewInfo, useSketchPointer } from './sketch2d/useSketchPointer';
@@ -158,13 +159,17 @@ function HandlesLayer({ draft, px, sel }: { draft: SketchGraph; px: number; sel:
 function UnderlayLayer({ px }: { px: number }) {
   const k = useStore((s) => s.sketch);
   const sc = useStore((s) => s.design.sculpt);
+  const d = useStore((s) => s.design);
   const ready = useStore((s) => s.sculpt.ready);
   const under = useMemo(() => (k?.rigid && ready ? underlay(sc, k.shapeId, k.M) : []), [sc, k?.shapeId, k?.M, k?.rigid, ready]);
+  // a sketch on a board's face (Workshop): the board and its shapes underneath
+  const board = useMemo(() => (k?.board ? boardUnderlay(d, k.board) : []), [d, k?.board?.panelId, k?.board?.mirror]);
   return (
     <g className="sk-underlay" pointerEvents="none" data-testid="sketch-underlay">
       {under.map((u) => (
         <path key={u.id} d={u.rings.map((r) => path(r, true)).join('')} strokeWidth={px * 1.2} fillRule="evenodd" />
       ))}
+      {board.length > 0 && <path className="sk-board" d={board.map((r) => path(r, true)).join('')} strokeWidth={px * 1.2} fillRule="evenodd" data-testid="sketch-board-underlay" />}
     </g>
   );
 }
@@ -176,16 +181,20 @@ export function SketchView2D() {
   const svgRef = useRef<SVGSVGElement>(null);
   const sc = useStore((s) => s.design.sculpt);
   const initial = (): VB => {
-    const under = k.rigid && kernelNow() ? underlay(sc, k.shapeId, k.M).flatMap((u) => u.rings) : [];
+    const under = k.board ? boardUnderlay(useStore.getState().design, k.board) : k.rigid && kernelNow() ? underlay(sc, k.shapeId, k.M).flatMap((u) => u.rings) : [];
     const b = contentBox(k.draft, under) ?? { minX: -100, maxX: 100, minY: -100, maxY: 100 };
     const el = svgRef.current;
     const cw = el?.clientWidth || 1200, ch = el?.clientHeight || 760;
     const w0 = Math.max(40, b.maxX - b.minX) * 1.5, h0 = Math.max(40, b.maxY - b.minY) * 1.5;
-    const kk = Math.min(cw / w0, ch / h0);
+    // framed in the room between the sketch's rail and its card (a board's face filled the view and ran under the card)
+    const left = 80, right = cw > 700 ? 340 : 0;
+    const free = Math.max(200, cw - left - right);
+    const kk = Math.min(free / w0, ch / h0);
     const w = cw / kk, h = ch / kk;
-    return { x: (b.minX + b.maxX) / 2 - w / 2, y: (b.minY + b.maxY) / 2 - h / 2, w, h };
+    const sx = (left + free / 2) / kk;
+    return { x: (b.minX + b.maxX) / 2 - sx, y: (b.minY + b.maxY) / 2 - h / 2, w, h };
   };
-  const view = useViewBox(svgRef, `sketch:${k.shapeId ?? 'new'}`, initial);
+  const view = useViewBox(svgRef, k.board ? `sketch:board:${k.board.panelId}:${k.board.side}` : `sketch:${k.shapeId ?? 'new'}`, initial);
   const { vb, setVB, mmPerPx, onWheel, zoom, fit } = view;
   const px = mmPerPx();
   const ptr = useSketchPointer(view);
@@ -194,7 +203,7 @@ export function SketchView2D() {
     return () => void (sketchViewInfo.canvas = null);
   }, []);
   const fitAll = () => {
-    const b = contentBox(k.draft, []);
+    const b = contentBox(k.draft, k.board ? boardUnderlay(useStore.getState().design, k.board) : []);
     if (b) fit(b, 0.25);
     else setVB(initial());
   };
@@ -230,9 +239,12 @@ export function SketchView2D() {
       </svg>
       <SketchRail />
       <SketchPanel />
-      <Suspense fallback={null}>
-        <Preview3D />
-      </Suspense>
+      {/* the extrusion's preview is the shapes workbench's; a board sketch is seen on its board when finished */}
+      {!k.board && (
+        <Suspense fallback={null}>
+          <Preview3D />
+        </Suspense>
+      )}
       <div className="view-dock sk-dock" dir="auto">
         <div className="cluster">
           <button onClick={() => zoom(0.8)} aria-label={t('sketch.zoomIn')} title={t('sketch.zoomIn')}>

@@ -83,6 +83,54 @@ export function reconcileTrays(d: Design, make: (d: Design, tray: Tray, edge: st
 }
 
 /**
+ * The boxes whose base has an outside corner rigid corners would change: walls on both its edges, at a corner angle
+ * fingers are laid out for (30° to 150°) and not square. Lids of their own are left out (they follow their box).
+ */
+export function angledTrays(d: Design): string[] {
+  const out: string[] = [];
+  const walls = new Map<string, Set<string>>();
+  for (const c of Object.values(d.connections)) if (c.grown && c.trayId) walls.set(c.a.panelId, (walls.get(c.a.panelId) ?? new Set()).add(c.a.edge));
+  for (const [id, t] of Object.entries(d.trays ?? {})) {
+    const base = d.panels[t.baseId];
+    if (!base || t.lidOf) continue;
+    const ring = panelEdges(base), on = walls.get(base.id) ?? new Set();
+    const n = ring.length;
+    for (let i = 0; i < n; i++) {
+      const prev = ring[(i + n - 1) % n], cur = ring[i];
+      if (!on.has(prev.key) || !on.has(cur.key)) continue;
+      const a = segDir(prev), b = segDir(cur);
+      const turn = a.x * b.y - a.y * b.x;
+      if (turn <= 1e-6) continue;
+      const alpha = 180 - (Math.atan2(turn, a.x * b.x + a.y * b.y) * 180) / Math.PI;
+      if (Math.abs(alpha - 90) >= 0.5 && alpha >= 30 - 1e-6 && alpha <= 150 + 1e-6) {
+        out.push(id);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * A rigid outside corner (`Tray.outsideCorners`): the wall ending there (A) and the one starting there (B). Its walls'
+ * corner angle α is 180° less the outline's turn (cos θ = `dot`, sin θ = `turn`). Obtuse: each reaches on past the
+ * corner by its thickness · |cot α|, so its square end meets the far side of where the two boards cross; acute: no
+ * reach, the end only left whole (seams.ts). Square, or outside the angles fingers are laid out for: as before.
+ */
+function reachPast(d: Design, A: Panel, B: Panel, dot: number, turn: number) {
+  const alpha = 180 - (Math.atan2(turn, dot) * 180) / Math.PI;
+  // (seams.ts's MIN_CORNER and MAX_CORNER: the angles fingers are laid out for)
+  if (Math.abs(alpha - 90) < 0.5 || alpha < 30 - 1e-6 || alpha > 150 + 1e-6) return;
+  // |cot α| = cot θ for an obtuse α (θ the turn, under 90°)
+  const k = alpha > 90 ? dot / turn : 0;
+  const eA = tOf(d, A.id) * k, eB = tOf(d, B.id) * k;
+  A.ext = { s: A.ext?.s ?? 0, e: (A.ext?.e ?? 0) + eA };
+  A.reach = { ...(A.reach ?? {}), e: eA };
+  B.ext = { s: (B.ext?.s ?? 0) + eB, e: B.ext?.e ?? 0 };
+  B.reach = { ...(B.reach ?? {}), s: eB };
+}
+
+/**
  * Inside corners: where the base turns inward (a reflex vertex) and walls
  * stand on both edges, the wall on the outgoing edge reaches back past the
  * vertex to the other wall's inner face, closing the gap (by t / sin of the
@@ -93,6 +141,7 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
   for (const id of d.order) {
     const p = d.panels[id];
     if (p && p.ext) delete p.ext;
+    if (p && p.reach) delete p.reach;
   }
   for (const id of d.order) {
     const base = d.panels[id];
@@ -105,11 +154,19 @@ export function insideCornerExtensions(d: Design, isWallOn: (baseId: string, key
       if (Math.hypot(prev.b.x - cur.a.x, prev.b.y - cur.a.y) > 1e-6) continue;
       const a = segDir(prev), b = segDir(cur);
       const turn = a.x * b.y - a.y * b.x; // < 0: the outline turns right, an inside corner
+      const tray = Object.values(d.trays ?? {}).find((t) => t.baseId === base.id);
+      if (turn > 1e-6) {
+        // an outside corner: rigid corners reach past it (`Tray.outsideCorners`)
+        if (tray?.outsideCorners === 'reach') {
+          const wa = isWallOn(base.id, prev.key), wb = isWallOn(base.id, cur.key);
+          if (wa && wb && d.panels[wa] && d.panels[wb]) reachPast(d, d.panels[wa], d.panels[wb], a.x * b.x + a.y * b.y, turn);
+        }
+        continue;
+      }
       if (turn > -1e-6) continue;
       const wa = isWallOn(base.id, prev.key), wb = isWallOn(base.id, cur.key);
       if (!wa || !wb) continue;
       // the wall that closes the corner: the outgoing one, or the incoming one where it gives way so the net lies flat (milestone 35)
-      const tray = Object.values(d.trays ?? {}).find((t) => t.baseId === base.id);
       if (tray?.insideCorners === 'finger' && d.panels[wa] && d.panels[wb]) {
         // milestone 180: both walls reach on to where their inner faces meet (P), and are fingered there as a corner
         // seen from inside. Each inner face is its edge moved in (to the left of the CCW outline) by its wall's thickness.

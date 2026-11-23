@@ -6,6 +6,7 @@
 // made.
 import type { Design, MaterialProfile } from '../../model/types';
 import type { MsgKey } from '../../i18n';
+import { cornersWord } from './corners';
 import { SIZE_MAX, SIZE_MIN, SPACES_MAX, type Limit, type ParamDef, type Params, type TemplateDef } from '../types';
 import { boxRecipe, dividerLine, holeRecipe, roundedMin, type Footprint } from '../../easy/recipes';
 import { boxLid, lidWhy, setBoxLid, setCapRim, type CapRim, type LidChoice } from '../../easy/lid';
@@ -281,6 +282,8 @@ function boxParams(o: { height: number; lid: boolean; addons: ('window' | 'finge
       why: (v, p, m) => rackWhy(v, p, m) ?? 'sen.why.engine',
       affects: ['walls'],
     });
+  // a many-sided box of boards: its angled corners kept within the outline, or rigid (fingers reach past them)
+  out.push(cornersWord((v, p, m) => cleanWith(box, m, p, 'corners', v), (p, m) => p.shape === 'poly' && m.kind === 'plywood'));
   return out;
 }
 
@@ -369,6 +372,8 @@ function generateBox(d: Design, p: Params, kindLid: boolean, role: (name: string
   const r = boxRecipe(d, footprint(p, W, D, H), H, 'open');
   if (!r) return;
   const tray = mainTray(d)!;
+  // rigid corners on a many-sided box of boards (exploratory test report, the coffin box)
+  if (p.corners === 'rigid' && p.shape === 'poly') d.trays[tray].outsideCorners = 'reach';
   if (as !== 'outside') d.sizeAs = as;
   // the base and walls at the sizes as stated (a round box's base never smaller than its walls bend round)
   if (p.shape === 'rect' || p.shape === 'poly') setBoxSize(d, tray, { w: W, d: D, h: H }, as);

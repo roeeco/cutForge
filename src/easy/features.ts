@@ -296,6 +296,8 @@ export const SECTIONS: Record<string, Feature | null> = {
   'sketch-plane-section': null,
   'sketch-bar': null,
   'sketch-tool-help': null,
+  // a sketch on a board's face (Workshop): what Finish makes
+  'sketch-board-makes': null,
   // milestone 130: a made board's face left open (Workshop only: made models come from Shapes)
   'made-face-section': null,
   // milestone 132: the shape stage's line-up and mirror

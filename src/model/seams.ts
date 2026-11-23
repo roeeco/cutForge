@@ -61,17 +61,31 @@ export const cornerAngle = (f: { sin: number; cos: number }) => (Math.atan2(f.si
  * an `ext`) also fit where their inner faces meet: a corner seen from inside.
  */
 export function cornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen = 1, range?: [number, number], inner?: { tA: number; tB: number }): CornerFit | null {
-  const out = faceCornerFit(A, eA, B, eB, minLen, range, 0, 0);
+  // a rigid outside corner: each wall's end reaches past it, so the corner is where its end would be without the reach
+  const out = faceCornerFit(A, eA, B, eB, minLen, range, 0, 0, reachAt(A, eA) ?? 0, reachAt(B, eB) ?? 0);
   if (out || !inner || !A.ext || !B.ext) return out;
   return faceCornerFit(A, eA, B, eB, minLen, range, inner.tA, inner.tB);
 }
 
-/** `cornerFit` on one face of each board: their outer faces (z = 0), or both inner faces (z = t; material the other way). */
-function faceCornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen: number, range: [number, number] | undefined, zA: number, zB: number): CornerFit | null {
+/**
+ * How far a wall's end reaches past a rigid outside corner (`Tray.outsideCorners`): its end edges (e3 its start, e1 its
+ * end), or undefined where it is not one. 0 at an acute corner (only its end left whole).
+ */
+export function reachAt(P: Panel, e: EdgeArg): number | undefined {
+  if (typeof e !== 'string' || !P.reach) return undefined;
+  return e === 'e1' ? P.reach.e : e === 'e3' ? P.reach.s : undefined;
+}
+
+/**
+ * `cornerFit` on one face of each board: their outer faces (z = 0), or both inner faces (z = t; material the other way);
+ * each edge taken `shA` / `shB` back into its board (a rigid corner's reach).
+ */
+function faceCornerFit(A: Panel, eA: EdgeArg, B: Panel, eB: EdgeArg, minLen: number, range: [number, number] | undefined, zA: number, zB: number, shA = 0, shB = 0): CornerFit | null {
   const perp = Math.abs(v3dot(frameNormal(A.frame), frameNormal(B.frame))) <= PERP;
   const flip = zA > 0 ? -1 : 1;
   const mA = v3mul(matDir(A.frame), flip), mB = v3mul(matDir(B.frame), flip);
-  const [a0, a1] = edgeWorld(A, eA).map((p) => v3add(p, v3mul(matDir(A.frame), zA))), [b0, b1] = edgeWorld(B, eB).map((p) => v3add(p, v3mul(matDir(B.frame), zB)));
+  const inA = shA ? v3mul(inwardWorld(A, eA), shA) : null, inB = shB ? v3mul(inwardWorld(B, eB), shB) : null;
+  const [a0, a1] = edgeWorld(A, eA).map((p) => v3add(v3add(p, v3mul(matDir(A.frame), zA)), inA ?? [0, 0, 0])), [b0, b1] = edgeWorld(B, eB).map((p) => v3add(v3add(p, v3mul(matDir(B.frame), zB)), inB ?? [0, 0, 0]));
   const La = v3len(v3sub(a1, a0)), dirA = v3norm(v3sub(a1, a0));
   const off = (p: V3) => {
     const r = v3sub(p, a0);
@@ -658,8 +672,13 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     const n = fingerCountFor(c, L, t);
     const seg = L / n;
     // angled fingers: depth across the other slab along this panel's plane (t / sin α)
-    const { depth, trim: trimA } = cornerDepths(tB, fit, tA);
-    const { depth: depthB, trim: trimB } = cornerDepths(tA, fit, tB);
+    const dA = cornerDepths(tB, fit, tA), dB = cornerDepths(tA, fit, tB);
+    // a rigid outside corner (`Tray.outsideCorners`): each board's notch also takes away its reach past the corner, and
+    // the finger's owner keeps its whole end (no trim back to the other's outer face): the corner is filled
+    const rA = reachAt(A, c.a.edge), rB = reachAt(B, c.b.edge);
+    const rigid = rA !== undefined || rB !== undefined;
+    const depth = dA.depth + (rA ?? 0), depthB = dB.depth + (rB ?? 0);
+    const trimA = rigid ? 0 : dA.trim, trimB = rigid ? 0 : dB.trim;
     const na: Notch[] = [], nb: Notch[] = [];
     const onB = (s0: number, s1: number, dd: number) => {
       const b0 = fit.mapB(s0), b1 = fit.mapB(s1);
@@ -676,6 +695,8 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
       }
     }
     // a wall reaching past its parent edge (an inside corner of a tray) sits on the parent's face there
+    // (a reach past a rigid outside corner too: part of it lies over the base's corner, so it stands on the base; the
+    // nub past the outline is left that far off the floor)
     if (c.grown && B.ext) {
       const L = segLength(findEdge(B, c.b.edge)!);
       if (B.ext.s > 0) nb.push({ s0: 0, s1: B.ext.s, depth: tA });
@@ -1206,9 +1227,11 @@ function seamsBetweenNow(d: Design, A0: Panel, B0: Panel): OpenSeam[] {
   // milestone 183: two edges meet at a corner only within a board's thickness or two of each other (each is moved
   // to a face, then must lie on the other's line): pairs whose boxes stand further apart are not tried
   const reach = tA + tB + 1;
+  // (and a wall's end reaching past a rigid outside corner stands that much further off: `reachAt`)
   const boxOf = (P: Panel, k: string) => {
     const [p, q] = edgeWorld(P, k);
-    return [0, 1, 2].map((i) => [Math.min(p[i], q[i]) - reach / 2, Math.max(p[i], q[i]) + reach / 2]);
+    const pad = reach / 2 + (reachAt(P, k) ?? 0);
+    return [0, 1, 2].map((i) => [Math.min(p[i], q[i]) - pad, Math.max(p[i], q[i]) + pad]);
   };
   const ba = ka.map((k) => boxOf(A, k)), bb = kb.map((k) => boxOf(B, k));
   for (let i = 0; i < ka.length; i++)

@@ -59,7 +59,10 @@ export function Inspector() {
   // a sculpture's card (milestone 120): the shape stage, and stage 2 until boards are selected on it
   const sculptCard = useStore((s) => s.design.kind === 'waffle' && (s.sculpt.stage === 'shape' || !s.design.outcome || s.selection?.kind === 'shape' || !s.selection) && s.view !== '2d' && s.view !== 'solo');
   const view = useStore((s) => s.view);
+  const sketching = useStore((s) => s.view === 'sketch' && !!s.sketch);
   if (sculptCard) return view === 'sketch' ? null : <LazySculptCard />;
+  // the sketch view has its own card (a sketch on a board's face, too)
+  if (sketching) return null;
   if (!quick || !sel || sel.kind === 'edge' || sel.kind === 'shape') return <InspectorBody />;
   const multi = (sel.kind === 'detail' && sel.ids.length > 1) || (sel.kind === 'panel' && (sel.ids?.length ?? 0) > 1);
   const panelId = sel.kind === 'panel' ? sel.id : findDetail(d, sel.id)?.panel.id;

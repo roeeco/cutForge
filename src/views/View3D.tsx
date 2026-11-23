@@ -459,6 +459,13 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
       const pt: V3 = [e.point.x, e.point.y, e.point.z];
       return panelDown(e, p.id, faceAt(design, p, pt), pt);
     }
+    // the face clicked: the 2D sketch opens square-on to it
+    if (tool === 'sketch') {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      useStore.getState().openBoardSketch(p.id, faceAt(design, p, [e.point.x, e.point.y, e.point.z]));
+      return;
+    }
     if (tool === 'text') {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -765,7 +772,7 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
             folded={folded}
             onPanelDown={onPanelDown(p)}
             onHoverPoint={!folded ? (pt) => {
-              if (tool === 'panel') {
+              if (tool === 'panel' || tool === 'sketch') {
                 if (floorHover) setFloorHover(null);
                 const face = faceAt(design, p, pt);
                 if (faceHover?.panelId !== p.id || faceHover.face !== face) setFaceHover({ panelId: p.id, face });
@@ -811,7 +818,7 @@ function Scene({ setLabel, quality, layer }: { setLabel: (s: Label | null) => vo
       {tool === 'polygon' && !folded && <PolygonTool ref={polyRef} setControls={setControls} />}
       {(tool === 'panel' || tool === 'divider') && !folded && <PanelGhostView d={design} />}
       {!folded && <PendingBar d={design} m={(id) => display.xf.get(id) ?? IDM} />}
-      {tool === 'panel' && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
+      {(tool === 'panel' || tool === 'sketch') && !folded && !panelGhost && faceHover && design.panels[faceHover.panelId] && <FaceHover d={design} panelId={faceHover.panelId} face={faceHover.face} />}
       {tool === 'panel' && !folded && !panelGhost && floorHover && <FloorHover at={floorHover} />}
       {extrude && design.panels[extrude.baseId] && !folded && <TrayGhost d={design} baseId={extrude.baseId} height={extrude.height} m={display.xf.get(extrude.baseId) ?? IDM} />}
       {selPanel && editOutline === selPanel && tool === 'select' && !folded && design.panels[selPanel] && (
@@ -3072,7 +3079,9 @@ function Stage3D({ layer }: { layer?: ReactNode }) {
                         ? 'quick.stickerHelp'
                         : tool === 'part'
                           ? 'tool.partHelp'
-                          : 'tool.hint.shape';
+                          : tool === 'sketch'
+                            ? 'tool.hint.sketch'
+                            : 'tool.hint.shape';
   return (
     <div className="view3d" dir="ltr" data-testid="view3d" ref={wrap}>
       <Canvas frameloop="demand" camera={{ position: [0, 260, 330], fov: 45, near: 1, far: 20000 }} dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} className={`tool-${tool}`}>

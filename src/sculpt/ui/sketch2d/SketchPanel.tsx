@@ -15,6 +15,8 @@ import { segLength } from '../../../sketch/dims';
 import { sketchState } from '../../../sketch/regions';
 import { setHandle } from '../../../sketch/tools';
 import { finishBlock } from '../../session';
+import { boardSketchBlock, type BoardSketch, type BoardSketchOp } from '../../../sketch/boardSketch';
+import { panelLabel } from '../../../model/names';
 import { cancelSketchAsked } from '../../../ui/SketchTopBar';
 import { sketchPick } from './useSketchPointer';
 import { sketchHandlers } from '../commands';
@@ -248,32 +250,73 @@ function ToolHelp() {
   );
 }
 
+/** What a sketch on a board's face makes (Workshop): the Shapes tool's operators, or a board of its own lying on it. */
+function BoardMakes() {
+  const t = useT();
+  const b = useStore((s) => s.sketch?.board);
+  if (!b) return null;
+  const set = (p: Partial<BoardSketch>) => st().setSketch({ board: { ...b, ...p } });
+  const opt = (o: BoardSketchOp, icon: string, name: MsgKey, desc: MsgKey) => (
+    <button key={o} role="radio" aria-checked={b.op === o} className={b.op === o ? 'on' : ''} data-op={o} onClick={() => set({ op: o })} data-testid={`sk-op-${o}`}>
+      <Icon name={icon} size={20} />
+      <span className="op-text">
+        <strong>{t(name)}</strong>
+        <small>{t(desc)}</small>
+      </span>
+    </button>
+  );
+  return (
+    <div className="subsection" data-testid="sketch-board-makes">
+      <h4>{t('tool.op')}</h4>
+      <div className="op-list" role="radiogroup" aria-label={t('tool.op')}>
+        {opt('cut', 'opCut', 'op.name.cut', 'op.desc.cut')}
+        {opt('engrave', 'opEngrave', 'op.name.engrave', 'op.desc.engrave')}
+        {opt('score', 'opScore', 'op.name.score', 'op.desc.score')}
+        {opt('add', 'opAdd', 'op.name.add', 'op.desc.add')}
+        {opt('board', 'panel', 'op.name.board', 'sketch.board.desc')}
+      </div>
+      {b.op === 'cut' && (
+        <label className="check through-check">
+          <input type="checkbox" checked={b.through} onChange={(e) => set({ through: e.target.checked })} data-testid="sk-op-through" /> {t('tool.op.through')}
+        </label>
+      )}
+    </div>
+  );
+}
+
 export function SketchPanel() {
   const t = useT();
   const k = useStore((s) => s.sketch);
   const shape = useStore((s) => (s.sketch?.shapeId ? s.design.sculpt?.shapes[s.sketch.shapeId] : null));
+  const boardName = useStore((s) => (s.sketch?.board && s.design.panels[s.sketch.board.panelId] ? panelLabel(s.design, s.sketch.board.panelId, t as never) : ''));
   if (!k) return null;
   const state = sketchState(k.draft);
   const n = state.open.length;
-  const block = finishBlock(k.draft, k.mode, shape);
-  const status = block === 'crossesAxis' ? t('sketch.crossesAxis') : n === 1 ? t('sketch.oneOpenEnd') : n > 1 ? t('sketch.openEnds', { n }) : state.empty ? t('sketch.empty') : t('sketch.ready');
+  // a sketch on a board's face: what it makes decides what can be finished (a board is one outline)
+  const bBlock = k.board ? boardSketchBlock(k.draft, k.board.op) : null;
+  const block = k.board ? (bBlock === 'oneOutline' ? bBlock : null) || (state.empty ? 'empty' : null) : finishBlock(k.draft, k.mode, shape);
+  const status = block === 'crossesAxis' ? t('sketch.crossesAxis') : block === 'oneOutline' ? t('sketch.board.oneOutline') : n === 1 ? t('sketch.oneOpenEnd') : n > 1 ? t('sketch.openEnds', { n }) : state.empty ? t('sketch.empty') : t('sketch.ready');
   const selected = k.tool === 'select' && (selPts(k.draft, k.sel).length > 0 || !!k.sel.handle);
   return (
     <div className="card-dock sk-card-dock">
       <aside className="card inspector sk-panel" aria-label={t('sketch.title')} dir="auto" data-testid="sketch-panel">
         <div className="card-head">
-          <h3>{t('sketch.title')}</h3>
+          <h3 dir="auto">{k.board ? t('sketch.board.title', { panel: boardName }) : t('sketch.title')}</h3>
         </div>
-        <Segmented
-          label={t('sketch.mode')}
-          value={k.mode}
-          options={[
-            { value: 'extrude', label: t('sketch.extrude'), testId: 'sketch-mode-extrude' },
-            { value: 'revolve', label: t('sketch.revolve'), testId: 'sketch-mode-revolve' },
-          ]}
-          onChange={(m) => st().setSketch({ mode: m as 'extrude' | 'revolve' })}
-          testId="sketch-mode"
-        />
+        {k.board ? (
+          <BoardMakes />
+        ) : (
+          <Segmented
+            label={t('sketch.mode')}
+            value={k.mode}
+            options={[
+              { value: 'extrude', label: t('sketch.extrude'), testId: 'sketch-mode-extrude' },
+              { value: 'revolve', label: t('sketch.revolve'), testId: 'sketch-mode-revolve' },
+            ]}
+            onChange={(m) => st().setSketch({ mode: m as 'extrude' | 'revolve' })}
+            testId="sketch-mode"
+          />
+        )}
         {selected ? <Selection /> : <ToolHelp />}
         <div className="sk-foot">
           <p className={`sk-state ${block || n ? 'warn' : 'ok'}`} role="status" data-testid="sketch-status">

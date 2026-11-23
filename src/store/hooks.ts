@@ -189,7 +189,7 @@ export function handleKey(e: KeyboardEvent) {
             s.chooseShape('rect', true);
           }
         } else if (k === 'rect' || k === 'rounded' || k === 'circle' || k === 'polygon' || k === 'line') s.chooseShape(k);
-        else if (k === 'divider') s.view === '3d' && s.setTool('divider');
+        else if (k === 'divider' || k === 'sketch') s.view === '3d' && s.setTool(k);
         else s.setTool(k as Tool);
       } else if (e.key.startsWith('Arrow') && ids.length) {
         const step = e.shiftKey ? 10 : 1;

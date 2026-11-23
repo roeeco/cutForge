@@ -2,7 +2,8 @@
 // (`t:<role>`), so user-added shapes stay attached to their panels when a
 // parameter changes; edits that cannot be kept are listed.
 import { pieceRoot, placementPiece } from '../model/keys';
-import type { Design, Detail, MaterialProfile } from '../model/types';
+import type { Design, Detail, Frame, MaterialProfile, V3 } from '../model/types';
+import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
 import type { Params, TemplateDef, TemplateIssue } from './types';
 import { organiser } from './organiser';
 import { stand } from './stand';
@@ -121,13 +122,7 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   const lost: Lost[] = [];
   // what the template made last time, to tell its own shapes from the student's
   const fresh = generate(t, old.material, old.template!.params);
-  // keep where root panels were moved to
-  for (const id of d.order) {
-    const o = old.panels[id];
-    if (o && !Object.values(old.connections).some((c) => c.grown && c.b.panelId === id) && !Object.values(d.connections).some((c) => c.grown && c.b.panelId === id))
-      // its position and its turn about the vertical (a turned box stays turned)
-      d.panels[id].frame = { ...d.panels[id].frame, o: [...o.frame.o], u: [...o.frame.u], v: [...o.frame.v] };
-  }
+  keepMove(old, fresh, d);
   for (const id of old.order) {
     const o = old.panels[id];
     if (!o) continue;
@@ -168,6 +163,36 @@ export function regenerate(old: Design, params: Params, material: MaterialProfil
   keepDividerPlaces(old, d, fresh);
   solve(d);
   return { design: d, lost };
+}
+
+const isRoot = (x: Design, id: string) => !!x.panels[id] && !Object.values(x.connections).some((c) => c.grown && c.b.panelId === id);
+const unit = (f: Frame): [V3, V3, V3] => {
+  const u = v3norm(f.u), v = v3norm(f.v);
+  return [u, v, v3norm(v3cross(u, v))];
+};
+
+/**
+ * Where the student moved or turned the design stays, as one move of the whole design (exploratory test report, a
+ * sweep of the variant switches): the move is read off one board the old and the new design share (the template's
+ * place for it at the old settings, `fresh`, against where it is now) and applied to every board standing on its own
+ * in the new design. Each board used to keep its own old place, so a design of several boards placed against each
+ * other (a ramp, stacked layers, a panel in slots, a roll top's shells) came apart when a size or variant moved them,
+ * and a board new to the variant stood where the template puts it, away from a moved box.
+ */
+function keepMove(old: Design, fresh: Design, d: Design) {
+  const anchor = fresh.order.find((id) => isRoot(fresh, id) && isRoot(old, id) && d.panels[id]);
+  if (!anchor) return;
+  const F = fresh.panels[anchor].frame, O = old.panels[anchor].frame;
+  const bf = unit(F), bo = unit(O);
+  // the turn taking the template's axes to the moved board's, then the shift
+  const turn = (x: V3): V3 => bf.reduce<V3>((s, b, i) => v3add(s, v3mul(bo[i], v3dot(x, b))), [0, 0, 0]);
+  const still = v3len(v3sub(F.o, O.o)) < 1e-9 && bf.every((b, i) => v3len(v3sub(b, bo[i])) < 1e-9);
+  if (still) return;
+  for (const id of d.order) {
+    if (!isRoot(d, id)) continue;
+    const f = d.panels[id].frame;
+    d.panels[id].frame = { ...f, o: v3add(O.o, turn(v3sub(f.o, F.o))), u: turn(f.u), v: turn(f.v) };
+  }
 }
 
 /** A shape's content without its id (ids are new each time a template is generated). */

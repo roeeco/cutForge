@@ -41,7 +41,7 @@ export function shapeOf(tool: Tool, polyMode: 'click' | 'ngon' | 'round' | 'roun
 }
 
 /** Single-key tool shortcuts (outside text fields): the Shapes tool's footprints, Divider and Text (milestone 75). */
-export const TOOL_KEYS: Record<string, Tool | ShapeFoot> = { v: 'select', p: 'panel', r: 'rect', u: 'rounded', c: 'circle', g: 'polygon', l: 'line', d: 'divider', t: 'text' };
+export const TOOL_KEYS: Record<string, Tool | ShapeFoot> = { v: 'select', p: 'panel', r: 'rect', u: 'rounded', c: 'circle', g: 'polygon', l: 'line', d: 'divider', t: 'text', k: 'sketch' };
 
 /** The panel an imported shape goes on: the solo panel, the selected panel, or the selected shape's panel. */
 function targetPanel(): string | null {
@@ -59,8 +59,11 @@ export function Toolbar() {
   // a sculpture's shape stage has its own rail (milestone 120); once made, stage 2 and the cut plan use the box tools
   const shapes = useStore((s) => s.design.kind === 'waffle' && (s.sculpt.stage === 'shape' || !s.design.outcome) && s.view !== '2d' && s.view !== 'solo');
   const view = useStore((s) => s.view);
+  const sketching = useStore((s) => s.view === 'sketch' && !!s.sketch);
   const workshop = shown(useFeature('rail.tools'));
   if (shapes) return view === 'sketch' ? null : <LazySculptRail />;
+  // the sketch view has its own rail (a sketch on a board's face, too)
+  if (sketching) return null;
   return workshop ? <WorkshopRail /> : <QuickRail />;
 }
 
@@ -159,6 +162,8 @@ function WorkshopRail() {
         )}
         {/* dividers: a line drawn in a box (milestone 44), a gesture of its own */}
         {view === '3d' && railBtn('divider', 'tool.divider', 'divider', 'D')}
+        {/* the shapes workbench's 2D sketcher on a board's face: pick the face, then sketch on it square-on */}
+        {view === '3d' && railBtn('sketch', 'tool.sketch', 'skBezier', 'K')}
         {railBtn('text', 'tool.text', 'text', 'T')}
         <div className="rail-sep" />
         <button onClick={() => fileRef.current?.click()} aria-label={t('tool.import')} data-testid="import-svg">

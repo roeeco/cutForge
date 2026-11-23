@@ -601,6 +601,10 @@ export function siblingsOf(d: Design): { value: Value; v: Variant; params: Param
       if (value !== own && v.style && !styleListed(styleById(v.style)!, m, p, templateById)) continue;
       const c = cachedChoice(value, m, p, own);
       if (!c || c.id !== def.id) continue;
+      // a button that would make another variant (this material cannot make its own: a tuck on 4 mm board settles to
+      // a regular carton) is not this variant: picked, it left the strip of another card with nothing picked
+      // (exploratory test report, a sweep of the variant switches)
+      if (value !== own && variantOfWords(def, c.params)?.v.id !== v.id) continue;
       // each design once: a structure entry that is a listed style is that style
       const s = styleOf(c.id, c.params);
       const k = s && !isAlias(s) ? `style:${s.id}` : choiceKey(c.id, c.params);

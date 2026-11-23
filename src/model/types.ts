@@ -169,6 +169,12 @@ export type Panel = {
    */
   ext?: { s: number; e: number };
   /**
+   * Derived (with `ext`): the ends of a wall at a rigid outside corner (`Tray.outsideCorners`), each with how far of its
+   * `ext` reaches past the corner (0 at an acute corner, where the wall's end is only left untrimmed). Its joint there is
+   * fitted where the corner is, the reach back from the wall's end.
+   */
+  reach?: { s?: number; e?: number };
+  /**
    * The board's own material (a profile id: one of `Design.materials`, or a
    * built-in one). Absent: the working material (`Design.material`).
    */
@@ -747,6 +753,15 @@ export type Tray = {
    * outgoing wall alone reaches across and the other's end stands on its face.
    */
   insideCorners?: 'finger';
+  /**
+   * Rigid corners (exploratory test report, the coffin box): at an outside corner of its base that is not square, the
+   * walls are not kept within the outline. At an obtuse corner each wall reaches on past it by t·|cot α| (`Panel.reach`),
+   * so its square-cut fingers fill the corner out to the other wall's outer face; at an acute one the end of the board
+   * whose finger it is is left whole, not trimmed back to the other's outer face. The corner is closed and the fingers
+   * bear on their whole width; a small nub stands proud of the outline, to sand off. Absent: strict, within the outline,
+   * and the square ends leave a wedge open at the corner.
+   */
+  outsideCorners?: 'reach';
 };
 
 /** How a carton's top closes (milestones 68, C2). */

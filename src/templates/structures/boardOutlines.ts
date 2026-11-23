@@ -19,6 +19,7 @@ import { solve } from '../../model/ops';
 import { boardBox, plywoodOnly } from './boards';
 import { cleanAll, cleanWith, mainTray, nameRoles } from './box';
 import { sheetLimits } from './shaped';
+import { cornersWord } from './corners';
 
 type Role = (name: string, id: string) => void;
 const num = (key: string, label: MsgKey, min: number, max: number, dflt: number): ParamDef => ({ key, label, type: 'number', unit: 'mm', min, max, default: dflt });
@@ -58,11 +59,12 @@ export function growOutline(pts: P2[], t: number): P2[] {
  * A box of boards on an outline (floor coordinates, centred on the origin), `inside` the walls or `outside` them, its
  * walls `H` tall measured the same way: its tray, or null when the outline cannot be made.
  */
-export function outlineBox(d: Design, pts: P2[], H: number, as: 'inside' | 'outside'): string | null {
+export function outlineBox(d: Design, pts: P2[], H: number, as: 'inside' | 'outside', corners?: Params[string]): string | null {
   const t = d.material.thickness;
   const base = as === 'inside' ? growOutline(pts, t) : pts;
   const tr = boardBox(d, { kind: 'outline', pts: base, height: H }, H);
   if (!tr) return null;
+  if (corners === 'rigid') d.trays[tr].outsideCorners = 'reach';
   if (as === 'inside') d.sizeAs = 'inside';
   setBoxSize(d, tr, { h: H }, as);
   solve(d);
@@ -110,7 +112,7 @@ export function chamferMinWidth(D: number, n: number): number {
 
 function generateChamferBox(d: Design, p: Params, role: Role) {
   const W = Number(p.width), D = Number(p.depth), H = Number(p.height);
-  if (!outlineBox(d, chamferOutline(W, D, Number(p.endWalls)), H, p.sizeAs === 'outside' ? 'outside' : 'inside')) return;
+  if (!outlineBox(d, chamferOutline(W, D, Number(p.endWalls)), H, p.sizeAs === 'outside' ? 'outside' : 'inside', p.corners)) return;
   nameRoles(d, role);
 }
 
@@ -125,6 +127,7 @@ export const chamferBox: TemplateDef = {
     num('depth', 'sen.depth', 40, 250, 100),
     num('height', 'sen.height', 20, 250, 60),
     sizeAsWord(() => chamferBox),
+    cornersWord((v, p, m) => cleanWith(chamferBox, m, p, 'corners', v)),
     int('endWalls', 'sen.endWalls', 2, 5, 3),
   ],
   generate: generateChamferBox,
@@ -172,7 +175,7 @@ export function coffinOutline(L: number, Wd: number): P2[] {
 
 function generateCoffinBox(d: Design, p: Params, role: Role) {
   const L = Number(p.length), Wd = Number(p.width), H = Number(p.height);
-  const tr = outlineBox(d, coffinOutline(L, Wd), H, p.sizeAs === 'outside' ? 'outside' : 'inside');
+  const tr = outlineBox(d, coffinOutline(L, Wd), H, p.sizeAs === 'outside' ? 'outside' : 'inside', p.corners);
   if (!tr) return;
   setBoxLid(d, tr, 'liftoff');
   solve(d);
@@ -200,6 +203,7 @@ export const coffinBox: TemplateDef = {
     num('width', 'sen.coffinWidth', 50, 200, 90),
     num('height', 'sen.height', 25, 150, 50),
     sizeAsWord(() => coffinBox),
+    cornersWord((v, p, m) => cleanWith(coffinBox, m, p, 'corners', v)),
     {
       key: 'cross', label: 'sen.cross', type: 'choice', default: 'cross',
       options: [{ value: 'cross', label: 'sen.cross.cross' }, { value: 'none', label: 'sen.cross.none' }],
@@ -277,7 +281,7 @@ export function starOutline(n: number, R: number): P2[] {
 }
 
 function generateStarBox(d: Design, p: Params, role: Role) {
-  if (!outlineBox(d, starOutline(Number(p.points), Number(p.radius)), Number(p.height), p.sizeAs === 'outside' ? 'outside' : 'inside')) return;
+  if (!outlineBox(d, starOutline(Number(p.points), Number(p.radius)), Number(p.height), p.sizeAs === 'outside' ? 'outside' : 'inside', p.corners)) return;
   nameRoles(d, role);
 }
 
@@ -292,6 +296,7 @@ export const starBox: TemplateDef = {
     num('radius', 'sen.starRadius', 40, 150, 80),
     num('height', 'sen.height', 20, 200, 50),
     sizeAsWord(() => starBox),
+    cornersWord((v, p, m) => cleanWith(starBox, m, p, 'corners', v)),
   ],
   generate: generateStarBox,
   sentence: { main: 'sen.s.starBox' },

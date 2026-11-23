@@ -3,7 +3,7 @@
 // View options stay in View settings. Joints, material and snapping are
 // collapsible (milestone 27), each header summing up what is set, so the card
 // fits a short stage; which are open is kept per viewer with the view options.
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore, useT, type SettingsSection } from '../store/store';
 import { NumField } from './NumField';
 import { setAllJoints, setDefaultFlap } from '../model/ops';
@@ -17,6 +17,9 @@ import { PresetEditor, presetSummary } from './PresetEditor';
 import { useMaterialEdit } from './MaterialDrawer';
 import { Icon } from './icons';
 import { sizedBox, sizesWhy } from '../model/sizes';
+import { angledTrays } from '../model/trays';
+import { templateById } from '../templates/registry';
+import type { Tray } from '../model/types';
 import { shown, useFeature, useMode } from '../easy/features';
 
 const SECTIONS: SettingsSection[] = ['template', 'joints', 'material', 'snapping', 'sizes'];
@@ -83,6 +86,9 @@ export function DesignSettings() {
   const presetSum = useMode() === 'workshop' ? presetSummary(t, d) : null;
   const short_ = (k: ConnectionKind | undefined) => (k ? t(`conn.short.${k}` as 'conn.short.fold') : t('settings.mixedShort'));
   const m = d.material;
+  // boxes with angled corners (rigid corners change them); a template with its own corners word sets them there
+  const angled = useMemo(() => angledTrays(d), [d.trays, d.connections, d.panels]);
+  const tplCorners = !!(d.template && templateById(d.template.id)?.params.some((p) => p.key === 'corners'));
   const mm = t('unit.mm');
   const paper = m.kind !== 'plywood';
   const choose = (group: JointGroup, kind: ConnectionKind) => {
@@ -210,6 +216,18 @@ export function DesignSettings() {
             <button className="link" onClick={() => apply((x) => setDefaultFlap(x, null))} data-testid="settings-flap-auto">
               {t('settings.flapAuto', { n: fmtNum(autoFlap(m), 1) })}
             </button>
+          )}
+          {/* rigid corners (exploratory test report, the coffin box): a box with angled corners, not one whose template has the word */}
+          {angled.length > 0 && !tplCorners && (
+            <label className="check" title={t('settings.rigidHelp')}>
+              <input
+                type="checkbox"
+                checked={angled.every((id) => d.trays[id]?.outsideCorners === 'reach')}
+                onChange={(e) => apply((x) => void angled.forEach((id) => (e.target.checked ? ((x.trays[id] as Tray).outsideCorners = 'reach') : delete (x.trays[id] as Tray).outsideCorners)))}
+                data-testid="settings-rigid-corners"
+              />
+              {t('settings.rigid')}
+            </label>
           )}
           <p className="note" title={t('settings.jointsHelp')}>
             {t('settings.jointsShort')}

@@ -24,9 +24,10 @@ describe('the sentence as text', () => {
     expect(clausesOf(box, PLY, p).map((c) => c.key)).toEqual(['sides', 'lid']);
     // milestone 153: a box has handles too; milestone 171: a lid that lifts off has its depth (`rim`) on plywood
     // milestone 173: a handle on a lid that lifts off, and a base plate, on plywood; milestone 177: stacking feet
-    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'lidHandle', 'spacesBy', 'window', 'finger', 'handles', 'overhang', 'stack', 'rack']);
+    // (exploratory test report: a many-sided box of boards has rigid corners too)
+    expect(addable(box, PLY, p).map((d) => d.key)).toEqual(['rim', 'lidHandle', 'spacesBy', 'window', 'finger', 'handles', 'overhang', 'stack', 'rack', 'corners']);
     // milestone 184: a rack's front or Eurorack rails
-    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles', 'overhang', 'stack', 'rack']);
+    expect(addable(box, PLY, { ...p, lid: 'none' }).map((d) => d.key)).toEqual(['lid', 'spacesBy', 'window', 'finger', 'handles', 'overhang', 'stack', 'rack', 'corners']);
     expect(clausesOf(box, PLY, { ...p, spacesBy: 'size' }).find((c) => c.key === 'spacesBy')!.text).toBe('sen.add.spaces.size');
   });
 });

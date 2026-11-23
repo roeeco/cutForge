@@ -1245,6 +1245,8 @@ html[dir='rtl'] .edit2d-card { left: auto; right: 96px; }
 .sk-axis { stroke: #e0a21b; fill: none; }
 .sk-axis-label { fill: #b07c0a; font-weight: 600; }
 .sk-underlay path { fill: rgba(120, 132, 150, 0.08); stroke: #a9b2bf; }
+/* a sketch on a board's face (Workshop): the board itself underneath, in its material's tone, its shapes as holes */
+.sk-underlay path.sk-board { fill: rgba(196, 160, 110, 0.18); stroke: #9a7b52; }
 .sk-region { fill: rgba(31, 184, 172, 0.12); }
 .sk-seg { fill: none; stroke: #2a3340; stroke-linecap: round; stroke-linejoin: round; }
 .sk-seg.cut { stroke: #b07c0a; }

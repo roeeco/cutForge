@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEMPLATES, changeMaterial, defaults, generate, regenerate, templateById } from '../src/templates/registry';
+import { siblingsOf, variantOfWords } from '../src/templates/catalogue';
 import { MATERIALS } from '../src/model/materials';
 import { addDetail, addText, leanSupported } from '../src/model/ops';
 import { validate } from '../src/model/validate';
@@ -159,5 +160,27 @@ describe('a template’s own shapes follow its settings (exploratory test report
     wall.details = wall.details.filter((x) => x !== win);
     const r2 = regenerate(d, { ...d.template!.params, height: Number(d.template!.params.height) + 10 }).design;
     expect(r2.panels[wall.id].details.filter((x) => x.shape === 'circle')).toHaveLength(0);
+  });
+});
+
+describe('a template made again keeps the whole design together (exploratory test report, the variant sweep)', () => {
+  const issues = (d: Design) => validate(d).map((i) => i.key).sort();
+  it('a size change: boards placed against each other stay together (bin rack +20 mm)', () => {
+    const t = templateById('binRack')!;
+    const d = generate(t, PLY, defaults(t));
+    const p = { ...d.template!.params, height: Number(d.template!.params.height) + 20 };
+    const r = regenerate(d, p).design;
+    expect(Object.values(r.connections).filter((c) => c.broken)).toEqual([]);
+    expect(issues(r)).toEqual(issues(generate(t, PLY, p)));
+  });
+  it('a variant switch and a moved box: every board, new ones too, moves with it', () => {
+    const t = templateById('scoopTray')!;
+    const d = generate(t, PLY, defaults(t));
+    for (const id of d.order) if (!Object.values(d.connections).some((c) => c.grown && c.b.panelId === id)) d.panels[id].frame.o = [d.panels[id].frame.o[0] + 100, d.panels[id].frame.o[1], d.panels[id].frame.o[2] + 50];
+    const sib = siblingsOf(d).find((s) => s.v.id !== variantOfWords(t, d.template!.params)?.v.id);
+    expect(sib).toBeTruthy();
+    const r = regenerate(d, sib!.params).design;
+    expect(Object.values(r.connections).filter((c) => c.broken)).toEqual([]);
+    expect(issues(r)).toEqual(issues(generate(t, PLY, sib!.params)));
   });
 });

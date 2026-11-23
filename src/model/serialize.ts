@@ -141,6 +141,7 @@ function migrateDividers(d: any): any {
         p.sketch = { kind: 'poly', pts: ring.map((e) => ({ x: e.a.x, y: e.a.y, ...(curve(e.key) ? { curve: curve(e.key) } : {}) })), edgeIds: ring.map((e) => e.key) };
       }
       delete p.ext;
+      delete p.reach;
       p.place = rec.place;
       p.divider = rec.divider;
       // the joint with the base: its edge on the base's face

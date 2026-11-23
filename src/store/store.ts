@@ -13,6 +13,9 @@ import { connectionsFor, matOf, MATERIALS } from '../model/materials';
 import { autoConnect, createDesign, findDetail, newId, setMaterial, solve } from '../model/ops';
 import { requestCamera, TOUR_CAMERA } from '../tour/stage';
 import { settle } from '../model/derived';
+import { detachTemplate, handEdited } from '../templates/detach';
+import { boardSketchBlock, mirroredFrom, writeBoardSketch, type BoardSketch } from '../sketch/boardSketch';
+import { askConfirm } from '../ui/AppDialog';
 import { detailBBox } from '../model/geometry';
 import { snapBox, snapContext } from '../model/snap';
 import { translate, type Lang, type MsgKey } from '../i18n';
@@ -125,6 +128,8 @@ export type SketchSession = {
   dims: boolean;
   /** The group new shapes go into. */
   into: string | null;
+  /** Workshop: a sketch on a board's face, and what Finish makes of it (src/sketch/boardSketch.ts); absent for a shape's sketch. */
+  board?: BoardSketch;
 };
 /** The sketch view's own undo history holds this many steps. */
 const SKETCH_HISTORY = 200;
@@ -164,6 +169,25 @@ const QUICK_GROW: Partial<GrowOptions> = { angle: 90, span: null, adapt: true, k
  * Quick build keeps shapes where the laser can cut them (milestone 39): the
  * edit's shapes are pulled out of the keep-out zones, and the tooltip told why.
  */
+/**
+ * Workshop: the first edit by hand of a design made from a template ends the template (its settings go, the design is
+ * the student's own; `src/templates/detach.ts`), and the student is asked at once whether to keep that change or take
+ * it back, which brings the settings back. Quick build and Guided keep their templates as before.
+ */
+function handOff(before: Design, after: Design): Design {
+  if (useStore.getState().viewPrefs.mode !== 'workshop' || !handEdited(before, after)) return after;
+  const out = produce(after, (d) => void detachTemplate(d as Design));
+  queueMicrotask(() => {
+    const lang = useStore.getState().lang;
+    void askConfirm(translate(lang, 'tpl.detach.ask'), translate(lang, 'tpl.detach.keep'), translate(lang, 'tpl.detach.undo')).then((keep) => {
+      const s = useStore.getState();
+      // taken back: the change undone, and with it the template's settings (unless the design moved on meanwhile)
+      if (!keep && s.design === out) s.undo();
+    });
+  });
+  return out;
+}
+
 function guarded(d: Design, base: Design) {
   // a sculpture before Make has no boards to solve or join (milestone 120)
   if (isSculpture(d) && !d.outcome) return;
@@ -327,8 +351,10 @@ type State = {
   sketchCancelGesture: () => void;
   sketchUndo: () => void;
   sketchRedo: () => void;
-  /** Change the session's view state (tool, selection, mode, construction, measurements). */
-  setSketch: (p: Partial<Pick<SketchSession, 'tool' | 'sel' | 'mode' | 'cons' | 'dims'>>) => void;
+  /** Change the session's view state (tool, selection, mode, construction, measurements, what a board sketch makes). */
+  setSketch: (p: Partial<Pick<SketchSession, 'tool' | 'sel' | 'mode' | 'cons' | 'dims' | 'board'>>) => void;
+  /** Workshop: open the sketch view square-on to a board's face (1 its material side, −1 the other). */
+  openBoardSketch: (panelId: string, side: 1 | -1) => void;
   /** Write the draft into the design (one undo step) and go back to 3D; false when it cannot be built. */
   finishSketch: () => boolean;
   /** Close the session without changing the design. */
@@ -552,6 +578,22 @@ export const useStore = create<State>()((set, get) => ({
       prevView: '3d',
     });
   },
+  openBoardSketch: (panelId, side) => {
+    const st = get();
+    const p = st.design.panels[panelId];
+    if (!p) return;
+    st.cancelPending();
+    if (st.txnBase) st.commit();
+    const draft: SketchGraph = { pts: {}, segs: {}, order: [] };
+    // what the Shapes tool's operator is set to, the first time (a cut-out unless it says otherwise)
+    const op = st.shapeOp ?? 'cut';
+    set({
+      sketch: { shapeId: null, plane: { kind: 'floor' }, M: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], rigid: false, mode: 'extrude', draft, start: draft, past: [], future: [], txn: null, sel: { pts: [], segs: [] }, tool: 'line', cons: false, dims: true, into: null, board: { panelId, side, mirror: mirroredFrom(p.frame.side, side), op, through: !!st.shapeThrough } },
+      view: 'sketch',
+      prevView: st.view === '2d' ? '2d' : '3d',
+      selection: null,
+    });
+  },
   sketchEdit: (fn, opts) => {
     const k = get().sketch;
     if (!k) return false;
@@ -601,6 +643,16 @@ export const useStore = create<State>()((set, get) => ({
     const k = st.sketch;
     if (!k) return false;
     if (k.txn) st.sketchCommit();
+    if (k.board) {
+      const b = k.board;
+      let made: { kind: 'detail' | 'panel'; id: string } | null = null;
+      if (boardSketchBlock(k.draft, b.op)) return false;
+      st.apply((d) => void (made = writeBoardSketch(d as Design, b, k.draft)));
+      set({ sketch: null, view: get().prevView, tool: 'select' });
+      const m = made as { kind: 'detail' | 'panel'; id: string } | null;
+      if (m) get().select(m.kind === 'panel' ? { kind: 'panel', id: m.id } : { kind: 'detail', id: m.id, ids: [m.id] });
+      return !!m;
+    }
     const shape = k.shapeId ? st.design.sculpt?.shapes[k.shapeId] : null;
     if (finishBlock(k.draft, k.mode, shape)) return false;
     let id = '';
@@ -748,10 +800,12 @@ export const useStore = create<State>()((set, get) => ({
       if (sn) q = { x: x + sn.dx, y: y + sn.dy };
     }
     const pasted = produce(g.base, (dd) => void pasteInto(dd, panelId, q.x, q.y, clip, g.ids));
-    const next = settle(pasted, (dd) => {
+    let next = settle(pasted, (dd) => {
       solve(dd);
       autoConnect(dd);
     });
+    // laid out again from before the paste: a template the paste ended stays ended
+    if (g.base.template && !get().design.template) next = produce(next, (dd) => void detachTemplate(dd as Design));
     set({ design: next, pending: { ...g, panelId } });
   },
   beginPending: (p) => {
@@ -780,8 +834,9 @@ export const useStore = create<State>()((set, get) => ({
     const edited = produce(cur, (d) => void fn(d));
     if (edited === cur) return;
     // shapes can change outlines, and outlines move walls and joints
-    const next = settle(edited, (d) => guarded(d, cur));
-    if (next === cur) return;
+    const settled = settle(edited, (d) => guarded(d, cur));
+    if (settled === cur) return;
+    const next = handOff(cur, settled);
     set({ design: next, past: [...get().past, cur].slice(-HISTORY_LIMIT), future: [], selection: validSelection(next, get().selection) });
   },
   preview: (fn) => {
@@ -795,7 +850,7 @@ export const useStore = create<State>()((set, get) => ({
     const { txnBase, design, past } = get();
     if (!txnBase) return;
     if (design === txnBase) return set({ txnBase: null });
-    set({ txnBase: null, past: [...past, txnBase].slice(-HISTORY_LIMIT), future: [] });
+    set({ txnBase: null, design: handOff(txnBase, design), past: [...past, txnBase].slice(-HISTORY_LIMIT), future: [] });
   },
   cancel: () => {
     const { txnBase } = get();

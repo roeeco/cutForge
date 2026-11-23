@@ -243,6 +243,8 @@ function panel(p: unknown, key: string, d: Record<string, any>) {
     if (!isObj(x.ext)) delete x.ext; // derived: solve re-makes it
     else if (!Number.isFinite(x.ext.s) || !Number.isFinite(x.ext.e)) delete x.ext;
   }
+  // derived with ext
+  if (x.reach !== undefined && (!isObj(x.reach) || [x.reach.s, x.reach.e].some((v) => v !== undefined && !Number.isFinite(v)))) delete x.reach;
   if (x.material !== undefined && typeof x.material !== 'string') fail(`${where}.material`, 'not a material id');
   if (x.place !== undefined) {
     const pl = x.place;
@@ -378,6 +380,7 @@ function tray(t: unknown, key: string, d: Record<string, any>): boolean {
   if (x.curveKind !== undefined && !(CURVE_KINDS as readonly string[]).includes(x.curveKind)) delete x.curveKind;
   if (x.lidOf !== undefined && typeof x.lidOf !== 'string') delete x.lidOf;
   if (x.insideCorners !== undefined && x.insideCorners !== 'finger') delete x.insideCorners;
+  if (x.outsideCorners !== undefined && x.outsideCorners !== 'reach') delete x.outsideCorners;
   if (x.lidAt !== undefined && !(isObj(x.lidAt) && Number.isFinite(x.lidAt.x) && Number.isFinite(x.lidAt.y) && Math.abs(x.lidAt.x) <= COORD_LIMIT && Math.abs(x.lidAt.y) <= COORD_LIMIT)) delete x.lidAt;
   if (x.pin !== undefined) {
     if (!isObj(x.pin)) delete x.pin;

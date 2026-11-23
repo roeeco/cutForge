@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { translate, type Lang } from '../i18n';
 
 type Ask =
-  | { kind: 'confirm'; text: string; ok?: string; done: (v: boolean) => void }
+  | { kind: 'confirm'; text: string; ok?: string; cancel?: string; done: (v: boolean) => void }
   | { kind: 'alert'; text: string; done: (v: void) => void }
   | { kind: 'prompt'; text: string; value: string; done: (v: string | null) => void };
 
@@ -21,9 +21,9 @@ const close = () => {
   emit();
 };
 
-/** Ask yes or no; resolves true for *OK* (or `ok`'s word). */
-export function askConfirm(text: string, ok?: string): Promise<boolean> {
-  return new Promise((done) => show({ kind: 'confirm', text, ok, done }));
+/** Ask yes or no; resolves true for *OK* (or `ok`'s word), false for *Cancel* (or `cancel`'s word) and Esc. */
+export function askConfirm(text: string, ok?: string, cancel?: string): Promise<boolean> {
+  return new Promise((done) => show({ kind: 'confirm', text, ok, cancel, done }));
 }
 
 /** Tell the student something; resolves when it is closed. */
@@ -56,6 +56,7 @@ function DialogBody({ a, lang }: { a: Ask; lang: Lang }) {
   const [text, setText] = useState(a.kind === 'prompt' ? a.value : '');
   const okRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const opened = useRef(performance.now());
   useEffect(() => {
     if (a.kind === 'prompt') inputRef.current?.select();
     else okRef.current?.focus();
@@ -77,10 +78,20 @@ function DialogBody({ a, lang }: { a: Ask; lang: Lang }) {
         <div className="modal-actions">
           {a.kind !== 'alert' && (
             <button onClick={() => finish(false)} data-testid="app-dialog-cancel">
-              {t('dlg.cancel')}
+              {a.kind === 'confirm' && a.cancel ? a.cancel : t('dlg.cancel')}
             </button>
           )}
-          <button ref={okRef} className="primary" onClick={() => finish(true)} data-testid="app-dialog-ok">
+          <button
+            ref={okRef}
+            className="primary"
+            onClick={(e) => {
+              // the Enter that asked the question (a size typed and committed) is not its answer: a key's press within
+              // a moment of the dialog opening is ignored (a click from a key has no pointer detail)
+              if (e.detail === 0 && performance.now() - opened.current < 300) return;
+              finish(true);
+            }}
+            data-testid="app-dialog-ok"
+          >
             {a.kind === 'confirm' && a.ok ? a.ok : t('dlg.ok')}
           </button>
         </div>
