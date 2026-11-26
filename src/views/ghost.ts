@@ -8,7 +8,7 @@ import { closeBoxGo } from '../easy/actions';
 import { checkHinge } from '../model/hinge';
 import { fromHinge } from '../model/hinge';
 import { defaultOffset, growPanel, seatingOf } from '../model/ops';
-import { connectionsFor, matOf } from '../model/materials';
+import { connectionsFor, gluesByDefault, matOf } from '../model/materials';
 import { designKind } from '../model/jointDefaults';
 import { netOverlaps } from '../model/pieces';
 import type { ConnectionKind } from '../model/types';
@@ -77,7 +77,7 @@ export function closeAsGo(panelId: string, edge: string, tray: string, choice: C
   const st = useStore.getState();
   const grow = st.grow;
   let id: string | null = null;
-  st.apply((d) => void (id = closeAsRecipe(d, tray, choice, () => growWith(d, panelId, edge, grow, choice.startsWith('style:') ? 'fold' : undefined)?.panelId ?? null)));
+  st.apply((d) => void (id = closeAsRecipe(d, tray, choice, (own) => growWith(d, panelId, edge, grow, own)?.panelId ?? null, panelId, grow.kind)));
   if (id) useStore.getState().select({ kind: 'panel', id });
   return id;
 }
@@ -110,11 +110,11 @@ export function growOverlap(d: Design, panelId: string, edge: string, grow: Grow
     .map((o) => (o.a === r.panelId ? o.b : o.a));
 }
 
-/** The joint a panel grown as its own piece uses: the design's wall-to-base kind if it is not a fold, else glue on card, tabs and slots on corrugated. */
+/** The joint a panel grown as its own piece uses: the design's wall-to-base kind if it is not a fold, else a glue flap on card and 1.6 mm board, tabs and slots on 4 mm board. */
 export function ownGrowKind(d: Design, panelId: string): ConnectionKind {
   const m = matOf(d, panelId);
   const ok = connectionsFor(m, 90).filter((k) => k !== 'fold');
-  return designKind(d, 'base', ok, m.kind) ?? (m.kind === 'card' ? 'glue' : 'tabslot');
+  return designKind(d, 'base', ok, m.kind) ?? (gluesByDefault(m) ? 'glue' : 'tabslot');
 }
 
 /**
@@ -143,7 +143,7 @@ export function growConfirm(d: Design, panelId: string, edge: string, grow: Grow
   const check = checkHinge(d, panelId, edge, grow.angle, grow.height);
   const blocked = !!check.blocking;
   const closes = advanced ? null : wallClosesBox(d, panelId, edge, eg.ghost);
-  const closesW = advanced ? closeChoices(d, panelId, edge, eg.ghost) : null;
+  const closesW = advanced ? closeChoices(d, panelId, edge, eg.ghost, grow.kind) : null;
   const closeAs = closesW ? closeChoice(closesW, grow.closeAs) : null;
   const over = growOverlap(d, panelId, edge, grow);
   return {

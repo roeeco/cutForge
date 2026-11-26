@@ -11,7 +11,7 @@ import './outline';
 import type { ConnGeom, Connection, ConnectionKind, Design, Flap3d, MaterialProfile, Notch, P2, Panel, TabLock, V3 } from './types';
 import { edgeInwardLocal, edgeLength, edgeLocal, edgeWorld, frameNormal, matDir, toLocal, toWorld } from './frame';
 import { edgeNeighbours, edgePieces, FACE, findEdge, isCurveKey, panelEdges, segDir, segInward, segLength, withEdgeMemo, type EdgeArg } from './edges';
-import { matOf, minWeb, pairFilter, tOf } from './materials';
+import { gluesByDefault, matOf, minWeb, pairFilter, tOf } from './materials';
 import { throughHits, throughRegions } from './through';
 import { pointInPolygon } from '../geom/vec';
 import { v3add, v3cross, v3dot, v3len, v3mul, v3norm, v3sub } from '../geom/v3';
@@ -799,6 +799,12 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
     // the crease in the middle of the corner the owner's end and the folded flap share: half a thickness into the owner
     g.scores.push({ panelId: O.id, a: p(fit.s0, -tO / 2), b: p(fit.s1, -tO / 2), toward: sign });
     const start = sign > 0 ? tO : 0;
+    // it lies on the receiver's face: along the owner's normal for a board standing square on it, and for a board
+    // leaning on it (a ramp, a slat) along that normal laid into the receiver's plane (26 November: drawn standing
+    // off the face before, its area short by the lean, when glue became the default on card and 1.6 mm board)
+    const nR = matDir(R.frame);
+    const lean = v3dot(mdO, nR);
+    const along = Math.abs(lean) > 1e-9 ? v3norm(v3sub(mdO, v3mul(nR, lean))) : mdO;
     const poly3 = [
       [fit.s0, 0],
       [fit.s0 + taper, fh],
@@ -806,7 +812,7 @@ function connectionGeomOne(d: Design, c: Connection, rng?: [number, number]): Co
       [fit.s1, 0],
     ].map(([s, u]) => {
       const lp = edgePoint(O, edge, s, fit.d1);
-      const w = v3add(toWorld(O.frame, lp.x, lp.y, start), v3mul(mdO, sign * u));
+      const w = v3add(toWorld(O.frame, lp.x, lp.y, start), v3mul(along, sign * u));
       return toLocal(R.frame, w);
     });
     const zFace = fit.zE + fit.k * fit.d1;
@@ -1373,12 +1379,14 @@ export function seamKinds(m: MaterialProfile, type: SeamType, other?: MaterialPr
   // milestone 173: boards face to face are glued over the area they share, whatever they are
   if (type === 'laminate') return ['laminate'];
   const ply = m.kind === 'plywood';
-  // corners: tab-and-slot for every material at any corner angle; the corrugated default
+  // corners: tab-and-slot for every material at any corner angle; the default of 4 mm board
   // a slit lock (milestone 68) wherever a glue flap is offered, just after it
   // milestone 154: a gusset (the corner left uncut) on card and corrugated, after the joints that are cut
-  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : m.kind === 'corrugated' ? ['tabslot', 'glue', 'lock', 'gusset', 'slide', 'butt'] : ['glue', 'lock', 'gusset', 'tabslot', 'slide', 'butt'];
-  // an edge on a face: tabs and slots where they can be made, then a glue flap (card and corrugated fold one), a slide fit last
-  return ply ? ['tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'slide', 'butt'];
+  // card and 1.6 mm board start with a glue flap (the owner, 26 November: `gluesByDefault`)
+  const glues = gluesByDefault(m);
+  if (type === 'corner') return ply ? ['finger', 'tabslot', 'butt'] : glues ? ['glue', 'lock', 'gusset', 'tabslot', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'gusset', 'slide', 'butt'];
+  // an edge on a face: tabs and slots where they can be made (a glue flap first on thin board), a slide fit last
+  return ply ? ['tabslot', 'slide', 'butt'] : glues ? ['glue', 'tabslot', 'lock', 'slide', 'butt'] : ['tabslot', 'glue', 'lock', 'slide', 'butt'];
 }
 
 /**

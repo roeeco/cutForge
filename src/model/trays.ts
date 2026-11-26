@@ -6,7 +6,7 @@
 // wall opens its edge; "Wall it" closes it again.
 import type { ConnectionKind, Design, MaterialProfile, Panel, Tray } from './types';
 import { isCurveKey, panelEdges, segDir, segLength, findEdge } from './edges';
-import { tOf } from './materials';
+import { gluesByDefault, tOf } from './materials';
 import { removePanelRecord } from './place';
 import { KEEP_STRAIGHT } from '../geom/fillet';
 
@@ -16,7 +16,8 @@ export const MIN_EDGE = KEEP_STRAIGHT;
 /** Defaults by material: walls fold up from the base on card and corrugated (one net). */
 export function trayKinds(m: MaterialProfile): { wallKind: ConnectionKind; cornerKind: ConnectionKind } {
   if (m.kind === 'plywood') return { wallKind: 'finger', cornerKind: 'finger' };
-  return { wallKind: 'fold', cornerKind: m.kind === 'corrugated' ? 'tabslot' : 'glue' };
+  // card and 1.6 mm board glue their corners with flaps (the owner, 26 November); 4 mm board takes tabs and slots
+  return { wallKind: 'fold', cornerKind: gluesByDefault(m) ? 'glue' : 'tabslot' };
 }
 
 /** The tray a panel belongs to: as its base, or as one of its walls. */

@@ -15,7 +15,9 @@ const CORR = MATERIALS.find((m) => m.kind === 'corrugated')!;
 function tray(m: (typeof MATERIALS)[number], w: number, h: number, ht: number, q: number): Design {
   const d = createDesign(m);
   const b = addRootPanel(d, 0, 0, w, h);
-  addTray(d, b, ht);
+  // corrugated trays keep the tab-and-slot corners they were measured with (1.6 mm board glues its corners by default
+  // since 26 November; its wider net is a different design, not a change in the nester)
+  addTray(d, b, ht, m.kind === 'corrugated' ? { cornerKind: 'tabslot' } : undefined);
   d.pieces[b].quantity = q;
   solve(d);
   return d;

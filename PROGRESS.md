@@ -2684,6 +2684,74 @@ Forty shapes, simple and awkward booleans, made in one click in card and corruga
 - `tests/makeEngine.test.ts` (+2: a thin cylinder in one piece with one outline on six seeds; an inset through a save and load, and dropped when not a number). `npm test` 2112 passed; typecheck clean; `make-fold`, `make-boards` pass. In the browser: the thin cylinder's net (the tooth beside each cap on the cap's edge, clear of the strip) and its fold.
 - Left: corrugated cylinders and cones at 2 pieces; a corrugated dent's net cuts chips under 2 mm² (old).
 
+## 26 November (the owner's report): a box closed for good, glue flaps on thin board, joints the construction takes ✅
+
+The owner: in Workshop, closing a box without a lid that opens did not work well; 1.6 mm corrugated and card should
+default to glue flaps; and the check that a chosen joint is one the box's construction can make should be stricter.
+
+- **Closing a box for good (*Fixed*), every material.** Found: on card and corrugated, a board grown across a box's
+  top became a folded lid with a closure (*hinged*) whatever joint the grow card had (glue, tabs, butt), and the
+  *Lid* section had no way to close a box for good; on plywood the grow card's *Fixed* left the top overlapping three
+  walls (`val.overlap` ×3) until the next edit joined it. Now *Fixed* is a lid choice like the others in Workshop
+  (`LidChoice`, the *Lid* pictures), made by `addFixedTop` (`easy/lid.ts`): a board off the back wall's top edge with
+  `fixedKind` (the joint picked on the grow card when it does not fold, else the design's *Wall to base* that does not
+  fold, else fingers on plywood, a glue flap on card and 1.6 mm board, tabs on 4 mm board), as deep as the front
+  wall's outside face for that joint, and joined to the three other walls at once. The grow card offers it on card and
+  corrugated too (`closeChoices`), last after the folded lids, or first when the student picked a joint that does not
+  fold; ✓ grows it with that joint, sets its depth to the reach (`fitFixedTop`) and joins it. Refused with a reason on
+  a rounded box (`lid.why.fixedRound`), a carton (it closes with flaps) and where it would leave a problem
+  (`lid.why.fixedProblem`).
+- **Glue flaps by default on card and 1.6 mm board** (`gluesByDefault`, `materials.ts`: card, and corrugated under
+  3 mm): corners (`seamKinds`, `trayKinds`), edges on a face (dividers, `faceOrder`; the fall-back order follows it),
+  walls cut as their own pieces (`ownKind`, `ownGrowKind`) and *Fold it*'s seams (`chooseJoint`; the seam that closes
+  the form last still takes tabs dropped in). 4 mm board keeps tabs and slots first, plywood its fingers. Designs
+  already made keep their joints; a corrugated round box's wall stays its own piece on tabs (milestone 66).
+- **A glue flap on a board leaning on a face is drawn on that face** (`seams.ts`): its 3D flap went along the leaning
+  board's normal, off the face, and short by the lean (`netIn3d` on the scoop organiser's ramps and the honeycomb rack's
+  slats, which glue now). Square joints are drawn as before.
+- **Joint kinds only where the construction takes them** (`easy/jointWhy.ts`; `DesignSettings`, `Connections`): each
+  kind a *Wall to base* / *Corners* list or a joint's card offers is tried on a copy of the design, as a lid is
+  (`lidWhy`): it must be taken by at least one of the joints it is for and leave no new problem in the checks. One that
+  is not is greyed, and a note under the list says why: *the way this box is built keeps its own joints there* (a card
+  carton's three folded corners; 4 mm corrugated magazine file's gussets), or *it would leave a problem* and the check
+  (tabs on a plywood scoop tray: a slot too near an edge; *Edge to edge* on board-built designs: boards overlapping or
+  not joined). Of 948 kinds offered across every template and material, 42 are greyed. The answers are worked out one
+  kind at a time after the card is drawn (`useKindWhys`) and kept per design state, so an edit never waits for them
+  (about 10 ms a kind; the roll-top desk about 250 ms). A joint's card always lists the kind it has (a carton's folded
+  corner showed *Glue flap* before).
+
+**Verified**
+- `tests/closeForGood.test.ts` (6): *Fixed* from the *Lid* section on card, 1.6 and 4 mm board and plywood, one edit,
+  its joint off the back wall, joined to all four walls, no closure, no problem, idempotent, the same after a save; back
+  to *None*; the shapes on a hinged lid's top carried onto it; refused on a rounded box and a carton.
+- `tests/jointWhy.test.ts` (7): which boards glue; corners, edges on a face, trays and dividers glued on card and
+  1.6 mm, tabs on 4 mm, fingers on plywood; a card and a 1.6 mm box with a divider glued throughout and clean; a card
+  carton's folded corners hold every other kind; tabs on a plywood scoop tray greyed for `val.slotEdge`; every kind
+  still offered in every template and material taken by its joints with no new problem.
+- `tests/growCloses.test.ts` (+3): *Fixed* last on card and corrugated, first when glue or tabs were picked; *Fixed*
+  made on card, 1.6 and 4 mm board, joined to four walls; plywood's *Fixed* joined at once.
+- Updated for the new defaults (each kept to what it tests): `trays`, `joints` (4 mm dividers on tabs, 1.6 mm glued),
+  `dividers`, `templates` (organiser), `jointChoice`, `jointdefaults` (an older file's corners set to tabs first),
+  `locktabs` (card's divider ends asked for as tabs), `nest` (the corrugated trays keep the tab corners they were
+  measured with: glued, the deep tray's net no longer nests eight to a sheet). Golden exports regenerated for the nine
+  card and 1.6 mm designs whose output changed (glue flaps for tabs and their slots); none of plywood or 4 mm changed.
+- `npm test`: 2153 passed, 8 skipped, none failed. `npm run typecheck`: clean.
+- E2E (`pw-app.config.ts`): new `close-fixed.spec` (5); `lids`, `closures`, `grow-cleanup`, `settings`, `joints`,
+  `gizmo`, `maintenance`, `dividers`, `trays`, `walls`, `quick`, `quick-revised`, `flaps`, `foldover`, `endings`,
+  `boards`, `make-fold`, `make-boards`, `nets`, `nets-build`, `templates`, `round`, `bands`, `wings`, `editing`,
+  `guided`: 101 passed, 9 failed, all of which fail the same way on the commit before this one (`gizmo.spec:50`,
+  `:252`, `:376`, `maintenance.spec:104`, `quick.spec:13`, `quick-revised.spec:92` en and he, `round.spec:27`,
+  `templates.spec:8`).
+- Looked at in the browser: the grow card on a card box with *Glue flap* picked (*Fixed* first, ✓ closes it), the box's
+  *Lid* pictures with *Fixed*, the plywood scoop tray's joints list with two kinds greyed and why, a card carton's
+  folded corner with every other kind greyed on one line.
+
+**Limitations**
+- The grow card's own *Connection* list is not tried this way (the ghost is not in the design yet).
+- *Fixed* grows off the back wall; on a box with no back wall (a polygon whose edges face no way) it is refused.
+- A kind taken by some of a group's joints and held back by the construction on others stays offered; the note after
+  choosing says how many were held, as before.
+
 ## Milestones 161–163 (edge endings of a grown board, `GROW_ENDINGS_PLAN.md`; their own lane, the numbers overlap the boxes lane above) ✅
 
 What a student sees (Workshop): press ✓ on a grow and the new board's card has **Edge endings** right under its

@@ -262,6 +262,8 @@ svg.ico { width: 18px; height: 18px; flex: none; display: block; }
 .stepper-row input:focus { box-shadow: var(--focus); }
 .stepper input[type='range'] { width: 104px; height: 14px; }
 .note { color: var(--ink-muted); font-size: 12px; margin: 6px 0; line-height: 1.45; }
+.note .why-list { margin: 4px 0 0; padding-inline-start: 16px; }
+.note .why-list li { margin: 2px 0; }
 .chip { border: 1px solid var(--line); border-radius: var(--r-pill); padding: 2px 9px; font-size: 12px; min-height: 0; }
 .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .segmented { display: inline-flex; background: var(--surface-sunk); border-radius: var(--r-sm); padding: 2px; gap: 2px; }

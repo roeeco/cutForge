@@ -6,7 +6,7 @@
 // Every number here is a starting value, unverified on real stock (DECISIONS.md).
 import type { Connection, ConnectionKind, MaterialProfile } from './types';
 import type { MsgKey } from '../i18n';
-import { CARD_FOLD_MAX } from './materials';
+import { CARD_FOLD_MAX, gluesByDefault } from './materials';
 
 export type SeamRole = 'fold' | 'seam' | 'corner';
 export type SeamCtx = {
@@ -76,6 +76,9 @@ export function chooseJoint(c: SeamCtx): SeamChoice {
       return sharp && t > 2 ? { kind: 'fold', params: { crease: 'cutcrease' }, why: 'joint.why.cutCrease' } : { kind: 'fold', params: {}, why: 'joint.why.corrFold' };
     }
     const square = dihedral >= BOARD_MIN && dihedral <= BOARD_MAX;
+    // 1.6 mm board glues its seams with flaps (the owner, 26 November: `gluesByDefault`); only the seam that closes
+    // the form last, glued from outside where no hand reaches in, still takes tabs dropped in
+    if (gluesByDefault(mat) && !c.closesLast) return { kind: 'glue', params: { flap }, why: role === 'corner' && !square ? 'joint.why.outsideAngle' : len < 30 ? 'joint.why.short' : 'joint.why.corrGlue' };
     const tabsOk = square && len >= (t > 2 ? 3 * Math.max(8, 5 * t) : 30);
     if (tabsOk) return { kind: 'tabslot', params: { tabs: tabsFor(mat, len) }, why: c.closesLast ? 'joint.why.tabsLast' : 'joint.why.corrTabs' };
     if (role === 'corner' && !square) return { kind: 'glue', params: { flap }, why: 'joint.why.outsideAngle' };

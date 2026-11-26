@@ -46,6 +46,16 @@ export function holdsLean(m: MaterialProfile): boolean {
   return m.kind === 'plywood' || (m.kind === 'corrugated' && m.thickness >= 3 - 1e-9);
 }
 
+/**
+ * Does this board take glue flaps by default where it is glued to another (the owner, 26 November): card, and
+ * corrugated thinner than 3 mm. Thin board has too little edge for tabs to bear on, so its corners, the edges that
+ * stand on a face (dividers, walls cut as their own pieces) and the seams *Fold it* makes start as glue flaps; tabs
+ * and slots stay one choice away. 4 mm board keeps tabs and slots first, plywood its fingers.
+ */
+export function gluesByDefault(m: Pick<MaterialProfile, 'kind' | 'thickness'>): boolean {
+  return m.kind === 'card' || (m.kind === 'corrugated' && m.thickness < 3 - 1e-9);
+}
+
 /** Smallest safe web of material between a cut and an edge (mm). */
 export function minWeb(m: MaterialProfile): number {
   return m.kind === 'plywood' ? 2 : m.kind === 'corrugated' ? 3 : 1.5;

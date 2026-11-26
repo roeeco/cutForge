@@ -6,7 +6,7 @@ import { wingKindsFor } from './wings';
 // kinds the material allows for at least one of its joints; the design's
 // choice is the default for new joints of that group where allowed.
 import type { Connection, ConnectionKind, Design, DesignJoints, MaterialKind, MaterialProfile } from './types';
-import { connectionsFor, connectionsForPair, matOf, minWeb } from './materials';
+import { connectionsFor, connectionsForPair, gluesByDefault, matOf, minWeb } from './materials';
 import { autoFlap, gussetFits, seamKinds, seamTypeOf } from './seams';
 import { trayKinds } from './trays';
 
@@ -201,13 +201,17 @@ export function standsOnFace(d: Design, c: Pick<Connection, 'grown' | 'offset'> 
 
 /** The order joints are tried where an edge meets a face: tabs and slots, a glue flap, then a slide fit (no joint) last. */
 export const FACE_ORDER: ConnectionKind[] = ['tabslot', 'glue', 'slide'];
+/** The same on card and 1.6 mm board (`gluesByDefault`): a glue flap first. */
+export const FACE_ORDER_GLUE: ConnectionKind[] = ['glue', 'tabslot', 'slide'];
+/** The order a board of this material tries where an edge meets a face. */
+export const faceOrder = (m: MaterialProfile): ConnectionKind[] => (gluesByDefault(m) ? FACE_ORDER_GLUE : FACE_ORDER);
 
 /** Kinds for a new divider (an edge standing on a face at 90°), the design's choice first when allowed. */
 export function dividerKind(d: Design, baseId?: string): ConnectionKind {
   const m = baseId ? matOf(d, baseId) : d.material;
   const face = seamKinds(m, 'face');
   const ok = connectionsFor(m, 90).filter((k) => face.includes(k));
-  return designKind(d, 'base', ok, m.kind) ?? FACE_ORDER.find((k) => ok.includes(k)) ?? ok[0] ?? 'butt';
+  return designKind(d, 'base', ok, m.kind) ?? faceOrder(m).find((k) => ok.includes(k)) ?? ok[0] ?? 'butt';
 }
 
 /** A new tray's joints: the design's choices where a tray allows them, else the material's. */

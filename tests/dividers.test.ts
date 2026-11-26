@@ -15,7 +15,7 @@ import {
 import { renamePanel } from '../src/model/dividers';
 import { prepareExport } from '../src/export/prepare';
 import { sheetsToSvg } from '../src/export/svg';
-import { MATERIALS } from '../src/model/materials';
+import { MATERIALS, gluesByDefault } from '../src/model/materials';
 import { validate } from '../src/model/validate';
 import { maxOverlap } from './solid';
 import { toWorld } from '../src/model/frame';
@@ -139,8 +139,10 @@ describe('a divider between two faces', () => {
       const n = [P.frame.u[1] * P.frame.v[2] - P.frame.u[2] * P.frame.v[1], P.frame.u[2] * P.frame.v[0] - P.frame.u[0] * P.frame.v[2], P.frame.u[0] * P.frame.v[1] - P.frame.u[1] * P.frame.v[0]];
       expect(Math.abs((b.point[0] - mid[0]) * n[0] + (b.point[1] - mid[1]) * n[1] + (b.point[2] - mid[2]) * n[2])).toBeLessThan(0.06);
       expect(validate(d).filter((i) => i.pair)).toEqual([]);
-      // its ends: tabs in slots in the walls, for every material (an edge on a face: tabs and slots first)
-      expect(Object.values(d.connections).filter((x) => !x.grown && (x.a.panelId === div || x.b.panelId === div) && walls.includes(x.a.panelId === div ? x.b.panelId : x.a.panelId)).map((x) => x.kind)).toEqual(['tabslot', 'tabslot']);
+      // its ends: tabs in slots in the walls (an edge on a face: tabs and slots first), glue flaps on card and 1.6 mm
+      // board (26 November)
+      const end = gluesByDefault(m) ? 'glue' : 'tabslot';
+      expect(Object.values(d.connections).filter((x) => !x.grown && (x.a.panelId === div || x.b.panelId === div) && walls.includes(x.a.panelId === div ? x.b.panelId : x.a.panelId)).map((x) => x.kind)).toEqual([end, end]);
     });
 
   it('faces that are not parallel, not facing, or not on the same base are refused with the reason', () => {

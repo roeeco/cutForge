@@ -234,6 +234,8 @@ describe('milestone 26: one set of choices per material kind', () => {
 
   it("an older flat set of choices loads into the file material's slot", () => {
     const { d } = box(CORR);
+    // its corners as such a file has them (1.6 mm board glues them by default since 26 November)
+    setAllJoints(d, 'corner', 'tabslot');
     const raw = JSON.parse(serializeProject(d)).design;
     raw.joints = { corner: 'tabslot', flap: 9 };
     const back = migrateDesign(raw);

@@ -34,9 +34,12 @@ describe('card 0.3–0.6 mm', () => {
 });
 
 describe('corrugated', () => {
-  it('1.6 mm: folds crease; seams 30 mm and over are tabs and slots, tabs max(8, 5t) wide; shorter ones glued 12–20 mm', () => {
+  it('1.6 mm: folds crease; seams are glue flaps 12–20 mm (26 November), the one that closes the form last tabs max(8, 5t) wide', () => {
     expect(chooseJoint(ctx(CORR16, { role: 'fold' })).kind).toBe('fold');
-    const t = chooseJoint(ctx(CORR16));
+    const s = chooseJoint(ctx(CORR16));
+    expect(s.kind).toBe('glue');
+    expect(s.why).toBe('joint.why.corrGlue');
+    const t = chooseJoint(ctx(CORR16, { closesLast: true }));
     expect(t.kind).toBe('tabslot');
     expect(t.params.tabs).toBe(tabsFor(CORR16, 60));
     expect(tabsFor(CORR16, 60)).toBe(3);
@@ -98,7 +101,8 @@ describe('a change of material', () => {
     const mine = seams[0];
     mine.kind = mine.pref = 'butt';
     mine.picked = true;
-    d.material = { ...CORR16 };
+    // to 4 mm board, whose seams take tabs (card and 1.6 mm board both glue them, 26 November)
+    d.material = { ...CORR4 };
     const n = rechooseJoints(d, P);
     expect(n).toBeGreaterThan(0);
     expect(d.connections[mine.id].kind).toBe('butt');

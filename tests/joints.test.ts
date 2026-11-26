@@ -228,14 +228,22 @@ describe('dividers and half-laps', () => {
     expect(maxOverlap(d, [0, 0, -90], [120, 45, 0], 0.9)).toBe(1);
   });
 
-  it('corrugated dividers are held by tabs in slots in the walls (an edge on a face: tabs and slots first)', () => {
-    const { d, walls, a, base } = organiser(CORR);
+  it('4 mm corrugated dividers are held by tabs in slots in the walls (an edge on a face: tabs and slots first)', () => {
+    const { d, walls, a, base } = organiser(MATERIALS[2]);
     const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap' && c.b.panelId !== base);
     expect(ends.map((c) => c.kind)).toEqual(['tabslot', 'tabslot']);
     // the slots are in the walls, with a web around them
     const slots = ends.flatMap((c) => c.geom!.holes).filter((h) => walls.includes(h.panelId));
     expect(slots.length).toBeGreaterThan(0);
     expect(validate(d).filter((i) => i.key === 'val.slotEdge')).toEqual([]);
+  });
+
+  it('1.6 mm corrugated dividers are glued to the walls with flaps (26 November: thin board glues by default)', () => {
+    const { d, a, base } = organiser(CORR);
+    const ends = Object.values(d.connections).filter((c) => !c.grown && c.a.panelId === a && c.kind !== 'halflap' && c.b.panelId !== base);
+    expect(ends.map((c) => c.kind)).toEqual(['glue', 'glue']);
+    expect(ends.every((c) => !c.broken && c.geom!.adds.length > 0 && c.geom!.flaps3d.length > 0)).toBe(true);
+    expect(validate(d).filter((i) => i.pair)).toEqual([]);
   });
 });
 

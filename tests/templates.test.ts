@@ -50,8 +50,13 @@ describe('organiser', () => {
   it('corrugated: folded tray (one piece) with glue flaps; the walls have slots only for the dividers’ tabs', () => {
     for (const m of [CORR16, CORR4]) {
       const d = generate(org, m, defaults(org));
-      expect(Object.values(d.connections).filter((c) => c.kind === 'glue')).toHaveLength(4);
       const dividerIds = Object.keys(d.panels).filter((id) => id.startsWith('t:div'));
+      const byDivider = (c: (typeof d.connections)[string]) => dividerIds.includes(c.a.panelId) || dividerIds.includes(c.b.panelId);
+      // the tray's four corners are glued; the dividers' ends take tabs on 4 mm board, glue flaps on 1.6 mm (26 November)
+      expect(Object.values(d.connections).filter((c) => c.kind === 'glue' && !byDivider(c))).toHaveLength(4);
+      const ends = Object.values(d.connections).filter((c) => !c.grown && c.kind !== 'halflap' && byDivider(c) && c.a.panelId !== 't:base' && c.b.panelId !== 't:base');
+      expect(ends.length).toBeGreaterThan(0);
+      expect(ends.every((c) => c.kind === (m === CORR16 ? 'glue' : 'tabslot'))).toBe(true);
       for (const w of [0, 1, 2, 3]) {
         const fromDividers = Object.values(d.connections).filter((c) => !c.grown && c.kind === 'tabslot' && dividerIds.includes(c.a.panelId)).flatMap((c) => c.geom!.holes).filter((h) => h.panelId === `t:wall${w}`);
         expect(panelExtras(d, d.panels[`t:wall${w}`]).holes).toHaveLength(fromDividers.length);

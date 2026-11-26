@@ -10,8 +10,11 @@ import { setAllJoints, setDefaultFlap } from '../model/ops';
 import { groupKinds, groupMix, groupShown, inactiveChoice, jointsOf, type JointGroup } from '../model/jointDefaults';
 import type { JointChange } from '../model/ops';
 import { autoFlap } from '../model/seams';
-import type { ConnectionKind } from '../model/types';
+import type { ConnectionKind, Design } from '../model/types';
 import { fmtNum } from '../i18n';
+import { groupKindWhy } from '../easy/jointWhy';
+import { useKindWhys } from './useKindWhys';
+import { KindWhyNote } from './KindWhyNote';
 import { TemplateSection, templateSummary } from './TemplateUI';
 import { PresetEditor, presetSummary } from './PresetEditor';
 import { useMaterialEdit } from './MaterialDrawer';
@@ -100,25 +103,9 @@ export function DesignSettings() {
   // what a group's joints are, for the list: one kind, or *Mixed (3 Tabs, 1 Fingers)* (milestone 135)
   const mixLabel = (group: JointGroup) => groupMix(d, group).map((x) => `${x.n} ${short_(x.kind)}`).join(', ');
   const list = (group: JointGroup, label: string) => {
-    const kinds = groupKinds(d, group);
-    const shown = groupShown(d, group);
     return (
       <>
-        <div className="field">
-          <label htmlFor={`joints-${group}`}>{label}</label>
-          <select id={`joints-${group}`} value={shown ?? ''} onChange={(e) => e.target.value && choose(group, e.target.value as ConnectionKind)} data-testid={`joints-${group}`} data-mixed={shown === undefined || undefined}>
-            {shown === undefined && (
-              <option value="" disabled>
-                {t('settings.mixed', { mix: mixLabel(group) })}
-              </option>
-            )}
-            {kinds.map((k) => (
-              <option key={k} value={k}>
-                {t(`conn.${k}` as 'conn.fold')}
-              </option>
-            ))}
-          </select>
-        </div>
+        <GroupKindSelect d={d} group={group} label={label} mixed={t('settings.mixed', { mix: mixLabel(group) })} onChoose={(k) => choose(group, k)} />
         {(() => {
           const off = inactiveChoice(d, group);
           if (!off) return null;
@@ -308,3 +295,35 @@ export function DesignSettings() {
     </section>
   );
 }
+
+/**
+ * A group's kind list (*Wall to base*, *Corners*): every kind its joints may take by material and angle, the ones this
+ * design's construction does not take greyed, with why under the list (26 November, `groupKindWhy`).
+ */
+function GroupKindSelect({ d, group, label, mixed, onChoose }: { d: Design; group: JointGroup; label: string; mixed: string; onChoose: (k: ConnectionKind) => void }) {
+  const t = useT();
+  const kinds = groupKinds(d, group);
+  const shown = groupShown(d, group);
+  const whys = useKindWhys(d, kinds, (k) => groupKindWhy(d, group, k), group);
+  return (
+    <>
+      <div className="field">
+        <label htmlFor={`joints-${group}`}>{label}</label>
+        <select id={`joints-${group}`} value={shown ?? ''} onChange={(e) => e.target.value && onChoose(e.target.value as ConnectionKind)} data-testid={`joints-${group}`} data-mixed={shown === undefined || undefined}>
+          {shown === undefined && (
+            <option value="" disabled>
+              {mixed}
+            </option>
+          )}
+          {kinds.map((k) => (
+            <option key={k} value={k} disabled={!!whys[k]} data-testid={`joints-${group}-${k}`}>
+              {t(`conn.${k}` as 'conn.fold')}
+            </option>
+          ))}
+        </select>
+      </div>
+      <KindWhyNote whys={whys} label={(k) => t(`conn.${k}` as 'conn.fold')} testId={`joints-${group}-why`} />
+    </>
+  );
+}
+

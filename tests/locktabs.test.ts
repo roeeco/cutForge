@@ -18,8 +18,11 @@ function box(id: string) {
   addTray(d, base, 50);
   const div = addDivider(d, base, 'e3', 70, 40)!;
   solve(d);
-  // its two ends (milestone 44: its joint with the base is an edge on the base's face too, not one of its ends)
-  const ends = Object.values(d.connections).filter((c) => !c.grown && c.kind === 'tabslot' && (c.a.panelId === div || c.b.panelId === div) && c.a.panelId !== base && c.b.panelId !== base);
+  // its two ends (milestone 44: its joint with the base is an edge on the base's face too, not one of its ends); card
+  // starts with glue flaps there (26 November), so they are asked for as tabs
+  const endsOf = () => Object.values(d.connections).filter((c) => !c.grown && (c.a.panelId === div || c.b.panelId === div) && c.a.panelId !== base && c.b.panelId !== base);
+  for (const c of endsOf()) if (c.kind !== 'tabslot') setConnection(d, c.id, { kind: 'tabslot' });
+  const ends = endsOf().filter((c) => c.kind === 'tabslot');
   return { d, base, div, ends };
 }
 const blocking = (d: Design) => validate(d).filter((i) => !['val.split', 'val.bevel'].includes(i.key)).map((i) => i.key);

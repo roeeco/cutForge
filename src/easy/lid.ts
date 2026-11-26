@@ -7,14 +7,18 @@
 // open). `boxLid` reads what a box has; `setBoxLid` replaces it with another,
 // in one edit, carrying the shapes on the old lid's top to the new one. Both
 // modes and Quick build's Wall / lid use these, so a lid is made one way.
-import type { ClosureStyle, Design, Detail, Panel } from '../model/types';
+import type { ClosureStyle, ConnectionKind, Design, Detail, Panel } from '../model/types';
 import type { CloseAs } from '../store/store';
-import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLayeredLid, addLid, parentConnection, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
+import { ARCH_STRIP, addArchedLid, addDropinLid, addFlatLid, addLayeredLid, addLid, autoConnect, defaultOffset, growPanel, parentConnection, seatingOf, setClosure, setTrayEnds, setTrayHeight, solve } from '../model/ops';
 import { boxDividers, dropinOnFrame, flatLidsOf, flatOnFrame, lidOn, lidOnFrame } from '../model/lid';
 import { knucklesOf, pinLidBoards } from '../model/pinHinge';
 import { archLids, closureStyles, reachFor, sealFor, sealOf } from '../model/closures';
-import { topLidId, trayRing } from '../model/cartons';
-import { bendOf, matOf } from '../model/materials';
+import { backAndFront, topLidId, trayRing } from '../model/cartons';
+import { bendOf, connectionsFor, gluesByDefault, matOf } from '../model/materials';
+import { designKind } from '../model/jointDefaults';
+import { ghostPanel } from '../model/adapt';
+import { validate } from '../model/validate';
+import { NOTE_KEYS } from './notes';
 import { keepingStatedSizes } from '../model/boxSize';
 import { removePanelRecord } from '../model/place';
 import { toLocal, toWorld } from '../model/frame';
@@ -34,8 +38,8 @@ export type BoxLid =
   /** A carton's top closed by four flaps. */
   | { kind: 'flaps' };
 
-/** What can be chosen in the *Lid* section. */
-export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched';
+/** What can be chosen in the *Lid* section (*Fixed*: the box closed for good, Workshop only). */
+export type LidChoice = 'none' | 'liftoff' | 'hinged' | 'arched' | 'fixed';
 /** The kinds of lid that lifts off (milestone 79): a shallow tray over the box, or one board resting on its walls. */
 export type LidStyle = 'cap' | 'flat' | 'dropin' | 'plug' | 'brim';
 export const LID_STYLES: LidStyle[] = ['cap', 'flat', 'dropin'];
@@ -187,6 +191,7 @@ function setBoxLidAs(d: Design, trayId: string, choice: LidChoice, style?: LidSt
   }
   else if (choice === 'hinged') setTrayEnds(d, trayId, { top: 'tuck' });
   else if (choice === 'arched') addArchedLid(d, trayId);
+  else if (choice === 'fixed') addFixedTop(d, trayId);
   const now = boxLid(d, trayId);
   const top = lidTop(now);
   const P = top ? d.panels[top] : undefined;
@@ -209,6 +214,58 @@ function setBoxLidAs(d: Design, trayId: string, choice: LidChoice, style?: LidSt
 }
 
 /**
+ * The joint a board grown across a box's top to close it for good takes (26 November): the one the student picked
+ * on the grow card when it does not fold, else the design's *Wall to base* choice that does not fold, else the
+ * material's own: fingers on plywood, a glue flap on card and 1.6 mm board, tabs and slots on 4 mm board. A fold
+ * would make it a lid that opens (`boxLid`: *hinged*).
+ */
+export function fixedKind(d: Design, wallId: string, picked?: ConnectionKind): ConnectionKind {
+  const m = matOf(d, wallId);
+  const ok: ConnectionKind[] = connectionsFor(m, 90).filter((k) => k !== 'fold');
+  if (picked && ok.includes(picked)) return picked;
+  return designKind(d, 'base', ok, m.kind) ?? (m.kind === 'plywood' ? ok[0] : gluesByDefault(m) ? 'glue' : 'tabslot');
+}
+
+/**
+ * A top fixed on, in any material (26 November; milestone 171's closed top was plywood only): a board grown off the
+ * back wall's top edge with `fixedKind`, as deep as the front wall's outside face, then joined to every wall it meets
+ * (the other three take the design's corner joint: glue flaps on card and 1.6 mm board). It does not open.
+ */
+export function addFixedTop(d: Design, trayId: string, picked?: ConnectionKind): string | null {
+  const t = d.trays?.[trayId];
+  const back = t && backAndFront(d, t).back;
+  if (!t || !back || !d.panels[back.wall]) return null;
+  const kind = fixedKind(d, back.wall, picked);
+  // where the front wall's faces are along a board of this joint (a tab-and-slot board stands in by its offset)
+  const offset = defaultOffset(d, kind, back.wall);
+  const probe = ghostPanel(d, back.wall, 'e2', { height: 2000, angle: 90, dir: 'up', kind, offset, seating: seatingOf(kind), span: null });
+  const r = probe && reachFor(d, probe, back.wall, 'ghost');
+  if (!r) return null;
+  const g = growPanel(d, back.wall, 'e2', { height: r.yOut, angle: 90, dir: 'up', kind, pref: kind });
+  if (!g) return null;
+  solve(d);
+  autoConnect(d);
+  return g.panelId;
+}
+
+/**
+ * A board grown across a box's top as *Fixed* (the grow card's ✓): as deep as the front wall's outside face for its
+ * own joint, whatever depth the ghost had within the reach (a glue flap's board sits where a fold's would not), then
+ * joined to every wall it meets.
+ */
+function fitFixedTop(d: Design, id: string) {
+  const L = d.panels[id];
+  const c = parentConnection(d, id);
+  if (!L || !c || c.kind === 'fold') return;
+  const r = reachFor(d, L, c.a.panelId, c.id);
+  // a plain board only: an outline drawn by hand keeps its depth
+  const plain = L.sketch.kind === 'wall' && !Object.keys(L.sketch.corners ?? {}).length && !L.sketch.inserts?.length;
+  if (r && plain && Math.abs(L.h - r.yOut) > 0.05) L.h = r.yOut;
+  solve(d);
+  autoConnect(d);
+}
+
+/**
  * Why a lid cannot be chosen for this box (null when it can). A lid that
  * lifts off can always be made; one that folds is tried on a copy of the
  * design, and refused when it does not close the box or a bend of it does not
@@ -227,6 +284,8 @@ export function lidWhy(d: Design, trayId: string, choice: LidChoice): MsgKey | n
   // (milestone 138, REPORT.md C1; gated until curved walls are structural, QA_FIX_PLAN.md S6)
   const B = d.panels[t.baseId];
   if (choice === 'hinged' && t.base !== 'open' && B?.sketch.kind === 'poly' && B.sketch.pts.some((q) => q.curve)) return 'lid.why.hingeRound';
+  // a flat board fixed across the top covers no more of a rounded opening (26 November)
+  if (choice === 'fixed' && B?.sketch.kind === 'poly' && (B.sketch.round || B.sketch.pts.some((q) => q.curve))) return 'lid.why.fixedRound';
   if (choice === 'liftoff' || boxLid(d, trayId).kind === choice) return null;
   // what the answer depends on: the box's base, walls, tray settings and material (not shapes, names or other boards)
   const key = boxKey(d, trayId) + '|' + choice;
@@ -266,10 +325,16 @@ function boxKey(d: Design, trayId: string): string {
 
 function probeWhy(d: Design, trayId: string, choice: LidChoice): MsgKey | null {
   const t = d.trays[trayId];
-  const no: MsgKey = choice === 'arched' ? 'lid.why.arch' : matOf(d, t.baseId).kind === 'plywood' ? 'lid.why.hingeSmall' : 'lid.why.cannot';
+  const no: MsgKey = choice === 'arched' ? 'lid.why.arch' : choice === 'fixed' ? 'lid.why.cannot' : matOf(d, t.baseId).kind === 'plywood' ? 'lid.why.hingeSmall' : 'lid.why.cannot';
   const probe = structuredClone(d) as Design;
   if (!setBoxLid(probe, trayId, choice).ok) return no;
   const lid = boxLid(probe, trayId);
+  // a fixed top is joined on every wall it meets, so it is offered only where that leaves no new problem (26 November)
+  if (lid.kind === 'fixed') {
+    const sig = (i: { key: string; vars: unknown }) => `${i.key}|${JSON.stringify(i.vars)}`;
+    const had = new Set(validate(d).filter((i) => !NOTE_KEYS.has(i.key)).map(sig));
+    if (validate(probe).some((i) => !NOTE_KEYS.has(i.key) && !had.has(sig(i)))) return 'lid.why.fixedProblem';
+  }
   // a hinged lid closes the box (it reaches the far wall)
   if (lid.kind === 'hinged' && !sealOf(probe, lid.lid)) return no;
   for (const id of lidParts(probe, lid)) {
@@ -315,28 +380,47 @@ export function boxOfWallTop(d: Design, wallId: string, edge: string): string | 
  * close a box. Whatever the ghost's joint: the box is closed by where the
  * board reaches, not by how it is joined.
  */
-export function closeChoices(d: Design, wallId: string, edge: string, ghost: Pick<Panel, 'id' | 'w' | 'h' | 'frame'> | null): { tray: string; options: CloseAs[]; why: Partial<Record<CloseAs, MsgKey>> } | null {
+export function closeChoices(d: Design, wallId: string, edge: string, ghost: Pick<Panel, 'id' | 'w' | 'h' | 'frame'> | null, picked?: ConnectionKind): { tray: string; options: CloseAs[]; why: Partial<Record<CloseAs, MsgKey>> } | null {
   const tr = ghost ? boxOfWallTop(d, wallId, edge) : null;
   if (!tr || !sealFor(d, ghost!, wallId, 'ghost')) return null;
   const t = d.trays[tr];
   if (t.base === 'open') return { tray: tr, options: ['hinged'], why: {} };
   const kind = matOf(d, t.baseId).kind;
+  // a fixed top can be greyed with its reason like any lid (a round box, a problem it would leave)
+  const fixedWhy = lidWhy(d, tr, 'fixed');
+  const fw: Partial<Record<CloseAs, MsgKey>> = fixedWhy ? { fixed: fixedWhy } : {};
+  // on card and corrugated, a joint picked on the grow card that does not fold (glue, tabs) asks for a board joined
+  // shut, not a folded lid that opens: *Fixed* comes first (plywood's own joints never fold, so there one that opens
+  // stays first, milestone 77)
+  const asked = kind !== 'plywood' && !!picked && picked !== 'fold' && !fixedWhy;
   if (kind === 'plywood') {
     const why = lidWhy(d, tr, 'hinged');
     // one that opens comes first
-    return { tray: tr, options: why ? ['liftoff', 'hinged', 'fixed'] : ['hinged', 'liftoff', 'fixed'], why: why ? { hinged: why } : {} };
+    const opens: CloseAs[] = why ? ['liftoff', 'hinged'] : ['hinged', 'liftoff'];
+    return { tray: tr, options: asked ? ['fixed', ...opens] : [...opens, 'fixed'], why: { ...(why ? { hinged: why } : {}), ...fw } };
   }
-  return { tray: tr, options: [...closureStyles(kind).map((s) => `style:${s}` as CloseAs), 'liftoff'], why: {} };
+  // card and corrugated (26 November): the closure styles fold a lid that opens; *Fixed* joins the board shut on every wall
+  const styles = closureStyles(kind).map((s) => `style:${s}` as CloseAs);
+  return { tray: tr, options: asked ? ['fixed', ...styles, 'liftoff'] : [...styles, 'liftoff', 'fixed'], why: fw };
 }
 
-/** Make what a grow that closes a box was chosen to make (one edit): the board made (a lid's top), or null. */
-export function closeAsRecipe(d: Design, tray: string, choice: CloseAs, grow: () => string | null): string | null {
+/**
+ * Make what a grow that closes a box was chosen to make (one edit): the board made (a lid's top), or null. `grow`
+ * grows the ghost with the joint it is given (a fold for a closure style; for *Fixed*, `fixedKind`: never a fold).
+ */
+export function closeAsRecipe(d: Design, tray: string, choice: CloseAs, grow: (own?: ConnectionKind) => string | null, wallId?: string, picked?: ConnectionKind): string | null {
   if (choice === 'liftoff' || choice === 'hinged') {
     setBoxLid(d, tray, choice);
     const lid = boxLid(d, tray);
     return lid.kind === 'liftoff' ? lid.top : lid.kind === 'hinged' ? lid.lid : null;
   }
-  const id = grow();
+  if (choice === 'fixed') {
+    const wall = wallId ?? backAndFront(d, d.trays[tray]).back?.wall;
+    const id = wall ? grow(fixedKind(d, wall, picked)) : null;
+    if (id) fitFixedTop(d, id);
+    return id;
+  }
+  const id = grow('fold');
   if (id && choice.startsWith('style:')) setClosure(d, id, { style: choice.slice(6) as ClosureStyle });
   return id;
 }

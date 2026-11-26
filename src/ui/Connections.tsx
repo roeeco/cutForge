@@ -19,6 +19,9 @@ import { BendSection } from './BendUI';
 import { CutChoice } from './SplitUI';
 import { connKindKey } from './connLabel';
 import { allowedKinds, pairKinds } from '../model/jointDefaults';
+import { jointKindWhy } from '../easy/jointWhy';
+import { useKindWhys } from './useKindWhys';
+import { KindWhyNote } from './KindWhyNote';
 import { shown, useFeature } from '../easy/features';
 import { bandOf } from '../model/bands';
 
@@ -66,7 +69,11 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
   const apply = useStore((s) => s.apply);
   const mm = t('unit.mm');
   const isChild = c.grown && c.b.panelId === panelId;
-  const kinds = kindsFor(d, c);
+  // the kind it has is always listed: a corner a carton's net folds is a fold, which a corner is otherwise never offered
+  const own = kindsFor(d, c);
+  const kinds = own.includes(c.kind) ? own : [c.kind, ...own];
+  // 26 November: a kind the box's construction does not take here is greyed, with why
+  const whys = useKindWhys(d, kinds.length > 1 ? kinds : [], (k) => jointKindWhy(d, c.id, k), c.id);
   const len = jointLength(d, c);
   // the joint lays fingers out for the thicker board (seams.ts)
   const fingerT = Math.max(tOf(d, c.a.panelId), tOf(d, c.b.panelId));
@@ -84,13 +91,14 @@ export function ConnectionEditor({ c, panelId }: { c: Connection; panelId: strin
           <label htmlFor={`k-${c.id}`}>{t('edge.connection')}</label>
           <select id={`k-${c.id}`} value={c.kind} onChange={(e) => apply((x) => setConnection(x, c.id, { kind: e.target.value as ConnectionKind }))} data-testid="conn-kind">
             {kinds.map((o) => (
-              <option key={o} value={o}>
+              <option key={o} value={o} disabled={!!whys[o]} data-testid={`conn-kind-${o}`}>
                 {t(connKindKey(d, c, o))}
               </option>
             ))}
           </select>
         </div>
       )}
+      <KindWhyNote whys={whys} label={(k) => t(connKindKey(d, c, k))} testId="conn-kind-why" />
       {c.kind === 'finger' && (
         <Stepper label={t('conn.fingers')} value={fingerCountFor(c, len, fingerT)} step={2} min={3} max={maxFingers(len, fingerT)} slider={false} onCommit={(v) => apply((x) => setConnection(x, c.id, { fingers: v }))} testId="conn-fingers" />
       )}

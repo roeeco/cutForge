@@ -42,7 +42,7 @@ export function EdgeBar({ panelId, edge }: { panelId: string; edge: string }) {
   const L = edgeLength(panel, edge);
   const span = eg.span ?? [0, L];
   const { angle, dir } = fromHinge(grow.angle);
-  const closes = advanced ? closeChoices(design, panelId, edge, eg.ghost ?? null) : null;
+  const closes = advanced ? closeChoices(design, panelId, edge, eg.ghost ?? null, grow.kind) : null;
   const closeAs = closes ? closeChoice(closes, grow.closeAs) : null;
   return (
     <div className="card-dock">

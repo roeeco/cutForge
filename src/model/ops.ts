@@ -20,7 +20,7 @@ import { SCHEMA_VERSION } from './types';
 import { edgeFeatureKind, flapDefaultLen } from './edgeFeatures';
 import { boardEnding, hingeToFlap, LIP, refreshAutoFlaps, type Ending } from './endings';
 import { DEFAULT_MATERIAL, bendOf, connectionsFor, matOf, minWeb, normalizeMaterials, tOf } from './materials';
-import { allowedKinds, designKind, dividerKind, FACE_ORDER, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
+import { allowedKinds, designKind, dividerKind, faceOrder, groupConnections, jointGroup, jointsOf, newTrayKinds, normalizeJoints, ownerMaterial, pairKinds, patchJoints, type JointGroup } from './jointDefaults';
 import { edgeLength, growFrame, GROUND_FRAME, matDir as matDirOf, toLocal as toLocalOf, toWorld as toWorldOfFrame, type GrowDir, type Seating } from './frame';
 import { panelEdges as panelEdgesOf } from './edges';
 import { applyTrims, fixFlatNets, fixKind, flatInfo, trayWallOn } from './flatnet';
@@ -954,14 +954,15 @@ export function jointWorks(d: Design, c: Connection): boolean {
 const netState = (d: Design) => JSON.stringify(Object.values(d.trays ?? {}).map((t) => [t.id, t.fixes ?? null]));
 
 /**
- * Try the next kind in FACE_ORDER (among `allowed`) while the joint cannot be
+ * Try the next kind in the face order of the joint's board (`faceOrder`: a glue flap first on card and 1.6 mm board,
+ * tabs and slots first otherwise; among `allowed`) while the joint cannot be
  * made, or while it makes a tray's net need changing to lie flat (`nets`: the
  * nets before it was added).
  */
 export function fallBack(d: Design, cid: string, allowed: ConnectionKind[], nets?: string) {
   const c = d.connections[cid];
   if (!c) return;
-  const chain = FACE_ORDER.filter((k) => allowed.includes(k));
+  const chain = faceOrder(ownerMaterial(d, c)).filter((k) => allowed.includes(k));
   let i = chain.indexOf(c.kind);
   if (i < 0) return;
   const fits = () => jointWorks(d, d.connections[cid]) && (nets === undefined || netState(d) === nets);
@@ -1103,7 +1104,7 @@ export function addDividerLine(d: Design, baseId: string, a: P2, b: P2, height: 
   return addDividerRec(d, baseId, dividerFromLine(a, b), height);
 }
 
-/** A divider's joint with its base: the next kind along FACE_ORDER while it cannot be made. */
+/** A divider's joint with its base: the next kind along its face order while it cannot be made. */
 function dividerFallBack(d: Design, panelId: string, nets?: string) {
   const baseId = d.panels[panelId]?.place?.host;
   const c = baseJointOf(d, panelId);

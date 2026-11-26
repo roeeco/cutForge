@@ -28,8 +28,8 @@ describe('extrude', () => {
     expect(validate(d)).toEqual([]);
   });
 
-  it('corrugated corners are tab-and-slot, plywood corners fingers', () => {
-    for (const [m, wall, corner] of [[CORR4, 'fold', 'tabslot'], [CORR16, 'fold', 'tabslot'], [PLY, 'finger', 'finger']] as const) {
+  it('4 mm corrugated corners are tab-and-slot, 1.6 mm board glues them with flaps (26 November), plywood corners fingers', () => {
+    for (const [m, wall, corner] of [[CORR4, 'fold', 'tabslot'], [CORR16, 'fold', 'glue'], [PLY, 'finger', 'finger']] as const) {
       const d = createDesign(m);
       const base = addPolygonPanel(d, 0, 0, regularPolygon(6, 60))!;
       const tray = addTray(d, base, 45)!;

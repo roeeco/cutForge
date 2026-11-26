@@ -1,7 +1,7 @@
 // A box's *Lid* section (LIDS_LINES_PROJECTS_PLAN.md §4, §10.4; milestone 73),
 // on the box's card and on its lid's card, in both modes: *None · Lifts off ·
-// Hinged* as pictures (Workshop adds *Arched*, and shows *Fixed* when the box
-// has one). One that cannot be made here is greyed; tapping it says why. And a
+// Hinged* as pictures (Workshop adds *Arched* and *Fixed*: a top joined to every
+// wall, the box closed for good, 26 November). One that cannot be made here is greyed; tapping it says why. And a
 // carton's *Bottom* as pictures, where its lists are hidden (Quick build).
 import { useMemo, useState } from 'react';
 import { useStore, useT } from '../store/store';
@@ -36,7 +36,7 @@ export function LidSection({ panelId }: { panelId: string }) {
   const [failed, setFailed] = useState<LidChoice | null>(null);
   const trayId = useMemo(() => boxOfPanel(d, panelId), [d, panelId]);
   const tray = trayId ? d.trays[trayId] : undefined;
-  const choices: LidChoice[] = adv ? ['none', 'liftoff', 'hinged', 'arched'] : ['none', 'liftoff', 'hinged'];
+  const choices: LidChoice[] = adv ? ['none', 'liftoff', 'hinged', 'arched', 'fixed'] : ['none', 'liftoff', 'hinged'];
   const whys = useMemo(() => (trayId ? Object.fromEntries(choices.map((c) => [c, lidWhy(d, trayId, c)])) : {}), [d, trayId, choices.length]) as Partial<Record<LidChoice, MsgKey | null>>;
   const shut = useStore((s) => (trayId ? !!s.lidShut[trayId] : false));
   const styleWhy = useMemo(() => (trayId ? Object.fromEntries(LID_STYLES.map((st) => [st, lidStyleWhy(d, trayId, st)])) : {}), [d, trayId]) as Partial<Record<LidStyle, MsgKey | null>>;
@@ -47,19 +47,16 @@ export function LidSection({ panelId }: { panelId: string }) {
   const plywood = matOf(d, tray.baseId).kind === 'plywood';
   const carton = tray.base === 'open';
   const onLid = parts.includes(panelId);
-  const pic = { none: 'none', liftoff: 'liftoff', hinged: 'hinged', arched: 'arched' } as const;
-  const options: PictureOption<LidChoice | 'fixed'>[] = choices.map((c) => ({
+  const pic = { none: 'none', liftoff: 'liftoff', hinged: 'hinged', arched: 'arched', fixed: 'fixed' } as const;
+  const options: PictureOption<LidChoice>[] = choices.map((c) => ({
     value: c,
     label: t(`lid.kind.${c}`),
     pic: pic[c],
     testId: `lid-${c}`,
     why: whys[c] ? t(whys[c]!, trayId ? lidWhyVars(d, trayId, c) : undefined) : undefined,
   }));
-  // a board grown across the top with a plywood joint: shown, not chosen (it is made by growing)
-  if (lid.kind === 'fixed' && adv) options.push({ value: 'fixed', label: t('lid.kind.fixed'), pic: 'fixed', testId: 'lid-fixed' });
   const value = lid.kind === 'flaps' || (lid.kind === 'fixed' && !adv) ? null : lid.kind;
-  const choose = (c: LidChoice | 'fixed') => {
-    if (c === 'fixed') return;
+  const choose = (c: LidChoice) => {
     let r = { ok: true, dropped: 0 };
     apply((x) => void (r = setBoxLid(x, tray.id, c)));
     setDropped(r.dropped);

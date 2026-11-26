@@ -23,7 +23,7 @@ import { flatPanel, netGroups, netOverlaps, type NetOverlap, type NetPanel } fro
 import { connectionGeom, autoFlap, cornerFit, seamKinds } from './seams';
 import { edgeLocal, edgeInwardLocal } from './frame';
 import { findEdge, panelEdges, segDir } from './edges';
-import { matOf } from './materials';
+import { gluesByDefault, matOf } from './materials';
 import { designKind, jointsOf } from './jointDefaults';
 import { applyX, invertPoint } from '../geom/vec';
 import type { Xform2 } from '../geom/types';
@@ -59,7 +59,7 @@ export function ownKind(d: Design, baseId: string, wallId: string): ConnectionKi
   // *No glue* (slit-lock corners) holds for a wall cut off its base too (milestone 143, REPORT.md C8: *Use less board*
   // glued them back on)
   if (noGlue(d, m.kind)) return 'lock';
-  return m.kind === 'card' ? 'glue' : 'tabslot';
+  return gluesByDefault(m) ? 'glue' : 'tabslot';
 }
 
 /** The design asks for no glue in this material: its corners are slit locks (DesignSettings' *No glue*). */
